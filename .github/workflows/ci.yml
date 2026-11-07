@@ -1,5 +1,8 @@
 name: ci
 
+# Jobs run in parallel and none waits for another, so the wall time is the slowest job. Each restores its own Rust cache
+# (./.github/actions/setup) and saves it at the end even when it failed (./.github/actions/save-cache): a cache that only
+# a green run could save was never saved while the build was still being fixed, and every run compiled everything.
 on:
   push:
     branches: [main]
@@ -18,30 +21,56 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  linux:
+  # ---- Linux (ubuntu-24.04): everything `make verify` runs, in four jobs ----------------------------------------------
+
+  linux-check:
+    # Types, docs, theme, and both Rust crates (fmt, clippy -D warnings, tests). The only job that lints Rust.
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-
+        id: setup
+        with:
+          cache: linux-check
       - name: theme.json matches its generator
         # `make theme` only after the default theme's spec changes; a drift means someone edited one without the other.
         run: bun scripts/gen-theme.mjs && git diff --exit-code theme.json
+      - run: make check docs core
+      - uses: ./.github/actions/save-cache
+        if: always()
+        with:
+          key: ${{ steps.setup.outputs.cache-key }}
+          hit: ${{ steps.setup.outputs.cache-hit }}
 
-      - name: make verify
-        # nsh check, nsh test, core (fmt, clippy, tests), docs, a11y. A real GTK window needs a display and an AT-SPI bus,
-        # and Xvfb has no GPU: cairo draws.
-        run: dbus-run-session -- xvfb-run -a env GSK_RENDERER=cairo GTK_A11Y=atspi make verify
+  linux-test:
+    # Every TSX test, headless. The slowest Linux job: about 770 tests.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        id: setup
+        with:
+          cache: linux-test
+      - run: make test
+      - uses: ./.github/actions/save-cache
+        if: always()
+        with:
+          key: ${{ steps.setup.outputs.cache-key }}
+          hit: ${{ steps.setup.outputs.cache-hit }}
 
-      - name: make package
-        # The release path must keep working on every change, not only on a tag.
-        run: make package
-
-      - name: Package contents
-        run: |
-          tar -tzf ".scratch/dist/Herdr Desktop.tar.gz" | grep -E 'HerdrDesktop$|\.desktop$|\.png$|nsh/bundle\.nshc$'
-
+  linux-a11y:
+    # A real GTK window per screen under Xvfb (no GPU: cairo draws), its AT-SPI tree checked for unnamed controls.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        id: setup
+        with:
+          cache: linux-a11y
+      - run: dbus-run-session -- xvfb-run -a env GSK_RENDERER=cairo GTK_A11Y=atspi make a11y
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -50,27 +79,66 @@ jobs:
             .scratch/a11y/
             .scratch/shots/
           if-no-files-found: ignore
+      - uses: ./.github/actions/save-cache
+        if: always()
+        with:
+          key: ${{ steps.setup.outputs.cache-key }}
+          hit: ${{ steps.setup.outputs.cache-hit }}
 
-  macos:
-    # Apple silicon (macos-14 is not offered to this repository any more: "configuration macos-14-arm64-us-default is not
-    # supported"; macos-15 is). Intel Macs are not built: nsh 0.4.0 ships its macOS CLI and runtime for arm64 only
-    # (nsh-macos-arm64.tar.gz is the one macOS asset of the v0.4.0 release).
-    runs-on: macos-15
-    timeout-minutes: 60
+  linux-package:
+    # The release path must keep working on every change, not only on a tag.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
+        id: setup
+        with:
+          cache: linux-package
+      - run: make package
+      - name: Package contents
+        run: |
+          tar -tzf ".scratch/dist/Herdr Desktop.tar.gz" | grep -E 'HerdrDesktop$|\.desktop$|\.png$|nsh/bundle\.nshc$'
+      - uses: ./.github/actions/save-cache
+        if: always()
+        with:
+          key: ${{ steps.setup.outputs.cache-key }}
+          hit: ${{ steps.setup.outputs.cache-hit }}
 
-      - name: make verify-mac
-        # nsh check, nsh test (headless: no window server is needed), core (fmt, clippy, tests of both crates), docs.
-        # What Linux adds and macOS skips: the AT-SPI audit (`make a11y`), the Xvfb screenshots and the perf/cpu scripts.
-        # They read Linux's accessibility bus and /proc, so a Mac has no equivalent gate yet.
-        run: make verify-mac
+  # ---- macOS: Apple silicon. Intel Macs are not built: nsh 0.4.0 ships its macOS CLI and runtime for arm64 only
+  # (nsh-macos-arm64.tar.gz is the one macOS asset of the v0.4.0 release). macos-14 is not offered to this repository any
+  # more ("configuration macos-14-arm64-us-default is not supported"); macos-15 is. -----------------------------------------
 
-      - name: make package
-        # nsh signs the .app ad hoc (no Apple developer account): Gatekeeper wants a first right-click, Open.
-        run: make package
+  macos-check:
+    # `make verify-mac`: nsh check, both crates' fmt/clippy/tests (the cfg(target_os = "macos") Rust is only proven here),
+    # docs, and a smoke subset of the TSX tests. The other 770 TSX tests are platform independent: Linux runs them. Not run:
+    # the AT-SPI audit, the Xvfb screenshots and the perf/cpu scripts (Linux's accessibility bus and /proc).
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        id: setup
+        with:
+          cache: macos-check
+      - run: make verify-mac
+      - uses: ./.github/actions/save-cache
+        if: always()
+        with:
+          key: ${{ steps.setup.outputs.cache-key }}
+          hit: ${{ steps.setup.outputs.cache-hit }}
 
+  macos-package:
+    # nsh signs the .app ad hoc (no Apple developer account): Gatekeeper wants a first right-click, Open.
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        id: setup
+        with:
+          cache: macos-package
+      - run: make package
       - name: The .app is a bundle with its executable
         run: |
           app=".scratch/dist/Herdr Desktop.app"
@@ -78,13 +146,16 @@ jobs:
           test -x "$app/Contents/MacOS/"*
           plutil -p "$app/Contents/Info.plist" | grep -E 'CFBundle(Identifier|ShortVersionString)'
           codesign --verify --deep --strict "$app"
-
       - name: Zip the app (ditto keeps permissions and the signature; upload-artifact would not)
         run: ditto -c -k --keepParent ".scratch/dist/Herdr Desktop.app" Herdr-Desktop-macos-arm64.zip
-
       - uses: actions/upload-artifact@v4
         with:
           name: Herdr-Desktop-macos-arm64
           path: Herdr-Desktop-macos-arm64.zip
           retention-days: 7
           if-no-files-found: error
+      - uses: ./.github/actions/save-cache
+        if: always()
+        with:
+          key: ${{ steps.setup.outputs.cache-key }}
+          hit: ${{ steps.setup.outputs.cache-hit }}

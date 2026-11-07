@@ -1,0 +1,22 @@
+name: Save the Rust cache
+description: >
+  Saves what ./.github/actions/setup restored (same paths), whether the job passed or not; run it with `if: always()`.
+  Nothing is saved when the exact key already exists.
+inputs:
+  key:
+    description: The `cache-key` output of ./.github/actions/setup.
+    required: true
+  hit:
+    description: The `cache-hit` output of ./.github/actions/setup.
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache/save@v4
+      if: inputs.hit != 'true'
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ inputs.key }}

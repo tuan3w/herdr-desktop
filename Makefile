@@ -7,20 +7,27 @@ export HERDR_DESKTOP_TEST := 1
 CORE := native/core/Cargo.toml
 APP  := native/app/Cargo.toml
 
-.PHONY: verify verify-mac check test core docs a11y run package theme perf cpu schema shots
+.PHONY: verify verify-mac check test test-smoke core docs a11y run package theme perf cpu schema shots
 
 # Linux: everything. `a11y` needs AT-SPI (dbus, Xvfb, python3-gi), which only Linux has.
 verify: check test core docs a11y
 
-# macOS: the same minus `a11y`. The AT-SPI audit, the screenshots (`shots`) and the CPU/frame scripts (`perf`, `cpu`)
-# read Linux's accessibility bus and /proc; nothing replaces them on a Mac yet, and docs/ACCESSIBILITY.md says so.
-verify-mac: check test core docs
+# macOS: what the platform can change. The 770 TSX tests are platform independent (Linux runs all of them), so a Mac runs
+# `nsh check`, both crates' fmt/clippy/tests (the Rust has cfg(target_os) code of its own) and a smoke subset of the TSX
+# tests. Not run there: `a11y` (the AT-SPI audit reads Linux's accessibility bus), the Xvfb screenshots (`shots`) and the
+# perf/cpu scripts (/proc); nothing replaces them on a Mac yet, and docs/MACOS.md says so.
+verify-mac: check core docs test-smoke
 
 check:
 	nsh check
 
 test:
 	nsh test
+
+# The whole app opened and every global shortcut pressed: enough to see the headless runner works on this platform.
+test-smoke:
+	nsh test App.test.tsx
+	nsh test lib/shortcuts.test.ts
 
 # Pure Rust crate (no nsh) and the native crate: format, lints, tests.
 core:

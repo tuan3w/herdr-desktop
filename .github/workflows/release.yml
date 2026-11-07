@@ -85,6 +85,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
+        id: setup
+        with:
+          # A tag's caches are visible to that tag only, so a release starts from whatever main saved under this name (none:
+          # a release build is cold, about 25 minutes).
+          cache: release
 
       - name: make verify (a real GTK window under Xvfb, with the AT-SPI audit)
         if: runner.os == 'Linux'
@@ -124,6 +129,12 @@ jobs:
           path: release/*
           retention-days: 14
           if-no-files-found: error
+
+      - uses: ./.github/actions/save-cache
+        if: always()
+        with:
+          key: ${{ steps.setup.outputs.cache-key }}
+          hit: ${{ steps.setup.outputs.cache-hit }}
 
       - uses: actions/upload-artifact@v4
         if: failure() && runner.os == 'Linux'

@@ -2,6 +2,17 @@ name: Set up Herdr Desktop
 description: >
   System packages (Linux), nsh 0.4.0, the pinned Rust toolchain with a cache keyed on the Cargo.lock files, bun and node.
   One place, so ci.yml and release.yml build the same way on Linux and macOS.
+inputs:
+  cache:
+    description: Names this job's Rust cache; the job ends with ./.github/actions/save-cache given the same outputs.
+    required: true
+outputs:
+  cache-key:
+    description: The exact key of this job's Rust cache, for save-cache.
+    value: ${{ steps.cache.outputs.cache-primary-key }}
+  cache-hit:
+    description: "true when the cache was restored from exactly that key, so there is nothing to save."
+    value: ${{ steps.cache.outputs.cache-hit }}
 runs:
   using: composite
   steps:
@@ -30,14 +41,20 @@ runs:
       run: rustup show active-toolchain || rustup toolchain install
 
     - name: Rust cache
-      uses: actions/cache@v4
+      id: cache
+      # Restore only: `actions/cache` saves in a post step that runs when the job succeeds, so a job that never
+      # went green never filled the cache and every run recompiled everything. The job saves it itself, even after a
+      # failure (`./.github/actions/save-cache`, which names the same paths). One cache per OS and job, because the
+      # jobs build different things (check, the headless test runner, the GTK host, a release build) and a cache
+      # saved by whichever finished first would hold only its part.
+      uses: actions/cache/restore@v4
       with:
         path: |
           ~/.cargo/registry
           ~/.cargo/git
           target
-        key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('native/core/Cargo.lock', 'native/app/Cargo.lock', 'rust-toolchain.toml') }}
-        restore-keys: rust-${{ runner.os }}-${{ runner.arch }}-
+        key: rust-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache }}-${{ hashFiles('native/core/Cargo.lock', 'native/app/Cargo.lock', 'rust-toolchain.toml') }}
+        restore-keys: rust-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache }}-
 
     - uses: oven-sh/setup-bun@v2
 
