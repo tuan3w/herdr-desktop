@@ -1071,3 +1071,137 @@ fn through_a_real_sshd_requests_events_one_shots_and_reconnects_work() {
 
     wire.shutdown();
 }
+
+/// Counts the connection attempts a link makes, to tell a stopped retry loop from a quiet one.
+struct Counting {
+    inner: SshWire,
+    attempts: std::sync::atomic::AtomicUsize,
+}
+
+impl Wire for Counting {
+    fn request(
+        &self,
+        method: &str,
+        params: Value,
+        timeout: Duration,
+    ) -> Result<Value, herdr_core::wire::WireError> {
+        self.attempts
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.inner.request(method, params, timeout)
+    }
+
+    fn events(
+        &self,
+        subscriptions: &[Value],
+    ) -> Result<Box<dyn herdr_core::wire::EventStream>, herdr_core::wire::WireError> {
+        self.inner.events(subscriptions)
+    }
+}
+
+/// A link on a real ssh whose host key cannot be trusted: it must show `Attention` with the one thing
+/// to do, make no further attempt however long it waits, and try again only when told.
+fn assert_link_stops_in_attention(
+    client: SshClient,
+    target: &SshTarget,
+    expected: Fatal,
+    text: &str,
+) {
+    use herdr_core::link::{LinkConfig, LinkState, MachineLink, ManualClock, Timing};
+    use std::sync::atomic::Ordering;
+
+    let clock = Arc::new(ManualClock::new());
+    let wire = Arc::new(Counting {
+        inner: SshWire::new(client, target.clone()),
+        attempts: std::sync::atomic::AtomicUsize::new(0),
+    });
+    let (updates, _rx) = unbounded();
+    let link = MachineLink::start(
+        LinkConfig {
+            machine: "remote".into(),
+            wire: wire.clone(),
+            clock: clock.clone(),
+            timing: Timing::default(),
+            enabled: true,
+        },
+        updates,
+    );
+    eventually("the link to need attention", || {
+        matches!(link.state(), LinkState::Attention(_))
+    });
+    let status = link.status();
+    assert_eq!(status.fatal, Some(expected), "{status:?}");
+    let LinkState::Attention(reason) = &status.state else {
+        unreachable!()
+    };
+    assert!(reason.contains(text), "{reason}");
+    assert!(
+        status.retry_at.is_none(),
+        "there is nothing to count down to"
+    );
+
+    let attempts = wire.attempts.load(Ordering::SeqCst);
+    clock.advance(Duration::from_secs(600));
+    clock.advance(Duration::from_secs(600));
+    // Let a retry that should not happen show itself.
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(wire.attempts.load(Ordering::SeqCst), attempts, "no retry");
+    assert!(matches!(link.state(), LinkState::Attention(_)));
+
+    link.reconnect_now();
+    eventually("the retry the person asked for", || {
+        wire.attempts.load(Ordering::SeqCst) > attempts
+    });
+    eventually("attention again", || {
+        matches!(link.state(), LinkState::Attention(_))
+    });
+    link.shutdown();
+}
+
+/// Real ssh to a destination whose host key is not in `known_hosts`, and to one whose key differs from
+/// what `known_hosts` holds: both are fatal with the right words, and the link stops retrying.
+#[test]
+#[ignore = "needs sshd and key login: set HERDR_DESKTOP_SSH_TEST=localhost"]
+fn through_a_real_sshd_an_untrusted_or_changed_host_key_stops_the_link_until_told() {
+    let Ok(dest) = std::env::var("HERDR_DESKTOP_SSH_TEST") else {
+        panic!("set HERDR_DESKTOP_SSH_TEST to the destination, for example localhost");
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let target = SshTarget::new(&dest, None, None, None).unwrap();
+    let strict = |name: &str, known_hosts: &Path| {
+        SshClient::new(&dir.path().join(name))
+            .unwrap()
+            .config_file("/dev/null")
+            .option(format!("UserKnownHostsFile={}", known_hosts.display()))
+            .option("StrictHostKeyChecking=yes")
+            // The key type of the throwaway entry below, so ssh compares like with like.
+            .option("HostKeyAlgorithms=ssh-ed25519")
+    };
+
+    // Not trusted yet: an empty known_hosts.
+    let empty = dir.path().join("empty");
+    std::fs::write(&empty, "").unwrap();
+    assert_link_stops_in_attention(
+        strict("unknown", &empty),
+        &target,
+        Fatal::HostKeyUnknown,
+        &format!("run `ssh {dest}` once"),
+    );
+
+    // Changed: known_hosts names this host with another key (a throwaway one, never the real one).
+    let key = dir.path().join("throwaway");
+    let made = Command::new("ssh-keygen")
+        .args(["-q", "-t", "ed25519", "-N", "", "-C", "throwaway", "-f"])
+        .arg(&key)
+        .status()
+        .unwrap();
+    assert!(made.success());
+    let public = std::fs::read_to_string(dir.path().join("throwaway.pub")).unwrap();
+    let known = dir.path().join("changed");
+    std::fs::write(&known, format!("{dest} {public}")).unwrap();
+    assert_link_stops_in_attention(
+        strict("changed", &known),
+        &target,
+        Fatal::HostKeyChanged,
+        "has changed",
+    );
+}

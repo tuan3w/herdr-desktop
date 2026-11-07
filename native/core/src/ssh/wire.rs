@@ -425,6 +425,22 @@ fn last_line(stderr: &str) -> String {
 }
 
 impl Wire for SshWire {
+    fn child_pids(&self) -> Vec<u32> {
+        let mut pids: Vec<u32> = lock(&self.inner.channel)
+            .iter()
+            .filter(|c| c.proc.is_running())
+            .map(|c| c.proc.pid())
+            .collect();
+        pids.extend(
+            lock(&self.inner.streams)
+                .iter()
+                .filter_map(Weak::upgrade)
+                .filter(|p| p.is_running())
+                .map(|p| p.pid()),
+        );
+        pids
+    }
+
     fn request(&self, method: &str, params: Value, timeout: Duration) -> Answer {
         let inner = &self.inner;
         if inner.bridge_mode.load(Ordering::Relaxed) {

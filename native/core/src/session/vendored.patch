@@ -1,0 +1,2264 @@
+--- a/attach.rs
++++ a/attach.rs
+@@ -286,6 +286,28 @@
+     Value::Array(out)
+ }
+ 
++/// The files of a message as the transcript lists them next to its text: a picture, or a link to a file.
++/// The bytes are not kept here (the message already went with them).
++#[must_use]
++pub fn parts(files: &[Attachment]) -> Vec<crate::session::vendored::acp::Part> {
++    use crate::session::vendored::acp::{Part, PartKind};
++    files
++        .iter()
++        .map(|f| Part {
++            kind: if f.picture.is_some() && !f.link {
++                PartKind::Image
++            } else {
++                PartKind::Link
++            },
++            name: f.short().to_string(),
++            uri: Some(f.uri.clone()),
++            mime: f.picture.map(str::to_string),
++            size: Some(f.size),
++            data: None,
++        })
++        .collect()
++}
++
+ /// How the message is shown in the conversation: the text, then each file on its own line
+ /// (`[Image #1] name` for a numbered picture, `@name` for a file).
+ #[must_use]
+--- a/question.rs
++++ a/question.rs
+@@ -11,10 +11,7 @@
+ //! The answer is built as the phone builds it (`question_form.dart`, `acp_models.dart`), so an
+ //! agent cannot tell which client answered.
+ 
+-use crate::session::vendored::md::{self, clean};
+-use crate::session::vendored::theme::Theme;
+-use ratatui::style::{Modifier, Style};
+-use ratatui::text::{Line, Span};
++use crate::session::vendored::text::{self as md, clean};
+ use serde_json::{json, Map, Value};
+ 
+ /// One choice of an enum.
+@@ -595,263 +592,6 @@
+         md::one_line(&all.join(" · "), 300)
+     }
+ 
+-    /// The panel's lines, untinted, with the option of the field on screen each row draws (what
+-    /// a click on that row does). `total`: the requests waiting, this one included. The agent's
+-    /// message is cut at `max_message` rows. `max_rows`:
+-    /// the rows the panel has room for; over it, answered fields fold into a count and the
+-    /// descriptions are cut, never the field on screen or the keys line.
+-    #[must_use]
+-    pub fn lines(
+-        &self,
+-        total: usize,
+-        width: usize,
+-        max_message: usize,
+-        max_rows: usize,
+-        theme: Theme,
+-    ) -> (Vec<Line<'static>>, Vec<Option<usize>>) {
+-        let wrap = width.saturating_sub(2);
+-        let more = if total > 1 {
+-            format!("  ({total} waiting)")
+-        } else {
+-            String::new()
+-        };
+-        let mut rows = vec![
+-            Line::default(),
+-            Line::from(vec![
+-                Span::raw("  "),
+-                Span::styled("▲ Needs you", theme.warn()),
+-                Span::styled(format!(" · Question{more}"), theme.bold()),
+-            ]),
+-            Line::default(),
+-        ];
+-        let text = |s: &str, style: Style, lead: &str| {
+-            let lead = lead.to_string();
+-            let mut out = Vec::new();
+-            for line in clean(s).replace('\t', "    ").lines() {
+-                if line.trim().is_empty() {
+-                    out.push(Line::default());
+-                    continue;
+-                }
+-                out.extend(md::wrap_spans(
+-                    vec![Span::styled(line.to_string(), style)],
+-                    vec![Span::raw(lead.clone())],
+-                    vec![Span::raw(lead.clone())],
+-                    wrap,
+-                ));
+-            }
+-            out
+-        };
+-        let message = if self.message.trim().is_empty() {
+-            "The agent has a question"
+-        } else {
+-            self.message.trim()
+-        };
+-        let mut said = text(message, theme.bold(), "  ");
+-        if said.len() > max_message {
+-            said.truncate(max_message);
+-            said.push(Line::from(Span::styled("  …", theme.dim())));
+-        }
+-        let mut form_desc = self
+-            .description
+-            .as_deref()
+-            .map(|d| text(d, theme.dim(), "  "))
+-            .unwrap_or_default();
+-        // The answers so far, one line each, so all of them are in sight before the last Enter.
+-        let answered: Vec<Vec<Line<'static>>> = (0..self.at.min(self.fields.len()))
+-            .map(|i| {
+-                let label = md::one_line(self.fields[i].label(), 60);
+-                md::wrap_spans(
+-                    vec![
+-                        Span::styled(format!("{label}  "), theme.dim()),
+-                        Span::raw(self.said(i)),
+-                    ],
+-                    vec![Span::raw("  "), Span::styled("✓ ", theme.ok())],
+-                    vec![Span::raw("    ")],
+-                    wrap,
+-                )
+-            })
+-            .collect();
+-        // The field on screen in three parts: its title, its description (which may be cut), and
+-        // the rest (secret warning, choices, hint), whose rows `rest_options` maps to options.
+-        let mut field_head: Vec<Line<'static>> = Vec::new();
+-        let mut field_desc: Vec<Line<'static>> = Vec::new();
+-        let mut rest: Vec<Line<'static>> = Vec::new();
+-        let mut rest_options: Vec<Option<usize>> = Vec::new();
+-        if let Some(f) = self.field() {
+-            let slot = &self.slots[self.at];
+-            let mut head = vec![Span::styled(md::one_line(f.label(), 200), theme.bold())];
+-            if !f.required && !matches!(f.kind, Kind::Bool) {
+-                head.push(Span::styled(" (optional)", theme.dim()));
+-            }
+-            if self.fields.len() > 1 {
+-                head.push(Span::styled(
+-                    format!("  {} of {}", self.at + 1, self.fields.len()),
+-                    theme.dim(),
+-                ));
+-            }
+-            field_head = md::wrap_spans(head, vec![Span::raw("  ")], vec![Span::raw("  ")], wrap);
+-            if let Some(d) = &f.description {
+-                field_desc = text(d, theme.dim(), "  ");
+-            }
+-            if f.secret {
+-                rest.extend(text(
+-                    "Marked secret by the agent: what you type goes to it as plain text, not hidden.",
+-                    theme.bad(),
+-                    "  ",
+-                ));
+-            }
+-            let many = matches!(f.kind, Kind::Many { .. });
+-            for (i, title) in f.rows().iter().enumerate() {
+-                let marked = i == slot.cursor;
+-                let (mark, style) = if marked {
+-                    ("› ", theme.accent().add_modifier(Modifier::BOLD))
+-                } else {
+-                    ("  ", Style::default())
+-                };
+-                let tick = if !many {
+-                    ""
+-                } else if slot.ticked.get(i).copied().unwrap_or(false) {
+-                    "☑ "
+-                } else {
+-                    "☐ "
+-                };
+-                let lines = md::wrap_spans(
+-                    vec![Span::styled(
+-                        format!("{tick}{}. {}", i + 1, clean(title)),
+-                        style,
+-                    )],
+-                    vec![Span::raw("  "), Span::styled(mark, style)],
+-                    vec![Span::raw(" ".repeat(7 + tick.chars().count()))],
+-                    width.saturating_sub(2),
+-                );
+-                rest_options.resize(rest.len(), None);
+-                rest_options.extend(std::iter::repeat_n(Some(i), lines.len()));
+-                rest.extend(lines);
+-            }
+-            let hint = match &f.kind {
+-                Kind::Text { min_len, max_len } => Some(match (min_len, max_len) {
+-                    (Some(a), Some(b)) => {
+-                        format!("Type it in the box below: {a} to {b} characters")
+-                    }
+-                    (Some(a), None) => format!("Type it in the box below: at least {a} characters"),
+-                    (None, Some(b)) => format!("Type it in the box below: at most {b} characters"),
+-                    (None, None) => "Type it in the box below".to_string(),
+-                }),
+-                Kind::Number { integer, min, max } => {
+-                    let what = if *integer {
+-                        "a whole number"
+-                    } else {
+-                        "a number"
+-                    };
+-                    Some(match (min, max) {
+-                        (Some(a), Some(b)) => {
+-                            format!(
+-                                "Type {what} in the box below, {} to {}",
+-                                bound(*a),
+-                                bound(*b)
+-                            )
+-                        }
+-                        (Some(a), None) => {
+-                            format!("Type {what} in the box below, at least {}", bound(*a))
+-                        }
+-                        (None, Some(b)) => {
+-                            format!("Type {what} in the box below, at most {}", bound(*b))
+-                        }
+-                        (None, None) => format!("Type {what} in the box below"),
+-                    })
+-                }
+-                Kind::Unknown(ty) => Some(format!(
+-                    "This terminal cannot show a field of type “{}”.",
+-                    md::one_line(ty, 40)
+-                )),
+-                Kind::One(o) if o.is_empty() => Some("No choices were offered.".into()),
+-                _ => None,
+-            };
+-            if let Some(h) = hint {
+-                rest.extend(text(&h, theme.dim(), "  "));
+-            }
+-        } else {
+-            rest.extend(text("Nothing to fill in.", theme.dim(), "  "));
+-        }
+-        rest_options.resize(rest.len(), None);
+-        let mut tail: Vec<Line<'static>> = Vec::new();
+-        if let Some(ms) = self.auto_ms {
+-            tail.push(Line::default());
+-            tail.extend(text(
+-                &format!(
+-                    "The agent goes on without an answer {} after it asked.",
+-                    crate::session::vendored::elapsed::duration(ms.div_ceil(1000))
+-                ),
+-                theme.dim(),
+-                "  ",
+-            ));
+-        }
+-        tail.push(Line::default());
+-        tail.extend(text(&self.keys(), theme.dim(), "  "));
+-        tail.push(Line::default());
+-
+-        // Over the room the panel has: fold the answered rows first (the last one or two stay,
+-        // with a count of the rest), then cut descriptions. The field on screen (its choices)
+-        // and the keys line are never cut.
+-        let kept = |keep: usize| -> usize {
+-            let n = answered.len();
+-            if keep >= n {
+-                answered.iter().map(Vec::len).sum()
+-            } else {
+-                1 + answered[n - keep..].iter().map(Vec::len).sum::<usize>()
+-            }
+-        };
+-        let fixed =
+-            |said: &[Line<'static>], form_desc: &[Line<'static>], field_desc: &[Line<'static>]| {
+-                rows.len()
+-                    + said.len()
+-                    + form_desc.len()
+-                    + 1
+-                    + field_head.len()
+-                    + field_desc.len()
+-                    + rest.len()
+-                    + tail.len()
+-            };
+-        let n = answered.len();
+-        let room = max_rows.saturating_sub(fixed(&said, &form_desc, &field_desc));
+-        let keep = if kept(n) <= room {
+-            n
+-        } else {
+-            (0..=n.min(2)).rev().find(|&k| kept(k) <= room).unwrap_or(0)
+-        };
+-        let mut over =
+-            (fixed(&said, &form_desc, &field_desc) + kept(keep)).saturating_sub(max_rows);
+-        for block in [&mut form_desc, &mut said, &mut field_desc] {
+-            if over == 0 {
+-                break;
+-            }
+-            over -= cut(block, over, theme);
+-        }
+-
+-        rows.extend(said);
+-        rows.extend(form_desc);
+-        rows.push(Line::default());
+-        if keep < n {
+-            rows.push(Line::from(vec![
+-                Span::raw("  "),
+-                Span::styled("✓ ", theme.ok()),
+-                Span::styled(format!("{} answered", n - keep), theme.dim()),
+-            ]));
+-        }
+-        for group in &answered[n - keep..] {
+-            rows.extend(group.iter().cloned());
+-        }
+-        rows.extend(field_head);
+-        rows.extend(field_desc);
+-        let mut options: Vec<Option<usize>> = Vec::new();
+-        options.resize(rows.len(), None);
+-        options.extend(rest_options);
+-        rows.extend(rest);
+-        rows.extend(tail);
+-        options.resize(rows.len(), None);
+-        (rows, options)
+-    }
+-
+     /// The keys the field on screen takes.
+     fn keys(&self) -> String {
+         let enter = if self.at + 1 >= self.fields.len() {
+@@ -879,19 +619,6 @@
+     !typed || boxed.is_empty()
+ }
+ 
+-/// Cut `block` by up to `by` rows, ending it with an ellipsis; at least a row and the ellipsis
+-/// stay. Returns the rows saved.
+-fn cut(block: &mut Vec<Line<'static>>, by: usize, theme: Theme) -> usize {
+-    let len = block.len();
+-    if len <= 2 {
+-        return 0;
+-    }
+-    let to = len.saturating_sub(by).max(2);
+-    block.truncate(to - 1);
+-    block.push(Line::from(Span::styled("  …", theme.dim())));
+-    len - to
+-}
+-
+ /// The `result` that declines a question.
+ #[must_use]
+ pub fn declined() -> Value {
+@@ -1154,96 +881,6 @@
+     }
+ 
+     #[test]
+-    fn the_panel_maps_each_choice_row_to_its_option_and_shows_earlier_answers() {
+-        let mut f = form(claude_ask());
+-        let (rows, options) = f.lines(1, 60, 10, 100, Theme::plain());
+-        let text: Vec<String> = rows
+-            .iter()
+-            .map(|l| l.spans.iter().map(|s| s.content.as_ref()).collect())
+-            .collect();
+-        let row_of = |needle: &str| text.iter().position(|r| r.contains(needle)).expect(needle);
+-        assert_eq!(options[row_of("1. Safe")], Some(0));
+-        assert_eq!(options[row_of("2. Fast")], Some(1));
+-        assert_eq!(options[row_of("Needs you")], None);
+-        assert_eq!(rows.len(), options.len());
+-
+-        f.act(Act::Pick(1), 0).expect("picked");
+-        enter(&mut f, "").expect("next");
+-        let (rows, options) = f.lines(1, 60, 10, 100, Theme::plain());
+-        let text: String = rows
+-            .iter()
+-            .flat_map(|l| l.spans.iter().map(|s| s.content.to_string()))
+-            .collect();
+-        assert!(
+-            text.contains("Fast — riskier"),
+-            "the answer so far stays in sight: {text}"
+-        );
+-        assert!(
+-            options.iter().all(Option::is_none),
+-            "a typed field has no rows to click"
+-        );
+-    }
+-
+-    #[test]
+-    fn a_form_over_its_room_folds_answers_and_cuts_descriptions_but_never_the_field() {
+-        let mut props = serde_json::Map::new();
+-        for i in 0..6 {
+-            props.insert(
+-                format!("f{i}"),
+-                json!({"type": "string", "title": format!("Step {i}"), "enum": ["a", "b"]}),
+-            );
+-        }
+-        props.insert(
+-            "last".into(),
+-            json!({"type": "string", "enum": ["red", "green"],
+-                   "description": "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen"}),
+-        );
+-        let mut f = form(
+-            json!({"message": "Hello", "requestedSchema": {"type": "object", "properties": props}}),
+-        );
+-        for _ in 0..6 {
+-            f.act(Act::Pick(0), 0).expect("picked");
+-            enter(&mut f, "").expect("next");
+-        }
+-        let (all, _) = f.lines(1, 40, 10, 100, Theme::plain());
+-        let (rows, options) = f.lines(1, 40, 10, 18, Theme::plain());
+-        assert!(rows.len() < all.len() && rows.len() <= 18, "{}", rows.len());
+-        let text: Vec<String> = rows
+-            .iter()
+-            .map(|l| l.spans.iter().map(|s| s.content.as_ref()).collect())
+-            .collect();
+-        let joined = text.join("\n");
+-        for needle in ["1. red", "2. green", "Esc declines", "Step 5"] {
+-            assert!(joined.contains(needle), "{needle}:\n{joined}");
+-        }
+-        assert!(
+-            !joined.contains("Step 0"),
+-            "early answers are folded:\n{joined}"
+-        );
+-        assert_eq!(rows.len(), options.len());
+-        let row_of = |needle: &str| text.iter().position(|r| r.contains(needle)).expect(needle);
+-        assert_eq!(options[row_of("2. green")], Some(1));
+-        assert_eq!(options[row_of("Step 5")], None);
+-
+-        // Tighter still: nothing is left to fold but the count, so the description is cut.
+-        let (rows, _) = f.lines(1, 40, 10, 15, Theme::plain());
+-        let tight: String = rows
+-            .iter()
+-            .map(|l| {
+-                l.spans
+-                    .iter()
+-                    .map(|s| s.content.as_ref())
+-                    .collect::<String>()
+-            })
+-            .collect::<Vec<_>>()
+-            .join("\n");
+-        assert!(rows.len() <= 15, "{tight}");
+-        for needle in ["1. red", "2. green", "Esc declines", "answered", "…"] {
+-            assert!(tight.contains(needle), "{needle}:\n{tight}");
+-        }
+-    }
+-
+-    #[test]
+     fn esc_keeps_an_answer_being_typed_and_declines_otherwise() {
+         assert!(!esc_declines(true, "80"), "a typed answer survives a slip");
+         assert!(esc_declines(true, ""));
+--- a/session.rs
++++ a/session.rs
+@@ -35,6 +35,10 @@
+     WaitingForSession,
+     /// `session/load` (replay) or `session/new` is in flight.
+     Opening,
++    /// The agent wants the person signed in before it opens a session (ACP `auth_required`): its ways
++    /// are in [`Session::agent`]; [`Session::authenticate`] takes one, [`Session::reopen`] tries again
++    /// after the person signed in some other way.
++    AuthRequired,
+     Ready,
+     /// Over, with the reason in words.
+     Ended(String),
+@@ -131,6 +135,101 @@
+     Invalid(String),
+ }
+ 
++/// One way an agent lets the person sign in (`authMethods` of `initialize`).
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct AuthMethod {
++    pub id: String,
++    pub name: String,
++    pub description: Option<String>,
++    /// A method the person carries out in a terminal on the agent's machine (`type: terminal`): the
++    /// arguments the agent says to run it with. `None` for one the agent handles itself
++    /// (`authenticate` answers it).
++    pub terminal_args: Option<Vec<String>>,
++}
++
++/// What the agent said it can do in `initialize` (`agentCapabilities`, `agentInfo`, `authMethods`).
++#[derive(Clone, Debug, Default, PartialEq, Eq)]
++pub struct AgentCaps {
++    pub name: Option<String>,
++    pub title: Option<String>,
++    pub version: Option<String>,
++    /// `promptCapabilities.image`: a prompt may carry pictures.
++    pub images: bool,
++    /// `promptCapabilities.audio`.
++    pub audio: bool,
++    /// `promptCapabilities.embeddedContext`: a prompt may embed a file's text.
++    pub embedded_context: bool,
++    /// `loadSession`.
++    pub load_session: bool,
++    /// `sessionCapabilities.resume`.
++    pub resume: bool,
++    /// `sessionCapabilities.list`.
++    pub list: bool,
++    /// `sessionCapabilities.close`.
++    pub close: bool,
++    /// `auth.logout`.
++    pub logout: bool,
++    pub auth_methods: Vec<AuthMethod>,
++}
++
++impl AgentCaps {
++    /// Reads the keeper's answer to `initialize`, which is the agent's own with `loadSession` set.
++    fn from_init(init: &Value) -> AgentCaps {
++        let flag = |p: &str| init.pointer(p).and_then(Value::as_bool).unwrap_or(false);
++        // `{}` is how a capability that takes no settings is switched on.
++        let has = |p: &str| init.pointer(p).is_some_and(|v| !v.is_null() && v != &json!(false));
++        let text = |p: &str| {
++            init.pointer(p)
++                .and_then(Value::as_str)
++                .map(str::to_string)
++                .filter(|s| !s.is_empty())
++        };
++        let auth_methods = init
++            .get("authMethods")
++            .and_then(Value::as_array)
++            .into_iter()
++            .flatten()
++            .filter_map(|m| {
++                let id = m.get("id")?.as_str()?.to_string();
++                let name = m.get("name").and_then(Value::as_str).unwrap_or(&id).to_string();
++                Some(AuthMethod {
++                    description: m
++                        .get("description")
++                        .and_then(Value::as_str)
++                        .map(str::to_string)
++                        .filter(|d| !d.is_empty()),
++                    terminal_args: (m.get("type").and_then(Value::as_str) == Some("terminal"))
++                        .then(|| {
++                            m.get("args")
++                                .and_then(Value::as_array)
++                                .into_iter()
++                                .flatten()
++                                .filter_map(|a| a.as_str().map(str::to_string))
++                                .collect()
++                        }),
++                    id,
++                    name,
++                })
++            })
++            .collect();
++        AgentCaps {
++            name: text("/agentInfo/name"),
++            title: text("/agentInfo/title"),
++            version: text("/agentInfo/version"),
++            // A boolean `true`, as on the phone (`_b(prompt['image'])`).
++            images: flag("/agentCapabilities/promptCapabilities/image"),
++            audio: flag("/agentCapabilities/promptCapabilities/audio"),
++            embedded_context: flag("/agentCapabilities/promptCapabilities/embeddedContext"),
++            load_session: flag("/agentCapabilities/loadSession"),
++            resume: has("/agentCapabilities/sessionCapabilities/resume"),
++            list: has("/agentCapabilities/sessionCapabilities/list"),
++            close: has("/agentCapabilities/sessionCapabilities/close"),
++            logout: has("/agentCapabilities/auth/logout"),
++            auth_methods,
++        }
++    }
++}
++
+ #[derive(Debug)]
+ enum Call {
+     Init,
+@@ -150,6 +249,15 @@
+         what: String,
+         choice: String,
+     },
++    /// A change of the mode of an agent that reports `modes` and no config options
++    /// (`session/set_mode`): the mode's id, and the names the person sees, for the note.
++    SetMode {
++        mode_id: String,
++        what: String,
++        choice: String,
++    },
++    /// `authenticate` with a method the agent handles itself: the method's name, for the note.
++    Authenticate { name: String },
+ }
+ 
+ #[derive(Debug)]
+@@ -162,8 +270,17 @@
+     waiting: Vec<Waiting>,
+     /// The `_meta.herdr.pane` the keeper is told about, when run inside a herdr pane.
+     pane: Option<String>,
+-    /// The agent takes pictures in a prompt (`promptCapabilities.image`, from `initialize`).
+-    images: bool,
++    /// What the agent said it can do in `initialize`.
++    agent: AgentCaps,
++    /// The person asked the agent to stop, and the turn has not ended: an error answering the prompt is
++    /// the stop, not a failure (ACP: the agent answers a cancelled prompt with the `cancelled` stop
++    /// reason, and a client treats an error as one).
++    cancelling: bool,
++    /// The last `session/new` or `session/load` sent, to send again after a sign-in.
++    last_open: Option<(&'static str, Value)>,
++    /// The agent was asked to `session/resume` because it would not `session/load`: the earlier messages
++    /// are not replayed.
++    resumed: bool,
+ }
+ 
+ impl Session {
+@@ -178,7 +295,10 @@
+             calls: HashMap::new(),
+             waiting: Vec::new(),
+             pane,
+-            images: false,
++            agent: AgentCaps::default(),
++            cancelling: false,
++            last_open: None,
++            resumed: false,
+         };
+         let mut meta = json!({"viewer": true});
+         if let Some(p) = &s.pane {
+@@ -188,7 +308,7 @@
+             Call::Init,
+             method::INITIALIZE,
+             json!({"protocolVersion": 1, "clientCapabilities": {},
+-                   "clientInfo": {"name": "herdr-tui", "title": format!("Terminal on {}", crate::session::vendored::host::short_host()), "version": crate::session::vendored::cli::VERSION},
++                   "clientInfo": {"name": crate::session::vendored::CLIENT_NAME, "title": crate::session::vendored::client_title(), "version": crate::session::vendored::CLIENT_VERSION},
+                    "_meta": {"herdr": meta}}),
+         );
+         (s, vec![init])
+@@ -219,7 +339,12 @@
+     /// Whether the agent takes pictures in a prompt.
+     #[must_use]
+     pub fn accepts_pictures(&self) -> bool {
+-        self.images
++        self.agent.images
++    }
++    /// What the agent said it can do and how it can be signed in to.
++    #[must_use]
++    pub fn agent(&self) -> &AgentCaps {
++        &self.agent
+     }
+     #[must_use]
+     pub fn ready(&self) -> bool {
+@@ -235,10 +360,30 @@
+ 
+     fn call(&mut self, call: Call, method: &str, params: Value) -> Effect {
+         self.next_id += 1;
++        // What opens the session is remembered: a sign-in sends it again.
++        match call {
++            Call::New => self.last_open = Some((method::SESSION_NEW, params.clone())),
++            Call::Load => self.last_open = Some((method::SESSION_LOAD, params.clone())),
++            _ => {}
++        }
+         self.calls.insert(self.next_id, call);
+         Effect::Send(Message::request(self.next_id, method, params))
+     }
+ 
++    /// Sends the `session/new` or `session/load` that was refused for want of a sign-in again.
++    fn resend_open(&mut self) -> Vec<Effect> {
++        let Some((name, params)) = self.last_open.clone() else {
++            return Vec::new();
++        };
++        self.phase = Phase::Opening;
++        let call = if name == method::SESSION_NEW {
++            Call::New
++        } else {
++            Call::Load
++        };
++        vec![self.call(call, name, params)]
++    }
++
+     fn is_ended(&self) -> bool {
+         matches!(self.phase, Phase::Ended(_))
+     }
+@@ -331,11 +476,7 @@
+                 Vec::new()
+             }
+             (Call::Init, Ok(init)) => {
+-                // A boolean `true`, as on the phone (`_b(prompt['image'])`).
+-                self.images = init
+-                    .pointer("/agentCapabilities/promptCapabilities/image")
+-                    .and_then(Value::as_bool)
+-                    .unwrap_or(false);
++                self.agent = AgentCaps::from_init(&init);
+                 match self.start.clone() {
+                     Start::Attach => {
+                         self.phase = Phase::WaitingForSession;
+@@ -351,12 +492,61 @@
+                     }
+                 }
+             }
+-            (Call::Load, Err(e)) | (Call::New, Err(e)) => {
++            // An agent that will not load an old session may still resume it, without the replay.
++            (Call::Load, Err(e))
++                if !self.resumed
++                    && self.agent.resume
++                    && e.code != code::AUTH_REQUIRED
++                    && self.last_open.is_some() =>
++            {
++                self.resumed = true;
++                let params = self.last_open.as_ref().map(|(_, p)| p.clone());
++                vec![self.call(Call::Load, method::SESSION_RESUME, params.unwrap_or(Value::Null))]
++            }
++            (Call::Load | Call::New, Err(e)) => {
++                // The agent will not open a session until the person is signed in: wait for them
++                // instead of ending, and send the same request again afterwards.
++                if e.code == code::AUTH_REQUIRED && !self.agent.auth_methods.is_empty() {
++                    self.phase = Phase::AuthRequired;
++                    tr.note("Sign in to continue");
++                    return Vec::new();
++                }
+                 self.end(format!("the session did not open ({})", e.message));
+                 Vec::new()
+             }
++            (Call::Authenticate { name }, Ok(_)) => {
++                tr.note(format!("Signed in: {name}"));
++                self.resend_open()
++            }
++            (Call::Authenticate { name }, Err(e)) => {
++                tr.note(format!("Could not sign in with {name}: {}", e.message));
++                Vec::new()
++            }
++            (
++                Call::SetMode {
++                    mode_id,
++                    what,
++                    choice,
++                },
++                Ok(_),
++            ) => {
++                tr.set_current("mode", &mode_id);
++                tr.note(format!("{what}: {choice}"));
++                Vec::new()
++            }
++            (Call::SetMode { what, .. }, Err(e)) => {
++                tr.note(format!(
++                    "Could not change {}: {}",
++                    what.to_lowercase(),
++                    e.message
++                ));
++                Vec::new()
++            }
+             (Call::Load, Ok(result)) => {
+                 self.phase = Phase::Ready;
++                if self.resumed {
++                    tr.note("The agent reopened the session without its earlier messages");
++                }
+                 Self::config_from(&result, tr);
+                 Vec::new()
+             }
+@@ -379,6 +569,12 @@
+                 },
+                 Err(e),
+             ) => {
++                // The person stopped the turn and the agent answered with an error: that is how it
++                // says it stopped. The message was taken, so nothing goes back in the box.
++                if std::mem::take(&mut self.cancelling) {
++                    tr.turn_end(Some("cancelled"));
++                    return Vec::new();
++                }
+                 // A prompt the agent refused outright is a failed turn: a queue behind it holds.
+                 if e.code != code::SESSION_BUSY {
+                     tr.set_stop("error");
+@@ -403,6 +599,10 @@
+                 }
+             }
+             (Call::Prompt { .. }, Ok(result)) => {
++                self.cancelling = false;
++                if let Some(usage) = result.get("usage") {
++                    tr.set_turn_usage(usage);
++                }
+                 tr.turn_end(result.get("stopReason").and_then(Value::as_str));
+                 Vec::new()
+             }
+@@ -442,6 +642,11 @@
+     fn config_from(result: &Value, tr: &mut Transcript) {
+         let mut opts =
+             crate::session::vendored::acp::parse_config_options(result.get("configOptions").unwrap_or(&Value::Null));
++        // An agent that reports only the older `modes` or `models` shape still gets a picker (the mode
++        // by `session/set_mode`; the model is shown, not changed).
++        if !opts.iter().any(|o| o.is("mode")) {
++            opts.extend(crate::session::vendored::acp::legacy_modes(result));
++        }
+         if !opts.iter().any(|o| o.is("model")) {
+             opts.extend(crate::session::vendored::acp::legacy_models(result));
+         }
+@@ -456,6 +661,11 @@
+                 if p.get("sessionId").and_then(Value::as_str) == self.sid.as_deref() =>
+             {
+                 if let Some(u) = p.get("update").and_then(SessionUpdate::from_value) {
++                    // A notice is live news and is not part of a replay: one that comes while the
++                    // history is still arriving was only logged by the keeper.
++                    if matches!(u, SessionUpdate::Notice { .. }) && self.phase != Phase::Ready {
++                        return;
++                    }
+                     tr.apply(u);
+                 }
+             }
+@@ -593,7 +803,7 @@
+             return Err(Refused::Busy);
+         }
+         let sid = self.sid.clone().ok_or(Refused::NotReady)?;
+-        tr.user(attach::echo(text, files));
++        tr.user_with(attach::echo(text, files), attach::parts(files));
+         Ok(vec![self.call(
+             Call::Prompt {
+                 text: text.to_string(),
+@@ -609,12 +819,13 @@
+                 queued,
+             },
+             method::SESSION_PROMPT,
+-            json!({"sessionId": sid, "prompt": attach::blocks(text, files, self.images)}),
++            json!({"sessionId": sid, "prompt": attach::blocks(text, files, self.agent.images)}),
+         )])
+     }
+ 
+-    /// The person changes one select option of the session (`session/set_config_option`, as the
+-    /// phone does). `what` and `choice` are the names they saw, for the note that follows.
++    /// The person changes one option of the session (`session/set_config_option`, as the phone does; an
++    /// agent that reports only `modes` is changed with `session/set_mode`). A boolean option takes
++    /// `"true"` or `"false"`. `what` and `choice` are the names they saw, for the note that follows.
+     ///
+     /// # Errors
+     /// [`Refused::NotReady`] before the session is open, [`Refused::Busy`] while a turn runs.
+@@ -633,6 +844,23 @@
+             return Err(Refused::Busy);
+         }
+         let sid = self.sid.clone().ok_or(Refused::NotReady)?;
++        let option = tr.options().iter().find(|o| o.id == config_id);
++        if option.is_some_and(|o| o.by_mode) {
++            return Ok(vec![self.call(
++                Call::SetMode {
++                    mode_id: value.to_string(),
++                    what: what.to_string(),
++                    choice: choice.to_string(),
++                },
++                method::SESSION_SET_MODE,
++                json!({"sessionId": sid, "modeId": value}),
++            )]);
++        }
++        let params = if option.is_some_and(|o| o.boolean) {
++            json!({"sessionId": sid, "configId": config_id, "type": "boolean", "value": value == "true"})
++        } else {
++            json!({"sessionId": sid, "configId": config_id, "value": value})
++        };
+         Ok(vec![self.call(
+             Call::SetConfig {
+                 config_id: config_id.to_string(),
+@@ -641,7 +869,7 @@
+                 choice: choice.to_string(),
+             },
+             method::SESSION_SET_CONFIG_OPTION,
+-            json!({"sessionId": sid, "configId": config_id, "value": value}),
++            params,
+         )])
+     }
+ 
+@@ -650,6 +878,7 @@
+         let Some(sid) = &self.sid else {
+             return Vec::new();
+         };
++        self.cancelling = self.prompting();
+         tr.note("Asked the agent to stop");
+         // ACP: a client that cancels a turn answers every request still open as cancelled. Left
+         // asking, they could be approved after the person said stop.
+@@ -671,6 +900,48 @@
+         effects
+     }
+ 
++    /// The person signs in with the method `method_id` the agent handles itself; when the agent accepts,
++    /// the session that was refused opens again.
++    ///
++    /// # Errors
++    /// [`Refused::NotReady`] when the agent asked for no sign-in, [`Refused::NoSuchOption`] for a method
++    /// it did not offer, and [`Refused::Invalid`] for one the person carries out in a terminal.
++    pub fn authenticate(&mut self, method_id: &str) -> Result<Vec<Effect>, Refused> {
++        if self.phase != Phase::AuthRequired {
++            return Err(Refused::NotReady);
++        }
++        let m = self
++            .agent
++            .auth_methods
++            .iter()
++            .find(|m| m.id == method_id)
++            .ok_or(Refused::NoSuchOption)?;
++        if let Some(args) = &m.terminal_args {
++            return Err(Refused::Invalid(format!(
++                "{} is done in a terminal on the agent's machine (arguments: {})",
++                m.name,
++                args.join(" ")
++            )));
++        }
++        let name = m.name.clone();
++        Ok(vec![self.call(
++            Call::Authenticate { name },
++            method::AUTHENTICATE,
++            json!({"methodId": method_id}),
++        )])
++    }
++
++    /// Opens the session again after the person signed in some other way (in a terminal).
++    ///
++    /// # Errors
++    /// [`Refused::NotReady`] when the agent asked for no sign-in.
++    pub fn reopen(&mut self) -> Result<Vec<Effect>, Refused> {
++        if self.phase != Phase::AuthRequired {
++            return Err(Refused::NotReady);
++        }
++        Ok(self.resend_open())
++    }
++
+     /// The person answers the oldest waiting request with option `index`.
+     ///
+     /// # Errors
+--- a/transcript.rs
++++ a/transcript.rs
+@@ -6,7 +6,11 @@
+ //! them, so the screen can say so), and a tool call keeps only the head and the
+ //! tail of its output. The keeper still has everything.
+ 
+-use crate::session::vendored::acp::{AgentState, Chunk, Content, SessionUpdate, ToolCall, ToolContent, ToolStatus};
++use crate::session::vendored::acp::{
++    AgentState, Chunk, Content, Exit, Location, Part, PartKind, SessionUpdate, ToolCall,
++    ToolContent, ToolStatus,
++};
++use serde_json::Value;
+ use std::collections::{BTreeSet, HashMap, VecDeque};
+ 
+ /// Bytes the store may hold before it drops its oldest items.
+@@ -21,6 +25,13 @@
+ const LOOKBACK: usize = 64;
+ /// What an item costs besides its text.
+ const ITEM_OVERHEAD: usize = 64;
++/// A tool's raw input is kept as text up to this many bytes.
++const INPUT_MAX: usize = 4096;
++/// The most bytes of one line of a command's output that a call keeps, and of a result it reads at all.
++const LINE_MAX: usize = 4096;
++const RESULT_MAX: usize = 1 << 20;
++/// Parts (pictures, files) one message or call keeps.
++const PARTS_MAX: usize = 16;
+ 
+ /// What a turn did, counted from its tool calls.
+ #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+@@ -84,16 +95,58 @@
+     pub new: String,
+ }
+ 
++/// What the context window holds and what the session has cost, from `usage_update`.
++#[derive(Clone, Debug, PartialEq)]
++pub struct Usage {
++    pub used: u64,
++    pub size: u64,
++    /// `(amount, currency)`, cumulative.
++    pub cost: Option<(f64, String)>,
++}
++
++/// What the last turn used, from the prompt's answer (`usage`; an agent may leave any part out).
++#[derive(Clone, Debug, Default, PartialEq, Eq)]
++pub struct TurnUsage {
++    pub input: Option<u64>,
++    pub output: Option<u64>,
++    pub total: Option<u64>,
++    pub thought: Option<u64>,
++    pub cached_read: Option<u64>,
++    pub cached_write: Option<u64>,
++}
++
+ #[derive(Clone, Debug, PartialEq)]
+ pub struct Tool {
+     pub id: String,
+     pub title: String,
++    /// The agent's programmatic name for the tool (`Bash`).
++    pub name: Option<String>,
+     pub kind: Option<String>,
+     pub status: ToolStatus,
+     /// The command or path, whole.
+     pub subject: Option<String>,
++    /// The raw input as text, cut at [`INPUT_MAX`] bytes.
++    pub input: Option<String>,
++    /// The files it touches.
++    pub locations: Vec<Location>,
+     pub output: Output,
+     pub diffs: Vec<Diff>,
++    /// Pictures and files among its output.
++    pub parts: Vec<Part>,
++    /// A terminal was created for the call.
++    pub terminal: bool,
++    /// Where the command runs, when the agent says.
++    pub cwd: Option<String>,
++    /// How the command ended, when the agent says.
++    pub exit: Option<Exit>,
++    /// What the command printed, as `_meta` pieces arrived, as its head and tail.
++    stream: Streamed,
++    /// Progress lines of an MCP call, the same way.
++    progress: Streamed,
++    /// The call's `content` text and its `rawOutput` as text, trimmed: the output when no terminal
++    /// stream said better.
++    content_out: Option<Output>,
++    raw_out: Option<Output>,
+ }
+ 
+ #[derive(Clone, Debug, PartialEq)]
+@@ -102,9 +155,17 @@
+         role: Role,
+         message_id: Option<String>,
+         text: String,
++        /// Pictures, sounds and files the message carries besides its text.
++        parts: Vec<Part>,
+     },
+     Tool(Tool),
+     Note(String),
++    /// A live notice from the agent (`notice`): `severity` is `info`, `warning`, `error` or the agent's own.
++    Notice {
++        severity: String,
++        title: String,
++        text: Option<String>,
++    },
+     /// The end of a turn, said once: how long, and what changed.
+     Done {
+         text: String,
+@@ -132,6 +193,11 @@
+     title: Option<String>,
+     mode: Option<String>,
+     context: Option<u8>,
++    usage: Option<Usage>,
++    turn_usage: Option<TurnUsage>,
++    updated_at: Option<String>,
++    /// Compaction id -> the id of the note that tells how it went.
++    compaction_at: HashMap<String, u64>,
+     config: Vec<crate::session::vendored::acp::ConfigOption>,
+     commands: Vec<crate::session::vendored::acp::Command>,
+     plan: Vec<crate::session::vendored::acp::PlanEntry>,
+@@ -139,6 +205,8 @@
+     tool_at: HashMap<String, u64>,
+     /// Items whose tool call has not finished: the ones a turn's end must close.
+     open_tools: BTreeSet<u64>,
++    /// `(role, message id)` -> the id of the item that shows it: what a whole message from a log replaces.
++    msg_at: HashMap<String, u64>,
+     /// Why the last turn stopped (`cancelled`, `error`, ...), until it is read with
+     /// [`Transcript::take_stop`]. `turn_end` runs twice per turn (the state update and the prompt's
+     /// response) and again during a replay: reading and clearing at the observed end keeps a
+@@ -165,11 +233,16 @@
+             title: None,
+             mode: None,
+             context: None,
++            usage: None,
++            turn_usage: None,
++            updated_at: None,
++            compaction_at: HashMap::new(),
+             config: Vec::new(),
+             commands: Vec::new(),
+             plan: Vec::new(),
+             tool_at: HashMap::new(),
+             open_tools: BTreeSet::new(),
++            msg_at: HashMap::new(),
+             stop: None,
+         }
+     }
+@@ -242,7 +315,11 @@
+     /// Records the choice of option `id` before the agent has repeated its options.
+     pub fn set_current(&mut self, id: &str, value: &str) {
+         if let Some(o) = self.config.iter_mut().find(|o| o.id == id) {
+-            o.current = Some(value.to_string());
++            if o.boolean {
++                o.on = Some(value == "true");
++            } else {
++                o.current = Some(value.to_string());
++            }
+         }
+     }
+     fn config_value(&self, what: &str) -> Option<&str> {
+@@ -256,6 +333,36 @@
+     pub fn context(&self) -> Option<u8> {
+         self.context
+     }
++    /// The context window and cost, when the agent has said.
++    #[must_use]
++    pub fn usage(&self) -> Option<&Usage> {
++        self.usage.as_ref()
++    }
++    /// What the last turn used, when the agent said in its answer.
++    #[must_use]
++    pub fn turn_usage(&self) -> Option<&TurnUsage> {
++        self.turn_usage.as_ref()
++    }
++    /// Records the `usage` of a prompt's answer; anything that is not a count is left out.
++    pub fn set_turn_usage(&mut self, usage: &Value) {
++        let n = |k: &str| usage.get(k).and_then(Value::as_u64);
++        let found = TurnUsage {
++            input: n("inputTokens"),
++            output: n("outputTokens"),
++            total: n("totalTokens"),
++            thought: n("thoughtTokens"),
++            cached_read: n("cachedReadTokens"),
++            cached_write: n("cachedWriteTokens"),
++        };
++        if found != TurnUsage::default() {
++            self.turn_usage = Some(found);
++        }
++    }
++    /// When the session last changed, as the agent says it (`updatedAt`).
++    #[must_use]
++    pub fn updated_at(&self) -> Option<&str> {
++        self.updated_at.as_deref()
++    }
+     #[must_use]
+     pub fn title(&self) -> Option<&str> {
+         self.title.as_deref()
+@@ -309,15 +416,63 @@
+     /// The person's own message, shown at once (the keeper does not echo a
+     /// prompt back to the client that sent it).
+     pub fn user(&mut self, text: impl Into<String>) {
++        self.user_with(text, Vec::new());
++    }
++
++    /// The person's own message with the files and pictures it carries.
++    pub fn user_with(&mut self, text: impl Into<String>, parts: Vec<Part>) {
+         // A new turn starts with the person's message: the last one's stop reason is old news.
+         self.stop = None;
+         self.push(Entry::Message {
+             role: Role::User,
+             message_id: None,
+             text: text.into(),
++            parts,
+         });
+     }
+ 
++    /// A whole message from a session log: replaces the message of this role and id (a line mapped twice
++    /// changes nothing), or adds it. Not part of herdr-tui: its transcript only ever appends chunks.
++    pub fn upsert_message(&mut self, role: Role, message_id: &str, text: String) {
++        let key = format!("{}\u{0}{message_id}", role as u8);
++        let found = self.msg_at.get(&key).and_then(|id| self.index_of(*id));
++        match found {
++            Some(i) => {
++                if let Entry::Message { text: existing, .. } = &mut self.items[i].entry {
++                    if *existing == text {
++                        return;
++                    }
++                    *existing = text;
++                }
++                self.touch(i);
++            }
++            None => {
++                self.msg_at.insert(key, self.next_id);
++                self.push(Entry::Message {
++                    role,
++                    message_id: Some(message_id.to_string()),
++                    text,
++                    parts: Vec::new(),
++                });
++            }
++        }
++    }
++
++    /// The log was compacted or cleared: every item goes. Settings (mode, model, commands) stay, and item
++    /// ids are never reused, so a list holding keys never sees a key mean something else.
++    pub fn clear(&mut self) {
++        self.items.clear();
++        self.bytes = 0;
++        self.dropped = 0;
++        self.running = false;
++        self.plan.clear();
++        self.tool_at.clear();
++        self.open_tools.clear();
++        self.msg_at.clear();
++        self.compaction_at.clear();
++        self.stop = None;
++    }
++
+     pub fn apply(&mut self, update: SessionUpdate) {
+         match update {
+             SessionUpdate::AgentMessage(c) => self.chunk(Role::Agent, c),
+@@ -335,19 +490,72 @@
+                 state: AgentState::Idle,
+                 stop_reason,
+             } => self.turn_end(stop_reason.as_deref()),
+-            SessionUpdate::Mode(m) => self.mode = Some(m),
+-            SessionUpdate::Config(opts) => self.config = opts,
++            SessionUpdate::Mode(m) => {
++                // An agent that reports `modes` has no config option to repeat: the picker follows.
++                if let Some(o) = self.config.iter_mut().find(|o| o.by_mode) {
++                    o.current = Some(m.clone());
++                }
++                self.mode = Some(m);
++            }
++            SessionUpdate::Config(mut opts) => {
++                // The older `modes` and `models` are never repeated in `config_option_update`.
++                for old in &self.config {
++                    if (old.by_mode || old.legacy) && !opts.iter().any(|n| n.id == old.id) {
++                        opts.push(old.clone());
++                    }
++                }
++                self.config = opts;
++            }
+             SessionUpdate::Commands(c) => self.commands = c,
+             SessionUpdate::Plan(p) => self.plan = p,
+-            SessionUpdate::Usage { used, size } => {
++            SessionUpdate::Usage { used, size, cost } => {
+                 self.context =
+                     Some(u8::try_from((used.saturating_mul(100) / size).min(100)).unwrap_or(100));
++                self.usage = Some(Usage { used, size, cost });
+             }
+             SessionUpdate::State { .. } | SessionUpdate::Other(_) => {}
+-            SessionUpdate::SessionInfo { title } => {
++            SessionUpdate::SessionInfo { title, updated_at } => {
+                 if let Some(t) = title {
+                     self.title = t;
+                 }
++                if updated_at.is_some() {
++                    self.updated_at = updated_at;
++                }
++            }
++            SessionUpdate::Notice {
++                severity,
++                title,
++                description,
++            } => self.push(Entry::Notice {
++                severity,
++                title,
++                text: description,
++            }),
++            SessionUpdate::Compaction { id, status, error } => self.compaction(&id, &status, error),
++        }
++    }
++
++    /// Tells how a compaction of the agent's context is going, in one note that changes in place.
++    fn compaction(&mut self, id: &str, status: &str, error: Option<String>) {
++        let text = match (status, error) {
++            ("completed", _) => "Conversation compacted".to_string(),
++            ("failed", Some(why)) => format!("Compaction failed: {why}"),
++            ("failed", None) => "Compaction failed".to_string(),
++            _ => "Compacting the conversation…".to_string(),
++        };
++        match self.compaction_at.get(id).and_then(|i| self.index_of(*i)) {
++            Some(i) => {
++                if let Entry::Note(t) = &mut self.items[i].entry {
++                    if *t == text {
++                        return;
++                    }
++                    *t = text;
++                }
++                self.touch(i);
++            }
++            None => {
++                self.compaction_at.insert(id.to_string(), self.next_id);
++                self.push(Entry::Note(text));
+             }
+         }
+     }
+@@ -358,6 +566,13 @@
+             self.stop = Some(r.to_string());
+         }
+         self.running = false;
++        // A turn the person stopped leaves its open calls cancelled (ACP: the client marks them), any
++        // other end leaves them without a result.
++        let why = if stop_reason == Some("cancelled") {
++            " · cancelled"
++        } else {
++            " · no result"
++        };
+         // A call still open will never finish. Items are found by id each time: closing one can
+         // drop others off the front to stay in budget, so positions do not hold still.
+         let open: Vec<u64> = std::mem::take(&mut self.open_tools).into_iter().collect();
+@@ -365,7 +580,7 @@
+             let Some(i) = self.index_of(id) else { continue };
+             if let Entry::Tool(t) = &mut self.items[i].entry {
+                 t.status = ToolStatus::Failed;
+-                t.title.push_str(" · no result");
++                t.title.push_str(why);
+             }
+             self.touch(i);
+         }
+@@ -383,9 +598,12 @@
+     }
+ 
+     fn chunk(&mut self, role: Role, c: Chunk) {
+-        let text = match c.content {
+-            Content::Text(t) => t,
+-            Content::Other(kind) => format!("[{kind}]"),
++        let (text, part) = match c.content {
++            Content::Text(t) => (t, None),
++            // A file the person attached is typed on its own line, as in the box it came from.
++            Content::Part(p) if p.kind == PartKind::Link => (format!("\n@{}", p.name), Some(p)),
++            Content::Part(p) => (String::new(), Some(p)),
++            Content::Other(kind) => (format!("[{kind}]"), None),
+         };
+         // With an id the chunk continues the latest message of that role and id, wherever the
+         // agent left off; without one it continues the message just before it, if that is its role.
+@@ -409,8 +627,16 @@
+             ),
+         };
+         if let Some(i) = target {
+-            if let Entry::Message { text: existing, .. } = &mut self.items[i].entry {
++            if let Entry::Message {
++                text: existing,
++                parts,
++                ..
++            } = &mut self.items[i].entry
++            {
+                 existing.push_str(&text);
++                if let Some(p) = part.filter(|_| parts.len() < PARTS_MAX) {
++                    parts.push(p);
++                }
+             }
+             self.touch(i);
+             return;
+@@ -419,6 +645,7 @@
+             role,
+             message_id: c.message_id,
+             text,
++            parts: part.into_iter().collect(),
+         });
+     }
+ 
+@@ -439,11 +666,22 @@
+                 let mut t = Tool {
+                     id: call.id.clone(),
+                     title: String::new(),
++                    name: None,
+                     kind: None,
+                     status: ToolStatus::Pending,
+                     subject: None,
++                    input: None,
++                    locations: Vec::new(),
+                     output: Output::default(),
+                     diffs: Vec::new(),
++                    parts: Vec::new(),
++                    terminal: false,
++                    cwd: None,
++                    exit: None,
++                    stream: Streamed::default(),
++                    progress: Streamed::default(),
++                    content_out: None,
++                    raw_out: None,
+                 };
+                 merge_tool(&mut t, call);
+                 if t.title.is_empty() {
+@@ -504,6 +742,9 @@
+     if let Some(title) = &call.title {
+         t.title.clone_from(title);
+     }
++    if call.name.is_some() {
++        t.name.clone_from(&call.name);
++    }
+     if call.kind.is_some() {
+         t.kind.clone_from(&call.kind);
+     }
+@@ -516,6 +757,30 @@
+     if let Some(subject) = call.subject() {
+         t.subject = Some(subject);
+     }
++    if let Some(input) = call.raw_input.as_ref().and_then(input_text) {
++        t.input = Some(input);
++    }
++    if !call.locations.is_empty() {
++        t.locations.clone_from(&call.locations);
++    }
++    if let Some(raw) = &call.raw_output {
++        t.raw_out = Some(trim_output(&cut(raw, RESULT_MAX)));
++    }
++    let s = &call.stream;
++    if !s.output.is_empty() {
++        t.stream.push(&s.output);
++    }
++    if !s.progress.is_empty() {
++        t.progress.push(&s.progress);
++        t.progress.push("\n");
++    }
++    if s.exit.is_some() {
++        // The last word wins.
++        t.exit.clone_from(&s.exit);
++    }
++    if s.cwd.is_some() {
++        t.cwd.clone_from(&s.cwd);
++    }
+     if !call.content.is_empty() {
+         let text: Vec<&str> = call
+             .content
+@@ -529,7 +794,7 @@
+             })
+             .collect();
+         if !text.is_empty() {
+-            t.output = trim_output(&text.join("\n"));
++            t.content_out = Some(trim_output(&cut(&text.join("\n"), RESULT_MAX)));
+         }
+         let diffs: Vec<Diff> = call
+             .content
+@@ -544,13 +809,120 @@
+                     old: old_text.as_deref().map(|s| cut(s, DIFF_SIDE_MAX)),
+                     new: cut(new_text, DIFF_SIDE_MAX),
+                 }),
+-                ToolContent::Text(_) => None,
++                _ => None,
+             })
+             .take(DIFFS_PER_CALL)
+             .collect();
+         if !diffs.is_empty() {
+             t.diffs = diffs;
+         }
++        if call
++            .content
++            .iter()
++            .any(|c| matches!(c, ToolContent::Terminal(_)))
++        {
++            t.terminal = true;
++        }
++        let parts: Vec<Part> = call
++            .content
++            .iter()
++            .filter_map(|c| match c {
++                ToolContent::Part(p) => Some(p.clone()),
++                _ => None,
++            })
++            .take(PARTS_MAX)
++            .collect();
++        if !parts.is_empty() {
++            t.parts = parts;
++        }
++    }
++    // What the call printed: its own account when it gave one, else what the terminal streamed, else
++    // the raw result, else an MCP call's progress.
++    let shown = t
++        .content_out
++        .clone()
++        .or_else(|| (!t.stream.is_empty()).then(|| t.stream.output()))
++        .or_else(|| t.raw_out.clone())
++        .or_else(|| (!t.progress.is_empty()).then(|| t.progress.output()));
++    if let Some(out) = shown {
++        t.output = out;
++    }
++}
++
++/// A raw input as text for the person to open: a string as it is, anything else as indented JSON.
++fn input_text(v: &Value) -> Option<String> {
++    let text = match v {
++        Value::Null => return None,
++        Value::String(s) => s.clone(),
++        other => serde_json::to_string_pretty(other).ok()?,
++    };
++    let text = text.trim();
++    (!text.is_empty()).then(|| cut(text, INPUT_MAX))
++}
++
++/// What a command printed, kept as it arrives and only as its first and last lines (the rest is counted):
++/// pieces come as they are written, a line may be cut in two, and a call may print for hours.
++#[derive(Clone, Debug, Default, PartialEq, Eq)]
++struct Streamed {
++    head: Vec<String>,
++    tail: VecDeque<String>,
++    /// Lines between `head` and `tail` that are not kept.
++    omitted: usize,
++    /// The line being written, not yet ended by a newline.
++    partial: String,
++}
++
++impl Streamed {
++    fn push(&mut self, data: &str) {
++        for piece in data.split_inclusive('\n') {
++            self.partial.push_str(piece);
++            if self.partial.len() > LINE_MAX {
++                self.partial = cut(&self.partial, LINE_MAX);
++            }
++            if piece.ends_with('\n') {
++                let line = std::mem::take(&mut self.partial);
++                self.line(line.trim_end_matches(['\r', '\n']).to_string());
++            }
++        }
++    }
++
++    fn line(&mut self, line: String) {
++        if self.head.len() < OUTPUT_HEAD {
++            self.head.push(line);
++            return;
++        }
++        self.tail.push_back(line);
++        if self.tail.len() > OUTPUT_TAIL {
++            self.tail.pop_front();
++            self.omitted += 1;
++        }
++    }
++
++    fn is_empty(&self) -> bool {
++        self.head.is_empty() && self.tail.is_empty() && self.partial.is_empty()
++    }
++
++    /// What is shown: the lines so far, with the one being written as the last.
++    fn output(&self) -> Output {
++        let mut now = self.clone();
++        if !now.partial.is_empty() {
++            let line = std::mem::take(&mut now.partial);
++            now.line(line);
++        }
++        Output {
++            head: now.head,
++            tail: now.tail.into_iter().collect(),
++            omitted: now.omitted,
++        }
++    }
++
++    fn bytes(&self) -> usize {
++        self.head
++            .iter()
++            .chain(&self.tail)
++            .map(String::len)
++            .sum::<usize>()
++            + self.partial.len()
+     }
+ }
+ 
+@@ -590,14 +962,31 @@
+ }
+ 
+ fn size_of(entry: &Entry) -> usize {
++    let parts = |parts: &[Part]| -> usize {
++        parts
++            .iter()
++            .map(|p| p.name.len() + p.data.as_ref().map_or(0, String::len))
++            .sum()
++    };
+     ITEM_OVERHEAD
+         + match entry {
+-            Entry::Message { text, .. } => text.len(),
++            Entry::Message { text, parts: p, .. } => text.len() + parts(p),
+             Entry::Note(t) => t.len(),
++            Entry::Notice { title, text, .. } => title.len() + text.as_ref().map_or(0, String::len),
+             Entry::Done { text, .. } => text.len(),
+             Entry::Tool(t) => {
+                 t.title.len()
+                     + t.subject.as_ref().map_or(0, String::len)
++                    + t.input.as_ref().map_or(0, String::len)
++                    + t.stream.bytes()
++                    + t.progress.bytes()
++                    + [&t.content_out, &t.raw_out]
++                        .iter()
++                        .filter_map(|o| o.as_ref())
++                        .flat_map(|o| o.head.iter().chain(&o.tail))
++                        .map(String::len)
++                        .sum::<usize>()
++                    + parts(&t.parts)
+                     + t.output
+                         .head
+                         .iter()
+--- a/acp/config.rs
++++ a/acp/config.rs
+@@ -4,20 +4,29 @@
+ 
+ use serde_json::Value;
+ 
+-/// One select option of the session (booleans and unknown kinds are not kept).
++/// One option of the session: a choice among values (the model, the mode, the thinking level) or an
++/// on/off switch.
+ #[derive(Clone, Debug, PartialEq, Eq)]
+ pub struct ConfigOption {
+     pub id: String,
+     pub name: String,
+     /// `model`, `mode`, `thought_level`, ... when the agent says.
+     pub category: Option<String>,
+-    /// The value currently chosen.
++    /// The value currently chosen (a select option).
+     pub current: Option<String>,
+-    /// `(value, name)` of every choice, groups flattened.
++    /// `(value, name)` of every choice, groups flattened (a select option).
+     pub choices: Vec<(String, String)>,
++    /// An on/off switch (`type: boolean`): `on` is its state and `choices` is empty.
++    pub boolean: bool,
++    /// The state of a boolean option.
++    pub on: Option<bool>,
++    /// What the option says it is for.
++    pub description: Option<String>,
+     /// From the older `models` shape, which has no `session/set_config_option` contract: shown,
+     /// never changed from here.
+     pub legacy: bool,
++    /// From the older `modes` shape: changed with `session/set_mode`, not `session/set_config_option`.
++    pub by_mode: bool,
+ }
+ 
+ impl ConfigOption {
+@@ -54,29 +63,81 @@
+     }
+ }
+ 
+-/// The select options in `v` (a `configOptions` array).
++/// The options in `v` (a `configOptions` array): selects and booleans; a kind this client does not
++/// know is not kept.
+ #[must_use]
+ pub fn parse_config_options(v: &Value) -> Vec<ConfigOption> {
+     v.as_array()
+         .into_iter()
+         .flatten()
+-        .filter(|o| s(o, "type") == Some("select"))
+         .filter_map(|o| {
++            let boolean = match s(o, "type") {
++                Some("select") => false,
++                Some("boolean") => true,
++                _ => return None,
++            };
+             let id = s(o, "id")?.to_string();
+             let mut ch = Vec::new();
+-            choices(&o["options"], &mut ch);
++            if !boolean {
++                choices(&o["options"], &mut ch);
++            }
+             Some(ConfigOption {
+                 name: s(o, "name").unwrap_or(&id).to_string(),
+                 category: s(o, "category").map(str::to_string),
+-                current: s(o, "currentValue").map(str::to_string),
++                current: if boolean {
++                    None
++                } else {
++                    s(o, "currentValue").map(str::to_string)
++                },
+                 id,
+                 choices: ch,
++                boolean,
++                on: if boolean {
++                    o.get("currentValue").and_then(Value::as_bool)
++                } else {
++                    None
++                },
++                description: s(o, "description")
++                    .map(str::trim)
++                    .filter(|d| !d.is_empty())
++                    .map(str::to_string),
+                 legacy: false,
++                by_mode: false,
+             })
+         })
+         .collect()
+ }
+ 
++/// The older shape of the modes: `modes: {currentModeId, availableModes: [{id, name}]}`, as the mode
++/// option, changed with `session/set_mode`.
++#[must_use]
++pub fn legacy_modes(result: &Value) -> Option<ConfigOption> {
++    let m = result.get("modes")?;
++    let current = s(m, "currentModeId")?.to_string();
++    let choices: Vec<(String, String)> = m
++        .get("availableModes")
++        .and_then(Value::as_array)
++        .into_iter()
++        .flatten()
++        .filter_map(|a| {
++            let id = s(a, "id")?;
++            Some((id.to_string(), s(a, "name").unwrap_or(id).to_string()))
++        })
++        .collect();
++    (!choices.is_empty()).then(|| ConfigOption {
++        id: "mode".into(),
++        name: "Mode".into(),
++        category: Some("mode".into()),
++        current: Some(current),
++        choices,
++        boolean: false,
++        on: None,
++        description: None,
++        legacy: false,
++        by_mode: true,
++    })
++}
++
+ /// The older shape: `models: {currentModelId, availableModels: [{modelId, name}]}`, as the model option.
+ #[must_use]
+ pub fn legacy_models(result: &Value) -> Option<ConfigOption> {
+@@ -102,7 +163,11 @@
+         category: Some("model".into()),
+         current: Some(current),
+         choices,
++        boolean: false,
++        on: None,
++        description: None,
+         legacy: true,
++        by_mode: false,
+     })
+ }
+ 
+@@ -119,9 +184,21 @@
+             {"id": "flag", "type": "boolean", "currentValue": true}
+         ]);
+         let got = parse_config_options(&v);
+-        assert_eq!(got.len(), 1, "booleans are not kept");
++        assert_eq!(got.len(), 2, "a select and a boolean are kept");
+         assert_eq!(got[0].current_name(), Some("GPT-5"));
+-        assert!(got[0].is("model") && !got[0].is("mode"));
++        assert!(got[0].is("model") && !got[0].is("mode") && !got[0].boolean);
++        assert!(got[1].boolean && got[1].on == Some(true) && got[1].choices.is_empty());
++    }
++
++    #[test]
++    fn the_older_modes_shape_becomes_a_mode_option_changed_by_set_mode() {
++        let r = json!({"modes": {"currentModeId": "plan", "availableModes": [{"id": "default", "name": "Default"}, {"id": "plan"}]}});
++        let o = legacy_modes(&r).expect("a mode option");
++        assert!(o.is("mode") && o.by_mode && !o.legacy);
++        assert_eq!(o.current_name(), Some("plan"));
++        assert_eq!(o.choices[0], ("default".into(), "Default".into()));
++        assert!(legacy_modes(&json!({"modes": {"currentModeId": "x", "availableModes": []}})).is_none());
++        assert!(legacy_modes(&json!({})).is_none());
+     }
+ 
+     #[test]
+--- a/acp/update.rs
++++ a/acp/update.rs
+@@ -1,11 +1,47 @@
+ // Vendored from herdr-mobile rust/crates/acp/src/update.rs (see UPSTREAM). Regenerated by scripts/sync-vendored.sh; do not edit.
+ use serde_json::Value;
+ 
++/// What a non-text content block is.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum PartKind {
++    /// A picture (`image`).
++    Image,
++    /// Sound (`audio`).
++    Audio,
++    /// A file the sender points at (`resource_link`).
++    Link,
++    /// A file the sender includes (`resource`, embedded context).
++    Resource,
++}
++
++/// A non-text content block of a message or a tool's output: what a screen can name and, for a small
++/// picture, show. The bytes of anything big are left out and counted in `size`.
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct Part {
++    /// What it is.
++    pub kind: PartKind,
++    /// What the person reads: the file's name, or `image` / `audio` when it has none.
++    pub name: String,
++    /// Where it lives (`file:///...`), when the block says.
++    pub uri: Option<String>,
++    /// `image/png`... when the block says.
++    pub mime: Option<String>,
++    /// Bytes in the file or the decoded sound or picture, when known.
++    pub size: Option<u64>,
++    /// The picture, base64, when it is small enough to carry ([`PART_DATA_MAX`]).
++    pub data: Option<String>,
++}
++
++/// The most base64 characters of a picture a [`Part`] keeps; a bigger one is only named.
++pub const PART_DATA_MAX: usize = 512 * 1024;
++
+ /// The part of a message chunk a client can show.
+ #[derive(Clone, Debug, PartialEq, Eq)]
+ pub enum Content {
+     Text(String),
+-    /// A non-text block (`image`, `audio`, `resource`, ...), by its `type`.
++    /// An `image`, `audio`, `resource_link` or `resource` block.
++    Part(Part),
++    /// A block of a kind this client does not know, by its `type`.
+     Other(String),
+ }
+ 
+@@ -42,6 +78,79 @@
+         old_text: Option<String>,
+         new_text: String,
+     },
++    /// A terminal the agent created (`{"type": "terminal", "terminalId"}`): the command's output is
++    /// in the call's [`Stream`] (adapters that run the command themselves send it in `_meta`).
++    Terminal(String),
++    /// A picture, file or sound among the output (`content` blocks that are not text).
++    Part(Part),
++}
++
++/// A file and line a tool call touches.
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct Location {
++    pub path: String,
++    /// 1-based.
++    pub line: Option<u32>,
++}
++
++/// How a command ended.
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct Exit {
++    /// `None` when the agent could not tell (a signal ended it).
++    pub code: Option<i64>,
++    pub signal: Option<String>,
++}
++
++/// What an update says about a command's output in its `_meta`: codex-acp and pi-acp announce a command
++/// with `content: [{type: terminal}]` and send what it prints only here, as pieces to append:
++/// `terminal_output_delta` / `terminal_output` `{terminal_id, data}`, `terminal_exit`
++/// `{terminal_id, exit_code, signal}`, `terminal_info` `{cwd}` and `mcp_output_delta` `{data}` (the
++/// progress lines of an MCP call).
++#[derive(Clone, Debug, Default, PartialEq, Eq)]
++pub struct Stream {
++    /// What the command printed in this update, to append.
++    pub output: String,
++    /// Progress lines of an MCP call, to append.
++    pub progress: String,
++    /// The command ended.
++    pub exit: Option<Exit>,
++    /// Where the command runs.
++    pub cwd: Option<String>,
++}
++
++impl Stream {
++    /// Whether the update said nothing about a terminal.
++    #[must_use]
++    pub fn is_empty(&self) -> bool {
++        self.output.is_empty()
++            && self.progress.is_empty()
++            && self.exit.is_none()
++            && self.cwd.is_none()
++    }
++
++    fn from_meta(meta: Option<&Value>) -> Stream {
++        let mut out = Stream::default();
++        let Some(meta) = meta else { return out };
++        for key in ["terminal_output_delta", "terminal_output"] {
++            if let Some(data) = meta.get(key).and_then(|m| str_of(m, "data")) {
++                out.output.push_str(data);
++            }
++        }
++        if let Some(data) = meta.get("mcp_output_delta").and_then(|m| str_of(m, "data")) {
++            out.progress.push_str(data);
++        }
++        if let Some(exit) = meta.get("terminal_exit") {
++            out.exit = Some(Exit {
++                code: exit.get("exit_code").and_then(Value::as_i64),
++                signal: str_of(exit, "signal").map(str::to_string),
++            });
++        }
++        out.cwd = meta
++            .get("terminal_info")
++            .and_then(|m| str_of(m, "cwd"))
++            .map(str::to_string);
++        out
++    }
+ }
+ 
+ /// A tool call, or an update to one: every field but the id may be absent in an
+@@ -50,10 +159,19 @@
+ pub struct ToolCall {
+     pub id: String,
+     pub title: Option<String>,
++    /// The agent's programmatic name for the tool (`Bash`), when it gives one.
++    pub name: Option<String>,
+     pub kind: Option<String>,
+     pub status: Option<ToolStatus>,
+     pub raw_input: Option<Value>,
+     pub content: Vec<ToolContent>,
++    /// The files it touches.
++    pub locations: Vec<Location>,
++    /// `rawOutput` as text, when it has a text shape (a string, or an object with `output`, `stdout` and
++    /// `stderr`, `aggregated_output`, `formatted_output` or `text`).
++    pub raw_output: Option<String>,
++    /// What `_meta` says about the command's terminal.
++    pub stream: Stream,
+ }
+ 
+ /// A `session/update` payload.
+@@ -71,6 +189,8 @@
+     /// `Some(None)` is a title that was cleared.
+     SessionInfo {
+         title: Option<Option<String>>,
++        /// When the session last changed (`updatedAt`, an ISO 8601 time), when the agent says.
++        updated_at: Option<String>,
+     },
+     /// The agent's mode changed (`plan`, `act`, ...).
+     Mode(String),
+@@ -81,10 +201,28 @@
+     /// The agent's plan: a checklist it keeps up to date; each update replaces the whole list
+     /// (an empty one clears it).
+     Plan(Vec<PlanEntry>),
+-    /// How much of the context window is used.
++    /// How much of the context window is used, and what the session has cost.
+     Usage {
+         used: u64,
+         size: u64,
++        /// `(amount, currency)`, cumulative for the session.
++        cost: Option<(f64, String)>,
++    },
++    /// A live notice for the person (`notice`): not part of the conversation and not replayed. The
++    /// agent sends it only to a client that said `session.notices` in `initialize`.
++    Notice {
++        /// `info`, `warning`, `error`, or an agent's own (`_...`).
++        severity: String,
++        title: String,
++        description: Option<String>,
++    },
++    /// The agent is compacting its context (`compaction_update`; only to a client that said
++    /// `session.compaction`).
++    Compaction {
++        id: String,
++        /// `running`, `completed`, `failed`, or one this client does not know.
++        status: String,
++        error: Option<String>,
+     },
+     /// Plans, command lists and anything newer, by `sessionUpdate`.
+     Other(String),
+@@ -116,6 +254,7 @@
+                         .filter(|s| !s.trim().is_empty())
+                         .map(str::to_string)
+                 }),
++                updated_at: str_of(u, "updatedAt").map(str::to_string),
+             },
+             "current_mode_update" => {
+                 match str_of(u, "currentModeId").or_else(|| str_of(u, "modeId")) {
+@@ -145,9 +284,33 @@
+                 u.get("used").and_then(Value::as_u64),
+                 u.get("size").and_then(Value::as_u64),
+             ) {
+-                (Some(used), Some(size)) if size > 0 => SessionUpdate::Usage { used, size },
++                (Some(used), Some(size)) if size > 0 => SessionUpdate::Usage {
++                    used,
++                    size,
++                    cost: u.get("cost").and_then(|c| {
++                        Some((c.get("amount")?.as_f64()?, str_of(c, "currency")?.to_string()))
++                    }),
++                },
+                 _ => SessionUpdate::Other(kind.to_string()),
+             },
++            "notice" => match str_of(u, "title").map(clean_line).filter(|t| !t.is_empty()) {
++                Some(title) => SessionUpdate::Notice {
++                    severity: str_of(u, "severity").unwrap_or("info").to_string(),
++                    title,
++                    description: str_of(u, "description")
++                        .map(clean_text)
++                        .filter(|d| !d.is_empty()),
++                },
++                None => SessionUpdate::Other(kind.to_string()),
++            },
++            "compaction_update" => match str_of(u, "compactionId") {
++                Some(id) => SessionUpdate::Compaction {
++                    id: id.to_string(),
++                    status: str_of(u, "status").unwrap_or("running").to_string(),
++                    error: str_of(u, "error").map(clean_line).filter(|e| !e.is_empty()),
++                },
++                None => SessionUpdate::Other(kind.to_string()),
++            },
+             other => SessionUpdate::Other(other.to_string()),
+         })
+     }
+@@ -233,23 +396,107 @@
+     v.get(key)?.as_str()
+ }
+ 
++/// One line of an agent's text: control characters out, white space folded.
++fn clean_line(s: &str) -> String {
++    s.chars()
++        .map(|c| if c.is_whitespace() { ' ' } else { c })
++        .filter(|c| !is_unsafe_control(*c))
++        .collect::<String>()
++        .trim()
++        .to_string()
++}
++
++/// Text of an agent's, control characters out; newlines and tabs stay.
++fn clean_text(s: &str) -> String {
++    s.chars()
++        .filter(|c| !is_unsafe_control(*c))
++        .collect::<String>()
++        .trim()
++        .to_string()
++}
++
++/// The last word of a path or address, for what a person reads.
++fn base_name(uri: &str) -> &str {
++    uri.trim_end_matches('/').rsplit('/').next().unwrap_or(uri)
++}
++
++/// Bytes a base64 text of this length decodes to (an estimate good to two bytes).
++fn decoded_len(base64: &str) -> u64 {
++    let pad = base64.bytes().rev().take_while(|b| *b == b'=').count();
++    (base64.len() as u64 / 4 * 3).saturating_sub(pad as u64)
++}
++
++/// An `image`, `audio`, `resource_link` or `resource` block; `None` for any other type.
++fn part_of(c: &Value) -> Option<Part> {
++    let named = |name: Option<&str>, uri: Option<&str>, fallback: &str| -> String {
++        name.map(clean_line)
++            .filter(|n| !n.is_empty())
++            .or_else(|| uri.map(|u| clean_line(base_name(u))).filter(|n| !n.is_empty()))
++            .unwrap_or_else(|| fallback.to_string())
++    };
++    match str_of(c, "type")? {
++        "image" => {
++            let data = str_of(c, "data");
++            Some(Part {
++                kind: PartKind::Image,
++                name: named(None, str_of(c, "uri"), "image"),
++                uri: str_of(c, "uri").map(str::to_string),
++                mime: str_of(c, "mimeType").map(str::to_string),
++                size: data.map(decoded_len),
++                data: data
++                    .filter(|d| d.len() <= PART_DATA_MAX)
++                    .map(str::to_string),
++            })
++        }
++        "audio" => Some(Part {
++            kind: PartKind::Audio,
++            name: "audio".to_string(),
++            uri: None,
++            mime: str_of(c, "mimeType").map(str::to_string),
++            size: str_of(c, "data").map(decoded_len),
++            data: None,
++        }),
++        "resource_link" => {
++            let uri = str_of(c, "uri");
++            if str_of(c, "name").is_none() && uri.is_none() {
++                return None;
++            }
++            Some(Part {
++                kind: PartKind::Link,
++                name: named(str_of(c, "name"), uri, "file"),
++                uri: uri.map(str::to_string),
++                mime: str_of(c, "mimeType").map(str::to_string),
++                size: c.get("size").and_then(Value::as_u64),
++                data: None,
++            })
++        }
++        "resource" => {
++            let r = c.get("resource")?;
++            let uri = str_of(r, "uri");
++            Some(Part {
++                kind: PartKind::Resource,
++                name: named(None, uri, "resource"),
++                uri: uri.map(str::to_string),
++                mime: str_of(r, "mimeType").map(str::to_string),
++                size: str_of(r, "text")
++                    .map(|t| t.len() as u64)
++                    .or_else(|| str_of(r, "blob").map(decoded_len)),
++                data: None,
++            })
++        }
++        _ => None,
++    }
++}
++
+ fn chunk(u: &Value) -> Option<Chunk> {
+     let c = u.get("content")?;
+-    let content = match str_of(c, "type")? {
+-        "text" => Content::Text(str_of(c, "text").unwrap_or("").to_string()),
+-        // A file the person attached (a `resource_link`): the way it is typed, on its own line.
+-        "resource_link" => match str_of(c, "name")
+-            .map(|n| {
+-                n.chars()
+-                    .filter(|c| !is_unsafe_control(*c))
+-                    .collect::<String>()
+-            })
+-            .filter(|n| !n.trim().is_empty())
+-        {
+-            Some(name) => Content::Text(format!("\n@{name}")),
+-            None => Content::Other("resource_link".to_string()),
+-        },
+-        other => Content::Other(other.to_string()),
++    let kind = str_of(c, "type")?;
++    let content = if kind == "text" {
++        Content::Text(str_of(c, "text").unwrap_or("").to_string())
++    } else if let Some(part) = part_of(c) {
++        Content::Part(part)
++    } else {
++        Content::Other(kind.to_string())
+     };
+     Some(Chunk {
+         message_id: str_of(u, "messageId").map(str::to_string),
+@@ -257,6 +504,31 @@
+     })
+ }
+ 
++/// The text a tool's `rawOutput` holds, for the shapes agents use: a string, or an object with the
++/// output under one of a few names (`stdout` and `stderr` are joined).
++fn raw_output_text(v: &Value) -> Option<String> {
++    let text = match v {
++        Value::String(s) => s.clone(),
++        Value::Object(o) => {
++            let field = |k: &str| o.get(k).and_then(Value::as_str).filter(|s| !s.is_empty());
++            if let Some(s) = ["output", "aggregated_output", "formatted_output", "text"]
++                .iter()
++                .find_map(|k| field(k))
++            {
++                s.to_string()
++            } else {
++                match (field("stdout"), field("stderr")) {
++                    (Some(a), Some(b)) => format!("{a}\n{b}"),
++                    (Some(s), None) | (None, Some(s)) => s.to_string(),
++                    (None, None) => return None,
++                }
++            }
++        }
++        _ => return None,
++    };
++    (!text.is_empty()).then_some(text)
++}
++
+ impl ToolCall {
+     /// Reads a `tool_call` / `tool_call_update` (or a permission request's
+     /// `toolCall`). `None` when it has no `toolCallId`.
+@@ -267,6 +539,9 @@
+             title: str_of(v, "title")
+                 .filter(|t| !t.is_empty())
+                 .map(str::to_string),
++            name: str_of(v, "name")
++                .map(clean_line)
++                .filter(|n| !n.is_empty()),
+             kind: str_of(v, "kind").map(str::to_string),
+             status: str_of(v, "status").map(|s| match s {
+                 "completed" => ToolStatus::Completed,
+@@ -280,6 +555,25 @@
+                 .and_then(Value::as_array)
+                 .map(|a| a.iter().filter_map(tool_content).collect())
+                 .unwrap_or_default(),
++            locations: v
++                .get("locations")
++                .and_then(Value::as_array)
++                .map(|a| {
++                    a.iter()
++                        .filter_map(|l| {
++                            Some(Location {
++                                path: clean_line(str_of(l, "path")?),
++                                line: l
++                                    .get("line")
++                                    .and_then(Value::as_u64)
++                                    .and_then(|n| u32::try_from(n).ok()),
++                            })
++                        })
++                        .collect()
++                })
++                .unwrap_or_default(),
++            raw_output: v.get("rawOutput").and_then(raw_output_text),
++            stream: Stream::from_meta(v.get("_meta")),
+         })
+     }
+ 
+@@ -320,9 +614,13 @@
+         }),
+         "content" => {
+             let inner = v.get("content")?;
+-            (str_of(inner, "type") == Some("text"))
+-                .then(|| ToolContent::Text(str_of(inner, "text").unwrap_or("").to_string()))
++            if str_of(inner, "type") == Some("text") {
++                Some(ToolContent::Text(str_of(inner, "text").unwrap_or("").to_string()))
++            } else {
++                part_of(inner).map(ToolContent::Part)
++            }
+         }
++        "terminal" => str_of(v, "terminalId").map(|id| ToolContent::Terminal(id.to_string())),
+         _ => None,
+     }
+ }
+@@ -455,18 +753,35 @@
+     }
+ 
+     #[test]
+-    fn an_attached_file_in_a_message_reads_as_its_name() {
++    fn an_attached_file_in_a_message_reads_as_a_link_named_by_its_path() {
+         let u = json!({"sessionUpdate":"user_message_chunk","content":{"type":"resource_link","uri":"file:///w/a.rs","name":"src/a\u{1b}.rs"}});
+         assert_eq!(
+             SessionUpdate::from_value(&u),
+             Some(SessionUpdate::UserMessage(Chunk {
+                 message_id: None,
+-                content: Content::Text("\n@src/a.rs".into())
++                content: Content::Part(Part {
++                    kind: PartKind::Link,
++                    name: "src/a.rs".into(),
++                    uri: Some("file:///w/a.rs".into()),
++                    mime: None,
++                    size: None,
++                    data: None
++                })
+             }))
+         );
++        // Without a name the file is named by its address.
+         let nameless = json!({"sessionUpdate":"user_message_chunk","content":{"type":"resource_link","uri":"file:///w/a.rs"}});
+         assert!(matches!(
+-            SessionUpdate::from_value(&nameless),
++            &SessionUpdate::from_value(&nameless),
++            Some(SessionUpdate::UserMessage(Chunk {
++                content: Content::Part(Part { name, .. }),
++                ..
++            })) if name == "a.rs"
++        ));
++        // A link with neither is nothing a person could read.
++        let empty = json!({"sessionUpdate":"user_message_chunk","content":{"type":"resource_link"}});
++        assert!(matches!(
++            SessionUpdate::from_value(&empty),
+             Some(SessionUpdate::UserMessage(Chunk {
+                 content: Content::Other(_),
+                 ..
+@@ -484,14 +799,32 @@
+                 content: Content::Text("hi".into())
+             }))
+         );
+-        let img = json!({"sessionUpdate":"user_message_chunk","content":{"type":"image"}});
++        // A picture is a part with its bytes when small, and only counted when big.
++        let img = json!({"sessionUpdate":"user_message_chunk","content":{"type":"image","mimeType":"image/png","data":"QUJD"}});
+         assert!(matches!(
+             SessionUpdate::from_value(&img),
+             Some(SessionUpdate::UserMessage(Chunk {
+-                content: Content::Other(_),
++                content: Content::Part(Part { kind: PartKind::Image, size: Some(3), data: Some(_), .. }),
+                 ..
+             }))
+         ));
++        let big = json!({"sessionUpdate":"user_message_chunk","content":{"type":"image","mimeType":"image/png","data":"A".repeat(PART_DATA_MAX + 4)}});
++        assert!(matches!(
++            SessionUpdate::from_value(&big),
++            Some(SessionUpdate::UserMessage(Chunk {
++                content: Content::Part(Part { kind: PartKind::Image, size: Some(n), data: None, .. }),
++                ..
++            })) if n > PART_DATA_MAX as u64 / 2
++        ));
++        // A block of a kind nobody knows is kept by its type.
++        let odd = json!({"sessionUpdate":"user_message_chunk","content":{"type":"hologram"}});
++        assert!(matches!(
++            &SessionUpdate::from_value(&odd),
++            Some(SessionUpdate::UserMessage(Chunk {
++                content: Content::Other(k),
++                ..
++            })) if k == "hologram"
++        ));
+     }
+ 
+     #[test]
+@@ -506,9 +839,17 @@
+             SessionUpdate::from_value(&u),
+             Some(SessionUpdate::Usage {
+                 used: 47,
+-                size: 100
++                size: 100,
++                cost: None
+             })
+         );
++        // A cost is `(amount, currency)`, and a credit count is a currency too.
++        let c = json!({"sessionUpdate": "usage_update", "used": 1, "size": 2,
++            "cost": {"amount": 1.25, "currency": "credits"}});
++        assert!(matches!(
++            &SessionUpdate::from_value(&c),
++            Some(SessionUpdate::Usage { cost: Some((a, cur)), .. }) if *a == 1.25 && cur == "credits"
++        ));
+         // A window of size 0 says nothing: never a division by zero downstream.
+         let z = json!({"sessionUpdate": "usage_update", "used": 1, "size": 0});
+         assert_eq!(
+@@ -545,7 +886,9 @@
+             {"type":"content","content":{"type":"text","text":"ok"}},
+             {"type":"terminal","terminalId":"z"}]});
+         let t = ToolCall::from_value(&u).expect("has an id");
+-        assert_eq!(t.content.len(), 2);
++        // Text, a diff and a terminal are all kept.
++        assert_eq!(t.content.len(), 3);
++        assert!(matches!(&t.content[2], ToolContent::Terminal(id) if id == "z"));
+     }
+ 
+     #[test]
+--- a/acp/mod.rs
++++ a/acp/mod.rs
+@@ -13,12 +13,12 @@
+ mod rpc;
+ mod update;
+ 
+-pub use config::{legacy_models, parse_config_options, ConfigOption};
++pub use config::{legacy_models, legacy_modes, parse_config_options, ConfigOption};
+ pub use permission::{outcome_cancelled, outcome_selected, PermissionOption, PermissionRequest};
+ pub use rpc::{Id, Message, ParseError, RpcError};
+ pub use update::{
+-    is_unsafe_control, AgentState, Chunk, Command, Content, PlanEntry, PlanStatus, SessionUpdate,
+-    ToolCall, ToolContent, ToolStatus,
++    is_unsafe_control, AgentState, Chunk, Command, Content, Exit, Location, Part, PartKind,
++    PlanEntry, PlanStatus, SessionUpdate, Stream, ToolCall, ToolContent, ToolStatus, PART_DATA_MAX,
+ };
+ 
+ /// Method names the keeper and clients exchange.
+@@ -26,8 +26,11 @@
+     pub const INITIALIZE: &str = "initialize";
+     pub const SESSION_NEW: &str = "session/new";
+     pub const SESSION_LOAD: &str = "session/load";
++    pub const SESSION_RESUME: &str = "session/resume";
+     pub const SESSION_PROMPT: &str = "session/prompt";
+     pub const SESSION_SET_CONFIG_OPTION: &str = "session/set_config_option";
++    pub const SESSION_SET_MODE: &str = "session/set_mode";
++    pub const AUTHENTICATE: &str = "authenticate";
+     pub const SESSION_CANCEL: &str = "session/cancel";
+     pub const SESSION_UPDATE: &str = "session/update";
+     pub const REQUEST_PERMISSION: &str = "session/request_permission";
+@@ -42,6 +45,8 @@
+ /// JSON-RPC and keeper error codes.
+ pub mod code {
+     pub const METHOD_NOT_FOUND: i64 = -32601;
++    /// The agent needs the person to sign in first (ACP `auth_required`).
++    pub const AUTH_REQUIRED: i64 = -32000;
+     /// A prompt arrived while the session is already working on one.
+     pub const SESSION_BUSY: i64 = -32003;
+ }
+--- a/keeper.py
++++ a/keeper.py
+@@ -2411,7 +2411,9 @@
+         "fs": {"readTextFile": False, "writeTextFile": False},
+         "terminal": False,
+         "elicitation": {"form": {}},
+-        "session": {"configOptions": {"boolean": {}}},
++        # `notices` and `compaction`: the desktop app shows both (a notice as a line, a compaction as one
++        # note that changes in place); an agent sends them only to a client that asks (ACP, session notices).
++        "session": {"configOptions": {"boolean": {}}, "notices": {}, "compaction": {}},
+     }
+     route = route_by_id(agent)
+     air_caps = route.get("air") if route else None

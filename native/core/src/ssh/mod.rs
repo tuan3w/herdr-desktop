@@ -15,10 +15,12 @@ mod validate;
 mod wire;
 
 pub use classify::{SSH_FAILED, classify_ssh};
+pub(crate) use command::spawn_error;
 pub use command::{Output, SshClient, control_dir_for};
 pub use config::{config_hosts, default_config_path};
+pub(crate) use proc::{Proc, spawn};
 pub use relay::{
-    BRIDGE_SCRIPT, COMPRESS_MIN, READY_LINE, RELAY_SCRIPT, argv_command, bridge_command,
+    BRIDGE_SCRIPT, COMPRESS_MIN, READY_LINE, RELAY_SCRIPT, argv_command, base64, bridge_command,
     relay_command, socket_word, wrap_sh,
 };
 pub use validate::{InvalidTarget, SshTarget, shq, validate_dest, validate_name};

@@ -202,9 +202,42 @@ pub struct WorkspaceInfo {
     pub agent_status: AgentStatus,
     #[serde(default)]
     pub tokens: BTreeMap<String, String>,
-    /// Git provenance; kept opaque until a screen needs it.
+    /// Which repository and checkout the workspace is in, when herdr knows (a workspace opened from
+    /// a git folder). An unreadable value reads as absent: grouping then falls back to the label.
+    #[serde(default, deserialize_with = "lenient")]
+    pub worktree: Option<WorkspaceWorktree>,
+}
+
+/// Git provenance of a workspace (`WorkspaceWorktreeInfo` in the schema). The branch is not part of
+/// it: herdr reports branches only through `worktree.list`.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct WorkspaceWorktree {
+    /// Identifies the repository across its checkouts; the same for the main checkout and every linked worktree.
     #[serde(default)]
-    pub worktree: Option<Value>,
+    pub repo_key: String,
+    /// The repository's name.
+    #[serde(default)]
+    pub repo_name: String,
+    /// The main checkout's folder.
+    #[serde(default)]
+    pub repo_root: String,
+    /// The folder of the checkout this workspace is in.
+    #[serde(default)]
+    pub checkout_path: String,
+    /// The checkout is a linked worktree, not the main one.
+    #[serde(default)]
+    pub is_linked_worktree: bool,
+}
+
+/// Reads a value or, when it has the wrong shape, nothing: a field this app only uses for grouping
+/// must never make a whole snapshot unreadable.
+fn lenient<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: DeserializeOwned,
+{
+    let raw = Option::<Value>::deserialize(deserializer)?;
+    Ok(raw.and_then(|v| serde_json::from_value(v).ok()))
 }
 
 /// A herdr tab.

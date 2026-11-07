@@ -49,19 +49,19 @@ fn main() {
     first_seen.observe(LOCAL_ID, &snapshot, now);
     let board = Board::from(
         &[(LOCAL_ID.to_owned(), snapshot.clone(), LinkState::Online)],
+        herdr_core::board::BoardExtras::NONE,
         &Reviewed::default(),
         &first_seen,
         now,
     );
     let c = board.counts;
     println!(
-        "board: needs_you={} to_review={} working={} idle={} (shown {}, more {}) offline={}",
+        "board: needs_you={} to_review={} working={} idle={} offline={} projects={}",
         c.needs_you,
         c.to_review,
         c.working,
         c.idle,
-        board.idle.len(),
-        board.more_idle,
-        c.offline
+        c.offline,
+        board.projects.len()
     );
 }

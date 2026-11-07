@@ -14,6 +14,8 @@ use super::relay::argv_command;
 use super::validate::SshTarget;
 use crate::wire::{Fatal, WireError};
 
+mod forward;
+
 /// ssh appends `.` and 16 random characters to the control socket path while it sets the master up.
 const CONTROL_SUFFIX: usize = 17;
 /// `%C` expands to a 40 character hash.

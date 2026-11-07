@@ -116,6 +116,15 @@ impl Proc {
         self.pid
     }
 
+    /// Whether the child has not exited yet.
+    pub fn is_running(&self) -> bool {
+        self.state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .exit
+            .is_none()
+    }
+
     /// SIGKILLs this child if it is still running. Idempotent.
     pub fn kill(&self) {
         let state = self.state.lock().unwrap_or_else(PoisonError::into_inner);

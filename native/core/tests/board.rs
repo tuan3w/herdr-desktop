@@ -1,13 +1,15 @@
-//! The board: sections, counts, order, names, offline machines and reviewed episodes.
+//! The board: projects, counts, order, names, offline machines and reviewed episodes.
 
 mod common;
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use common::snapshot_fixture;
-use herdr_core::board::{AgentRow, Board, FirstSeen, IDLE_SHOWN};
+use herdr_core::board::{AgentRow, Board, BoardExtras, FirstSeen, LogNames, SessionRow};
 use herdr_core::link::LinkState;
+use herdr_core::observed::names::PaneName;
 use herdr_core::schema::{AgentStatus, Snapshot};
 use herdr_core::store::{MachineId, ReviewKey, Reviewed};
 use serde_json::{Value, json};
@@ -19,7 +21,7 @@ fn online(machine: &str, snap: Snapshot) -> Input {
 }
 
 fn build(machines: &[Input], reviewed: &Reviewed, first_seen: &FirstSeen, now: Instant) -> Board {
-    Board::from(machines, reviewed, first_seen, now)
+    Board::from(machines, BoardExtras::NONE, reviewed, first_seen, now)
 }
 
 fn plain(machines: &[Input]) -> Board {
@@ -40,14 +42,22 @@ fn agents(list: &[(&str, &str, u64)]) -> Snapshot {
     Snapshot::from_result(&json!({"snapshot": {"agents": rows}})).unwrap()
 }
 
-fn panes(rows: &Board) -> Vec<&str> {
-    rows.needs_you
-        .iter()
-        .chain(&rows.to_review)
-        .chain(&rows.working)
-        .chain(&rows.idle)
+/// Every pane on the board, project by project.
+fn panes(board: &Board) -> Vec<&str> {
+    board.rows().map(|r| r.pane_id.as_str()).collect()
+}
+
+/// The panes in `status`, in board order.
+fn with(board: &Board, status: AgentStatus) -> Vec<&str> {
+    board
+        .rows()
+        .filter(|r| r.status == status)
         .map(|r| r.pane_id.as_str())
         .collect()
+}
+
+fn first_row(board: &Board) -> &AgentRow {
+    board.rows().next().expect("a row")
 }
 
 fn ids(rows: &[AgentRow]) -> Vec<&str> {
@@ -55,16 +65,11 @@ fn ids(rows: &[AgentRow]) -> Vec<&str> {
 }
 
 #[test]
-fn agents_are_sorted_into_what_needs_you_what_to_review_what_works_and_what_rests() {
+fn counts_and_inboxes_hold_every_agent_once_whatever_the_projects() {
     let board = plain(&[online("local", snapshot_fixture("snapshot-mixed.json"))]);
     assert_eq!(ids(&board.needs_you), ["w1:p1"]);
     assert_eq!(ids(&board.to_review), ["w1:p2"]);
-    assert_eq!(ids(&board.working), ["w1:p3"]);
-    assert_eq!(
-        ids(&board.idle),
-        ["w2:p1", "w2:p2"],
-        "idle first, then the agent whose status is unknown"
-    );
+    assert_eq!(with(&board, AgentStatus::Working), ["w1:p3"]);
     let c = board.counts;
     assert_eq!(
         (
@@ -75,8 +80,20 @@ fn agents_are_sorted_into_what_needs_you_what_to_review_what_works_and_what_rest
             c.offline,
             c.machines_not_connected
         ),
-        (1, 1, 1, 2, 0, 0)
+        (1, 1, 1, 2, 0, 0),
+        "the same numbers as when the board was grouped by state"
     );
+    assert_eq!(
+        panes(&board).len(),
+        5,
+        "each agent is in exactly one project"
+    );
+    let chips: usize = board
+        .projects
+        .iter()
+        .map(|p| p.needs_you + p.to_review + p.working)
+        .sum();
+    assert_eq!(chips, 3, "the projects' chips add up to the same attention");
 }
 
 #[test]
@@ -84,11 +101,7 @@ fn names_come_from_the_label_then_the_title_then_the_folder() {
     let board = plain(&[online("local", snapshot_fixture("snapshot-mixed.json"))]);
     let name = |pane: &str| {
         board
-            .needs_you
-            .iter()
-            .chain(&board.to_review)
-            .chain(&board.working)
-            .chain(&board.idle)
+            .rows()
             .find(|r| r.pane_id == pane)
             .unwrap()
             .name
@@ -134,7 +147,7 @@ fn naming_fallbacks_in_order() {
             .extend(pane.as_object().unwrap().clone());
         let snap =
             Snapshot::from_result(&json!({"snapshot": {"agents": [a], "panes": [p]}})).unwrap();
-        plain(&[online("local", snap)]).idle[0].name.clone()
+        first_row(&plain(&[online("local", snap)])).name.clone()
     };
     let table: [(Value, Value, &str); 9] = [
         (json!({}), json!({"label": "  build box  "}), "build box"),
@@ -175,7 +188,10 @@ fn naming_fallbacks_in_order() {
         );
     }
     let nameless = Snapshot::from_result(&json!({"snapshot": {"agents": [{"pane_id": "p", "workspace_id": "w", "tab_id": "t", "agent_status": "idle"}]}})).unwrap();
-    assert_eq!(plain(&[online("local", nameless)]).idle[0].name, "Agent");
+    assert_eq!(
+        first_row(&plain(&[online("local", nameless)])).name,
+        "Agent"
+    );
 }
 
 #[test]
@@ -192,7 +208,7 @@ fn an_unconnected_machine_lists_its_agents_dimmed_and_never_counts_them_as_needi
             ["w1:p1"],
             "{state:?}: still listed, as last known"
         );
-        assert!(board.needs_you[0].offline && board.working[0].offline);
+        assert!(board.rows().all(|r| r.offline) && board.projects.iter().all(|p| p.offline));
         let c = board.counts;
         assert_eq!(
             (
@@ -222,7 +238,7 @@ fn a_machine_that_is_switched_off_is_not_on_the_board() {
 }
 
 #[test]
-fn online_rows_come_before_offline_ones_in_a_section_and_every_agent_is_counted_once() {
+fn online_rows_come_before_offline_ones_in_the_inbox_and_every_agent_is_counted_once() {
     let a = agents(&[
         ("w1:p1", "blocked", 1),
         ("w1:p2", "done", 1),
@@ -270,7 +286,7 @@ fn a_finished_state_is_to_review_until_that_very_episode_is_reviewed() {
     assert!(board.to_review.is_empty());
     assert_eq!((board.counts.to_review, board.counts.idle), (0, 1));
     assert_eq!(
-        (board.idle[0].status, board.idle[0].reviewed),
+        (first_row(&board).status, first_row(&board).reviewed),
         (AgentStatus::Idle, true),
         "reviewed shows as idle"
     );
@@ -292,41 +308,50 @@ fn a_finished_state_is_to_review_until_that_very_episode_is_reviewed() {
 }
 
 #[test]
-fn only_the_newest_idle_agents_show_and_the_rest_are_counted() {
+fn inside_a_project_what_needs_you_comes_first_then_the_newest_state() {
     let base = Instant::now();
-    let rows: Vec<(String, &str, u64)> = (1..=8).map(|i| (format!("w1:p{i}"), "idle", 1)).collect();
-    let borrowed: Vec<(&str, &str, u64)> =
-        rows.iter().map(|(p, s, q)| (p.as_str(), *s, *q)).collect();
-    let empty = agents(&[]);
-    let full = agents(&borrowed);
     let mut seen = FirstSeen::new();
-    seen.observe("local", &empty, base);
-    // Agents appear one minute apart, so p8 is the newest.
-    let mut growing: Vec<(&str, &str, u64)> = Vec::new();
-    for (i, row) in borrowed.iter().enumerate() {
-        growing.push(*row);
-        seen.observe(
-            "local",
-            &agents(&growing),
-            base + Duration::from_secs(60 * (i as u64 + 1)),
-        );
-    }
+    let start = agents(&[("w1:p1", "idle", 1), ("w1:p2", "idle", 1)]);
+    seen.observe("local", &start, base);
+    // p3 starts working a minute later, p4 starts waiting two minutes later, p5 is idle from minute 3.
+    let list = [
+        ("w1:p1", "idle", 1),
+        ("w1:p2", "idle", 1),
+        ("w1:p3", "working", 1),
+    ];
+    seen.observe("local", &agents(&list), base + Duration::from_secs(60));
+    let list = [
+        ("w1:p1", "idle", 1),
+        ("w1:p2", "idle", 1),
+        ("w1:p3", "working", 1),
+        ("w1:p4", "blocked", 1),
+    ];
+    seen.observe("local", &agents(&list), base + Duration::from_secs(120));
+    let list = [
+        ("w1:p1", "idle", 1),
+        ("w1:p2", "idle", 1),
+        ("w1:p3", "working", 1),
+        ("w1:p4", "blocked", 1),
+        ("w1:p5", "idle", 1),
+    ];
+    let full = agents(&list);
+    seen.observe("local", &full, base + Duration::from_secs(180));
     let board = build(
         &[online("local", full)],
         &Reviewed::default(),
         &seen,
         base + Duration::from_secs(3600),
     );
-    assert_eq!(board.idle.len(), IDLE_SHOWN);
-    assert_eq!(board.more_idle, 3);
-    assert_eq!(board.counts.idle, 8);
+    assert_eq!(board.projects.len(), 1);
     assert_eq!(
-        ids(&board.idle),
-        ["w1:p8", "w1:p7", "w1:p6", "w1:p5", "w1:p4"]
+        panes(&board),
+        ["w1:p4", "w1:p5", "w1:p3", "w1:p1", "w1:p2"],
+        "the waiting one, then newest first, undated ones after the dated"
     );
-    // The hidden rows follow in the same order, so "N more idle" opens exactly what was folded.
-    assert_eq!(ids(&board.idle_rest), ["w1:p3", "w1:p2", "w1:p1"]);
-    assert_eq!(board.idle_rest.len(), board.more_idle);
+    assert_eq!(
+        board.counts.idle, 3,
+        "idle is counted, never hidden by the board"
+    );
 }
 
 #[test]
@@ -393,7 +418,10 @@ fn working_is_newest_first_with_unknown_times_between_recent_and_old() {
         &seen,
         t0 + 30 * hour,
     );
-    assert_eq!(ids(&board.working), ["w1:p3", "w1:p1", "w1:p2"]);
+    assert_eq!(
+        with(&board, AgentStatus::Working),
+        ["w1:p3", "w1:p1", "w1:p2"]
+    );
 }
 
 #[test]
@@ -401,8 +429,7 @@ fn ties_are_broken_by_machine_then_pane() {
     let a = agents(&[("w1:p2", "working", 1), ("w1:p1", "working", 1)]);
     let board = plain(&[online("b", a.clone()), online("a", a)]);
     let order: Vec<_> = board
-        .working
-        .iter()
+        .rows()
         .map(|r| (r.machine.as_str(), r.pane_id.as_str()))
         .collect();
     assert_eq!(
@@ -417,7 +444,7 @@ fn ties_are_broken_by_machine_then_pane() {
 }
 
 #[test]
-fn an_unknown_status_is_idle_inventory_listed_after_the_idle_agents() {
+fn an_unknown_status_counts_as_idle() {
     let board = plain(&[online(
         "local",
         agents(&[
@@ -426,8 +453,8 @@ fn an_unknown_status_is_idle_inventory_listed_after_the_idle_agents() {
             ("w1:p3", "gibberish", 1),
         ]),
     )]);
-    assert_eq!(ids(&board.idle), ["w1:p2", "w1:p1", "w1:p3"]);
     assert_eq!(board.counts.idle, 3);
+    assert_eq!(panes(&board).len(), 3);
 }
 
 #[test]
@@ -436,8 +463,8 @@ fn an_episode_is_dated_when_first_seen_and_a_new_one_starts_on_a_change() {
     let at = |s: u64| t0 + Duration::from_secs(s);
     let since = |seen: &FirstSeen, snap: &Snapshot, now| {
         plain_with(seen, snap, now)
-            .working
-            .first()
+            .rows()
+            .find(|r| r.status == AgentStatus::Working)
             .and_then(|r| r.since)
     };
     fn plain_with(seen: &FirstSeen, snap: &Snapshot, now: Instant) -> Board {
@@ -503,7 +530,7 @@ fn a_machine_removed_from_the_app_starts_undated_if_it_comes_back() {
         &seen,
         t0 + Duration::from_secs(6),
     );
-    assert_eq!(board.working[0].since, None);
+    assert_eq!(first_row(&board).since, None);
 }
 
 #[test]
@@ -522,4 +549,446 @@ fn rows_carry_what_the_screens_need_to_open_and_review_an_agent() {
     assert_eq!(row.cwd.as_deref(), Some("/home/dev/auth"));
     assert_eq!(row.review_key(), ReviewKey::new("local", "w1:p2", 7));
     assert_eq!(board.needs_you[0].agent, "omp");
+}
+
+// ---- sessions ----------------------------------------------------------------------------------
+
+fn session(machine: &str, id: &str, status: AgentStatus, since: Option<Instant>) -> SessionRow {
+    SessionRow {
+        machine: machine.into(),
+        id: id.into(),
+        agent: "omp".into(),
+        name: format!("chat {id}"),
+        cwd: "/work".into(),
+        status,
+        since,
+        last_message: None,
+    }
+}
+
+fn with_sessions(machines: &[Input], sessions: &[SessionRow]) -> Board {
+    Board::from(
+        machines,
+        BoardExtras {
+            sessions,
+            names: &LogNames::new(),
+            pins: &BTreeSet::new(),
+        },
+        &Reviewed::default(),
+        &FirstSeen::new(),
+        Instant::now(),
+    )
+}
+
+#[test]
+fn a_session_that_needs_you_is_counted_and_listed_with_the_terminal_agents_that_do() {
+    let t0 = Instant::now();
+    let machines = [online(
+        "local",
+        agents(&[("p1", "blocked", 1), ("p2", "working", 1)]),
+    )];
+    let board = with_sessions(
+        &machines,
+        &[
+            session("local", "abc234", AgentStatus::Blocked, Some(t0)),
+            session("local", "def567", AgentStatus::Working, None),
+            session("local", "ghj789", AgentStatus::Idle, None),
+        ],
+    );
+    // One number feeds every surface: the terminal agent and the session are both in it.
+    assert_eq!(board.counts.needs_you, 2);
+    assert_eq!(board.counts.working, 2);
+    assert_eq!(board.counts.idle, 1);
+    assert_eq!(board.needs_you.len(), 2);
+    let chat = board
+        .needs_you
+        .iter()
+        .find(|r| r.session)
+        .expect("the session");
+    assert_eq!(chat.key(), "local/session:abc234");
+    assert_eq!(chat.name, "chat abc234");
+    assert_eq!(chat.cwd.as_deref(), Some("/work"));
+    // Dated before undated, whichever kind it is: the session has waited since t0.
+    assert_eq!(board.needs_you[0].pane_id, "abc234");
+}
+
+#[test]
+fn sessions_of_a_machine_that_is_not_connected_are_dimmed_and_off_ones_are_left_out() {
+    let machines = [
+        (
+            "far".to_owned(),
+            Arc::new(Snapshot::default()),
+            LinkState::Offline,
+        ),
+        (
+            "away".to_owned(),
+            Arc::new(Snapshot::default()),
+            LinkState::Off,
+        ),
+        online("local", Snapshot::default()),
+    ];
+    let board = with_sessions(
+        &machines,
+        &[
+            session("far", "abc234", AgentStatus::Blocked, None),
+            session("away", "def567", AgentStatus::Blocked, None),
+            session("nowhere", "ghj789", AgentStatus::Blocked, None),
+        ],
+    );
+    assert_eq!(board.counts.needs_you, 0);
+    assert_eq!(board.counts.offline, 1);
+    assert_eq!(board.needs_you.len(), 1);
+    assert!(board.needs_you[0].offline);
+}
+
+// ---- names from session logs -------------------------------------------------------------------
+
+fn named_by_log(title: Option<&str>, label: Option<&str>, name: &PaneName) -> String {
+    let mut pane = json!({"pane_id": "w1:p1", "workspace_id": "w1", "tab_id": "w1:t1", "cwd": "/home/dev/payments-api", "agent": "omp"});
+    if let Some(t) = title {
+        pane["terminal_title"] = json!(t);
+    }
+    if let Some(l) = label {
+        pane["label"] = json!(l);
+    }
+    let agent = json!({"pane_id": "w1:p1", "workspace_id": "w1", "tab_id": "w1:t1", "agent": "omp",
+        "agent_status": "idle", "cwd": "/home/dev/payments-api", "terminal_title": title});
+    let snap = Snapshot::from_result(&json!({"snapshot": {"panes": [pane], "agents": [agent],
+        "workspaces": [{"workspace_id": "w1", "label": "payments-api"}]}}))
+    .unwrap();
+    let mut names = LogNames::new();
+    names.insert(("local".to_owned(), "w1:p1".to_owned()), name.clone());
+    let board = Board::from(
+        &[online("local", snap)],
+        BoardExtras {
+            sessions: &[],
+            names: &names,
+            pins: &BTreeSet::new(),
+        },
+        &Reviewed::default(),
+        &FirstSeen::new(),
+        Instant::now(),
+    );
+    first_row(&board).name.clone()
+}
+
+#[test]
+fn a_title_that_is_only_the_folder_gives_way_to_the_name_the_session_log_gives() {
+    let name = PaneName::title("Fix the ledger rounding");
+    assert_eq!(
+        named_by_log(Some("payments-api"), None, &name),
+        "Fix the ledger rounding"
+    );
+    assert_eq!(named_by_log(None, None, &name), "Fix the ledger rounding");
+    // A title that says something about the work stays, and so does a name the person gave the pane.
+    assert_eq!(
+        named_by_log(Some("Refactor ledger"), None, &name),
+        "Refactor ledger"
+    );
+    assert_eq!(
+        named_by_log(Some("payments-api"), Some("mine"), &name),
+        "mine"
+    );
+}
+
+// ---- projects ----------------------------------------------------------------------------------
+
+/// A workspace of a git repository: `(id, label, repo_key, repo_name, repo_root, checkout, linked)`.
+fn repo_workspace(
+    id: &str,
+    label: &str,
+    repo: (&str, &str, &str),
+    checkout: &str,
+    linked: bool,
+) -> Value {
+    json!({"workspace_id": id, "label": label, "worktree": {
+        "repo_key": repo.0, "repo_name": repo.1, "repo_root": repo.2,
+        "checkout_path": checkout, "is_linked_worktree": linked}})
+}
+
+/// One agent per `(pane, workspace, status, cwd)`.
+fn agent_in(pane: &str, workspace: &str, status: &str, cwd: &str) -> Value {
+    json!({"pane_id": pane, "workspace_id": workspace, "tab_id": "t", "agent": "omp",
+        "agent_status": status, "state_change_seq": 1, "cwd": cwd})
+}
+
+fn world(workspaces: Vec<Value>, agents: Vec<Value>) -> Snapshot {
+    Snapshot::from_result(&json!({"snapshot": {"workspaces": workspaces, "agents": agents}}))
+        .unwrap()
+}
+
+const API: (&str, &str, &str) = ("git:api", "payments-api", "/home/dev/payments-api");
+
+fn names(board: &Board) -> Vec<&str> {
+    board.projects.iter().map(|p| p.name.as_str()).collect()
+}
+
+fn project<'a>(board: &'a Board, name: &str) -> &'a herdr_core::project::Project {
+    board
+        .projects
+        .iter()
+        .find(|p| p.name == name)
+        .unwrap_or_else(|| panic!("no project {name}: {:?}", names(board)))
+}
+
+#[test]
+fn agents_of_one_repository_share_a_project_across_its_workspaces_and_worktrees() {
+    let snap = world(
+        vec![
+            repo_workspace("w1", "payments", API, "/home/dev/payments-api", false),
+            repo_workspace("w2", "second look", API, "/home/dev/payments-api", false),
+            repo_workspace("w3", "hotfix", API, "/home/dev/payments-api-hotfix", true),
+            json!({"workspace_id": "w4", "label": "web"}),
+        ],
+        vec![
+            agent_in("p1", "w1", "blocked", "/home/dev/payments-api"),
+            agent_in("p2", "w2", "working", "/home/dev/payments-api"),
+            agent_in("p3", "w3", "done", "/home/dev/payments-api-hotfix"),
+            agent_in("p4", "w4", "idle", "/home/dev/web"),
+        ],
+    );
+    let board = plain(&[online("local", snap)]);
+    assert_eq!(names(&board), ["payments-api", "web"]);
+    let api = project(&board, "payments-api");
+    assert_eq!(
+        api.rows.len(),
+        3,
+        "three workspaces, one repository, one project"
+    );
+    assert_eq!(api.key, "local/repo:git:api");
+    let checkouts: Vec<_> = api
+        .checkouts
+        .iter()
+        .map(|c| (c.name.as_str(), c.linked))
+        .collect();
+    assert_eq!(
+        checkouts,
+        [("payments-api", false), ("payments-api-hotfix", true)],
+        "the main checkout first, then linked worktrees"
+    );
+    let hotfix = api.rows.iter().find(|r| r.pane_id == "p3").unwrap();
+    assert_eq!(
+        hotfix.checkout.as_deref(),
+        Some("/home/dev/payments-api-hotfix")
+    );
+    assert_eq!(
+        (api.needs_you, api.to_review, api.working),
+        (1, 1, 1),
+        "the header chips count what the rows show"
+    );
+    let web = project(&board, "web");
+    assert!(
+        web.checkouts.is_empty(),
+        "a label-only project has no checkouts"
+    );
+    assert_eq!(web.key, "local/workspace:web");
+}
+
+#[test]
+fn workspaces_without_git_info_group_by_label_and_then_by_folder() {
+    let snap = world(
+        vec![
+            json!({"workspace_id": "w1", "label": "notes"}),
+            json!({"workspace_id": "w2", "label": " notes "}),
+            json!({"workspace_id": "w3", "label": ""}),
+        ],
+        vec![
+            agent_in("p1", "w1", "idle", "/a"),
+            agent_in("p2", "w2", "idle", "/b"),
+            agent_in("p3", "w3", "idle", "/home/dev/scratch"),
+            agent_in("p4", "gone", "idle", "/home/dev/scratch"),
+            json!({"pane_id": "p5", "workspace_id": "w9", "tab_id": "t", "agent_status": "idle"}),
+        ],
+    );
+    let board = plain(&[online("local", snap)]);
+    assert_eq!(names(&board), ["No project", "notes", "scratch"]);
+    assert_eq!(
+        project(&board, "notes").rows.len(),
+        2,
+        "same label, same project"
+    );
+    assert_eq!(
+        project(&board, "scratch").rows.len(),
+        2,
+        "no label: the folder"
+    );
+}
+
+fn chat(id: &str, cwd: &str, status: AgentStatus) -> SessionRow {
+    SessionRow {
+        cwd: cwd.into(),
+        ..session("local", id, status, None)
+    }
+}
+
+#[test]
+fn a_chat_session_joins_the_project_whose_checkout_holds_its_folder() {
+    let snap = world(
+        vec![
+            repo_workspace("w1", "payments", API, "/home/dev/payments-api", false),
+            repo_workspace(
+                "w2",
+                "hotfix",
+                API,
+                "/home/dev/payments-api/.worktrees/hotfix",
+                true,
+            ),
+        ],
+        vec![agent_in("p1", "w1", "working", "/home/dev/payments-api")],
+    );
+    let board = with_sessions(
+        &[online("local", snap)],
+        &[
+            chat("aaa111", "/home/dev/payments-api/src", AgentStatus::Idle),
+            chat(
+                "bbb222",
+                "/home/dev/payments-api/.worktrees/hotfix/src",
+                AgentStatus::Blocked,
+            ),
+            chat("ccc333", "/home/dev/payments-api-other", AgentStatus::Idle),
+            chat("ddd444", "/home/dev/blog", AgentStatus::Idle),
+            chat("eee555", "/home/dev/blog", AgentStatus::Working),
+        ],
+    );
+    assert_eq!(
+        names(&board),
+        ["blog", "payments-api", "payments-api-other"]
+    );
+    let api = project(&board, "payments-api");
+    let at = |id: &str| {
+        api.rows
+            .iter()
+            .find(|r| r.pane_id == id)
+            .and_then(|r| r.checkout.clone())
+    };
+    assert_eq!(at("aaa111").as_deref(), Some("/home/dev/payments-api"));
+    assert_eq!(
+        at("bbb222").as_deref(),
+        Some("/home/dev/payments-api/.worktrees/hotfix"),
+        "the deepest checkout wins over the repository root that contains it"
+    );
+    assert!(
+        api.rows.iter().all(|r| r.pane_id != "ccc333"),
+        "a sibling folder with the same prefix is not inside the repository"
+    );
+    assert_eq!(
+        project(&board, "payments-api-other").rows.len(),
+        1,
+        "an unmatched folder is a project of its own"
+    );
+    assert_eq!(
+        project(&board, "blog").rows.len(),
+        2,
+        "one folder, one project"
+    );
+    assert_eq!(
+        (api.needs_you, api.working),
+        (1, 1),
+        "chats and terminal agents are counted together"
+    );
+}
+
+#[test]
+fn the_same_repository_on_two_machines_is_two_projects() {
+    let one = |pane: &str| {
+        world(
+            vec![repo_workspace(
+                "w1",
+                "payments",
+                API,
+                "/home/dev/payments-api",
+                false,
+            )],
+            vec![agent_in(pane, "w1", "idle", "/home/dev/payments-api")],
+        )
+    };
+    let board = plain(&[online("a", one("p1")), online("b", one("p2"))]);
+    assert_eq!(board.projects.len(), 2);
+    assert_eq!(
+        board
+            .projects
+            .iter()
+            .map(|p| p.machine.as_str())
+            .collect::<Vec<_>>(),
+        ["a", "b"]
+    );
+    assert_ne!(board.projects[0].key, board.projects[1].key);
+    // A chat on machine b matches b's checkout, not a's.
+    let chats = [SessionRow {
+        machine: "b".into(),
+        cwd: "/home/dev/payments-api".into(),
+        ..session("b", "zzz999", AgentStatus::Idle, None)
+    }];
+    let board = with_sessions(&[online("a", one("p1")), online("b", one("p2"))], &chats);
+    assert_eq!(board.projects[0].rows.len(), 1);
+    assert_eq!(board.projects[1].rows.len(), 2);
+}
+
+#[test]
+fn a_project_on_a_machine_that_is_not_connected_is_dimmed_and_counts_nothing() {
+    let snap = world(
+        vec![repo_workspace(
+            "w1",
+            "payments",
+            API,
+            "/home/dev/payments-api",
+            false,
+        )],
+        vec![agent_in("p1", "w1", "blocked", "/home/dev/payments-api")],
+    );
+    let board = plain(&[("lab".into(), Arc::new(snap), LinkState::Offline)]);
+    let p = &board.projects[0];
+    assert!(p.offline && p.rows[0].offline);
+    assert_eq!((p.needs_you, p.to_review, p.working), (0, 0, 0));
+    assert_eq!(board.counts.needs_you, 0);
+}
+
+#[test]
+fn projects_keep_their_order_when_agents_change_state_and_the_person_pins_one() {
+    let snaps = |statuses: [&str; 3]| {
+        world(
+            vec![
+                json!({"workspace_id": "w1", "label": "zeta"}),
+                json!({"workspace_id": "w2", "label": "Alpha"}),
+                json!({"workspace_id": "w3", "label": "mid"}),
+            ],
+            vec![
+                agent_in("p1", "w1", statuses[0], "/z"),
+                agent_in("p2", "w2", statuses[1], "/a"),
+                agent_in("p3", "w3", statuses[2], "/m"),
+            ],
+        )
+    };
+    let order = |statuses| names(&plain(&[online("local", snaps(statuses))])).join(",");
+    assert_eq!(order(["idle", "idle", "idle"]), "Alpha,mid,zeta");
+    assert_eq!(
+        order(["blocked", "idle", "working"]),
+        "Alpha,mid,zeta",
+        "a project that starts needing you does not jump up the list"
+    );
+    assert_eq!(order(["done", "blocked", "idle"]), "Alpha,mid,zeta");
+
+    let machines = [online("local", snaps(["idle", "idle", "idle"]))];
+    let pins: BTreeSet<String> = ["local/workspace:zeta".to_owned()].into();
+    let board = Board::from(
+        &machines,
+        BoardExtras {
+            pins: &pins,
+            ..BoardExtras::NONE
+        },
+        &Reviewed::default(),
+        &FirstSeen::new(),
+        Instant::now(),
+    );
+    assert_eq!(names(&board), ["zeta", "Alpha", "mid"]);
+    assert!(board.projects[0].pinned && !board.projects[1].pinned);
+}
+
+#[test]
+fn an_unreadable_worktree_field_costs_the_grouping_not_the_snapshot() {
+    let snap = world(
+        vec![json!({"workspace_id": "w1", "label": "notes", "worktree": "nonsense"})],
+        vec![agent_in("p1", "w1", "idle", "/a")],
+    );
+    assert_eq!(names(&plain(&[online("local", snap)])), ["notes"]);
 }

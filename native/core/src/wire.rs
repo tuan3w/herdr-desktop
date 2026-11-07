@@ -83,4 +83,11 @@ pub trait Wire: Send + Sync {
     /// Subscribes (`subscriptions` is the `events.subscribe` params array, e.g. `[{"type":"pane.updated"}]`)
     /// and returns the stream of `{"event","data"}` objects after the ack.
     fn events(&self, subscriptions: &[Value]) -> Result<Box<dyn EventStream>, WireError>;
+
+    /// The PIDs of the processes this wire started and that are still running (the ssh relay and
+    /// event streams of a remote machine); none for a socket. They are the only processes the app
+    /// may signal on this machine's behalf: diagnostics and tests that cut a connection use them.
+    fn child_pids(&self) -> Vec<u32> {
+        Vec::new()
+    }
 }
