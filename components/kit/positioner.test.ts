@@ -38,6 +38,18 @@ test("the edge that faces the anchor is what is compared on every side", () => {
   }
 });
 
+test("a popup that grew where nothing fits is clamped by nsh, and that is not the anchor moving", () => {
+  const first = anchorMoved(undefined, placed("bottom", 100, 200, 120, 100));
+  // the content grew to 300 tall: kept inside its area, the corner rose while the trigger stayed
+  expect(anchorMoved(first.hung, placed("bottom", 100, 100, 120, 300)).moved).toBe(false);
+  // above the anchor the edge is the bottom of the popup, which also follows a clamped height
+  const above = anchorMoved(undefined, placed("top", 100, 100, 120, 100));
+  expect(anchorMoved(above.hung, placed("top", 100, 20, 120, 280)).moved).toBe(false);
+  // and a real scroll after it is still seen against the new baseline
+  const grown = anchorMoved(first.hung, placed("bottom", 100, 100, 120, 300));
+  expect(anchorMoved(grown.hung, placed("bottom", 100, 90, 120, 300)).moved).toBe(true);
+});
+
 const trigger: Rect = { x: 100, y: 100, width: 80, height: 20 };
 
 /** A 120 x 60 popup 8 points off the trigger on `side`, centred on it. */

@@ -31,6 +31,9 @@ export interface Hung {
  * Whether the anchor moved between two placements of the popup. The edge nearest the anchor does not depend on the
  * popup's size; along it the popup is lined up with the anchor by `align`, so its corner is only comparable between two
  * placements of the same size (it also moves while it is still measured). A flip to the other side is not movement.
+ * Neither is a change of size: nsh keeps a popup that fits on neither side inside its area, so `y` (`x`) moves with the
+ * popup's own height (width) while the anchor stands still; a popover whose content grew (an async result, an error line)
+ * would otherwise close itself. The next placement of the new size is compared again.
  */
 export function anchorMoved(before: Hung | undefined, p: OverlayPosition): { moved: boolean; hung: Hung } {
   const { x, y } = p.bounds.origin;
@@ -40,8 +43,8 @@ export function anchorMoved(before: Hung | undefined, p: OverlayPosition): { mov
   const along = p.placement === "bottom" || p.placement === "top" ? x : y;
   const hung = { placement: p.placement, edge, along, width, height };
   if (!before || before.placement !== p.placement) return { moved: false, hung };
-  const sameSize = before.width === width && before.height === height;
-  return { moved: Math.abs(edge - before.edge) > 0.5 || (sameSize && Math.abs(along - before.along) > 0.5), hung };
+  if (before.width !== width || before.height !== height) return { moved: false, hung };
+  return { moved: Math.abs(edge - before.edge) > 0.5 || Math.abs(along - before.along) > 0.5, hung };
 }
 
 export interface Rect {

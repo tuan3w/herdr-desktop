@@ -1,10 +1,10 @@
-import { cleanup, context, effect, type JSX, type Signal, signal, Text, View } from "nsh";
+import { cleanup, context, effect, type JSX, Scroll, type Signal, signal, Text, View } from "nsh";
 
-import type { Align, Placement, ViewRef } from "nsh/types";
+import type { Align, OverlayPosition, Placement, ViewRef } from "nsh/types";
 
-import { hoverTransition, popupEnter } from "#lib/motion";
+import { hoverTransition, POPOVER_LOOK, popupOrigin, popupPresence } from "#lib/motion";
 
-import { FOCUS_RING } from "./core";
+import { EDGE, FOCUS_RING } from "./core";
 import { createHover, type HoverTrigger, POINTER_FOCUS_MS } from "./hover";
 import { Icon } from "./icon";
 import { createOpenState, type OpenChange } from "./popup";
@@ -32,6 +32,10 @@ import type { TriggerFocus } from "./tooltip";
  * - **Screen readers**: the popup's name is its `PopoverTitle` (or `label`), its hint the `PopoverDescription`; the trigger
  *   reports `expanded`. The focus stays on the trigger (nsh cannot move it into a view): a keyboard user reaches the
  *   content with Tab only where it spreads `usePopover().focus`.
+ * - **Height**: the popup is never taller than the room on the side it was placed (`OverlayPosition.available`, Base UI's
+ *   `--available-height`); taller content scrolls inside it, under the title, instead of running off the window.
+ * - **Motion**: it fades and scales from the edge at its trigger (the side it was placed on, not the one asked for) and
+ *   leaves the same way, quicker; it stays built through the exit and takes no presses (`popupPresence`).
  * - Not taken: `modal` (a `Modal` is the modal one), focus trap, return focus, backdrop, arrow.
  */
 
@@ -39,8 +43,7 @@ import type { TriggerFocus } from "./tooltip";
 export const PATIENT_CLICK_MS = 500;
 /** A blur counts as leaving only when no control took the focus within this long. */
 export const FOCUS_SETTLE_MS = 50;
-const POPUP =
-  "min-w-48 max-w-sm gap-1 rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-md";
+const POPUP = `min-w-48 max-w-sm gap-1 rounded-lg bg-popover p-3 text-popover-foreground ${EDGE.md}`;
 
 /** What `trigger` wires to the control: its press, its focus, and what to show while open. */
 export interface PopoverTrigger {
@@ -101,6 +104,15 @@ export function Popover(props: {
   let pressedAt = Number.NEGATIVE_INFINITY;
   let within = 0;
   let settling: number | undefined;
+  /** The room on the side the popup was placed: it is cut to it (the content scrolls). */
+  const room = signal<number | undefined>(undefined);
+  /** The side it was really placed on (it flips when it does not fit): its scale grows from the edge at the trigger. */
+  const placedSide = signal<Placement>(props.side ?? "bottom");
+  const placed = (p: OverlayPosition) => {
+    hover.placed(p);
+    room.set(Math.floor(p.available.height));
+    placedSide.set(p.placement);
+  };
 
   const state = createOpenState({
     open: () => props.open,
@@ -132,6 +144,9 @@ export function Popover(props: {
     clearTimeout(settling);
   });
   effect(() => hover.sync());
+  // Occasional and pointer-opened, so it has an exit (menus, selects, tooltips and the palette open and close at once:
+  // `design/motion.md`). It stays built through it, takes no presses, and opening again cancels the unbuild.
+  const presence = popupPresence(state.open, POPOVER_LOOK);
   effect(() => {
     if (props.disabled && state.open()) hover.hide("disabled");
   });
@@ -189,7 +204,7 @@ export function Popover(props: {
       class={props.class ?? "self-start"}
     >
       {props.trigger(handle)}
-      <If when={state.open()}>
+      <If when={presence.mounted()}>
         <PopoverScope.Provider value={scope}>
           <Positioner
             anchor={node.node}
@@ -198,6 +213,7 @@ export function Popover(props: {
             offset={props.offset}
             margin={props.margin}
             policy={props.anchorPolicy}
+            noPointer={presence.closing()}
             label={scope.title() ?? props.label}
             hint={scope.description()}
             onPressOutside={() => hover.hide("outside-press")}
@@ -206,13 +222,15 @@ export function Popover(props: {
               pressedAt = Date.now();
             }}
             onAnchorMoved={hover.moved}
-            onPosition={hover.placed}
+            onPosition={placed}
             onMouseEnter={props.openOnHover ? hover.popupEnter : undefined}
             onMouseLeave={props.openOnHover ? hover.popupLeave : undefined}
-            class={`${POPUP} ${props.popupClass ?? ""}`}
-            style={popupEnter(props.side ?? "bottom")}
+            class={`${POPUP} ${room() === undefined ? "" : `max-h-[${room()}px]`} ${props.popupClass ?? ""}`}
+            style={{ ...presence.style, transformOrigin: popupOrigin(placedSide(), props.align ?? "center") }}
           >
-            {props.children}
+            <Scroll class="min-h-0 shrink" contentClass="gap-1">
+              {props.children}
+            </Scroll>
           </Positioner>
         </PopoverScope.Provider>
       </If>

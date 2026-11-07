@@ -1,10 +1,11 @@
-import { announce, effect, type JSX, Scroll, signal, Text, View } from "nsh";
+import { announce, effect, type JSX, Scroll, signal, Text, untracked, View } from "nsh";
 import { AlertDialog, Dialog } from "nsh/base";
 
 import { enterScale } from "#lib/motion";
 
+import { EDGE } from "./core";
 import { newDialogId, topDialog, trackDialog } from "./dialog-stack";
-import { ToastHost } from "./notify";
+import { coverToasts, escapeIsToasts, ToastHost } from "./notify";
 import { createOpenState, type OpenChange, type OpenReason } from "./popup";
 import { PopupRoot } from "./popup-root";
 
@@ -12,7 +13,7 @@ import { PopupRoot } from "./popup-root";
 const BODY_PAD = 32;
 
 /**
- * A modal form or detail, as Base UI's Dialog behaves: scrim, popup that scales in from 0.97, title, optional
+ * A modal form or detail, as Base UI's Dialog behaves: scrim, popup that scales in from 0.97 and back out as the dialog closes, title, optional
  * description, content, and a footer of `actions` aligned right. Open it for rare, user-invoked tasks only. `wide`
  * (760pt, not 560) is for text the user writes, such as a prompt; `huge` (1000pt) is for a file browser or a viewer, where
  * the content is the point.
@@ -50,6 +51,8 @@ export function Modal(props: {
   });
   const ask = (reason: OpenReason) => {
     if (topDialog() !== id) return;
+    // Escape closes the newest toast while the toast region is held, not this dialog as well.
+    if (reason === "escape-key" && escapeIsToasts()) return;
     if (reason === "outside-press" && props.disablePointerDismissal) return;
     state.set(false, reason);
   };
@@ -58,9 +61,14 @@ export function Modal(props: {
   const content = signal(0);
   const overflowing = () => content() + BODY_PAD > viewport() + 1;
   const edge = () => (overflowing() ? "border-border" : "border-transparent");
-  // A dialog has no name of its own: a screen reader hears that one opened, and which.
+  // A dialog has no name of its own: a screen reader hears that one opened, and which. Once per opening: a title that
+  // changes while it is open (a counter, a name being typed) must not be read again at every change.
+  let announced = false;
   effect(() => {
-    if (props.open) announce(props.description ? `${props.title}. ${props.description}` : props.title);
+    const now = props.open;
+    if (now && !announced)
+      untracked(() => announce(props.description ? `${props.title}. ${props.description}` : props.title));
+    announced = now;
   });
   // The scrim is the dialog's own, so a press on it is told apart from Escape and can be refused: nsh's backdrop reports
   // both as the same cancel without a reason.
@@ -86,7 +94,7 @@ export function Modal(props: {
         />
         <View
           style={pop}
-          class={`max-h-[94%] max-w-[94%] rounded-lg border border-border bg-card shadow-lg ${props.huge ? "w-[1000px]" : props.wide ? "w-[760px]" : "w-[560px]"}`}
+          class={`max-h-[94%] max-w-[94%] rounded-lg bg-card ${EDGE.lg} ${props.huge ? "w-[1000px]" : props.wide ? "w-[760px]" : "w-[560px]"}`}
         >
           <View class="min-h-0 shrink">
             <View class={`shrink-0 gap-1 border-b px-6 pb-4 pt-6 ${edge()}`}>
@@ -123,7 +131,8 @@ let asking = false;
  * Asks before something that cannot be taken back (an `Undo` toast cannot restore it), as Base UI's AlertDialog does:
  * the system alert, never closed by a press outside it, `Cancel` first and the destructive action named by its verb;
  * Escape is `Cancel`. One question at a time: a second call while one is open answers false at once, so a double press
- * cannot stack alerts or confirm twice. The system alert covers everything, so the toasts wait under it. Resolves true
+ * cannot stack alerts or confirm twice. The system alert covers everything, so the toasts wait under it and their time
+ * is held until it closes (`coverToasts`). Resolves true
  * only when the destructive action is chosen.
  */
 export async function confirmDestructive(options: {
@@ -133,6 +142,8 @@ export async function confirmDestructive(options: {
 }): Promise<boolean> {
   if (asking) return false;
   asking = true;
+  // The toasts wait under the system alert: an Undo toast would run out while the question about it is open.
+  const uncover = coverToasts();
   try {
     const choice = await AlertDialog.show({
       title: options.title,
@@ -147,5 +158,6 @@ export async function confirmDestructive(options: {
     return choice.action === "confirm";
   } finally {
     asking = false;
+    uncover();
   }
 }

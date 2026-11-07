@@ -1,12 +1,12 @@
-import { announce, cleanup, effect, keymap, Overlay, setAccessibilityFocus, signal, Text, View } from "nsh";
+import { announce, cleanup, effect, keymap, Overlay, setAccessibilityFocus, signal, Text, untracked, View } from "nsh";
 import { Toast, ToastStack } from "nsh/base";
 
 import type { ViewRef } from "nsh/types";
 
-import { DURATION, reducedMotion } from "#lib/motion";
+import { DURATION, reducedMotion, toastLook } from "#lib/motion";
 import { keyLabel } from "#lib/shortcuts";
 
-import { FOCUS_RING } from "./core";
+import { EDGE, FOCUS_RING } from "./core";
 import { dialogDepth, topDialog } from "./dialog-stack";
 import { Kbd } from "./hint";
 import { Icon } from "./icon";
@@ -39,13 +39,16 @@ interface Data {
 export interface NotifyOptions {
   /** Restores what the toast reports. It runs once, from the button or Cmd+Z; Cmd+Z still reaches it after the toast is hidden. */
   undo?: () => void;
-  /** A warning the user must not miss (data that could not be saved): high priority, 30 seconds. */
+  /** A warning the user must not miss (data that could not be saved): high priority, 30 seconds. A `type: "error"` stays as long. */
   lasting?: boolean;
   /** Names the toast: showing it again updates it in place and restarts its time. By default a plain text is its own name. */
   id?: string;
   type?: ToastType;
   priority?: ToastPriority;
-  /** Milliseconds before it closes by itself; 0: it stays until the user closes it. */
+  /**
+   * Milliseconds before it closes by itself; 0: it stays until the user closes it. Left out: a plain toast gets time to be
+   * read (`plainTimeout`), an Undo 10 s, a warning or an error 30 s.
+   */
   timeout?: number;
   /** The toast began to close, for whatever reason. */
   onClose?: () => void;
@@ -61,15 +64,22 @@ export interface Phase extends NotifyOptions {
 const VISIBLE = 3;
 /** Toasts kept at most, the ones the limit hides included. */
 const KEEP = 30;
-/** A toast with an Undo stays long enough to reach the pointer; a plain confirmation does not; a warning stays until read. */
+/** A toast with an Undo stays long enough to reach the pointer; a plain confirmation does not; a warning or an error stays until read. */
 const TIMEOUT = { undo: 10000, plain: 3500, lasting: 30000 } as const;
+/** Reading speed: a message that is longer than a confirmation needs longer than 3.5 s, up to `READ_CAP`. */
+const READ_MS_PER_CHAR = 60;
+const READ_CAP = 12000;
+
+/** How long a plain toast stays: 3.5 s, or 60 ms a character for a longer text, at most 12 s. */
+export const plainTimeout = (text: string): number =>
+  Math.min(READ_CAP, Math.max(TIMEOUT.plain, READ_MS_PER_CHAR * [...text].length));
 const APP_ROOT = "app";
 
 const store = createToasts<Data>({
   limit: VISIBLE,
   keep: KEEP,
   timeout: TIMEOUT.plain,
-  exitMs: () => (reducedMotion() ? 0 : DURATION.exit),
+  exitMs: () => (reducedMotion() ? 0 : DURATION.toastExit),
 });
 const shown = signal<ToastRecord<Data>[]>([]);
 const region = signal(false);
@@ -105,11 +115,14 @@ function tick() {
 
 function settings(text: string, options: NotifyOptions, fallback: ToastType) {
   const lasting = options.lasting === true;
+  const type = options.type ?? (lasting ? "warning" : fallback);
+  // An error says something went wrong and what to do: it must not vanish unread, so it stays as long as a warning.
+  const stays = lasting || type === "error";
   return {
     text,
-    type: options.type ?? (lasting ? "warning" : fallback),
+    type,
     priority: options.priority ?? (lasting ? "high" : "low"),
-    timeout: options.timeout ?? (lasting ? TIMEOUT.lasting : options.undo ? TIMEOUT.undo : TIMEOUT.plain),
+    timeout: options.timeout ?? (stays ? TIMEOUT.lasting : options.undo ? TIMEOUT.undo : plainTimeout(text)),
     data: { undo: options.undo, onClose: options.onClose, onRemove: options.onRemove },
   } as const;
 }
@@ -135,6 +148,8 @@ export function notify(text: string, options: NotifyOptions = {}): string {
   settle(added.settled);
   keepUndo(added.id, options.undo, set.timeout);
   say(text, options.undo !== undefined);
+  // Raised under an alert that is asking: it waits there with the others.
+  if (covers > 0) pauseFor("covered");
   commit();
   return added.id;
 }
@@ -225,6 +240,35 @@ function resumeFor(reason: PauseReason) {
   commit();
 }
 
+/** Overlays that cover the toasts (a system alert): how many are asking, so the toasts' time waits until the last one is gone. */
+let covers = 0;
+
+/**
+ * Holds the time of the toasts while something covers them, as `confirmDestructive`'s alert does: an Undo toast must not
+ * expire unseen under the question it belongs to. Call the result when the cover is gone; a second call does nothing.
+ */
+export function coverToasts(): () => void {
+  if (covers++ === 0) pauseFor("covered");
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    if (--covers === 0) resumeFor("covered");
+  };
+}
+
+/** Escape was taken by the toasts in this turn: a dialog that hears the same key must not close as well. */
+let escapeTaken = false;
+
+/**
+ * Whether Escape belongs to the toasts right now: the region is held (Escape closes its newest toast) or a toast took it a
+ * moment ago. A dialog ignores its Escape then. UNVERIFIED order: nsh may run the dialog's cancel before or after the
+ * keymap's binding, so both cases are covered (the region flag before, `escapeTaken` after).
+ */
+export function escapeIsToasts(): boolean {
+  return escapeTaken || (region() && store.shown().length > 0);
+}
+
 function focusIn(id: string) {
   focused.add(id);
   pauseFor("focus");
@@ -297,7 +341,7 @@ function ToastButton(props: {
       onPress={props.onPress}
       onFocus={props.onFocus}
       onBlur={props.onBlur}
-      class={`h-8 flex-row items-center justify-center gap-2 rounded-md hover:bg-accent active:bg-accent ${FOCUS_RING} ${props.text ? "px-3" : "w-8"}`}
+      class={`h-8 flex-row items-center justify-center gap-2 rounded-sm hover:bg-accent active:bg-accent ${FOCUS_RING} ${props.text ? "px-3" : "w-8"}`}
     >
       <Icon name={props.icon} size={14} tone={props.disabled ? "muted-foreground" : "foreground"} />
       <If when={props.text}>
@@ -317,6 +361,8 @@ function ToastItem(props: { toast: () => ToastRecord<Data> }) {
   const ending = () => props.toast().status === "ending";
   // A toast that stays has to be closable by the pointer; the others show the close button when the pointer or the keyboard is on them.
   const stays = () => props.toast().timeout === 0 || props.toast().type === "loading";
+  // nsh's `Toast` has no look for coming and going: these are it (`lib/motion.ts`), and `exitMs` is as long as the exit.
+  const look = toastLook();
   cleanup(() => {
     nodes.delete(id);
     focusOut(id);
@@ -327,7 +373,10 @@ function ToastItem(props: { toast: () => ToastRecord<Data> }) {
       transitionStatus={props.toast().status}
       swipeDirection="down"
       onDismissRequest={() => closeToast(id)}
-      class="group flex-row items-center gap-3 rounded-lg border border-border bg-popover py-2 pl-4 pr-2 shadow-lg"
+      startingClass={look.startingClass}
+      endingClass={look.endingClass}
+      swipingClass={look.swipingClass}
+      class={`group flex-row items-center gap-3 rounded-lg bg-popover py-2 pl-4 pr-2 ${EDGE.md} ${look.class ?? ""}`}
     >
       <ToastIcon type={props.toast().type} />
       {/* Never cut: a toast is read once, and what it says is what the user acts on. */}
@@ -371,6 +420,14 @@ export function ToastHost(props: { dialog?: string }) {
     if (!region() || !here()) return;
     return keymap.bind({ escape: () => closeNewest() }, { when: "always" });
   });
+  // A dialog that opens takes the attention the held region was keeping: its toasts run again, as the dialog's own.
+  // Only the moment it opens: a region held with the dialog already open belongs to the dialog's toasts, and must stay.
+  let wasHere = true;
+  effect(() => {
+    const now = here();
+    if (root === APP_ROOT && wasHere && !now && untracked(region)) untracked(() => resumeFor("region"));
+    wasHere = now;
+  });
   return (
     <If when={here() && shown().length > 0}>
       <Overlay
@@ -392,6 +449,10 @@ export function ToastHost(props: { dialog?: string }) {
 }
 
 function closeNewest() {
+  escapeTaken = true;
+  setTimeout(() => {
+    escapeTaken = false;
+  }, 0);
   const live = store.shown().filter((t) => t.status === "present");
   const newest = live.at(-1);
   if (newest) closeToast(newest.id);

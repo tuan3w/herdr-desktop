@@ -78,6 +78,20 @@ test("a tooltip shows for the keyboard focus and goes with Escape or blur; a dis
   expect(app.shows("text:Turned off")).toBe(false);
 });
 
+test("a popover closes when the keyboard moves from its trigger to a control outside it, and says why", async () => {
+  const app = await lab();
+  // Note, Keep tooltip, No tooltip, then the Columns trigger.
+  for (let i = 0; i < 4; i++) await app.keyboard.press("tab");
+  await app.keyboard.press("enter");
+  expect(app.shows("label:Visible columns")).toBe(true);
+  // The headless harness does not walk Tab into a popup (an Overlay): the next stop is the control after the trigger, so
+  // this is the focus leaving trigger and popup. Staying open while Tab moves onto its own controls is not driven here.
+  await app.keyboard.press("tab");
+  await app.wait(300);
+  expect(app.shows("label:Visible columns")).toBe(false);
+  expect(app.texts()).toContain("Reason: close: focus-out");
+});
+
 test("a tooltip and a popover inside a dialog live in the dialog's own root", async () => {
   const app = await lab();
   await app.press("label:Open dialog");

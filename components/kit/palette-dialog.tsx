@@ -3,8 +3,9 @@ import { Dialog } from "nsh/base";
 
 import { paletteEnter } from "#lib/motion";
 
+import { EDGE } from "./core";
 import { newDialogId, topDialog, trackDialog } from "./dialog-stack";
-import { ToastHost } from "./notify";
+import { escapeIsToasts, ToastHost } from "./notify";
 import { createOpenState, type OpenChange, type OpenReason } from "./popup";
 import { PopupRoot } from "./popup-root";
 
@@ -19,6 +20,8 @@ export function PaletteDialog(props: {
   open: boolean;
   onClose: (change: OpenChange) => void;
   children?: JSX.Element;
+  /** The card's name for screen readers (default "Command palette"): a text field is its only visible content. */
+  label?: string;
   /** Called with the dialog's own focus request, so the owner can focus its field once the dialog is shown. */
   onOpenChangeComplete?: (open: boolean) => void;
 }) {
@@ -32,6 +35,8 @@ export function PaletteDialog(props: {
   });
   const ask = (reason: OpenReason) => {
     if (topDialog() !== id) return;
+    // Escape closes the newest toast while the toast region is held, not this dialog as well.
+    if (reason === "escape-key" && escapeIsToasts()) return;
     state.set(false, reason);
   };
   const pop = paletteEnter(() => props.open);
@@ -57,7 +62,8 @@ export function PaletteDialog(props: {
         />
         <View
           style={pop}
-          class="max-h-[88%] w-[640px] max-w-[94%] overflow-hidden rounded-xl border border-border bg-popover shadow-lg"
+          accessibilityLabel={props.label ?? "Command palette"}
+          class={`max-h-[88%] w-[640px] max-w-[94%] overflow-hidden rounded-xl bg-popover ${EDGE.lg}`}
         >
           {props.children}
         </View>

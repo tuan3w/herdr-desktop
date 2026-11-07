@@ -4,6 +4,7 @@ import {
   Btn,
   closeToast,
   confirmDestructive,
+  coverToasts,
   focusToasts,
   Modal,
   notify,
@@ -20,6 +21,7 @@ import {
 const log = signal<string[]>([]);
 const say = (line: string) => log.update((all) => [...all, line]);
 const undone = signal(0);
+let uncover: (() => void) | undefined;
 
 function Lab() {
   keymap.bind({ "mod+z": () => undoLast(), "mod+shift+t": () => focusToasts() });
@@ -54,6 +56,13 @@ function Lab() {
           />
           <Btn label="Toast that stays" onPress={() => notify("Read carefully", { timeout: 0 })} />
           <Btn label="Warning toast" onPress={() => notify("Could not save changes", { lasting: true })} />
+          <Btn label="Error toast" onPress={() => notify("Could not save the file", { type: "error" })} />
+          <Btn
+            label="Long toast"
+            onPress={() => notify("The agent stopped because its machine went offline, so the change was not applied.")}
+          />
+          <Btn label="Cover toasts" onPress={() => (uncover = coverToasts())} />
+          <Btn label="Uncover toasts" onPress={() => uncover?.()} />
           <Btn label="Close all" onPress={() => closeToast()} />
           <Btn label="Send message" onPress={() => send(true)} />
           <Btn label="Send failing message" onPress={() => send(false)} />

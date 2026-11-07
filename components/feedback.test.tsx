@@ -28,6 +28,38 @@ test("a plain toast leaves by itself after 3.5 s, and the same text shown again 
   expect(has(app, "Saved")).toBe(false);
 });
 
+test("an error toast is still on screen after 5 s and leaves after 30 s, so a failure is not missed", async () => {
+  const app = await lab();
+  await app.press("Error toast");
+  await app.clock!.runFor(5000);
+  expect(has(app, "Could not save the file")).toBe(true);
+  await app.clock!.runFor(24000);
+  expect(has(app, "Could not save the file")).toBe(true);
+  await app.clock!.runFor(2000);
+  expect(has(app, "Could not save the file")).toBe(false);
+});
+
+test("a long plain toast stays long enough to be read: 60 ms a character, not 3.5 s", async () => {
+  const app = await lab();
+  const text = "The agent stopped because its machine went offline, so the change was not applied.";
+  await app.press("Long toast");
+  await app.clock!.runFor(4500);
+  expect(has(app, text)).toBe(true);
+  await app.clock!.runFor(1500);
+  expect(has(app, text)).toBe(false);
+});
+
+test("the time of a toast is held while something covers it, and runs again when the cover is gone", async () => {
+  const app = await lab();
+  await app.press("Toast with undo");
+  await app.press("Cover toasts");
+  await app.clock!.runFor(20000);
+  expect(has(app, "Task 1 finished")).toBe(true);
+  await app.press("Uncover toasts");
+  await app.clock!.runFor(10500);
+  expect(has(app, "Task 1 finished")).toBe(false);
+});
+
 test("only three toasts show; the older ones come back as the newer ones go", async () => {
   const app = await lab();
   await app.press("Toast five");
@@ -119,6 +151,18 @@ test("the region shortcut holds the timers until Escape closes the newest toast"
   await app.press("Plain toast");
   await app.clock!.runFor(4000);
   expect(has(app, "Saved")).toBe(false);
+});
+
+test("Escape with the toast region held closes the newest toast and leaves the dialog open", async () => {
+  const app = await lab();
+  await app.press("Open A");
+  await app.press("Open B");
+  await app.press("Toast in B");
+  await app.keyboard.press("mod+shift+t");
+  await app.keyboard.press("escape");
+  await app.clock!.runFor(400);
+  expect(has(app, "Toast from B")).toBe(false);
+  expect(app.shows("Dialog B")).toBe(true);
 });
 
 test("under reduced motion a closed toast is gone at once; otherwise it is gone after its exit", async () => {
