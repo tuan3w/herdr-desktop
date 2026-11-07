@@ -31,7 +31,7 @@ docs:
 
 # AT-SPI tree of every screen: no unnamed control (needs dbus-run-session, xvfb-run, python3-gi).
 a11y:
-	python3 scripts/atspi_audit.py
+	dbus-run-session -- xvfb-run -a python3 scripts/atspi_audit.py
 
 run:
 	nsh run . --target linux

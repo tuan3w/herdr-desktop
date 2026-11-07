@@ -41,7 +41,7 @@ herdr-desktop is accessible first: a screen reader user, a keyboard-only user, s
 | Contrast | `lib/theme/theme.test.ts` (UI pairs and the terminal palette) |
 | Shortcut rules | `lib/shortcuts.test.ts` |
 | Keyboard behaviour of the kit | `components/*.test.tsx` drive the controls with `keyboard.press` |
-| AT-SPI tree, no unnamed control | `make a11y` (added with the audit harness, Phase 1.8) |
+| AT-SPI tree, no unnamed control | `make a11y`: `scripts/atspi_audit.py` opens every scenario of `.shots/scenarios.ts` in a real GTK window under Xvfb, reads the tree over AT-SPI, writes it to `.scratch/a11y/<scenario>.txt` and fails on a push button, toggle button, check box, radio button, menu item, page tab, combo box, slider, list item or text input with no name |
 | Real screen reader | the Orca checklist below, by hand, with a display |
 
 ## Manual Orca checklist
@@ -58,6 +58,18 @@ Run with `orca` under a real session (`GTK_A11Y=atspi`, the default) before a re
 8. At 200% text size (`gsettings set org.gnome.desktop.interface text-scaling-factor 2.0`) nothing is clipped; with animations off (`gsettings set org.gnome.desktop.interface enable-animations false`) nothing moves.
 9. Switch all four themes in light and dark: focus ring and `Needs you` are visible in each.
 
+## What the AT-SPI audit found about nsh 0.4.0 on GTK
+
+- **Focus is not reported.** Only the menu bar's items carry the `FOCUSABLE` state; nsh's own controls never report `FOCUSED`, so a screen reader that follows `focus:` events (Orca) may not announce Tab moves. The keyboard itself works: real X key events (`--tabs 12 --keep` sends Tab through XTEST and photographs the window) move a visible focus ring. Orca behaviour is unverified until the manual checklist above has been run on a display.
+- **A text input is named by its group.** GTK shows `grouping 'Message payments review'` around an unnamed `text`; the audit accepts a text input inside a named group.
+- **Dialogs are part of the frame's tree** (palette, settings, machines): no separate window to find.
+
 ## Keyboard-only walk-through
 
-Not written yet. This section is filled in during Phase 4, when the board, the answer dock, the pane tab and capture mode exist: it will walk Board, answer, pane, capture, leave, one key at a time, with what a screen reader says at each step.
+Everything below is covered by `App.test.tsx` (headless) except the answer chip, which the headless harness cannot reach with Tab; chips take the digits `1`..`9` while one has focus.
+
+1. `Ctrl+J` focuses the next agent that needs you (a blocked one, longest waiting first) and opens its pane tab; `Ctrl+Shift+J` goes back.
+2. The answer dock sits under the mirror. Tab reaches its chips; pressing one sends only if the question is still the one shown. A risky chip says `Press again to send` and arms for 4 s; the second press sends. Nothing is sent by `Enter` in an empty message box while the dock shows (`Pick an answer above`).
+3. `Ctrl+2` puts the focus in the pane area, `Ctrl+0` in the sidebar, `Ctrl+1` shows the board, `Ctrl+Shift+1`..`9` select a tab, `Ctrl+W` closes a tab (never the pane).
+4. `Ctrl+Shift+K` starts typing into the pane: a bar reads `Typing into <agent>` and the same keys leave it. `Escape` goes to the pane, it does not leave.
+5. `Ctrl+K` opens every action by name, `F1` or `Ctrl+/` lists the shortcuts.
