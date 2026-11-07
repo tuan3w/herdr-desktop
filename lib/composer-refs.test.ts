@@ -16,6 +16,7 @@ import {
   type PasteRef,
   type PictureRef,
   plainText,
+  refKey,
   recallDown,
   recallUp,
   remember,
@@ -66,11 +67,20 @@ test("a mention is a token that stands alone: a longer name, an address and a pa
 });
 
 test("a chip lasts as long as its words: delete them and it goes, type them again and it is back", () => {
-  const known = [file("a.rs"), picture(1)];
-  expect(activeRefs("compare @a.rs with [Image #1]", known)).toHaveLength(2);
-  expect(activeRefs("compare with [Image #1]", known)).toEqual([picture(1)]);
+  const known = [file("a.rs"), paste(1, "a\nb")];
+  expect(activeRefs("compare @a.rs with [Pasted text #1 +2 lines]", known)).toHaveLength(2);
+  expect(activeRefs("compare with [Pasted text #1 +2 lines]", known)).toEqual([paste(1, "a\nb")]);
   expect(activeRefs("", known)).toEqual([]);
   expect(activeRefs("compare @a.rs again", known)).toEqual([file("a.rs")]);
+});
+
+test("a picture has no words: it counts while it is in the box, whatever the text says", () => {
+  const known = [picture(1), file("a.rs")];
+  expect(tokenOf(picture(1))).toBe("");
+  expect(spansOf("anything [Image #1]", picture(1))).toEqual([]);
+  expect(activeRefs("", known)).toEqual([picture(1)]);
+  expect(activeRefs("see @a.rs", known)).toEqual(known);
+  expect(refKey(picture(1))).not.toBe(refKey(picture(2)));
 });
 
 test("Backspace on a chip's words takes the whole chip, and an edit that leaves it alone changes nothing", () => {
@@ -96,8 +106,8 @@ test("taking a chip off removes its words and the one space after them", () => {
 });
 
 test("a token is put where the caret is with a space where a word would stick to it", () => {
-  expect(insertToken("look", 4, "[Image #1]")).toEqual({ text: "look [Image #1] ", caret: 16 });
-  expect(insertToken("look ", 5, "[Image #1]")).toEqual({ text: "look [Image #1] ", caret: 16 });
+  expect(insertToken("look", 4, "@a.rs")).toEqual({ text: "look @a.rs ", caret: 11 });
+  expect(insertToken("look ", 5, "@a.rs")).toEqual({ text: "look @a.rs ", caret: 11 });
   expect(insertToken("", 0, "@a.rs")).toEqual({ text: "@a.rs ", caret: 6 });
   expect(insertToken("ab cd", 2, "@x")).toEqual({ text: "ab @x cd", caret: 5 });
 });
@@ -121,17 +131,28 @@ test("an @ starts a mention at a word, after a bracket or a quote, never inside 
 test("a message goes out with its mentions in the words, its pastes in full and its pictures in order", () => {
   const long = "line one\nline two\nline three";
   const known = [file("src/a.rs"), file("docs", true), picture(2), picture(1), paste(1, long), file("gone.rs")];
-  const text = "see @src/a.rs and @docs/ then [Image #2] [Image #1] and [Pasted text #1 +3 lines]  ";
+  const text = "see @src/a.rs and @docs/ then and [Pasted text #1 +3 lines]  ";
   const sent = outgoing(text, known, ["/w/extra.png", "/w/src/a.rs"]);
-  expect(sent.text).toBe(`see @src/a.rs and @docs/ then [Image #2] [Image #1] and ${long}`);
+  expect(sent.text).toBe(`see @src/a.rs and @docs/ then and ${long}`);
   expect(sent.files).toEqual(["/w/extra.png", "/w/src/a.rs", "/w/docs"]);
   expect(sent.pictures.map((p) => p.number)).toEqual([1, 2]);
   expect(sent.files).not.toContain("/w/gone.rs");
 });
 
-test("what is sent is kept for Up without the picture placeholders", () => {
+test("pictures go out in the order they were taken, whatever the words say or the box holds them in", () => {
+  const known = [picture(3), picture(1), picture(2)];
+  expect(outgoing("compare these", known, []).pictures.map((p) => p.number)).toEqual([1, 2, 3]);
+  expect(outgoing("", known, []).pictures.map((p) => p.path)).toEqual([
+    "/data/composer/1.png",
+    "/data/composer/2.png",
+    "/data/composer/3.png",
+  ]);
+  expect(outgoing("compare these", known, []).text).toBe("compare these");
+});
+
+test("what is sent is kept for Up as words only", () => {
   const known = [picture(1), paste(1, "a\nb")];
-  expect(plainText("look [Image #1] at [Pasted text #1 +2 lines]", known)).toBe("look at a\nb");
+  expect(plainText("look at [Pasted text #1 +2 lines]", known)).toBe("look at a\nb");
 });
 
 test("there is something to send when there are words, a file or a chip", () => {
@@ -139,9 +160,8 @@ test("there is something to send when there are words, a file or a chip", () => 
   expect(sendable("  ", [], [])).toBe(false);
   expect(sendable("hi", [], [])).toBe(true);
   expect(sendable("", [], ["/w/a"])).toBe(true);
-  expect(sendable("[Image #1]", known, [])).toBe(true);
-  expect(sendable("[Image #9]", known, [])).toBe(true);
-  expect(sendable("", known, [])).toBe(false);
+  expect(sendable("", known, [])).toBe(true);
+  expect(sendable("", [], [])).toBe(false);
 });
 
 test("pictures are numbered one past the highest the box ever used, even after one was taken off", () => {

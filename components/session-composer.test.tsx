@@ -123,22 +123,49 @@ test("a mention goes to the agent with its words: the file is sent with the mess
   expect(box(app)).toBe("");
 });
 
-test("a picture pasted becomes a thumbnail and [Image 1] in the words; it goes with the message and can be taken off", async () => {
+test("a picture pasted is a thumbnail and nothing in the words; it goes with the message and can be taken off", async () => {
   const app = await chat();
   await app.paste(BOX, { files: [`${tree(app)}/assets/shot-1.png`] });
   await app.waitFor(label("^Image 1 of 1, PNG, "));
-  expect(box(app)).toContain("[Image #1]");
+  expect(box(app)).toBe("");
   await app.paste(BOX, { files: [`${tree(app)}/assets/shot-2.png`] });
   await app.waitFor(label("^Image 2 of 2, PNG, "));
-  expect(box(app)).toContain("[Image #2]");
+  expect(box(app)).toBe("");
 
   await app.press("label:Remove image 1");
-  await app.waitUntil(() => !box(app).includes("[Image #1]"));
-  expect(app.shows(label("^Image 1 of 1, "))).toBe(true);
+  await app.waitUntil(() => app.shows(label("^Image 1 of 1, ")) && !app.shows(label("^Image 2 of")));
 
   await app.type(BOX, "what is wrong here");
   await app.submit(BOX);
   await app.waitUntil(() => logged(app, "+pictures 2"));
+});
+
+test("pictures go in the order they were added, with the words about them", async () => {
+  const app = await chat();
+  await app.paste(BOX, { files: [`${tree(app)}/assets/shot-2.png`] });
+  await app.waitFor(label("^Image 1 of 1, PNG, "));
+  await app.paste(BOX, { files: [`${tree(app)}/assets/shot-1.png`] });
+  await app.waitFor(label("^Image 2 of 2, PNG, "));
+  await app.type(BOX, "compare them");
+  await app.submit(BOX);
+  await app.waitUntil(() => logged(app, "send compare them"));
+  expect(logged(app, "+pictures 1,2")).toBe(true);
+});
+
+test("a picture alone can be sent, and what was typed, pictured and picked comes back when the chat is mounted again", async () => {
+  const app = await chat();
+  await app.paste(BOX, { files: [`${tree(app)}/assets/shot-1.png`] });
+  await app.waitFor(label("^Image 1 of 1, PNG, "));
+  await app.type(BOX, "keep this draft");
+  await app.press("Go away");
+  await app.waitUntil(() => !app.shows(BOX));
+  await app.press("Come back");
+  await app.waitFor(BOX);
+  expect(box(app)).toBe("keep this draft");
+  await app.waitFor(label("^Image 1 of 1, PNG, "));
+
+  await app.clear(BOX);
+  expect(app.enabled("label:Send message")).toBe(true);
 });
 
 test("text wins a mixed clipboard, and a picture alone is the picture", async () => {
@@ -182,8 +209,7 @@ test("a dropped picture is a thumbnail, a dropped file of the project a mention"
   await app.dropFiles(BOX, [`file://${tree(app)}/assets/shot-3.png`, `file://${tree(app)}/notes.txt`]);
   await app.waitFor(label("^Image 1 of 1, PNG, "));
   await app.waitFor("label:File notes.txt");
-  expect(box(app)).toContain("[Image #1]");
-  expect(box(app)).toContain("@notes.txt");
+  expect(box(app)).toBe("@notes.txt ");
 });
 
 test("the file dialog attaches what it picks: a picture as a thumbnail, a file of the project as a mention", async () => {
@@ -201,7 +227,7 @@ test("an agent that cannot see pictures says so on them and offers to save them 
   await app.waitFor("Claude Code cannot see images.");
   await app.press("Save to the project and mention the path");
   await app.waitUntil(() => box(app).includes("@.herdr-desktop/attachments/"));
-  expect(box(app)).not.toContain("[Image #1]");
+  expect(app.shows(label("^Image 1 of 1"))).toBe(false);
   expect(app.shows("Claude Code cannot see images.")).toBe(false);
 });
 
@@ -229,4 +255,18 @@ test("a command list opens at a slash in the same list as files", async () => {
   await app.keyboard.press("tab");
   await app.waitUntil(() => box(app) === "/review ");
   expect(said(app, "takes <branch>")).toBe(true);
+});
+
+test("the command list tells what the highlighted command does in full, and the rows stay as they were", async () => {
+  const app = await chat("commands");
+  await app.type(BOX, "/");
+  await app.waitFor("label:Commands");
+  // The footer is drawn after the rows, so it is the last text of the list.
+  const footer = () => app.texts().findLast((t) => /^(Summarise|Review|Write|Show)/.test(t));
+  const rows = () => app.texts().filter((t) => /^\/(compact|review|init|cost)$/.test(t)).length;
+  await app.waitUntil(() => footer() === "Summarise the conversation to free context");
+  expect(rows()).toBe(4);
+  await app.keyboard.press("down");
+  await app.waitUntil(() => footer() === "Review the changes on this branch");
+  expect(rows()).toBe(4);
 });

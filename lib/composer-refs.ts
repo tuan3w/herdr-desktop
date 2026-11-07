@@ -8,11 +8,11 @@ import { isImageName, sizeText } from "#lib/files";
  *
  * - a file or folder is `@src/main.rs` (`@"my notes.md"` when the name has a space), the form agents that only read text
  *   understand, and also a `resource_link` or embedded `resource` when the message is sent;
- * - a picture is `[Image #2]`, the placeholder the keeper and the agent already pair with the picture block;
+ * - a picture is no text at all, only a thumbnail above the box (it has no token; `refKey` tells pictures apart);
  * - a long paste is `[Pasted text #1 +480 lines]` and goes out as the whole text.
  *
- * A reference is *active* while its token stands in the text: delete the words and the chip goes, type them again (or
- * undo) and it is back. The refs a box ever made are kept (`known`) until the message is sent, which is what lets Undo
+ * A reference is *active* while its token stands in the text (a picture, while it is in the box): delete the words and
+ * the chip goes, type them again (or undo) and it is back. The refs a box ever made are kept (`known`) until the message is sent, which is what lets Undo
  * bring a chip back. Everything here is pure; `components/session-composer.tsx` holds the signals.
  */
 
@@ -30,7 +30,7 @@ export interface MentionRef {
 export interface PictureRef {
   kind: "picture";
   id: string;
-  /** The `n` of `[Image #n]`: it stays with the picture when another is taken off. */
+  /** The `n` of `Image n of m`: it stays with the picture when another is taken off. */
   number: number;
   /** The prepared file, on this computer. */
   path: string;
@@ -66,13 +66,19 @@ export interface Span {
   end: number;
 }
 
-/** The text a ref stands for in the box. */
+/**
+ * The text a ref stands for in the box. A picture stands for none: it is a thumbnail and one notice, never words, so
+ * a sentence cannot point at "#2" (the cost of keeping the field free of a second copy of what the strip shows).
+ */
 export function tokenOf(ref: Ref): string {
-  if (ref.kind === "picture") return `[Image #${ref.number}]`;
+  if (ref.kind === "picture") return "";
   if (ref.kind === "paste") return `[Pasted text #${ref.number} +${ref.lines} ${ref.lines === 1 ? "line" : "lines"}]`;
   const rel = ref.folder ? `${ref.rel}/` : ref.rel;
   return /\s/.test(rel) ? `@"${rel}"` : `@${rel}`;
 }
+
+/** What tells one ref from another: the token, and for a picture (which has none) its id. */
+export const refKey = (ref: Ref): string => (ref.kind === "picture" ? `picture:${ref.id}` : tokenOf(ref));
 
 const OPENERS = /[\s([{"'`]/;
 const CLOSERS = /[,;:)\]}?!"'`]/;
@@ -91,6 +97,7 @@ function standsAlone(text: string, start: number, end: number): boolean {
 /** Every place `ref`'s token stands in `text`. */
 export function spansOf(text: string, ref: Ref): Span[] {
   const token = tokenOf(ref);
+  if (token === "") return [];
   const out: Span[] = [];
   for (let at = text.indexOf(token); at >= 0; at = text.indexOf(token, at + 1)) {
     const end = at + token.length;
@@ -99,9 +106,9 @@ export function spansOf(text: string, ref: Ref): Span[] {
   return out;
 }
 
-/** The refs of `known` whose token stands in `text`: what chips show and what is sent. */
+/** The refs of `known` that count: a token that stands in `text`, or a picture for as long as it is in the box. */
 export const activeRefs = (text: string, known: readonly Ref[]): Ref[] =>
-  known.filter((r) => spansOf(text, r).length > 0);
+  known.filter((r) => r.kind === "picture" || spansOf(text, r).length > 0);
 
 /**
  * `next` when the person deleted part of a token: the rest of the token goes too, so a chip is one thing to Backspace.
@@ -178,12 +185,8 @@ export function outgoing(text: string, known: readonly Ref[], attached: readonly
   return { text: words.trim(), files, pictures };
 }
 
-/** The message as history and a restored draft keep it: pastes in full, picture tokens gone (a picture is not text). */
-export function plainText(text: string, known: readonly Ref[]): string {
-  let out = outgoing(text, known, []).text;
-  for (const r of known) if (r.kind === "picture") out = withoutRef(out, r);
-  return out.trim();
-}
+/** The message as history and a restored draft keep it: pastes in full (a picture is not text). */
+export const plainText = (text: string, known: readonly Ref[]): string => outgoing(text, known, []).text;
 
 /** Whether there is something to send: words, or any chip. */
 export const sendable = (text: string, known: readonly Ref[], attached: readonly string[]): boolean =>

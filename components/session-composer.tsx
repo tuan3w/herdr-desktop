@@ -45,7 +45,7 @@ export interface SessionComposerHandle {
  *   Up and Down move, Tab or Enter add, Right opens a folder, Escape closes it and keeps what was typed. The choice
  *   is a chip above the box and `@path` in the words. `/` at the start lists the agent's commands in the same list.
  * - Pictures (`mod+v` with a picture on the clipboard, a drop, the file dialog) are thumbnails above the box and
- *   `[Image n]` in the words; a long paste is a chip and goes out whole.
+ *   nothing in the words (no `[Image #n]`); a long paste is a chip and goes out whole.
  * - Up in an empty box brings back the last message; Escape never clears the box.
  * - What was typed and attached survives a refusal, a tab switch and a project switch. Off, the box says why and takes nothing.
  */
@@ -76,7 +76,7 @@ export function SessionComposer(props: {
   const placeholder = () => c.off() ?? "Ask anything · @ for files · / for commands";
   const attachKey = () => keyText(keysOf(GLOBAL.attachFiles)[0]!);
 
-  /** What the line under the box says: the failure, else what the typed command takes, else what a send does, else the keys. */
+  /** What the line in the box's bottom row says: the failure, else what the typed command takes, else what a send does, else the keys. */
   const line = (): { text: string; alert: boolean } | null => {
     if (c.error() !== "") return { text: c.error(), alert: true };
     const ghost = c.ghost();
@@ -95,7 +95,7 @@ export function SessionComposer(props: {
 
   return (
     <View
-      class={`${CHAT_COLUMN} gap-2 pb-4 pt-2`}
+      class={`${CHAT_COLUMN} gap-2 pb-3 pt-2`}
       ref={(node: ViewRef) => {
         card.set(node);
       }}
@@ -126,7 +126,7 @@ export function SessionComposer(props: {
           onPick={(i) => c.pickMention(i)}
         />
       </If>
-      <View class="gap-1 rounded-2xl border border-input bg-card px-4 pb-3 pt-3 focus-within:border-ring">
+      <View class="gap-1 rounded-2xl border border-input bg-card px-3 pb-2 pt-2 focus-within:border-ring">
         <PictureStrip composer={c} />
         <ChipRow composer={c} machine={props.machine} />
         <Input
@@ -180,20 +180,20 @@ export function SessionComposer(props: {
             ]}
           />
           <SessionModeChip machine={props.machine} id={props.id} />
-          <View class="flex-1" />
+          <View class="min-w-0 flex-1 px-1">
+            <If when={line() !== null}>
+              <Text
+                role={line()?.alert ? "alert" : "text"}
+                class={`text-xs ${line()?.alert ? "text-destructive" : "text-muted-foreground"}`}
+                style={{ numberOfLines: line()?.alert ? 3 : 1, textOverflow: "ellipsis" }}
+              >
+                {line()?.text}
+              </Text>
+            </If>
+          </View>
           <SessionModelPicker machine={props.machine} id={props.id} />
           <SendButton c={c} />
         </View>
-      </View>
-      <View class="min-h-4 px-1">
-        <If when={line() !== null}>
-          <Text
-            role={line()?.alert ? "alert" : "text"}
-            class={`text-xs ${line()?.alert ? "text-destructive" : "text-muted-foreground"}`}
-          >
-            {line()?.text}
-          </Text>
-        </If>
       </View>
       <AttachPicker
         open={c.attaching()}

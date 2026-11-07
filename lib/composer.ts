@@ -30,6 +30,7 @@ import {
   type Ref,
   remember,
   sendable,
+  refKey,
   spansOf,
   tokenOf,
   withoutRef,
@@ -193,14 +194,14 @@ export function createComposer(props: {
   const chips = computed(() => {
     const text = value();
     return activeRefs(text, known())
-      .map((ref) => ({ ref, at: spansOf(text, ref)[0]!.start }))
+      .map((ref) => ({ ref, at: spansOf(text, ref)[0]?.start ?? -1 }))
       .sort((a, b) => a.at - b.at)
       .map((c) => c.ref);
   });
   const pictures = computed(() =>
     (chips().filter((r) => r.kind === "picture") as PictureRef[]).sort((a, b) => a.number - b.number),
   );
-  const addRef = (ref: Ref) => known.update((all) => [...all.filter((r) => tokenOf(r) !== tokenOf(ref)), ref]);
+  const addRef = (ref: Ref) => known.update((all) => [...all.filter((r) => refKey(r) !== refKey(ref)), ref]);
 
   // ---- the drafts survive a project switch: the words, the files and every chip ----
   effect(() => setDraft(draftKey, { text: value(), files: attached(), refs: known() }));
@@ -354,7 +355,7 @@ export function createComposer(props: {
 
   /** A chip that lost its words says so, once. */
   const announceGone = (prev: string, next: string) => {
-    const gone = activeRefs(prev, known()).filter((r) => spansOf(next, r).length === 0);
+    const gone = activeRefs(prev, known()).filter((r) => r.kind !== "picture" && spansOf(next, r).length === 0);
     for (const r of gone) announce(`${describe(r)} removed`);
   };
 
@@ -502,7 +503,11 @@ export function createComposer(props: {
     const refs = refsNow();
     const carried = attached();
     const out = outgoing(raw, refs, carried);
-    const sentIds = new Set(activeRefs(raw, refs).map((r) => tokenOf(r)));
+    const sentIds = new Set(activeRefs(raw, refs).map(refKey));
+    const sentPictures =
+      out.pictures.length > 0 ? refs.filter((r) => r.kind === "picture" && sentIds.has(refKey(r))) : [];
+    // The thumbnails leave with the words: a second Enter during the wait must not send them again.
+    known.update((all) => all.filter((r) => !sentPictures.includes(r)));
     value.set("");
     caret.set(0);
     attached.set([]);
@@ -512,6 +517,7 @@ export function createComposer(props: {
       if (refused(r)) {
         value.update((now) => restoreText(now, raw));
         attached.update((now) => [...new Set([...carried, ...now])]);
+        sentPictures.forEach(addRef);
         error.set(`${r.message || "Not sent"}. Your message is still in the box.`);
         announce("Message not sent");
         return;
@@ -520,12 +526,13 @@ export function createComposer(props: {
       history.set(remember(history(), plainText(raw, refs)));
       noteSent(out.text, view().agent, commands());
       // What went is forgotten; what was added meanwhile stays.
-      known.update((all) => all.filter((r) => !sentIds.has(tokenOf(r))));
-      if (value().trim() === "") known.set([]);
+      known.update((all) => all.filter((r) => !sentIds.has(refKey(r))));
+      if (value().trim() === "") known.update((all) => all.filter((r) => r.kind === "picture"));
       if (r.kind === "queued") announce("Queued. It is sent when the turn ends");
     } catch (e) {
       value.update((now) => restoreText(now, raw));
       attached.update((now) => [...new Set([...carried, ...now])]);
+      sentPictures.forEach(addRef);
       error.set(`Could not send: ${reason(e)}. Your message is still in the box.`);
       announce("Message not sent");
     }
@@ -602,12 +609,10 @@ export function createComposer(props: {
   const limits = () => Compose.limits();
   const room = () => limits().maxPictures - pictures().length - preparing().length;
 
-  /** One picture is ready: a chip above the box and `[Image n]` in the words. */
+  /** One picture is ready: a thumbnail above the box and nothing in the words. */
   const taken = (v: PictureView, name: string) => {
     const ref = pictureRef(v, name);
     addRef(ref);
-    const next = insertToken(value(), caret(), tokenOf(ref));
-    place(next.text, next.caret);
     const n = pictures().length;
     announce(`Image ${ref.number} added. ${n} ${n === 1 ? "picture" : "pictures"} in the message`);
   };
@@ -720,6 +725,7 @@ export function createComposer(props: {
 
   const removeRef = (ref: Ref) => {
     value.update((text) => withoutRef(text, ref));
+    if (ref.kind === "picture") known.update((all) => all.filter((r) => r !== ref));
     caret.update((c) => Math.min(c, value().length));
     announce(`${describe(ref)} removed. ${activeRefs(value(), known()).length} left`);
     field?.focus();
@@ -751,7 +757,8 @@ export function createComposer(props: {
         const ref = mentionRefOf(rel, false);
         ref.path = saved.path;
         addRef(ref);
-        text = text.split(tokenOf(p)).join(tokenOf(ref));
+        known.update((all) => all.filter((r) => r !== p));
+        text = insertToken(text, text.length, tokenOf(ref)).text;
         if (!saved.ignored && !gitignoreTold.has(cwd())) {
           gitignoreTold.add(cwd());
           notify("Add .herdr-desktop/ to this project's .gitignore so the pictures are not committed");

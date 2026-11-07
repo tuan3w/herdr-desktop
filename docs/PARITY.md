@@ -16,7 +16,7 @@ One row per mobile feature (`herdr-mobile/docs/GUIDE.md` sections 3-9 and `docs/
 | Dating a state change when first seen | GUIDE 4 | done | `native/core/src/board.rs` `FirstSeen` | `native/core/tests/board.rs` |
 | Agent naming (pane label, title, omp session log) | GUIDE 4 | done | `native/core/src/board.rs`, `native/core/src/observed/names.rs` | `native/core/tests/board.rs`, `native/app/tests/observed.rs` |
 | Offline machines dimmed and not counted | GUIDE 4, 9 | done | `native/core/src/board.rs`, `components/board-card.tsx` | `native/core/tests/board.rs` |
-| `Answer one by one` triage | GUIDE 4 | done | `components/triage.tsx` | `components/triage.test.tsx` |
+| `Answer one by one` triage | GUIDE 4 | changed: the dock answers in the agent's own tab and offers `Next`; no second list | `components/answer-dock.tsx` | `components/answer-dock.test.tsx` |
 | Reviewed mark with `Undo` | GUIDE 4 | done | `lib/herdr.ts` `reviewWithUndo` | `components/board.test.tsx` |
 | Multi-select with `Reviewed`, `Stop`, `Message`, `Close` and live confirm | GUIDE 4 | done | `lib/selection.ts`, `components/bulk-bar.tsx`, `lib/bulk.ts` | `components/bulk.test.tsx`, `lib/bulk.test.ts` |
 | Pull to refresh | GUIDE 4 | not applicable: links reconnect automatically |  |  |
@@ -24,14 +24,14 @@ One row per mobile feature (`herdr-mobile/docs/GUIDE.md` sections 3-9 and `docs/
 | Hold for risky answers | GUIDE 5 | changed: two-step activation, because timed holds are not accessible | `components/answer-dock.tsx` | `components/answer-dock.test.tsx` |
 | Ignore taps on a changed or new answer for 0.4 s | GUIDE 5 | done | `components/answer-dock.tsx` | `components/answer-dock.test.tsx` |
 | Re-read and compare before sending (`The question changed`) | GUIDE 5 | done | `native/app/src/engine/answer.rs`, `components/answer-dock.tsx` | `native/app/tests/engine.rs`, `components/answer-dock.test.tsx` |
-| Agent session permission dock (long command, `Read all`, `Cancel request`, queue) | GUIDE 5 | done | `components/permission-dock.tsx` | `components/permission-dock.test.tsx` |
+| Agent session permission dock (long command, `Read all`, `Cancel request`, queue) | GUIDE 5 | done | `components/answer-dock.tsx` | `components/answer-dock.test.tsx` |
 | Swipe between agents | GUIDE 6 | changed: `mod+j` / `mod+shift+j` | `lib/actions.ts` `nextAttention` | `App.test.tsx` |
 | Title switcher between agents | GUIDE 6 | changed: sidebar and palette | `components/sidebar.tsx`, palette | `components/sidebar.test.tsx` |
 | Terminal pane mirror, `Fit width`, `Wrap lines` | GUIDE 6 | done | `native/app/src/pane_screen.rs`, `components/pane-header.tsx` | `native/app/src/pane_screen`, `components/pane-tab.test.tsx` |
 | Composer, Shift+Enter for a new line | GUIDE 6 | done | `components/composer.tsx` | `components/pane-tab.test.tsx` |
 | Key row, `Ctrl`/`Alt` modifiers | GUIDE 6 | changed: real keyboard, key row kept for esc, arrows, Tab, Ctrl+C | `components/key-row.tsx` | `components/pane-tab.test.tsx` |
 | Typing into the pane | GUIDE 6 | changed: capture mode (`mod+shift+k`) | `lib/pane-input.ts`, `components/capture-bar.tsx` | `components/pane-tab.test.tsx` |
-| Slash palette | GUIDE 6 | done | `lib/slash.ts`, `components/slash-list.tsx` | `lib/slash.test.ts`, `components/pane-tab.test.tsx` |
+| Slash palette | GUIDE 6 | done | `lib/slash.ts` | `lib/slash.test.ts`, `components/pane-tab.test.tsx` |
 | Quick phrases | GUIDE 6 | done | `lib/phrases.ts`, `lib/pane-memory.ts` | `lib/phrases.test.ts` |
 | Dictation | GUIDE 6 | not applicable: nsh `Speech.start` exists only on macOS and iOS | | |
 | Links in output (URLs and file paths) | GUIDE 6 | done | `native/core/src/screen/links.rs`, `components/links-dialog.tsx` | `native/core/tests/screen.rs`, `components/pane-tab.test.tsx` |

@@ -210,6 +210,24 @@ function Hint(props: { keys: string; what: string }) {
   );
 }
 
+/**
+ * The highlighted command's whole description, in a footer of fixed height (two lines), so the rows stay one line and
+ * `ROW` high and the list does not change size as the highlight moves.
+ */
+function CommandFooter(props: { command: SlashCommand | undefined }) {
+  return (
+    <View class="h-12 justify-center border-t border-border px-3">
+      <Text
+        accessibilityLabel={`About ${props.command ? commandText(props.command) : "the command"}: ${props.command?.description ?? ""}`}
+        class="text-xs text-muted-foreground"
+        style={{ numberOfLines: 2, textOverflow: "ellipsis" }}
+      >
+        {props.command?.description ?? ""}
+      </Text>
+    </View>
+  );
+}
+
 /** The agent's own commands, in the same list: the command, what it does, and `Pin` as the row's second action. */
 export function CommandList(props: {
   commands: SlashCommand[];
@@ -225,6 +243,7 @@ export function CommandList(props: {
       anchor={props.anchor}
       highlighted={props.highlighted}
       count={props.commands.length}
+      footer={<CommandFooter command={props.commands[props.highlighted]} />}
     >
       <Each of={props.commands} key="index">
         {(command, i) => (

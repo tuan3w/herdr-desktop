@@ -10,7 +10,7 @@ Owner decision 2026-11-07, from a prototype (unverified in the app):
 - **The answer dock replaces the composer** while the agent asks something, in the same place, so the question and the reply box are never both open (`design/board.md`).
 - **Facts about the agent move to the inspector** (where it runs, branch, context used, changes, files, subagents, terminal), not text buttons that open dialogs. Subagents and background jobs are inspector content: a sticky panel over the conversation took about 40% of the height with the tab strip and header.
 - **One left edge.** Header, conversation and composer share a gutter; the conversation keeps a readable measure (about 720 pt) and extra width goes to the inspector.
-- **The composer is one line tall until the text needs more**, shows an attachment once (a thumbnail or `[Image #3]`, not both), and keeps its help line inside the box.
+- **The composer is one line tall until the text needs more**, shows an attachment once (a thumbnail, with no `[Image #n]` text beside it), and keeps its help line inside the box.
 
 Today's code is the layout below.
 
