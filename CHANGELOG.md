@@ -1,8 +1,13 @@
 # Changelog
 
-What changed for the person using Herdr Desktop, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow `docs/RELEASING.md` (0.1.x, patch bumps). The section of a version is its release notes: write it for the person, not for the commit log.
+What changed for the person using Herdr Desktop, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow `docs/RELEASING.md` (0.1.x, patch bumps). The section of a version is its release notes: write it for the person, not for the commit log, in the format of `.agents/skills/herdr-changelog/SKILL.md` (pictures are assets of the release, never files in git).
 
 ## [Unreleased]
+
+- Releases are macOS (Apple silicon) only for now and Linux builds are
+  paused: the installer on Linux says `no Linux build in this release` and
+  points to the source build. `install.sh --edge` installs the newest build of
+  `main` (the pre-release `edge`, replaced after every push that builds).
 
 ## [0.1.0-alpha.3] - 2026-11-07
 
