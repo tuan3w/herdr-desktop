@@ -141,6 +141,8 @@ impl Highlighter {
             }
             Engine::Tree { grammar, parse } => {
                 let old_len = self.text.len();
+                // The part of the text that is handed to the parser (see `readable`); the rest is plain.
+                let text = readable(self.lang, text);
                 let Some((tree, dirty)) = parse.update(text, budget) else {
                     self.spans.clear();
                     self.text.clear();
@@ -171,6 +173,20 @@ impl Highlighter {
     pub fn spans(&self) -> &[Span] {
         &self.spans
     }
+}
+
+/// The part of `text` a grammar can be trusted with. tree-sitter-kotlin-ng loops for ever, in a place
+/// no progress callback reaches, on a final line that is an unfinished annotation (`val a = 1`, a
+/// newline, then `@` or `@Foo`): so for Kotlin that last line, which is a person or an agent still
+/// typing it, is left out until a line break ends it.
+fn readable(lang: Option<Lang>, text: &str) -> &str {
+    if lang == Some(Lang::Kotlin) {
+        let start = text.rfind('\n').map_or(0, |i| i + 1);
+        if text[start..].trim_start().starts_with('@') {
+            return &text[..start];
+        }
+    }
+    text
 }
 
 /// `range` widened to whole lines of `text`.

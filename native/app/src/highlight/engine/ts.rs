@@ -539,10 +539,9 @@ impl Parse {
 
     /// Parses `text` within `budget`, reusing the previous tree. Returns the tree and the byte range
     /// that is not what it was before (the edit, widened by the grammar's changed ranges), or the
-    /// whole text the first time; `None` when the parse took longer than `budget`. A grammar can
-    /// loop on some unfinished text (tree-sitter-kotlin-ng does on `val a = 1` then a lone `@`), and
-    /// a block that is still being written is exactly that, so a parse never runs unbounded: the next
-    /// chunk starts from scratch.
+    /// whole text the first time; `None` when the parse took longer than `budget`. A parse that is
+    /// merely slow is cut off and the next chunk starts from scratch. A grammar that loops inside its
+    /// lexer never reaches the callback: Kotlin does, and `session.rs` keeps that text away from it.
     pub fn update(&mut self, text: &str, budget: Duration) -> Option<(&Tree, Range<usize>)> {
         let old = std::mem::take(&mut self.text);
         let (tree, dirty) = match self.tree.take() {

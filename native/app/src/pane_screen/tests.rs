@@ -353,10 +353,7 @@ fn a_pane_whose_rows_arrive_after_the_view_opens_at_its_end() {
     let mut app = start::<Late>(400.0, 300.0, None);
     pane.show(&lines("row", 60));
     app.wait_for("text:row 59").unwrap();
-    assert!(
-        !app.shows("new lines"),
-        "opening at the end needs no pill"
-    );
+    assert!(!app.shows("new lines"), "opening at the end needs no pill");
 }
 
 #[test]
