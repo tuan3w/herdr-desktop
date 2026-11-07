@@ -43,6 +43,12 @@ type Mode =
 const typing = timing("palette typing", "Palette keystroke to rows", { warn: 16, bad: 32 });
 const opening = timing("palette open", "Palette open (index)", { warn: 50, bad: 100 });
 
+/**
+ * Rows a query lists: what is mounted is what is listed, so the list stops at 30 and says how many more there are. The
+ * keystroke that matters is the one that narrows them.
+ */
+const PAGE = 30;
+
 const PROMPTS = { project: "Choose a project", agentKind: "Choose an agent", file: "Choose a file" } as const;
 
 export function Palette(props: { open: boolean; onClose: () => void }) {
@@ -129,7 +135,7 @@ export function Palette(props: { open: boolean; onClose: () => void }) {
     const s = session();
     if (s === null || mode().kind !== "results" || scope() === "files" || helpMode()) return null;
     const started = performance.now();
-    const answer = Search.query(s, { query: text(), scope: scope() as never, limit: scope() === "all" ? 50 : 200 });
+    const answer = Search.query(s, { query: text(), scope: scope() as never, limit: PAGE });
     typing.record(performance.now() - started);
     return answer;
   });
@@ -138,7 +144,7 @@ export function Palette(props: { open: boolean; onClose: () => void }) {
     const s = session();
     const m = mode();
     if (s === null || m.kind !== "step" || m.command.args?.[m.chosen.length] !== "project") return null;
-    return Search.query(s, { query: text(), scope: "projects", limit: 200 });
+    return Search.query(s, { query: text(), scope: "projects", limit: PAGE });
   });
 
   const fileRows = (choose?: (row: PaletteRow) => void): PaletteRow[] => {
@@ -292,6 +298,13 @@ export function Palette(props: { open: boolean; onClose: () => void }) {
     return fileRows((row) => pick(m, `${row.file?.machine}\n${row.file?.path}`, row.title));
   };
 
+  /** What the list says after its last row when the query matches more than it shows: a row that cannot be chosen. */
+  const moreRow = (n: number): PaletteRow => ({
+    ...synthetic("more", `${n} more`, ["keep typing to narrow them"], "chevron-down", () => undefined),
+    disabled: "keep typing to narrow them",
+    group: undefined,
+  });
+
   const rows = computed<PaletteRow[]>(() => {
     const m = mode();
     if (m.kind === "actions") return actionRows(m.row);
@@ -301,7 +314,9 @@ export function Palette(props: { open: boolean; onClose: () => void }) {
     const p = page();
     if (!p) return [];
     if (p.hits.length === 0 && text().trim() !== "") return noResultRows();
-    return p.hits.map((h) => rowOfHit(h, commandMap));
+    const found = p.hits.map((h) => rowOfHit(h, commandMap));
+    const rest = p.total - p.hits.length;
+    return rest > 0 ? [...found, moreRow(rest)] : found;
   });
 
   const byId = computed(() => new Map(rows().map((r) => [r.id, r])));
@@ -333,7 +348,7 @@ export function Palette(props: { open: boolean; onClose: () => void }) {
       }
       const mine = ++sequence;
       searching.set(true);
-      Files.search(at.machine, at.root, q, 50).then(
+      Files.search(at.machine, at.root, q, PAGE).then(
         (answer) => {
           // A late answer to an older query is dropped: what is shown is what is typed.
           if (mine !== sequence) return;
@@ -476,6 +491,19 @@ export function Palette(props: { open: boolean; onClose: () => void }) {
     };
   });
 
+  // Inside a layer (the actions, a command's steps) Backspace on an empty field takes the last chip off. A bound key is
+  // consumed, so while a layer is open the palette deletes the character itself (at the end of the filter, which is
+  // where a short filter is edited); on the results Backspace stays the field's, with its caret and its words.
+  effect(() => {
+    if (!props.open || mode().kind === "results") return;
+    return keymap.bind(
+      {
+        backspace: () => (text() === "" ? back() : text.set(text().slice(0, -1))),
+      },
+      { when: "always", repeat: true },
+    );
+  });
+
   // The number of results, said once the typing pauses: the highlighted row is announced on its own at every key.
   let pause: ReturnType<typeof setTimeout> | undefined;
   effect(() => {
@@ -567,8 +595,8 @@ export function Palette(props: { open: boolean; onClose: () => void }) {
         searchAccessibilityLabel={label()}
         placeholder={placeholder()}
         searchBarClass="h-12 shrink-0 flex-row items-center gap-3 border-b border-border px-4"
-        searchClass="h-12 min-w-0 flex-1 text-base"
-        listClass="max-h-[360px]"
+        searchClass="h-12 min-w-0 flex-1 text-base text-foreground placeholder:text-muted-foreground"
+        listClass="max-h-[480px] px-1 py-2"
         itemClass="group min-h-10 flex-row items-center rounded-md px-3 focus:bg-accent hover:bg-accent"
         groupClass="px-3 pb-1 pt-3 text-xs font-medium text-muted-foreground"
         separator={false}

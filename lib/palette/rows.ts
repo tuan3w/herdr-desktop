@@ -2,7 +2,6 @@ import type { BoardRow, SearchHit } from "herdr-desktop/native";
 
 import type { IconName } from "#kit";
 import { projectOf, rowOf } from "#lib/herdr";
-import { viewOf } from "#lib/open-agent";
 import type { PaletteCommand } from "#lib/palette/commands";
 import { keyText } from "#lib/shortcuts";
 import { ageText, projectLabel, rowLabel } from "#lib/sidebar";
@@ -102,7 +101,6 @@ function agentRow(hit: SearchHit): PaletteRow {
   const live: BoardRow | undefined = rowOf(hit.target);
   const project = live ? projectOf(live.project) : undefined;
   const status: AgentStatus = live?.status ?? hit.state ?? "unknown";
-  const view = live ? viewOf(live) : hit.view;
   const spoken = live && project ? rowLabel(live, project.name) : [hit.title, ...hit.parts].join(", ");
   return {
     id: hit.id,
@@ -117,7 +115,8 @@ function agentRow(hit: SearchHit): PaletteRow {
     checked: false,
     waiting: status === "blocked" && live?.offline !== true,
     disabled: undefined,
-    spoken: [view === "chat" ? "chat" : "terminal", spoken].join(", "),
+    // Which view an agent opens in is a native question per row (`viewOf`), too dear to ask of every row at every tick.
+    spoken: live?.session ? `chat, ${spoken}` : spoken,
     hit,
     group: hit.group,
   };

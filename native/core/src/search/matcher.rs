@@ -20,6 +20,10 @@ impl Haystack {
         Self { folded, text }
     }
 
+    /// How many characters the folded text has.
+    pub fn chars(&self) -> usize {
+        self.text.len()
+    }
     pub fn is_empty(&self) -> bool {
         self.folded.text.is_empty()
     }
@@ -62,6 +66,9 @@ impl Needle {
     }
 }
 
+/// Names longer than this are matched by word start or substring, not by subsequence.
+pub const LONG_NAME: usize = 28;
+
 /// Points per matched character in the substring score: nucleo's own base for a match is 16.
 const PER_CHAR: u32 = 16;
 
@@ -86,8 +93,13 @@ impl Scorer {
         }
     }
 
-    /// Subsequence score of `needle` in `haystack` (a name: short text), `None` when it is not one.
+    /// Subsequence score of `needle` in `haystack` (a name: short text), `None` when it is not one. A name longer than
+    /// [`LONG_NAME`] characters is matched like prose, by a word's start or a substring: `pay` is a subsequence of `Back
+    /// to the place you came from`, and a person who typed it did not mean that.
     pub fn fuzzy(&mut self, haystack: &Haystack, needle: &Needle) -> Option<u32> {
+        if haystack.chars() > LONG_NAME {
+            return self.word_or_substring(haystack, needle);
+        }
         let score = self
             .matcher
             .fuzzy_match(haystack.text.slice(..), needle.utf32.slice(..))?;
@@ -101,6 +113,9 @@ impl Scorer {
         needle: &Needle,
         marks: &mut Vec<u32>,
     ) -> Option<u32> {
+        if haystack.chars() > LONG_NAME {
+            return None;
+        }
         let start = marks.len();
         let score =
             self.matcher

@@ -5,7 +5,7 @@ import { notify } from "#kit";
 import { openSession } from "#lib/dock";
 import { browseFiles, viewFile } from "#lib/files";
 import { projectOf } from "#lib/herdr";
-import { agentChoices, startFailure } from "#lib/new-session";
+import { agentChoices, rememberStart, startFailure } from "#lib/new-session";
 import type { AgentChoice } from "#lib/new-session";
 import type { PaletteCommand } from "#lib/palette/commands";
 import { projectFolder } from "#lib/sidebar";
@@ -53,6 +53,8 @@ export async function runWith(command: PaletteCommand, values: readonly string[]
     const folder = projectFolder(project);
     try {
       const ref = await Sessions.start(project.machine, { agent: values[1], cwd: folder });
+      // What the form remembers for its next opening is remembered the same way.
+      rememberStart(project.machine, values[1], folder);
       announce(`Started a chat in ${project.name}`);
       await openSession(ref.machine, ref.id);
     } catch (e) {

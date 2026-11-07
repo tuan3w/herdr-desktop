@@ -57,7 +57,7 @@ export function PaletteDialog(props: {
         />
         <View
           style={pop}
-          class="max-h-[88%] w-[640px] max-w-[94%] overflow-hidden rounded-xl border border-border bg-card shadow-lg"
+          class="max-h-[88%] w-[640px] max-w-[94%] overflow-hidden rounded-xl border border-border bg-popover shadow-lg"
         >
           {props.children}
         </View>

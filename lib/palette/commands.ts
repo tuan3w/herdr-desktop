@@ -9,7 +9,6 @@ import {
   codeWrap,
   diffSplit,
   largeTargets,
-  quickPhrases,
   reduceMotionOverride,
 } from "#lib/settings";
 
@@ -61,7 +60,6 @@ const SUGGEST: Record<string, "always" | "needsYou"> = {
 /** Commands that only make sense at a pane or in a chat, and the sentence that says what to do first. */
 const NEEDS: Record<string, string> = {
   focusPane: "Open an agent first",
-  capture: "Open a terminal agent first",
   search: "Open an agent first",
   copyCode: "Open a chat first",
   copyReply: "Open a chat first",
@@ -90,7 +88,6 @@ const SWITCHES: { id: string; label: string; words: string[]; signal: { (): bool
   { id: "reduceMotion", label: "Reduce motion", words: ["animation", "accessibility"], signal: reduceMotionOverride },
   { id: "largeTargets", label: "Large hit targets", words: ["touch", "accessibility", "bigger"], signal: largeTargets },
   { id: "announceOutput", label: "Announce agent output", words: ["screen reader", "speak"], signal: announceOutput },
-  { id: "quickPhrases", label: "Quick phrases", words: ["suggestions", "chips"], signal: quickPhrases },
   { id: "codeWrap", label: "Wrap long code lines", words: ["code", "editor"], signal: codeWrap },
   { id: "codeLineNumbers", label: "Line numbers in code", words: ["code", "gutter"], signal: codeLineNumbers },
   { id: "codeWhitespace", label: "Show whitespace in code", words: ["code", "tabs", "spaces"], signal: codeWhitespace },

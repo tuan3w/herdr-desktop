@@ -73,7 +73,38 @@ function show(fixture: typeof storm | typeof big) {
   Herdr.testPush({ event: "workspace_updated", data: {} });
 }
 
+/**
+ * Makes the scripted herdr show about `agents` agents: the 200 of `big.json` again and again, each copy with ids and labels
+ * of its own, so the palette has a crowd to search (one agent is a candidate, and so are its project and its commands).
+ * The panes' screens are not set: the point is the size of the list the palette ranks.
+ */
+function crowd(agents: number) {
+  const text = JSON.stringify(big.snapshot);
+  const copies = Array.from({ length: Math.ceil(agents / big.snapshot.agents.length) }, (_, j) =>
+    JSON.parse(
+      j === 0
+        ? text
+        : text
+            .replace(/"(t?w\d+)((?::t\d+)?(?::p\d+)?)"/g, `"$1c${j}$2"`)
+            .replace(/"label":"([^"]*)"/g, `"label":"$1 ${j}"`),
+    ),
+  ) as (typeof big.snapshot)[];
+  const [first] = copies;
+  Herdr.testSetSnapshot({
+    ...first,
+    workspaces: copies.flatMap((c) => c.workspaces),
+    tabs: copies.flatMap((c) => c.tabs),
+    panes: copies.flatMap((c) => c.panes),
+    layouts: copies.flatMap((c) => c.layouts),
+    agents: copies.flatMap((c) => c.agents),
+  });
+  Herdr.testPush({ event: "workspace_updated", data: {} });
+}
+
 keymap.bind({
+  // A crowd for the palette to search: about 2,000 and about 5,000 candidates (an agent, plus its project and the commands).
+  "ctrl+alt+5": () => crowd(1900),
+  "ctrl+alt+6": () => crowd(4900),
   "ctrl+alt+0": () => {
     for (const pane of STREAMING) Herdr.testSetScreen(pane, frame(pane, 0));
   },

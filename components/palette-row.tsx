@@ -16,7 +16,7 @@ import { runsOf } from "#lib/palette/rows";
  */
 export function Row(props: { row: () => PaletteRow | undefined }) {
   const row = () => props.row();
-  const dim = () => (row()?.disabled === undefined ? "" : "opacity-50");
+  const dim = () => (row()?.disabled === undefined ? "" : "opacity-60");
   const detail = () => row()?.parts.join(" · ") ?? "";
   return (
     <View class={`min-w-0 flex-1 flex-row items-center gap-3 ${dim()}`}>

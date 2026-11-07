@@ -21,7 +21,7 @@ export function ScopeChips(props: { scope: () => PaletteScope; onPick: (scope: P
             accessibilityLabel={s.prefix ? `${s.label}, prefix ${s.prefix}` : s.label}
             accessibilityState={{ selected: props.scope() === s.id }}
             onPress={() => props.onPick(s.id)}
-            class={`h-6 min-w-6 items-center justify-center rounded-md px-1.5 hover:bg-accent ${
+            class={`h-7 min-w-7 items-center justify-center rounded-md px-2 hover:bg-accent ${
               props.scope() === s.id ? "bg-accent" : ""
             }`}
           >
@@ -46,10 +46,14 @@ export function ArgChips(props: { chips: () => string[] }) {
     <If when={props.chips().length > 0}>
       <View class="shrink-0 flex-row items-center gap-1 px-4 pb-1 pt-3">
         <Each of={props.chips()} key="index">
-          {(chip) => (
-            <View class="shrink-0 flex-row items-center gap-1 rounded-md bg-muted py-0.5 pl-2 pr-1">
-              <Text class="text-xs font-medium text-foreground">{chip()}</Text>
-              <Icon name="chevron-right" size={12} tone="muted-foreground" />
+          {(chip, i) => (
+            <View class="shrink-0 flex-row items-center gap-1">
+              <View class="rounded-md bg-muted px-2 py-0.5">
+                <Text class="text-xs font-medium text-foreground">{chip()}</Text>
+              </View>
+              <If when={i() < props.chips().length - 1}>
+                <Icon name="chevron-right" size={12} tone="muted-foreground" />
+              </If>
             </View>
           )}
         </Each>

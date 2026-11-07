@@ -74,7 +74,8 @@ export function previewOf(row: PaletteRow | undefined): string {
   if (row.disabled) return row.disabled;
   const hit = row.hit;
   if (row.file) return row.file.path;
-  if (!hit) return row.parts.join(" · ");
+  // A row that is not a result (a next step, an action) already says what it is: the line stays empty.
+  if (!hit) return "";
   if (hit.kind === "agent") {
     const agent = rowOf(hit.target);
     if (!agent) return "";

@@ -32,6 +32,53 @@
       "jsP95": 2,
       "memMB": 373
     },
+    "crowd of 2,000 candidates arrives": {
+      "frameP95": 940,
+      "over": 60,
+      "jsP95": 1180,
+      "memMB": 1030
+    },
+    "idle board, 2,000 candidates": {
+      "drawn": 0,
+      "memMB": 1000
+    },
+    "palette open, 2,000 candidates": {
+      "frameP95": 160,
+      "over": 85,
+      "jsP95": 50,
+      "memMB": 1060
+    },
+    "palette typing, 2,000 candidates": {
+      "frameP95": 65,
+      "over": 30,
+      "jsP95": 355,
+      "memMB": 1075
+    },
+    "crowd of 5,000 candidates arrives": {
+      "frameP95": 2000,
+      "over": 100,
+      "jsP95": 2500,
+      "memMB": 2100
+    },
+    "idle board, 5,000 candidates": {
+      "drawn": 3,
+      "frameP95": 30,
+      "over": 25,
+      "jsP95": 1200,
+      "memMB": 2050
+    },
+    "palette open, 5,000 candidates": {
+      "frameP95": 110,
+      "over": 50,
+      "jsP95": 1800,
+      "memMB": 2050
+    },
+    "palette typing, 5,000 candidates": {
+      "frameP95": 380,
+      "over": 100,
+      "jsP95": 1200,
+      "memMB": 2050
+    },
     "open a pane": {
       "cpu": 13,
       "frameP95": 7.52,
@@ -180,6 +227,24 @@
       "over": 5,
       "jsP95": 2,
       "memMB": 355
+    },
+    "changes, 500 files scrolled": {
+      "frameP95": 27.29,
+      "over": 11,
+      "jsP95": 7.6,
+      "memMB": 406
+    },
+    "changes, a 5000-line change opened": {
+      "frameP95": 16.92,
+      "over": 5,
+      "jsP95": 2.2,
+      "memMB": 462
+    },
+    "changes at rest": {
+      "frameP95": 11.88,
+      "over": 5,
+      "jsP95": 2.1,
+      "memMB": 463
     }
   }
 }

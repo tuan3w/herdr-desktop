@@ -34,7 +34,7 @@ test("opened empty, the palette says what needs you first, then what else there 
   await openPalette(app);
   expect(app.shows(FIELD)).toBe(true);
   expect(app.shows("Needs you")).toBe(true);
-  expect(app.shows(row(`terminal, ${FIRST}`)) || app.shows(row(`chat, ${FIRST}`))).toBe(true);
+  expect(app.shows(row(FIRST))).toBe(true);
   // Escape closes it, and the app is where it was.
   await app.keyboard.press("escape");
   await settle(app);
@@ -45,7 +45,7 @@ test("typing finds an agent by its name and by its project, and Enter opens it w
   const app = await ready();
   await openPalette(app);
   await type(app, "auth");
-  expect(app.shows(row(`chat, ${SECOND}`)) || app.shows(row(`terminal, ${SECOND}`))).toBe(true);
+  expect(app.shows(row(SECOND))).toBe(true);
   await app.keyboard.press("enter");
   await settle(app);
   expect(await front(app)).toBe(SECOND);

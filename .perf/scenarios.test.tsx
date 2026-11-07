@@ -167,6 +167,38 @@ test(
     }
     await app.wait(1000);
 
+    // The palette ranks in Rust against a copy frozen when it opens; a keystroke is that query, its marshalling and the commit
+    // of the rows. Eight characters each, on about 2,000 and about 5,000 candidates (`docs/PERFORMANCE.md`).
+    for (const [candidates, crowd] of [
+      ["2,000", "ctrl+alt+5"],
+      ["5,000", "ctrl+alt+6"],
+    ] as const) {
+      await mark(app, `crowd of ${candidates} candidates arrives`);
+      await app.keyboard.press(crowd);
+      await app.wait(3000);
+
+      // The board of a crowd keeps pulling its rows' previews for a while; the palette is measured after that, at rest.
+      await mark(app, `idle board, ${candidates} candidates`);
+      await app.wait(15_000);
+
+      await mark(app, `palette open, ${candidates} candidates`);
+      await app.keyboard.press("ctrl+k");
+      // Opening freezes a catalog of the whole crowd: the field is there when that is done.
+      await app.waitFor("label:Search agents, projects and commands", { timeout: 30_000 });
+      await app.wait(1500);
+
+      await mark(app, `palette typing, ${candidates} candidates`);
+      for (const ch of "settings") {
+        await app.type("label:Search agents, projects and commands", ch);
+        await app.wait(150);
+      }
+      await app.wait(1000);
+      // The first Escape clears the query, the second closes the palette.
+      await app.keyboard.press("escape");
+      await app.keyboard.press("escape");
+      await app.wait(500);
+    }
+
     await mark(app, "end");
   },
   TEST_TIMEOUT,

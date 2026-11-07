@@ -262,3 +262,27 @@ fn long_text_matches_a_word_start_not_a_subsequence() {
     req.query = "rpj".to_owned();
     assert!(index.search(&req).hits.is_empty());
 }
+
+#[test]
+fn a_long_command_name_is_found_by_its_words_not_by_scattered_letters() {
+    let items = vec![
+        item(Kind::Command, "Back to the place you came from"),
+        item(Kind::Command, "Developer panel (frame time, latency, data)"),
+        item(Kind::Command, "Previous agent that needs you"),
+        item(Kind::Project, "payments"),
+    ];
+    let index = Index::new(&items);
+    // `pay` is a subsequence of the first three names and the start of a word of none of them.
+    assert_eq!(titles(&items, &index, &request("pay")), vec!["payments"]);
+    // A word of a long name still finds it, and a prefix of two words does too.
+    assert_eq!(
+        titles(&items, &index, &request("previous agent")),
+        vec!["Previous agent that needs you"]
+    );
+    assert_eq!(
+        titles(&items, &index, &request("panel")),
+        vec!["Developer panel (frame time, latency, data)"]
+    );
+    let page = index.search(&request("panel"));
+    assert_eq!(page.hits[0].marks, vec![(10, 15)]);
+}
