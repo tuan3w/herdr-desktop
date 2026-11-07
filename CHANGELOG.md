@@ -8,6 +8,7 @@ What changed for the person using Herdr Desktop, newest first. The format follow
   paused: the installer on Linux says `no Linux build in this release` and
   points to the source build. `install.sh --edge` installs the newest build of
   `main` (the pre-release `edge`, replaced after every push that builds).
+- **Play video and sound, and read any file.** The Files dialog plays mp4, mov, m4v, webm, mkv and ogv video and mp3, m4a, ogg, wav and flac sound with a seek bar, volume, loop and full screen (`Space` plays, `Left` and `Right` seek 5 s, `Shift` 30 s, `Up` and `Down` volume, `M`, `L`, `F`); nothing starts by itself. A file another machine holds is copied first (progress, `Cancel`, a 1 GB cache that never grows past its cap); one this computer cannot play says which codec it is and offers the system's player. Pictures zoom, turn and pan and copy to the clipboard; PDFs are drawn in the app; zip, tar and tar.gz files list their contents; tables show as tables, minified JSON is laid out, a text file of any size is read a page at a time with `Ctrl+F` through all of it, and a binary shows a hex peek and what it is. Every file has `Send to the agent`, `Open`, `Reveal`, `Copy path` and, for text, `Copy contents`. `Space` previews the highlighted file beside the list and `Enter` opens it. Played on this Linux box only; macOS was not run.
 
 ## [0.1.0-alpha.3] - 2026-11-07
 

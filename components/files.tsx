@@ -1,11 +1,10 @@
 import { Herdr, Files as MachineFiles } from "herdr-desktop/native";
-import { announce, computed, effect, type Signal, signal, Text, untracked, View } from "nsh";
+import { announce, computed, effect, keymap, type Signal, signal, Text, untracked, View } from "nsh";
 import { Command, type CommandItem } from "nsh/base";
 
 import type { EntryView, FileData, FolderView } from "herdr-desktop/native";
 
-import { FileViewer } from "#components/file-viewer";
-import { type Photo, PhotoViewer } from "#components/photo-viewer";
+import { FileViewer, type ViewerNav } from "#components/file-viewer";
 import { ActionMenu, Btn, Empty, Field, Icon, IconButton, type IconName, Modal, notify, Skeleton } from "#kit";
 import {
   arrange,
@@ -21,33 +20,43 @@ import {
   showHidden,
   sizeText,
   type SortKey,
+  stepNames,
   modifiedText,
 } from "#lib/files";
+import { mediaKindOf } from "#lib/media";
 import { fold } from "#lib/text";
+import { restartable } from "#lib/timer";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 const ICON: Record<EntryView["kind"], IconName> = { dir: "folder", file: "file", other: "file" };
 
+/** The icon of a row: the kind of file its name says. */
+function iconOf(e: EntryView): IconName {
+  if (e.kind !== "file") return ICON[e.kind];
+  if (isImageName(e.name)) return "image";
+  const media = mediaKindOf(e.name);
+  if (media) return media === "video" ? "film" : "music";
+  return /\.(zip|tar|tgz|gz|jar|7z|rar|xz|bz2)$/i.test(e.name) ? "archive" : "file";
+}
+
 /** What one row of the list shows beyond its name; the row reads the entry by the id the list gives it. */
-function EntryRow(props: { entry: () => EntryView | undefined; now: () => number }) {
+function EntryRow(props: { entry: () => EntryView | undefined; now: () => number; compact?: boolean }) {
   const entry = props.entry;
   return (
     <If when={entry()}>
       {(e) => (
         <View class={`w-full flex-row items-center gap-3 ${e().readable ? "" : "opacity-60"}`}>
-          <Icon
-            name={e().kind === "file" && isImageName(e().name) ? "image" : ICON[e().kind]}
-            size={16}
-            tone="muted-foreground"
-          />
+          <Icon name={iconOf(e())} size={16} tone="muted-foreground" />
           <Text class="min-w-0 flex-1 text-sm text-foreground" style={{ numberOfLines: 1 }}>
             {e().name}
           </Text>
           <Text class="w-20 text-right text-xs text-muted-foreground">
             {e().kind === "file" ? sizeText(e().size) : e().readable ? "" : "No permission"}
           </Text>
-          <Text class="w-24 text-right text-xs text-muted-foreground">{modifiedText(e().modified, props.now())}</Text>
+          <If when={!props.compact}>
+            <Text class="w-24 text-right text-xs text-muted-foreground">{modifiedText(e().modified, props.now())}</Text>
+          </If>
         </View>
       )}
     </If>
@@ -55,7 +64,7 @@ function EntryRow(props: { entry: () => EntryView | undefined; now: () => number
 }
 
 /** The browser and the viewer of one machine, driven by the request that opened them. */
-function Browser(props: { request: () => Browse; file: Signal<FileData | null> }) {
+function Browser(props: { request: () => Browse; file: Signal<FileData | null>; quick: Signal<boolean> }) {
   const machine = () => props.request().machine;
   const info = computed(() => Herdr.machines().find((m) => m.id === machine()));
   const machineName = () => info()?.name ?? machine();
@@ -67,7 +76,12 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null> }
   const query = signal("");
   const file = props.file;
   const opening = signal(false);
-  const photos = signal<{ items: Photo[]; at: number } | null>(null);
+  // The preview beside the list (`Space`, `mod+y`): it follows the highlighted row once the person pauses on it.
+  const quick = props.quick;
+  const highlighted = signal<string | null>(null);
+  const preview = signal<{ name: string; data?: FileData; note?: string; error?: string } | null>(null);
+  const lag = restartable();
+  let previewing = 0;
   // When the listing was read, in seconds: "3 min ago" is relative to this, and a re-render never reads a clock.
   const readAt = signal(0);
   let latest = 0;
@@ -112,23 +126,6 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null> }
     if (opening()) return;
     opening.set(true);
     try {
-      if (isImageName(name)) {
-        // The pictures of this folder in the order they are listed, so Left and Right walk the folder.
-        const pictures: Photo[] = shown()
-          .filter((e) => e.kind === "file" && isImageName(e.name))
-          .map((e) => ({
-            machine: machine(),
-            path: joinPath(here(), e.name),
-            name: e.name,
-            local: info()?.local ?? false,
-          }));
-        const at = pictures.findIndex((p) => p.path === path);
-        photos.set({
-          items: at >= 0 ? pictures : [{ machine: machine(), path, name, local: info()?.local ?? false }],
-          at: Math.max(0, at),
-        });
-        return;
-      }
       const data = await MachineFiles.open(machine(), path);
       file.set(data);
       announce([`${name}, read only`, data.notice].filter(Boolean).join(". "));
@@ -137,6 +134,52 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null> }
     } finally {
       opening.set(false);
     }
+  };
+
+  // The files the viewer steps through, and the way to the next one: the folder as it is listed now.
+  const nav = computed<ViewerNav>(() => ({
+    names: stepNames(shown(), file()?.name ?? ""),
+    go: (name) => {
+      const entry = byName().get(name);
+      if (entry?.kind === "file") void openFile(joinPath(here(), name), name);
+    },
+  }));
+
+  // The preview follows the highlight 200 ms after it stops moving; an answer for a row the person already left is dropped.
+  effect(() => {
+    if (!quick()) return;
+    const name = highlighted();
+    const entry = name === null ? undefined : byName().get(name);
+    untracked(() => {
+      const mine = ++previewing;
+      if (!entry || !name) {
+        preview.set(null);
+        return;
+      }
+      if (entry.kind === "dir") {
+        preview.set({ name, note: "A folder. Enter opens it." });
+        return;
+      }
+      if (entry.kind !== "file") {
+        preview.set({ name, error: `${name} is not a regular file` });
+        return;
+      }
+      lag.after(200, () => {
+        MachineFiles.open(machine(), joinPath(here(), name)).then(
+          (data) => {
+            if (mine === previewing) preview.set({ name, data });
+          },
+          (e) => {
+            if (mine === previewing) preview.set({ name, error: reason(e) });
+          },
+        );
+      });
+    });
+  });
+  // `Space` (with nothing typed in the find field, or a space would be eaten) and `mod+y`, as Finder's Quick Look, toggle it.
+  const toggleQuick = () => {
+    quick.update((on) => !on);
+    announce(quick() ? "Preview on" : "Preview off");
   };
 
   const choose = (name: string) => {
@@ -207,20 +250,21 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null> }
             data={data()}
             line={props.request().line}
             onBack={() => file.set(null)}
+            nav={nav()}
           />
         )}
       </If>
-      <PhotoViewer
-        photos={photos()?.items ?? null}
-        index={photos()?.at ?? 0}
-        machineName={machineName()}
-        onIndex={(at) => photos.update((p) => (p ? { ...p, at } : p))}
-        onClose={() => photos.set(null)}
-      />
     </>
   );
 
   function FolderPanel() {
+    // `Space` and `mod+y` toggle the preview, as Finder's Quick Look. Space is only bound while no text is being typed: the
+    // find field is empty and the folder field still holds the folder (a space typed there must stay typed).
+    effect(() => {
+      if (query() !== "" || typed() !== (listing()?.path ?? typed())) return;
+      return keymap.bind({ space: toggleQuick }, { when: "always" });
+    });
+    effect(() => keymap.bind({ "mod+y": toggleQuick }, { when: "always" }));
     return (
       <View class="gap-2">
         <View class="flex-row items-start gap-2">
@@ -274,29 +318,76 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null> }
           </View>
         </If>
         <If when={!failure() && listing() !== null}>
-          <Command
-            items={items()}
-            query={query()}
-            filterable={false}
-            autoFocus
-            accessibilityLabel="Files"
-            searchAccessibilityLabel="Find in this folder"
-            placeholder="Find in this folder"
-            searchBarClass="mb-1 rounded-md border border-border px-3"
-            searchClass="h-9 text-sm"
-            listClass="h-[290px]"
-            itemClass="group flex-row items-center rounded-md px-3 py-2 focus:bg-accent hover:bg-accent"
-            groupClass="px-3 pb-1 pt-2 text-xs font-medium text-muted-foreground"
-            renderItem={(item) => <EntryRow entry={() => byName().get(item.id)} now={readAt} />}
-            onQueryChange={({ query: q }) => query.set(q)}
-            onSelect={({ id }) => choose(id)}
-            onCancel={() => browsing.set(null)}
-            empty={
-              <Text class="px-3 py-4 text-sm text-muted-foreground">
-                {query().trim() ? "No file matches" : "This folder is empty"}
-              </Text>
-            }
-          />
+          <View class="flex-row items-start gap-3">
+            <View class={quick() ? "w-[340px] shrink-0" : "min-w-0 flex-1"}>
+              <Command
+                items={items()}
+                query={query()}
+                filterable={false}
+                autoFocus
+                accessibilityLabel="Files"
+                searchAccessibilityLabel="Find in this folder"
+                placeholder="Find in this folder"
+                searchBarClass="mb-1 rounded-md border border-border px-3"
+                searchClass="h-9 text-sm"
+                listClass="h-[290px]"
+                itemClass="group flex-row items-center rounded-md px-3 py-2 focus:bg-accent hover:bg-accent"
+                groupClass="px-3 pb-1 pt-2 text-xs font-medium text-muted-foreground"
+                renderItem={(item) => <EntryRow entry={() => byName().get(item.id)} now={readAt} compact={quick()} />}
+                onQueryChange={({ query: q }) => query.set(q)}
+                onHighlightChange={({ highlighted: id }) => highlighted.set(id)}
+                onSelect={({ id }) => choose(id)}
+                onCancel={() => (quick() ? quick.set(false) : browsing.set(null))}
+                empty={
+                  <Text class="px-3 py-4 text-sm text-muted-foreground">
+                    {query().trim() ? "No file matches" : "This folder is empty"}
+                  </Text>
+                }
+              />
+            </View>
+            <If when={quick()}>
+              <View role="region" accessibilityLabel="Preview" class="min-w-0 flex-1">
+                <If
+                  when={preview()}
+                  else={
+                    <Empty
+                      icon="eye"
+                      title="Preview"
+                      hint="Move to a file and it shows here. Space closes the preview."
+                    />
+                  }
+                >
+                  {(shownPreview) => (
+                    <>
+                      <If when={shownPreview().data}>
+                        {(data) => (
+                          <FileViewer
+                            quick
+                            machine={machine()}
+                            machineName={machineName()}
+                            data={data()}
+                            onBack={() => {}}
+                          />
+                        )}
+                      </If>
+                      <If when={shownPreview().note ?? shownPreview().error}>
+                        {(text) => (
+                          <View class="h-[300px] items-center justify-center">
+                            <Empty
+                              fill
+                              icon={shownPreview().error ? "alert" : "folder"}
+                              title={shownPreview().name}
+                              hint={text()}
+                            />
+                          </View>
+                        )}
+                      </If>
+                    </>
+                  )}
+                </If>
+              </View>
+            </If>
+          </View>
         </If>
         <Text class="text-xs text-muted-foreground">{status()}</Text>
       </View>
@@ -314,6 +405,8 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null> }
 export function Files() {
   // The viewer is the dialog's second step: Escape leaves it first, and only then closes the dialog.
   const file = signal<FileData | null>(null);
+  // The preview beside the list is on or off for the dialog, and Escape closes it before the dialog.
+  const quick = signal(false);
   const close = () => {
     file.set(null);
     browsing.set(null);
@@ -322,11 +415,11 @@ export function Files() {
     <Modal
       open={browsing() !== null}
       huge
-      onClose={() => (file() ? file.set(null) : close())}
+      onClose={() => (file() ? file.set(null) : quick() ? quick.set(false) : close())}
       title="Files"
       actions={<Btn label="Close" hint="Esc" onPress={close} />}
     >
-      <If when={browsing()}>{(request) => <Browser request={request} file={file} />}</If>
+      <If when={browsing()}>{(request) => <Browser request={request} file={file} quick={quick} />}</If>
     </Modal>
   );
 }

@@ -152,20 +152,21 @@ test("a path in a link opens the file where the pane's folder or one above it ha
   expect(said(app, "missing.rs isn't in")).toBe(true);
 });
 
-test("a picture opens in the photo viewer, the arrows walk the folder and Escape closes", async () => {
+test("a picture opens in the viewer, the arrows walk the folder's pictures and Escape goes back to the list", async () => {
   const app = await lab();
   await browse(app);
   await app.press(row("assets", "folder"));
   await app.waitFor(row("shot-1.png", "file"));
   await app.press(row("shot-2.png", "file"));
-  await app.waitFor("shot-2.png");
+  await app.waitFor("label:Picture tools");
   expect(said(app, "Photo 2 of 3")).toBe(true);
+  expect(app.shows("label:shot-2.png, picture")).toBe(true);
   await app.keyboard.press("right");
-  await app.waitFor("shot-3.png");
+  await app.waitFor("label:shot-3.png, picture");
   expect(said(app, "Photo 3 of 3")).toBe(true);
-  expect(app.enabled("Next photo")).toBe(false);
+  expect(app.shows("Next photo")).toBe(false);
   await app.press("Previous photo");
-  await app.waitFor("shot-2.png");
+  await app.waitFor("label:shot-2.png, picture");
   await app.keyboard.press("escape");
   await app.waitFor("Photo 2 of 3", { state: "gone" });
   // the browser is still there, on the same folder

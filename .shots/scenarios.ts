@@ -651,3 +651,26 @@ export const COMPOSER_LIVE_SCENARIOS: Record<string, Scenario> = {
   "composer-live-blind": { ...composer("blind", async () => {}, false) },
 };
 Object.assign(SCENARIOS, COMPOSER_SCENARIOS, COMPOSER_LIVE_SCENARIOS);
+
+// The media and file viewers in their lab (`components/media-lab.tsx`): the player on a generated Theora clip and Vorbis song
+// (waiting on the poster), the H.265 clip that this box cannot play, a picture, a PDF, a binary, an archive. A clip is given
+// time to show its first frame; the PDF to load the web view.
+const MEDIA = "../components/media-lab.tsx";
+const viewer = (button: string, wait = 1500): Scenario => ({
+  fixture: "mixed",
+  entry: MEDIA,
+  steps: async (app) => {
+    await app.press(button);
+    await app.wait(wait);
+  },
+});
+export const MEDIA_SCENARIOS: Record<string, Scenario> = {
+  "files-video": { ...viewer("Play clip.ogv", 2500) },
+  "files-audio": { ...viewer("Play song.ogg", 2000) },
+  "files-hevc": { ...viewer("Play hevc.mp4", 2500) },
+  "files-image": { ...viewer("View shot-2.png") },
+  "files-pdf": { ...viewer("View report.pdf", 4000) },
+  "files-binary": { ...viewer("View tool.bin") },
+  "files-archive": { ...viewer("View bundle.zip") },
+};
+Object.assign(SCENARIOS, MEDIA_SCENARIOS);

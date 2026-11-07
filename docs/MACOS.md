@@ -55,6 +55,7 @@ Anything that trusts the app by its signature (a keychain item, a granted permis
 Everything that needs a real macOS window or a Mac user:
 
 - **Notifications**: that `display notification` from the app's `osascript` child is shown and what the person must allow; the Script Editor attribution and click behaviour are from how `osascript` is documented to behave, not from a run.
+- **Video, sound and PDF** (`design/media.md`): playback is nsh's `AVPlayer` backend (H.264, HEVC and AAC native; mkv and webm are whatever AVFoundation reads), full screen is the window's, the PDF is `WKWebView`'s own viewer on a loopback address, `Reveal` is Finder's `open -R`, `Copy image` is the pasteboard. None was run on a Mac; only `herdr-core` was checked for `aarch64-apple-darwin`.
 - **Web pages** (`WebView`): nsh maps it to `WKWebView`; the tunnel (`ssh -O forward`) is the same code as on Linux, the view was never opened on a Mac.
 - **`Window.setFrame`** and window sizing and position: the app opens at desktop size; how AppKit places and restores it was not observed.
 - **Keychain and the ssh agent**: ssh is the system's `/usr/bin/ssh` and its agent (launchd's `SSH_AUTH_SOCK`, keys added with `ssh-add --apple-use-keychain`). The app starts `ssh` with `BatchMode=yes`, so a key that needs a passphrase the agent does not hold fails as `AuthFailed` rather than asking. A GUI app started from Finder does not read your shell's environment: a custom `SSH_AUTH_SOCK` or `HERDR_SOCKET_PATH` set only in `~/.zshrc` is not seen.

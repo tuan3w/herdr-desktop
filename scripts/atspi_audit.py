@@ -31,6 +31,7 @@ APP = "nsh"
 # (a new unnamed control still fails). `docs/ACCESSIBILITY.md` says what each one is.
 HOST_UNNAMED = {
     "file-markdown": {"check box": 1},  # `TextView` draws an unchecked task-list box without a name (a checked one is named `✓`)
+    "files-archive": {"button": 2},  # `DataTable` draws two buttons of its scroll corner and header without a name
 }
 
 

@@ -1,6 +1,7 @@
 import { Image, token } from "nsh";
 
 import alert from "./icons/alert.svg";
+import archive from "./icons/archive.svg";
 import arrowLeft from "./icons/arrow-left.svg";
 import arrowRight from "./icons/arrow-right.svg";
 import arrowUp from "./icons/arrow-up.svg";
@@ -15,7 +16,9 @@ import copy from "./icons/copy.svg";
 import download from "./icons/download.svg";
 import ellipsis from "./icons/ellipsis.svg";
 import externalLink from "./icons/external-link.svg";
+import eye from "./icons/eye.svg";
 import file from "./icons/file.svg";
+import film from "./icons/film.svg";
 import folder from "./icons/folder.svg";
 import globe from "./icons/globe.svg";
 import image from "./icons/image.svg";
@@ -23,23 +26,48 @@ import lightbulb from "./icons/lightbulb.svg";
 import link from "./icons/link.svg";
 import list from "./icons/list.svg";
 import loader from "./icons/loader.svg";
+import maximize from "./icons/maximize.svg";
 import message from "./icons/message.svg";
 import monitor from "./icons/monitor.svg";
 import moon from "./icons/moon.svg";
+import music from "./icons/music.svg";
 import panelLeft from "./icons/panel-left.svg";
+import pause from "./icons/pause.svg";
 import pencil from "./icons/pencil.svg";
+import play from "./icons/play.svg";
 import plus from "./icons/plus.svg";
 import refresh from "./icons/refresh.svg";
+import repeat from "./icons/repeat.svg";
+import rotateCw from "./icons/rotate-cw.svg";
 import search from "./icons/search.svg";
+import send from "./icons/send.svg";
 import sliders from "./icons/sliders.svg";
 import sun from "./icons/sun.svg";
 import terminal from "./icons/terminal.svg";
 import trash from "./icons/trash.svg";
 import undo from "./icons/undo.svg";
 import upload from "./icons/upload.svg";
+import volumeOff from "./icons/volume-off.svg";
+import volume from "./icons/volume.svg";
 import x from "./icons/x.svg";
+import zoomIn from "./icons/zoom-in.svg";
+import zoomOut from "./icons/zoom-out.svg";
 
 const ICONS = {
+  archive,
+  eye,
+  film,
+  maximize,
+  music,
+  pause,
+  play,
+  repeat,
+  "rotate-cw": rotateCw,
+  send,
+  volume,
+  "volume-off": volumeOff,
+  "zoom-in": zoomIn,
+  "zoom-out": zoomOut,
   alert,
   "arrow-left": arrowLeft,
   "arrow-right": arrowRight,

@@ -56,10 +56,14 @@ export const copyCode = (): void => front()?.copyCode?.();
 export const attachFiles = (): void => front()?.attachFiles?.();
 
 /**
- * "Send to the agent" from a file viewer: the chat in front mentions `path` (absolute, on `machine`) in its message box, as
- * if it had been picked with `@`. False when no chat is in front or the chat in front runs on another machine.
+ * "Send to the agent" from a file viewer: the newest chat tab that can take a mention (not the viewer's own registration,
+ * which is newer and has none) mentions `path` (absolute, on `machine`) in its message box, as if it had been picked with
+ * `@`. False when no chat is open or the chat runs on another machine.
  */
-export const mentionInChat = (machine: string, path: string): boolean => front()?.mention?.(machine, path) ?? false;
+export const mentionInChat = (machine: string, path: string): boolean =>
+  registered()
+    .findLast((p) => p.mention !== undefined)
+    ?.mention?.(machine, path) ?? false;
 
 /** `mod+shift+q`: the chat in front quotes what the person copied in its message box. */
 export async function quoteCopied(): Promise<void> {

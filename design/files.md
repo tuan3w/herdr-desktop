@@ -1,6 +1,6 @@
 # Files, viewers, diagrams and pages
 
-`components/files.tsx` (`Files`: the browser, with `FileViewer` in `file-viewer.tsx`), `photo-viewer.tsx` (`PhotoViewer`), `markdown.tsx` (`Markdown`), `mermaid-block.tsx` (`MermaidBlock`), `web-page.tsx` (`WebPage`), `send-files.tsx` (`SendFiles`). The state and rules are `lib/files.ts` and `lib/mermaid.ts` (pure, with tests); the work is Rust (`herdr_core::files`, the `Files`, `Pages` and `Diagrams` modules). `files.test.tsx` and `pane-files.test.tsx` drive it against `fixtures/files/project`, a synthetic folder the test seam (`Files.testTree`) copies; the shots and the audit use the same folder through `files-lab.tsx`.
+`components/files.tsx` (`Files`: the browser, with `FileViewer` in `file-viewer.tsx`), `design/media.md` (the player and every other viewer), `markdown.tsx` (`Markdown`), `mermaid-block.tsx` (`MermaidBlock`), `web-page.tsx` (`WebPage`), `send-files.tsx` (`SendFiles`). The state and rules are `lib/files.ts` and `lib/mermaid.ts` (pure, with tests); the work is Rust (`herdr_core::files`, the `Files`, `Pages` and `Diagrams` modules). `files.test.tsx` and `pane-files.test.tsx` drive it against `fixtures/files/project`, a synthetic folder the test seam (`Files.testTree`) copies; the shots and the audit use the same folder through `files-lab.tsx`.
 
 ## What it is for
 
@@ -21,12 +21,12 @@ One dialog (`Modal huge`) with two steps: the folder, then a file. **Escape leav
 
 - **Text**: a `CodeBlock` (`design/code.md`) with the language its name says, line numbers fixed on, and for a link that names a line (`main.rs:12`) that line marked and scrolled to (`goTo`, `CodeView.goToLine`). It selects and copies, and `mod+f` opens `PaneFind` over the file's lines (Enter and Shift+Enter step, the current line is marked and brought into view); it never changes the file, and is named `<file>, read only`. Decided with evidence: the `Editor` was kept for the one thing the view cannot do, a file of any size: above 512 KB (`CODE_VIEW_LIMIT`) the viewer is the read-only `Editor`, whose own find and caret keys then apply, because the code view builds a row per line.
 - **Markdown**: `Markdown` with a `Preview`/`Source` switch (`Source` is the editor).
-- **Binary**: its size and `Not a text file`. **Too big** (over `TEXT_CAP`, 4 MB): the first part and a sentence above it, `Showing the first 4.0 MB of 18 MB`; never a freeze.
+- **Everything else** (pictures, video and sound, PDF, archives, tables, JSON, big text, binaries): `design/media.md`.
 - `Reveal` and `Open` act on a file of this computer only (`reveal_path`, `open_path`: Rust-only in nsh 0.4.0, so no `fs` capability is needed); `Copy path` works everywhere. A file that changes on disk is not followed: go back and open it again.
 
 ## Pictures
 
-`PhotoViewer` is the one viewer for every picture: a dialog with the picture at the size of the window, `Photo 3 of 12`, `Previous`/`Next` and Left/Right across the folder, Escape closes, the file name is the alt text, `Copy path`, `Reveal` (local). The picture is a `file:` address on this computer: a local file in place, a remote one copied once into the cache (`files_cache`, emptied at start) up to `IMAGE_CAP` (40 MB); over it the dialog says how big the picture is. Zoom is not offered (a decision, not a gap: the viewer is for "what is it", the file manager opens the rest).
+A picture opens in the same viewer as every other file (`ImageView`: zoom, fit, pan, rotate, `Copy image`); `Left` and `Right` walk the folder's pictures, `Photo 3 of 12`. A remote picture is copied once into the cache (`files_cache`, emptied at start) up to `IMAGE_CAP` (40 MB).
 
 ## Markdown and diagrams
 

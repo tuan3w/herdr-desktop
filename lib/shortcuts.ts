@@ -167,7 +167,7 @@ export const GLOBAL: Record<GlobalShortcut, Shortcut> = {
 export const LOCAL: Shortcut[] = [
   { keys: ["enter"], label: "Send the message, choose the highlighted row", group: "typing" },
   { keys: ["shift+enter"], label: "New line in the message", group: "typing" },
-  { keys: ["up", "down"], label: "Move in menus and lists", group: "typing" },
+  { keys: ["up", "down"], label: "Move in menus and lists; volume in the player", group: "typing" },
   { keys: ["escape"], label: "Close a dialog, menu or list", group: "typing" },
   { keys: ["tab"], label: "Next scope in the palette", group: "typing" },
   { keys: ["j", "k"], label: "Changes: next or previous file", group: "navigate" },
@@ -175,6 +175,28 @@ export const LOCAL: Shortcut[] = [
   { keys: ["x"], label: "Changes: mark the file reviewed", group: "navigate" },
   { keys: ["c"], label: "Changes: write a note on the change", group: "navigate" },
   { keys: ["mod+enter"], label: "Changes: preview the notes to send them", group: "navigate" },
+  {
+    keys: ["space"],
+    label: "Files: preview the highlighted file beside the list. In the player: play or pause",
+    group: "navigate",
+  },
+  { keys: ["mod+y"], label: "Files: preview the highlighted file", group: "navigate" },
+  { keys: ["[", "]"], label: "Files: the previous or next file of the folder", group: "navigate" },
+  {
+    keys: ["left", "right"],
+    label: "Player: seek 5 s (Shift 30 s). Picture: the previous or next picture",
+    group: "navigate",
+  },
+  {
+    keys: ["m", "l", "f", "home", "end"],
+    label: "Player: mute, loop, full screen, the start, the end",
+    group: "navigate",
+  },
+  {
+    keys: ["plus", "minus", "0", "1", "r"],
+    label: "Picture: zoom in, zoom out, fit, actual size, rotate",
+    group: "navigate",
+  },
 ];
 
 /** In the order the list shows them: by group, global before local. */

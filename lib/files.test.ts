@@ -2,7 +2,19 @@ import { expect, test } from "nsh/test";
 
 import type { EntryView } from "herdr-desktop/native";
 
-import { arrange, crumbs, entryLabel, joinPath, modifiedText, parentOf, routeLink, sizeText } from "#lib/files";
+import {
+  arrange,
+  crumbs,
+  entryLabel,
+  joinPath,
+  modifiedText,
+  parentOf,
+  placeText,
+  routeLink,
+  sizeText,
+  stepNames,
+  stepOf,
+} from "#lib/files";
 
 const entry = (name: string, patch: Partial<EntryView> = {}): EntryView => ({
   name,
@@ -80,4 +92,17 @@ test("a row says what it is, how big and when, and when nobody can open it", () 
   expect(entryLabel(entry("src", { kind: "dir" }), now)).toBe("src, folder");
   expect(entryLabel(entry("shortcut", { kind: "dir", link: true }), now)).toBe("shortcut, link, folder");
   expect(entryLabel(entry("secret", { readable: false }), now)).toContain("no permission");
+});
+
+test("the viewer steps through the pictures when it shows a picture, and through every file otherwise, folders left out", () => {
+  const entries = [entry("a.txt"), entry("docs", { kind: "dir" }), entry("b.png"), entry("c.md"), entry("d.JPG")];
+  expect(stepNames(entries, "b.png")).toEqual(["b.png", "d.JPG"]);
+  expect(stepNames(entries, "c.md")).toEqual(["a.txt", "b.png", "c.md", "d.JPG"]);
+  const pictures = stepNames(entries, "b.png");
+  expect(stepOf(pictures, "b.png", 1)).toBe("d.JPG");
+  expect(stepOf(pictures, "b.png", -1)).toBeNull();
+  expect(stepOf(pictures, "gone.png", 1)).toBeNull();
+  expect(placeText(pictures, "d.JPG", true)).toBe("Photo 2 of 2");
+  expect(placeText(stepNames(entries, "c.md"), "c.md", false)).toBe("File 3 of 4");
+  expect(placeText(pictures, "gone.png", true)).toBe("");
 });

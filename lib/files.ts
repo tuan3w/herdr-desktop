@@ -2,6 +2,7 @@ import { signal } from "nsh";
 
 import type { EntryView } from "herdr-desktop/native";
 
+import { apple } from "#lib/shortcuts";
 import { ageText } from "#lib/sidebar";
 
 /**
@@ -156,4 +157,25 @@ export function entryLabel(entry: EntryView, now: number): string {
   ]
     .filter(Boolean)
     .join(", ");
+}
+
+/** What the button that shows a file in the system's file manager is called: Finder on a Mac. */
+export const revealLabel = (): string => (apple() ? "Reveal in Finder" : "Reveal in the file manager");
+
+/** Where the viewer steps from `current` through `names`: the neighbour before or after it, `null` at either end or when it is not there. */
+export function stepOf(names: readonly string[], current: string, step: -1 | 1): string | null {
+  const at = names.indexOf(current);
+  return at < 0 ? null : (names[at + step] ?? null);
+}
+
+/** `Photo 2 of 3` for a picture, `File 4 of 9` for anything else: where the viewer is among the files it steps through. */
+export function placeText(names: readonly string[], current: string, picture: boolean): string {
+  const at = names.indexOf(current);
+  return at < 0 ? "" : `${picture ? "Photo" : "File"} ${at + 1} of ${names.length}`;
+}
+
+/** The names the viewer steps through from `current`: the pictures of the folder when it is a picture, else every file. */
+export function stepNames(entries: readonly EntryView[], current: string): string[] {
+  const files = entries.filter((e) => e.kind === "file").map((e) => e.name);
+  return isImageName(current) ? files.filter(isImageName) : files;
 }
