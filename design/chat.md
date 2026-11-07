@@ -36,9 +36,9 @@ The list is bottom aligned and virtual: only the rows near the window exist, eac
 A rounded card: text on top; under it `+` (attach), the mode chip and model picker (`session-config.tsx`), and one round button. It is `Send`, `Queue message` while the agent works, and `Stop` while a turn runs with nothing typed; a Stop that just appeared ignores presses for 400 ms so the second press of a double press on Send cannot stop the turn it started.
 
 - Enter sends, Shift+Enter is a new line. While the agent works a send is queued; the queue shows above the box and its cross takes a message back into the box (`Take back`), so nothing is thrown away. A held queue says why and `Send now` lets it go.
-- `/` at the start lists the agent's own commands (`SessionView.commands`, `SlashList`); `@` at the start of a word lists files of the session's folder and a folder goes into it. An `@` inside a word is a character (`me@host`). Up and Down move, Enter or Tab pick, Escape hides.
+- `/` at the start lists the agent's own commands (`SessionView.commands`); `@` lists files and folders of the session's folder over the caret, and pictures can be pasted or dropped: all of it is `design/composer.md`.
 - Escape stops the turn only from the box, while a turn runs and no list or dialog wants it.
-- Files: `+` opens the machine's folder to tick (`AttachPicker`), or drop files on the tab. The agent reads paths on its own machine, so a file of this computer for a remote session is first sent (`Send a file`). At most five.
+- Files: `+` opens the system file dialog or the machine's folder (`AttachPicker`), or drop files on the tab. The agent reads paths on its own machine, so a file of this computer for a remote session is first sent (`Send a file`).
 - What was typed survives a refusal: it comes back with the reason. A message the agent refused comes back by itself.
 - Off, the box says why (`Opening the session…`, `Session ended: …`, `Not connected…`).
 
@@ -48,4 +48,4 @@ The conversation is a list named `Conversation`; every row is labelled `You: …
 
 ## Not here
 
-Pasting a picture (the engine takes paths, not bytes), editing a message already sent, and a transcript search (`mod+f` belongs to the terminal mirror).
+Editing a message already sent, and a transcript search (`mod+f` belongs to the terminal mirror).

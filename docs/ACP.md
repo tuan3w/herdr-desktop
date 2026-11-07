@@ -30,9 +30,9 @@ The agent runs on some machine under a **keeper** (python3, herdr-mobile's one f
 | `session/resume` | session-setup | fallback when the agent refuses `session/load` | full | `E2E an_agent_that_only_resumes_reopens...` |
 | `session/list` (+ `cwd`, cursor) | session-list | keeper `history` (`PastSessions`) | full | `S a_past_session_can_be_continued_in_a_new_keeper`, `E2E an_agent_that_loads...` |
 | `session/close`, `session/delete`, `session/fork` | session-setup, session-delete | `Sessions.kill` ends the keeper's agent process instead | missing: no UI; agents offer them (omp: close, fork; Claude/Codex: close, delete, fork) | |
-| `session/prompt` text, `resource_link`, `image` blocks | content | `attach::blocks` | full | `E2E a_prompt_carries_text_a_picture_and_a_link...` |
+| `session/prompt` text, `resource_link`, `image` blocks | content | `attach::blocks`; a pasted picture is prepared by `compose::prepare` and sent by `outgoing::build` (refused for another machine's agent that cannot see) | full | `E2E a_prompt_carries_text_a_picture_and_a_link...`, `E2E a_pasted_picture_reaches_an_agent_that_sees...`, `E2E an_agent_that_cannot_see_is_told_where_the_picture_is...` |
 | prompt `audio` | content | never sent | missing: no mainstream agent advertises `promptCapabilities.audio` (omp, Claude Code, Codex, pi: all false or absent) | `E2E what_the_agent_says...` (flag exposed) |
-| prompt embedded `resource` | content | a file goes as `resource_link`, the form that reads well in all four adapters | partial: omp, Claude Code and Codex advertise `embeddedContext` (exposed as `AcpView.acceptsEmbedded`) | |
+| prompt embedded `resource` | content | a text file of at most 32 KB goes as an embedded `resource` when the agent advertises `embeddedContext`, else as `resource_link` (`session/outgoing.rs`) | full | `E2E a_mentioned_small_file_is_embedded_for_an_agent_that_takes_context...` |
 | message blocks of every type shown (`image`, `audio`, `resource_link`, `resource`) | content | `Part` in `acp/update.rs`, `ItemKind::Message.parts` | full | `E2E every_kind_of_content_block_in_a_message...`, `V update.rs chunks_carry...` |
 | tool output blocks (`image`, `resource_link`) | tool-calls | `ToolView.parts` | full; `resource` and `audio` blocks go through the same parser, not tested on their own | `E2E a_tool_row_has_its_name_files_input...` |
 | stop reasons `end_turn`, `max_tokens`, `max_turn_requests`, `refusal`, `cancelled` | prompt-turn | `Transcript::turn_end` | full: `end_turn` is silent, the others say `Turn ended: <reason>` | `V transcript.rs a_turn_that_ends_with_a_call_open...`, `A a_stopped_turn_leaves_its_open_calls_cancelled...` |
@@ -104,9 +104,12 @@ Everything lives in `native/core/src/session/vendored.patch` (regenerate with `s
 | `elicitation` URL mode, `auth.terminal` | no UI to hand a URL to a browser or run a login in a terminal; both stay unadvertised so no agent asks |
 | `logout`, `session/close`, `session/delete`, `session/fork`, `additionalDirectories`, `systemPrompt`, MCP servers | no UI; agents offer them |
 | prompt `audio` | no mainstream agent advertises it |
-| prompt embedded `resource` | `resource_link` works on all four agents; the flag is exposed |
 | `compaction_summary_chunk` | the summary text is not shown, only the progress note |
 | `_meta` propagation, `-32602`/`-32603` details | messages are shown as the agent words them |
 | subagents (`sessionCapabilities.subagents`, RFD), `session/set_model`, `session/set_title`, `session/status`, `auth/status`, archive, plan operations, v2 draft (`user_message`/`agent_message` upserts, `plan_update` variants beyond `items`, `tool_call_content_chunk`) | unstable or draft, and none was seen from the four agents here; unknown kinds are ignored, never an error |
 | Claude/Codex `_meta.steering` (send while a turn runs) | messages sent mid-turn are queued by the app and go when the turn ends |
 | a sign-in or turn against the agents' real servers, `Continue` against a real `omp`, permissions with a real Claude/Codex | **unverified**: no tool use or login was driven; only `initialize`, `session/new` and a `say hi` turn |
+
+## Files and pictures in a prompt (what the adapters do with them)
+
+Read from `~/.local/share/herdr-mobile/acp-adapters` (2026-11-07): Claude Code's `promptToClaude` turns a `resource_link` into the text `[@name](uri)` and an embedded text `resource` into that link plus a `<context ref="uri">` block, an `image` into an image source; Codex's `buildPromptItems` does the same (`resource_link` becomes text, `resource` link plus `<context>`, `image` a data URL). Zed embeds small files the same way. So the message keeps `@path` in its words (an agent that reads only text still sees it) AND sends the file as a block. Folders go as `resource_link` only. Files are read on the caller's thread (local or over the shared ssh connection), never on the session's.
