@@ -36,7 +36,25 @@
       "sidebar-accent": "oklch(0.945 0.008 90)",
       "sidebar-accent-foreground": "oklch(0.3 0.011 90)",
       "sidebar-border": "oklch(0.3 0.01 90 / 0.09)",
-      "sidebar-ring": "oklch(0.58 0.085 205)"
+      "sidebar-ring": "oklch(0.58 0.085 205)",
+      "term-bg": "oklch(0.982 0.005 90)",
+      "term-fg": "oklch(0.3 0.011 90)",
+      "term-0": "oklch(0.28 0.01 90)",
+      "term-1": "oklch(0.42 0.16 27)",
+      "term-2": "oklch(0.42 0.16 148)",
+      "term-3": "oklch(0.42 0.16 92)",
+      "term-4": "oklch(0.42 0.16 255)",
+      "term-5": "oklch(0.42 0.16 330)",
+      "term-6": "oklch(0.42 0.16 200)",
+      "term-7": "oklch(0.86 0.01 90)",
+      "term-8": "oklch(0.5 0.01 90)",
+      "term-9": "oklch(0.55 0.17 27)",
+      "term-10": "oklch(0.52 0.17 148)",
+      "term-11": "oklch(0.54 0.17 92)",
+      "term-12": "oklch(0.545 0.17 255)",
+      "term-13": "oklch(0.55 0.17 330)",
+      "term-14": "oklch(0.495 0.17 200)",
+      "term-15": "oklch(1 0.01 90)"
     },
     "dark": {
       "background": "oklch(0.205 0.006 90)",
@@ -69,7 +87,25 @@
       "sidebar-accent": "oklch(0.3 0.008 90)",
       "sidebar-accent-foreground": "oklch(0.95 0.004 90)",
       "sidebar-border": "oklch(1 0 0 / 0.08)",
-      "sidebar-ring": "oklch(0.64 0.085 205)"
+      "sidebar-ring": "oklch(0.64 0.085 205)",
+      "term-bg": "oklch(0.185 0.006 90)",
+      "term-fg": "oklch(0.9 0.004 90)",
+      "term-0": "oklch(0.14 0.01 90)",
+      "term-1": "oklch(0.7 0.16 27)",
+      "term-2": "oklch(0.7 0.16 148)",
+      "term-3": "oklch(0.7 0.16 92)",
+      "term-4": "oklch(0.7 0.16 255)",
+      "term-5": "oklch(0.7 0.16 330)",
+      "term-6": "oklch(0.7 0.16 200)",
+      "term-7": "oklch(0.82 0.01 90)",
+      "term-8": "oklch(0.42 0.01 90)",
+      "term-9": "oklch(0.82 0.17 27)",
+      "term-10": "oklch(0.82 0.17 148)",
+      "term-11": "oklch(0.82 0.17 92)",
+      "term-12": "oklch(0.82 0.17 255)",
+      "term-13": "oklch(0.82 0.17 330)",
+      "term-14": "oklch(0.82 0.17 200)",
+      "term-15": "oklch(0.97 0.004 90)"
     }
   }
 }

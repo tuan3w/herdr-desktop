@@ -23,3 +23,26 @@ The data disk had 8.7 GB free when this project started. There is one `target/` 
 ## Live smoke against the owner's herdr
 
 Read-only methods only (`ping`, `session.snapshot`, `pane.read`, `agent.list`), or a scratch workspace labelled `herdr-desktop-scratch` with `focus: false`, closed afterwards. Never commit or screenshot a real pane (`AGENTS.md`).
+
+## nsh host quirks
+
+Seen by the sibling project ship-desk on nsh 0.3.0 (macOS), re-read against 0.4.0 for the kit here (`design/components.md`, "Host quirks on nsh 0.4.0", has the per-quirk verdict). Headless `nsh test` has no renderer: rendering facts below are unverified on 0.4.0 and Linux until a screenshot under `xvfb-run -a env GSK_RENDERER=cairo` shows otherwise.
+
+- `ring-*` classes draw nothing: use `FOCUS_RING` (outline). An outline is painted by its own view, so the fill of a later sibling covers it: on rows 0 to 2pt apart use the inset rings `FOCUS_RING_SIDEBAR` / `FOCUS_RING_INSET` (`-outline-offset-2`). Alpha on text colour (`text-x/60`) is an unknown class: use `opacity-*`. A box-shadow ring draws no edge: use a border.
+- `ResizablePanelGroup` is the shell: its panels must be its direct children, so overlays (toast host, dialogs) sit outside it. A list of hundreds of rows or more is a `List` (virtualized: only the rows near the window exist, cells are recycled): its row reads its item as an accessor and keeps no state of its own, and a test finds a row by its `label:`. Mounting every row (`Each` over thousands) costs memory and CPU by the row; `Each` is for tens of rows and `Table` for data read by columns. `Storage` is one 5 MB quota for all keys: a write over it rejects (`lib/save.ts` turns that into a warning). `onTextLayout` reports the visible part of a cut text, which is how `Clipped` knows it cut.
+- `tooltip` on `Button` draws nothing: wrap in `Tipped`. `activeStyle` transforms are ignored: drive scale with `createMotion` (`lib/motion.ts`).
+- Raw `Button` as a `Popover` trigger is not toggled by the popover: toggle `open` in its `onPress`. nsh's `Menu`/`Submenu` (`nsh/base`) close a submenu when the pointer touches any other row (still true in 0.4.0 `menu.rs`), so the kit menu is built on `Overlay`. A view cannot take the focus from code (`focus()` is for inputs): menus keep the focus on the trigger and move a highlight.
+- `DataTable` needs `class="flex-1"` to have a height; `renderCell` draws every cell; column widths are points.
+- JSX spread reads its object once: reactive spread is a getter (see `ThemeRoot`). The theme switch relies on the internal `uiTheme` prop; `lib/theme/theme.test.ts` fails first if nsh changes it (it passes on 0.4.0).
+- `Clipboard.writeText` without `"clipboard": true` in `nsh.json` only logs a warning and the app believes it copied.
+- Fonts and icons must live under the app's entry directory. A loop (`Spinner`, `Skeleton`) mounts only while visible.
+- Per-row actions use `group` + `group-hover:opacity-100 group-focus-within:opacity-100`; they stay pressable and named.
+- The headless harness does not list a `DataTable`'s cells, does not open submenus and has no real pointer path between rows; its storage is isolated from the real app's data. `app.press` as the very first step after `open` was once seen to be lost under machine load: rerun before assuming a bug.
+
+### Found while moving the kit to 0.4.0
+
+- Events take one object: `onChange({ value })`, `onLayout({ bounds })`, `onExpandedChange({ expanded })`, `onSortChange({ sort })`, `keymap.bind(k, ({ keystroke }) => ...)`. A handler that treats the whole object as the value **type-checks when it only tests truthiness** (`onExpandedChange={(expanded) => expanded ? pause() : resume()}` always paused the toasts): read the declaration in `.nsh/types/nsh/*.d.ts` for every event you touch, and test the behaviour.
+- Refs are per element (`ViewRef`, `InputRef`, `ListRef`, `ScrollRef`), not `YNode`: `scrollToOffset` is on `ListRef`, `setSelection` on `InputRef`.
+- Hover events are `onMouseEnter` / `onMouseLeave` / `onMouseMove` (with a `MouseEvent`). `numberOfLines` is `line-clamp-*` or a `style` key, `pointerEvents` and `objectFit` are `style` keys or classes (`pointer-events-none`). `AlertDialog.show` resolves with `{ action }`.
+- In `nsh/test`, `toBeNull()` is strict (an `undefined` fails it) and `app.clock` is `Clock | null` (`app.clock!` where the test opened with `clock: {}`).
+- `nsh check` does not resolve asset imports (`import x from "./icons/x.svg"`): a deleted icon fails at bundle time, in `nsh test`.

@@ -1,2 +1,5 @@
 # Backticked words in DESIGN.md and design/*.md that are prose or external names, not code in this repo.
 nsh
+Reviewed
+fontScale
+Toolbar
