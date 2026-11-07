@@ -7,6 +7,7 @@ import {
   fileGlyph,
   insertToken,
   keepAtomic,
+  looksBinary,
   markRuns,
   type MentionRef,
   mentionAt,
@@ -192,4 +193,11 @@ test("a file's icon is by its kind: folders, pictures, scripts, configuration an
   expect(fileGlyph("Cargo.toml", false)).toBe("sliders");
   expect(fileGlyph("README.md", false)).toBe("list");
   expect(fileGlyph("main.rs", false)).toBe("file");
+});
+
+test("a picture's bytes that arrive as text are not text, and a log or a cell is", () => {
+  expect(looksBinary("\u0089PNG\r\n\u001a\n\u0000\u0000")).toBe(true);
+  expect(looksBinary("\u00ff\u00d8\u00ff\u00e0")).toBe(true);
+  expect(looksBinary("2026-11-07 12:00 request handled\nnext line\twith a tab")).toBe(false);
+  expect(looksBinary("")).toBe(false);
 });

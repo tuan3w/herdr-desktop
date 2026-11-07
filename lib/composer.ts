@@ -13,6 +13,7 @@ import {
   type History,
   insertToken,
   keepAtomic,
+  looksBinary,
   lineCount,
   type Mention,
   type MentionRef,
@@ -163,6 +164,8 @@ export function createComposer(props: {
   let unsentSeq = 0;
   let selSeq = 0;
   let pasteLength = 0;
+  /** What GTK inserted for a picture's bytes read as text: taken out again when the edit arrives. */
+  let junk = "";
   let ids = 0;
   cleanup(() => clearTimeout(guardTimer));
 
@@ -320,8 +323,10 @@ export function createComposer(props: {
     return text;
   };
 
-  const onChange = (next: string) => {
+  const onChange = (typed: string) => {
     const prev = value();
+    const next = junk === "" ? typed : typed.split(junk).join("");
+    junk = "";
     exitHistory();
     error.set("");
     hidden.set(false);
@@ -701,9 +706,12 @@ export function createComposer(props: {
   };
 
   const onPaste: Composer["onPaste"] = (e) => {
-    pasteLength = e.text.length;
-    // Text wins a mixed clipboard (a spreadsheet cell is text and a picture of it).
-    if (e.text !== "") return;
+    // Text wins a mixed clipboard (a spreadsheet cell is text and a picture of it), unless the "text" is the picture's bytes.
+    if (e.text !== "" && !(e.files.length > 0 && looksBinary(e.text))) {
+      pasteLength = e.text.length;
+      return;
+    }
+    junk = e.text;
     if (e.uris.length > 0) {
       dropUris(e.uris);
       return;

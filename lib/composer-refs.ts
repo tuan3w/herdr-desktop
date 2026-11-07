@@ -193,6 +193,15 @@ export const sendable = (text: string, known: readonly Ref[], attached: readonly
 export const nextNumber = (known: readonly Ref[], kind: "picture" | "paste"): number =>
   known.reduce((n, r) => (r.kind === kind ? Math.max(n, r.number) : n), 0) + 1;
 
+/**
+ * Whether a paste's "text" is really a picture's bytes. A clipboard that offers only `image/png` still lets GTK read it as
+ * text (an `xclip -t image/png`, some screenshot tools): the person meant the picture, not `\u0089PNG` and control characters.
+ */
+export const looksBinary = (text: string): boolean =>
+  text.startsWith("\u0089PNG") ||
+  text.startsWith("\u00ff\u00d8") ||
+  /[\u0000-\u0008\u000e-\u001f\ufffd]/.test(text.slice(0, 64));
+
 /** The lines of a text, for `Pasted text (N lines)`. */
 export const lineCount = (text: string): number => text.replace(/\n$/, "").split("\n").length;
 

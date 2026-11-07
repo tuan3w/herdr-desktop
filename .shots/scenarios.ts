@@ -377,6 +377,12 @@ export const SCENARIOS: Record<string, Scenario> = {
     params: { pane: "w1:p4" },
     steps: (app) => app.wait(1200),
   },
+  // Where a compositor put the window: the Wayland copy probe reads the pointer's place from its log.
+  "copy-calibrate": {
+    fixture: "empty",
+    entry: "../components/copy-calibrate.tsx",
+    steps: (app) => app.wait(500),
+  },
   "chat-tools": {
     fixture: "empty",
     entry: "../components/session-lab.tsx",
@@ -587,10 +593,10 @@ Object.assign(SCENARIOS, TAB_SCENARIOS);
 // that cannot see the pictures. The pictures are the fixture project's own.
 const COMPOSER_BOX = "label:Message";
 const SHOT = (n: number) => `fixtures/files/project/assets/shot-${n}.png`;
-const composer = (scene: string, steps: (app: App) => Promise<void>): Scenario => ({
+const composer = (scene: string, steps: (app: App) => Promise<void>, quiet = true): Scenario => ({
   fixture: "empty",
   entry: "../components/session-lab.tsx",
-  params: { mode: "scripted", scene, quiet: true },
+  params: { mode: "scripted", scene, quiet },
   steps: async (app) => {
     await app.wait(900);
     await steps(app);
@@ -645,4 +651,9 @@ export const COMPOSER_SCENARIOS: Record<string, Scenario> = {
     }),
   },
 };
-Object.assign(SCENARIOS, COMPOSER_SCENARIOS);
+// Untouched boxes for `scripts/composer_keys.py`, which types into them with real X key events.
+export const COMPOSER_LIVE_SCENARIOS: Record<string, Scenario> = {
+  "composer-live": { ...composer("blank", async () => {}, false) },
+  "composer-live-blind": { ...composer("blind", async () => {}, false) },
+};
+Object.assign(SCENARIOS, COMPOSER_SCENARIOS, COMPOSER_LIVE_SCENARIOS);

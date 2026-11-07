@@ -17,7 +17,7 @@ import { SessionChat, SessionTab } from "#components/session-tab";
 import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
 import { startHerdr } from "#lib/herdr";
 import { warmCode } from "#lib/highlight";
-import { copyCode, copyReply } from "#lib/pane-input";
+import { attachFiles, copyCode, copyReply } from "#lib/pane-input";
 import { createSessionModel, type SessionPort } from "#lib/session";
 import { loadSettings } from "#lib/settings";
 import { GLOBAL, keysOf } from "#lib/shortcuts";
@@ -582,7 +582,14 @@ const STREAMED = params.lines ? bigPieces(params.lines) : SMALL_STREAM;
 
 function Scripted() {
   // The app binds its global shortcuts in `App.tsx`; the two a chat answers are bound here the same way.
-  keymap.bind({ [keysOf(GLOBAL.copyCode)[0]]: copyCode, [keysOf(GLOBAL.copyReply)[0]]: copyReply }, { when: "always" });
+  keymap.bind(
+    {
+      [keysOf(GLOBAL.copyCode)[0]]: copyCode,
+      [keysOf(GLOBAL.copyReply)[0]]: copyReply,
+      [keysOf(GLOBAL.attachFiles)[0]]: attachFiles,
+    },
+    { when: "always" },
+  );
   const lab = scripted(scene(params.scene ?? "chat"));
   // A reply that writes itself: `Stream a piece` by hand (tests), or `autostream` pieces every N ms up to `upTo` of them (screenshots).
   let piece = 0;
