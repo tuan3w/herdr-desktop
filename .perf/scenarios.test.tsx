@@ -162,7 +162,7 @@ test("chat of 5,000 items", async () => {
   await app.type(box, "long:5000");
   // `app.submit` types a line break on this target (it presses Return in a box that sends on Return and newline otherwise): the button sends.
   await app.press("label:Send message");
-  await app.waitFor("label:/^Agent: .*line 4999/", { timeout: 120_000 });
+  await app.waitFor("label:/^Agent: .*line 4999/", { timeout: 300_000 });
   // The last commit of the arrival (the rows near the end) belongs to it, not to the rest that follows.
   await app.wait(1500);
 

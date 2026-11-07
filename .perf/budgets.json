@@ -14,134 +14,134 @@
   },
   "scenarios": {
     "idle board": {
+      "cpu": 1,
       "drawn": 0,
-      "memMB": 338,
-      "cpu": 1
+      "memMB": 338
     },
     "palette open": {
+      "cpu": 8,
       "frameP95": 33.72,
       "over": 21,
       "jsP95": 2.6,
-      "memMB": 372,
-      "cpu": 8
+      "memMB": 372
     },
     "palette typing": {
-      "frameP95": 2,
+      "cpu": 7,
+      "frameP95": 5,
       "over": 5,
       "jsP95": 2,
-      "memMB": 373,
-      "cpu": 7
+      "memMB": 373
     },
     "open a pane": {
+      "cpu": 13,
       "frameP95": 7.52,
       "over": 5,
       "jsP95": 2,
-      "memMB": 380,
-      "cpu": 13
+      "memMB": 380
     },
     "idle pane": {
+      "cpu": 1,
       "drawn": 0,
-      "memMB": 362,
-      "cpu": 1
+      "memMB": 362
     },
     "stream 8 panes, 1 open": {
+      "cpu": 15,
       "frameP95": 5.39,
       "over": 5,
       "jsP95": 2,
-      "memMB": 380,
-      "cpu": 15
+      "memMB": 380
     },
     "idle pane after streaming": {
+      "cpu": 1,
       "drawn": 0,
-      "memMB": 363,
-      "cpu": 1
+      "memMB": 363
     },
     "scrollback 1000 rows, scrolled": {
+      "cpu": 18,
       "frameP95": 7.22,
       "over": 5,
       "jsP95": 2,
-      "memMB": 386,
-      "cpu": 18
+      "memMB": 386
     },
     "open 2 more panes in splits": {
+      "cpu": 13,
       "frameP95": 13.28,
       "over": 5,
       "jsP95": 2,
-      "memMB": 396,
-      "cpu": 13
+      "memMB": 396
     },
     "stream 8 panes, 3 open in splits": {
+      "cpu": 21,
       "frameP95": 10.89,
       "over": 5,
       "jsP95": 3.7,
-      "memMB": 397,
-      "cpu": 21
+      "memMB": 397
     },
     "close panes": {
-      "frameP95": 2,
+      "cpu": 9,
+      "frameP95": 5,
       "over": 5,
       "jsP95": 2,
-      "memMB": 398,
-      "cpu": 9
+      "memMB": 398
     },
     "permission storm: 20 blocked at once": {
+      "cpu": 19,
       "frameP95": 7.82,
       "over": 5,
       "jsP95": 3.5,
-      "memMB": 402,
-      "cpu": 19
+      "memMB": 402
     },
     "idle with 20 blocked": {
+      "cpu": 1,
       "drawn": 0,
-      "memMB": 387,
-      "cpu": 1
+      "memMB": 387
     },
     "200 agents arrive": {
+      "cpu": 65,
       "frameP95": 8.23,
       "over": 5,
       "jsP95": 3.8,
-      "memMB": 463,
-      "cpu": 65
+      "memMB": 463
     },
     "idle board, 200 agents": {
+      "cpu": 1,
       "drawn": 0,
-      "memMB": 441,
-      "cpu": 1
+      "memMB": 441
     },
     "project home scroll, 200 agents": {
+      "cpu": 23,
       "frameP95": 24.42,
       "over": 8,
       "jsP95": 2,
-      "memMB": 463,
-      "cpu": 23
+      "memMB": 463
     },
     "chat idle, empty": {
-      "frameP95": 2.16,
+      "cpu": 3,
+      "frameP95": 5,
       "over": 5,
       "jsP95": 2,
-      "memMB": 312,
-      "cpu": 3
+      "memMB": 312
     },
     "chat 5,000 items arrive": {
-      "frameP95": 2,
+      "cpu": 15,
+      "frameP95": 5,
       "over": 5,
       "jsP95": 63.2,
-      "memMB": 350,
-      "cpu": 15
+      "memMB": 350
     },
     "chat 5,000 items, idle at the end": {
-      "frameP95": 2,
+      "cpu": 3,
+      "frameP95": 5,
       "over": 5,
       "jsP95": 2,
-      "memMB": 350,
-      "cpu": 3
+      "memMB": 350
     },
     "chat 5,000 items, scrolled": {
-      "frameP95": 4.87,
+      "cpu": 17,
+      "frameP95": 5,
       "over": 5,
       "jsP95": 3.5,
-      "memMB": 355,
-      "cpu": 17
+      "memMB": 355
     }
   }
 }

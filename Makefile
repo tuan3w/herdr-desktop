@@ -20,6 +20,7 @@ verify-mac: check core docs test-smoke
 
 check:
 	nsh check
+	node scripts/absolute-imports.mjs --check
 
 test:
 	nsh test

@@ -266,8 +266,8 @@ if (writeBudgets) {
       // At rest: no frames at all.
       entry.drawn = 0;
     } else {
-      // A median of 0 (the monitor's window did not move) would make the budget 0: the floors keep a budget from failing on noise.
-      entry.frameP95 = Math.max(up(c.frameP95.median, 2), 2);
+      // A median of 0 (the monitor's window did not move) would make the budget 0: the floors keep a budget from failing on noise (a CPU-drawn frame under 5 ms is inside it).
+      entry.frameP95 = Math.max(up(c.frameP95.median, 2), 5);
       entry.over = Math.max(up(c.over.median, 0), 5);
       entry.jsP95 = Math.max(up(c.jsP95.median, 1), 2);
     }
