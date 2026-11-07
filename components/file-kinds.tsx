@@ -19,7 +19,9 @@ export const BODY = 400;
  * A PDF, drawn by the web view (WebKitGTK's own PDF.js viewer on Linux, as a spike showed, and `WKWebView`'s PDFKit on a
  * Mac: unverified there) from a loopback address that serves exactly this file with ranges (`Media.serve`; the token is
  * random and ends with the viewer). Another machine's PDF is copied into the media cache first, with progress and
- * `Cancel`. When it cannot be shown, or the person prefers it, `Open in the system viewer` is always there.
+ * `Cancel`. When it cannot be shown, or the person prefers it, `Open in the system viewer` is always there. The way back
+ * is the viewer's own `Files` button above the page (outside the web view) and Esc, said under the page: the web view may
+ * keep the keys once it has the focus (unverified: it needs a real window), and then the button is the way.
  */
 export function PdfView(props: {
   machine: string;
@@ -85,8 +87,9 @@ export function PdfView(props: {
           )}
         </If>
       </View>
-      <View class="flex-row items-center gap-3">
+      <View class="flex-row flex-wrap items-center gap-x-3 gap-y-1">
         <Text class="min-w-0 flex-1 text-xs text-muted-foreground">{`PDF document · ${sizeText(props.size)}`}</Text>
+        <Text class="text-xs text-muted-foreground">Back: the Files button above, or Esc</Text>
         <Btn small label="Open in the system viewer" icon="external-link" loading={opening()} onPress={open} />
       </View>
     </View>

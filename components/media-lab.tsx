@@ -116,6 +116,7 @@ function Lab() {
             <Text>{cycles()}</Text>
             <Text>{mentioned() === "" ? "nothing mentioned" : `mentioned ${mentioned()}`}</Text>
             <Text>{`player ${player() ? `${player()!.state()} at ${clock(player()!.position())}` : "none"}`}</Text>
+            <Text>{`volume ${player() ? Math.round(player()!.volume() * 100) : 100}%`}</Text>
           </View>
         </View>
         <Files />

@@ -66,6 +66,14 @@ export function FileViewer(props: {
     });
   });
 
+  // Counts every request to show a line: "next hit" on the line already shown, after the reader scrolled away, sets the
+  // same `line` (a signal ignores it), and the block still has to scroll back.
+  const request = signal(0);
+  const show = (row: number) => {
+    line.set(row);
+    request.set(request() + 1);
+  };
+
   const name = () => data().name;
   const kind = () => data().kind;
   const isJson = () => /\.(json|jsonc|geojson)$/i.test(name());
@@ -139,7 +147,7 @@ export function FileViewer(props: {
         <PaneFind
           what="file"
           rows={async () => lines()}
-          scrollToRow={(row) => line.set(row + 1)}
+          scrollToRow={(row) => show(row + 1)}
           onClose={() => finding.set(false)}
         />
       </If>
@@ -173,6 +181,7 @@ export function FileViewer(props: {
             maxHeight={body - 32}
             marks={line() > 0 ? String(line()) : undefined}
             goTo={line() > 0 ? line() : undefined}
+            goToNonce={request()}
           />
         </View>
       </If>
