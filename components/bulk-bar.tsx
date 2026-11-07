@@ -3,13 +3,16 @@ import { signal, Text, View } from "nsh";
 import { BulkConfirm, pickedRows } from "#components/bulk-confirm";
 import { Btn, IconButton } from "#kit";
 import type { BulkAction } from "#lib/bulk";
+import { answerViewOpen } from "#lib/bulk-answer";
 import { allRows, board, reviewable, reviewWithUndo } from "#lib/herdr";
 import { clear, select, selected } from "#lib/selection";
 
 /**
  * What can be done to the agents picked in the board or the sidebar: `Reviewed` (at once, one `Undo`), `Stop` (Esc),
  * `Message` and `Close`, each through a confirm dialog built from live data. It exists only while something is
- * picked and is mounted once, under the page, so both lists share it.
+ * picked and is mounted once, under the page, so both lists share it. While the bulk answer view is open it
+ * has its own buttons and no select-all of any kind, so `Select all` is hidden here too (the bar's own `hidden` class: a conditional child changed when the bar first draws and made the picking tests flaky) (a Stop or message to a
+ * waiting agent is skipped anyway).
  */
 export function BulkBar() {
   const pending = signal<BulkAction | undefined>(undefined);
@@ -35,7 +38,9 @@ export function BulkBar() {
           <Btn small label="Stop" onPress={() => pending.set("stop")} />
           <Btn small label="Message" onPress={() => pending.set("message")} />
           <Btn small label="Close" onPress={() => pending.set("close")} />
-          <Btn small variant="ghost" label="Select all" onPress={() => select(allRows(board()).map((r) => r.key))} />
+          <View class={answerViewOpen() ? "hidden" : ""}>
+            <Btn small variant="ghost" label="Select all" onPress={() => select(allRows(board()).map((r) => r.key))} />
+          </View>
           <IconButton icon="x" label="Clear selection" onPress={clear} />
         </View>
       </If>

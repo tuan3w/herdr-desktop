@@ -4,9 +4,11 @@ import { computed, effect, List, signal, Text, untracked, View } from "nsh";
 import type { BoardRow } from "herdr-desktop/native";
 
 import { Chips, machineStatuses, TableHeader, TableLine } from "#components/board-card";
+import { BulkAnswer } from "#components/bulk-answer";
 import { Btn, Empty, FOCUS_RING, NUM } from "#kit";
 import { chipCount, inFilter, tableItems } from "#lib/board-table";
 import type { BoardFilter, TableItem } from "#lib/board-table";
+import { hasAnswerView } from "#lib/bulk-answer";
 import { allRows, board, revision, reviewable } from "#lib/herdr";
 import { COLUMN, PAD, ROW } from "#lib/layout";
 import { hoverTransition } from "#lib/motion";
@@ -111,7 +113,9 @@ export function Board(props: {
               <PickToReview />
             </If>
           </View>
-          {/* BULK ANSWER SLOT (package D): while `filter() === "blocked"` the bulk answer view mounts here, between the chips and the table. */}
+          <If when={filter() === "blocked" && hasAnswerView(allRows(board()))}>
+            <BulkAnswer />
+          </If>
           <TableHeader />
           <If
             when={items().length > 0}
