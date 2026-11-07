@@ -273,7 +273,10 @@ test("walking the app with the keyboard: next agent, type to it, take over its k
   await app.keyboard.press("mod+j");
   await settle(app);
   expect(await front(app)).toBe(FIRST);
-  // The agent waits for an answer, so the keyboard is already in its message box, in the chat that opened.
+  // The agent waits for an answer, so the keyboard is already in its message box, in the chat that opened. The chat opens
+  // when the session's first read arrives (real time, not the manual clock), so wait for the box, then for the focus.
+  await app.waitFor("label:Message");
+  await settle(app);
   for (const letter of "hi") await app.keyboard.press(letter);
   expect(app.value("label:Message")).toBe("hi");
   await app.clear("label:Message");

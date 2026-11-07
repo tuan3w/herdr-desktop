@@ -53,6 +53,9 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null> }
     const mine = ++latest;
     loading.set(true);
     failure.set(null);
+    // Leaving the viewer happens now, not when the listing arrives: a request that names a file starts reading it at the same
+    // time, and a slow listing that closed the viewer on arrival undid the file that had opened first.
+    file.set(null);
     try {
       const next = await MachineFiles.list(machine(), path);
       if (mine !== latest) return;
@@ -60,7 +63,6 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null> }
       typed.set(next.path);
       query.set("");
       readAt.set(Math.floor(Date.now() / 1000));
-      file.set(null);
       announce(`${next.path.split("/").filter(Boolean).pop() ?? "Root"} folder, ${next.entries.length} items`);
     } catch (e) {
       if (mine !== latest) return;
