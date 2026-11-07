@@ -423,8 +423,9 @@ mod tests {
         // The second group's added line stays as an unchanged line and its removed line is gone.
         assert!(first.contains("\n-b\n+B\n"));
         assert!(first.contains("\n G\n"));
-        assert!(!first.contains("-g"));
-        assert!(first.contains("@@ -1,8 +1,8 @@ fn x"));
+        // As a body line: the header (`diff --git`) holds `-g` too.
+        assert!(!first.lines().any(|l| l == "-g"));
+        assert!(first.contains("@@ -1,9 +1,9 @@ fn x"));
         let second = reverse_group(&patch, &groups, "f", 1).unwrap();
         assert!(second.contains("\n B\n") && second.contains("\n-g\n+G\n"));
     }
