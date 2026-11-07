@@ -1,18 +1,18 @@
 //! `PaneScreen`: a read-only mirror of one herdr pane, drawn natively.
 //!
 //! herdr's `pane.read format=ansi` has no cursor and no mouse, so this is not a terminal: it shows the
-//! rows the engine's [`PaneFeed`] holds and nothing else. Keys go to the pane through `Herdr.sendKeys`
-//! (see `keys.rs`), never through this view. The drawing follows nsh `main`'s `Terminal` (Apache-2.0,
+//! rows the engine's [`PaneFeed`] holds and nothing else. Keys go to the pane through `Herdr.sendKeys`,
+//! never through this view. The drawing follows nsh `main`'s `Terminal` (Apache-2.0,
 //! see `NOTICE`): a virtualized list of one-row views, the cells' backgrounds as boxes behind the
 //! text because a span's background covers only the glyphs' ink, the cell width measured from the
 //! font. Rows are shared `Arc`s: a row whose `Arc` did not change since it was drawn is not touched,
 //! so one new line in a 50-row screen rebinds one row.
 
 mod follow;
-mod ink;
+pub(crate) mod ink;
 mod layout;
 mod news;
-mod segments;
+pub(crate) mod segments;
 #[cfg(test)]
 mod tests;
 
@@ -245,14 +245,14 @@ impl PartialEq for DrawnRef {
 }
 
 /// The CSS `font` shorthand `measure_text` takes.
-fn font_css(family: &str, size: f32) -> String {
+pub(crate) fn font_css(family: &str, size: f32) -> String {
     match family {
         "monospace" | "ui-monospace" => format!("{size}px {family}"),
         _ => format!("{size}px \"{}\"", family.replace('"', "")),
     }
 }
 
-fn font_family(family: Option<SharedString>) -> SharedString {
+pub(crate) fn font_family(family: Option<SharedString>) -> SharedString {
     family
         .or_else(|| theme().font_mono.clone())
         .unwrap_or_else(|| "monospace".into())
@@ -273,7 +273,7 @@ fn to_rgb(color: Hsla) -> Rgb {
 }
 
 /// The theme's terminal colours for the appearance now.
-fn palette() -> Palette {
+pub(crate) fn palette() -> Palette {
     let theme = theme();
     let dark = dark();
     let pick = |color: AdaptiveColor| to_rgb(if dark { color.dark } else { color.light });
@@ -284,11 +284,14 @@ fn palette() -> Palette {
     )
 }
 
-fn token_color(name: &'static str, fallback: impl Fn() -> AdaptiveColor) -> AdaptiveColor {
+pub(crate) fn token_color(
+    name: &'static str,
+    fallback: impl Fn() -> AdaptiveColor,
+) -> AdaptiveColor {
     theme().color(name).unwrap_or_else(fallback)
 }
 
-fn adaptive(color: Rgb) -> AdaptiveColor {
+pub(crate) fn adaptive(color: Rgb) -> AdaptiveColor {
     let packed = u32::from(color.r) << 16 | u32::from(color.g) << 8 | u32::from(color.b);
     AdaptiveColor::from(Hsla::from(nsh_core::color::rgb(packed)))
 }
@@ -652,7 +655,7 @@ fn pane_row(
         .child(line)
 }
 
-fn fill_box(fill: Fill, cell_width: f32) -> AnyElement {
+pub(crate) fn fill_box(fill: Fill, cell_width: f32) -> AnyElement {
     view()
         .absolute()
         .top_0()

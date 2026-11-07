@@ -6,7 +6,7 @@
 
 A **read-only view**: herdr gives the app the rows of the pane and takes text and key names back; there is no cursor and no mouse, so it cannot be a terminal and does not pretend to be one. The tab says so: its title is `<agent> (view)` and the header says `Read-only view`. Top to bottom: `PaneHeader`, a notice when the machine is not connected (the text is the last it showed, sending is off), `PaneFind` while open, the `PaneScreen`, `AnswerDock` while the agent asks something, `Composer`. A pane herdr no longer has shows `This agent is gone` and nothing to send to.
 
-The pane's columns fill the width (`PaneScreen` scales the font from `paneFontSize` down to 9 pt, then the view scrolls sideways); the person has no layout choice. There are no key buttons, no typing mode and no command list in this tab: a keyboard belongs in a real terminal, which this app does not have yet.
+The pane's columns fill the width (`PaneScreen` scales the font from `paneFontSize` down to 9 pt, then the view scrolls sideways); the person has no layout choice. There are no key buttons, no typing mode and no command list in this tab: a keyboard belongs in a real terminal, which this app does not have yet (`docs/specs/terminal.md` decides what it will be: libghostty-vt, a prototype behind `HERDR_DESKTOP_TERMINAL=1`).
 
 ## What a person does here
 

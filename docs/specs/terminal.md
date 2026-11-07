@@ -1,0 +1,125 @@
+# A real terminal in herdr-desktop: decision, numbers, prototype
+
+Status: **decided, prototyped, off by default.** The pane tab is a read-only view (`design/pane.md`); this is what replaces the phone's key row and typing mode when the owner wants it.
+
+## The model
+
+herdr's public API has no cursor, no mouse and no byte stream for a pane, and its private client socket is off limits (`AGENTS.md`). A terminal with full interaction is therefore **a pty running the official `herdr` client** inside our own terminal widget: the same thing as running herdr in any terminal emulator.
+
+- Local: `herdr` (the default session) or `herdr --session NAME`; `herdr session attach NAME`.
+- Remote: `herdr --remote <ssh-target> [--session NAME]` (read from `herdr --help`), or `ssh -t host herdr`.
+- Plain shells: `$SHELL` on a pty, the same widget.
+- Pointing the client at a pane before it attaches: `herdr workspace focus`, `herdr tab focus` and the API's `pane.focus`-style calls exist; `herdr pane focus` moves to a *neighbouring* pane, not to an id (read from `herdr pane --help`; not run). Several clients on one session, and whether the owner's other terminal stays usable: **not tested** (this run was forbidden to attach to the owner's session and the scratch session was not reached, see Unverified).
+
+The widget needs an emulator and an encoder for keys and mouse. Our own `Terminal` component (`native/app/src/terminal`) holds one. nsh `main`'s `Terminal` is not in 0.4.0 and ours stays 0.4.0.
+
+## Candidates, measured on this box
+
+Release bench of the library alone (`.scratch/term-bench`, not committed): 20 MB streams in 64 KiB chunks into a 200x50 grid, three runs, medians. `yes` is 3-byte lines, `cat` is coloured 100-column source lines with truecolour SGR, wide characters and an OSC 8 link.
+
+| | libghostty-vt 0.2.2 (Rust crate) | alacritty_terminal 0.26 | wezterm-term |
+|---|---|---|---|
+| Builds here | yes, needs **zig 0.15.2** (51 MB download, 380 MB unpacked) | yes, plain cargo | not measured: not on crates.io, git-only inside the wezterm workspace |
+| Cold build | 2 min 09 s (the crate `git clone`s ghostty at a pinned commit, then `zig build`); 412 MB of build output (source 156, zig cache 233, install 24) | about 9 s with the rest cached, small | - |
+| Rebuild with the library installed | 14 s: `libghostty-vt-sys` feature `pkg-config` finds `libghostty-vt-static.pc`, no zig | - | - |
+| Library size | `libghostty-vt.a` 15.6 MB with debug info; a bench binary using both libraries is 2.7 MB | in the same binary | - |
+| Parse, `yes` | 49 MB/s (10 MB history), 65 MB/s with almost none | 128-136 MB/s | - |
+| Parse, `cat` | 32 MB/s | 135-144 MB/s | - |
+| Parse, 100-col plain lines through the whole session | 152 MB/s, 16 frames published for 20 MB | - | - |
+| Empty 200x50 terminal | 55 KiB | 511 KiB | - |
+| 10,000 rows of history, 200 columns | 17-24 MB (`max_scrollback` is **bytes**, the docs say lines: 10 MB kept 4,000-5,400 rows, 30 MB kept 12,500-17,000) | 51-53 MB (fixed cells) | - |
+| Threads | none created | none | - |
+| License | MIT; crates MIT OR Apache-2.0 | Apache-2.0 | MIT |
+
+libghostty-vt is built with `LIBGHOSTTY_VT_SYS_CPU=baseline`: the SIMD paths are not tuned, and `native` was not measured (a shipped binary cannot use it). It parses 2-4x slower than alacritty's parser on raw bytes and 4-9x smaller per idle terminal; both are far above what a terminal's PTY produces (the session test costs one frame per 8 ms at most). Throughput is not the deciding number.
+
+What each gives beyond the grid (read from the crates):
+
+| | libghostty-vt | alacritty_terminal |
+|---|---|---|
+| Key encoder | yes: legacy, application cursor and keypad, Alt as ESC prefix, **kitty keyboard protocol**, modifyOtherKeys (Ghostty keeps Ctrl+letter as its control byte in this mode: measured) | none (it lives in the alacritty binary) |
+| Mouse encoder | yes: X10, normal, button, any; UTF-8, SGR, urxvt, SGR pixels | none |
+| Paste, focus events | yes (`paste::encode`, bracketed only when asked; `focus::Event`) | none |
+| Selection | yes: cells, word, line, rectangle, `format` as text; selection is part of the render state | its own `Selection` type |
+| Scrollback and reflow | yes, reflow on resize | yes |
+| Wide characters, emoji, grapheme clusters | yes, mode 2027 | partial (combining marks) |
+| OSC 8 links, OSC 52 | yes; OSC 52 *reads* are never forwarded, writes arrive in a callback | yes |
+| Title, bell, cwd, colour queries, device attributes | callbacks and `on_pty_write` replies | events |
+| Kitty graphics | yes (default feature), not drawn by the prototype | no |
+| Render state with per-row dirty flags | yes | damage tracking |
+
+**Decision: libghostty-vt**, because it is the only candidate that also encodes keys and the mouse (kitty keyboard, modifyOtherKeys, mouse reporting, bracketed paste are the hard half of a terminal), because herdr itself is built on it (the owner's agents are drawn by the same engine they run in), and because it is small per terminal. Costs, in the order they will bite:
+
+1. **zig in the build.** zig 0.15.2 for crate 0.2.2 (it pins ghostty `a887df4`, 1.3.2-dev, *before* the 1.0 tag `vt-1.0.0` of 2026-11-06, which needs zig 0.17.x). The first build downloads ghostty from GitHub. Offline and release builds want the 1.0 source and deps tarballs (`release.files.ghostty.org/libghostty-vt/1.0.0/`) with `GHOSTTY_SOURCE_DIR`, or an installed library found by pkg-config. The crate's API is "not yet stable" until a release tracks 1.0: pin a git revision.
+2. CI and the three release builds (Linux x86_64, macOS arm64, signed) each need zig or a prebuilt static library per target.
+3. `max_scrollback` is bytes.
+4. Types are `!Send`: the emulator lives on one thread (done: `emulator.rs`).
+
+Fallback if zig is refused: `alacritty_terminal` for the grid plus our own key and mouse encoders (several hundred lines, no kitty keyboard), behind the same `Session` handle. Not built: libghostty-vt built, so the trait the assignment asked for in that case was not needed; `session.rs` is the seam and `emulator.rs` the only file that names libghostty.
+
+## What was built (`native/app/src/terminal`, cargo feature `terminal`, off by default)
+
+- `pty.rs`: `openpt` on `rustix`, the child in its own session with the pty as controlling terminal, `TERM=xterm-256color`, `COLORTERM=truecolor`, every `HERDR_*` variable removed, hangs up on its own process group only.
+- `emulator.rs`: libghostty on a thread; messages in (`types::Input`), immutable `Frame`s out (`frame.rs`), rows shared between frames, at most one frame per 8 ms, none while idle; the theme's 16 colours as the program's palette.
+- `session.rs`: the handle. Without the feature, or without `HERDR_DESKTOP_TERMINAL=1`, a session is one frame saying so.
+- `keys.rs`: the keyboard rule (below). `view.rs`: the `Terminal` component, registered always so TSX types do not depend on the feature.
+- Tests: `tests/terminal.rs` runs real programs on a real pty (20 tests, all pass); `src/terminal/tests.rs` mounts the view headlessly with a real program.
+
+Verified by those tests: colours from the theme palette and truecolour; keys as a terminal encodes them (`ctrl+k`, `escape`, `alt+x`, arrows, `ctrl+left`, `shift+tab`, `f5`, `ctrl+space`); typed UTF-8; application cursor keys; kitty keyboard (disambiguate); modifyOtherKeys; bracketed paste only when asked; focus events only when asked; mouse reports (SGR) and wheel reports when the program tracks the mouse; selection by drag, double click selects the word, copy; scrollback by wheel and to an absolute row; resize reaches the program (`stty size`) and reflows; title, bell, OSC 8 link with its columns; wide characters, emoji and combining marks; cursor shape and position; exit code, `Restart`, a program that cannot start; an idle terminal publishes nothing; the child has no `HERDR_*`; 20 MB through the session.
+
+## The key problem: app shortcuts against keys a program needs
+
+nsh 0.4.0 has no raw key event, only keymap bindings, and `Keymap::find` takes **the newest binding of a keystroke**, a view's bindings being newer than the app's (`element/keys.rs`, `core/components.rs`). So a focused terminal binds what it takes and the app's shortcut fires for everything it did not bind. Text never goes through bindings: a hidden input receives it (layouts, dead keys and input methods compose there).
+
+The rule (`keys::app_owns`, `keys::bound`), on Windows and Linux where `mod` is Ctrl:
+
+- **The program gets every key a terminal can encode:** all named keys and F1-F24 with Shift, Ctrl and Alt (not Ctrl+Shift), `Ctrl+<letter>` and `Ctrl+[ ] \ / space`, `Alt+<printable>` and `Alt+Shift+<letter>`. So Ctrl+K, E, J, N, W, P, F, B, Z and Ctrl+/ are the shell's and the editor's, F1 is the program's help.
+- **The app keeps** every chord with Ctrl *and* Shift (a terminal cannot tell it from the plain chord), `Ctrl+Tab`, `Ctrl+,`, `Ctrl+<digit>`, every Command chord on a Mac. `Ctrl+Shift+P` (palette) and `Ctrl+Shift+<digit>` (tabs) are therefore **always the way out**; `lib/shortcuts.ts` already has `mod+shift+p`.
+- Not bound at all: `Ctrl+Alt+<char>` (AltGr types characters on many layouts), plain and Shift text, anything the host reserves (Ctrl+Q, F11: skipped at bind time).
+- Copy and paste: `Ctrl+C` copies only while text is selected, else it is the interrupt; `Ctrl+Shift+C` and `Ctrl+Shift+V`, `Shift+Insert` (Command+C and V on a Mac) always. `Shift+PageUp/PageDown/Home/End` scroll the history.
+- A focus ring (2 px `ring` token) is drawn while the program has the keyboard; unfocused, the cursor is an outline. The embedding screen must show a persistent line, for example `Keys go to the program. Ctrl+Shift+P: palette`, announced once on entry. **Not built yet**: the hint line and any dock integration.
+
+`keys.rs` tests pin the rule (reserved set, text never bound, Apple variant). **Checked against real GTK key events: no** (see Unverified).
+
+## What works in the prototype, what does not
+
+Works (headless and pty tests above): everything in the verified list. Drawn: rows with per-row cell backgrounds, bold, italic, underline, strike, inverse, dim, hidden, contrast correction (`minContrast`), block cursor inverted into its row, bar and underline cursors, outline when unfocused, selection as inverse, bell as a 160 ms flash (no sound), exit bar with `Restart`, OSC 8 and plain links underlined and opened with Ctrl (Command) held, `title`, no blink unless `cursorBlink` and not `reduce_motion()`.
+
+Not built, or not proven:
+
+- **No GTK run, no screenshots, no XTEST key check, no htop/vim/herdr screenshots, no idle CPU figure, no frame cost in a real window.** Only headless `nsh_testing` and pty tests ran.
+- IME composition is not drawn (`input().on_composition_change` exists in 0.4.0; committed text works through the hidden input).
+- Wheel and scrollbar rest on a scroll view under the rows, used as a wheel sensor while a program tracks the mouse: untested on GTK, where kinetic scrolling may fight the re-centring.
+- Mouse: left button only (a `PressEvent` carries no button); no right or middle click, no key-release events, so kitty's "report event types" cannot work. Presses on the scroll view reach the root's handlers only if nsh bubbles them: unproven on GTK.
+- Selection does not autoscroll and does not follow output; selection by keyboard is absent.
+- Screen readers: the group is named `Terminal, <label>` and rows are text, but new output is not announced; the focus bell is visual only.
+- OSC 52 writes reach TSX as `onClipboard` and are applied only with `allowClipboardWrite`.
+- Kitty graphics are decoded by the library and ignored.
+- Not reachable from the UI: no tab, no palette entry, no `Show terminal`. The only switch is `HERDR_DESKTOP_TERMINAL=1` plus the cargo feature; there is no TSX lab yet (a `.tsx` entry would not type-check without the generated declarations of a build that has the component, which the registry now always provides: it can be added next).
+- `native/app/Cargo.lock` was not regenerated in the commit (it holds another change in progress): the first build with the feature rewrites it.
+
+## How to try it
+
+```sh
+export PATH=<zig 0.15.2>:$PATH                    # or PKG_CONFIG_PATH=<dir with libghostty-vt-static.pc>
+cargo test --manifest-path native/app/Cargo.toml --features terminal
+```
+
+nsh builds the crate with default features: to run the component in the app, add `terminal` to `default` in `native/app/Cargo.toml` locally and start the app with `HERDR_DESKTOP_TERMINAL=1`. A `Terminal` in TSX takes `command` (empty is `$SHELL`; `herdr --session herdr-desktop-scratch` for a scratch herdr), `cwd`, `label`, `fontSize`, `minContrast`, `cursorBlink`, `scrollback`, `allowClipboardWrite`; events `onTitle`, `onBell`, `onExited`, `onLink`, `onCells`, `onFocus`, `onClipboard`; methods `focus`, `restart`, `text`, `selection`, `send`, `paste`.
+
+## Effort to a proper terminal
+
+1. A GTK pass under Xvfb with XTEST (`libXtst` and `libX11` are present; no `xdotool`, so ctypes): `cat -v` key echoes for the whole bound set, `htop` and `vim` (installed) with colours and mouse, the scratch herdr session, idle CPU, a 20 MB frame cost. About a day, and it will find the wheel and press-bubbling questions.
+2. The dock tab: key `terminal:<id>`, the persistent hint line, title from `onTitle` into the tab, `Restart`, palette entries, closing hangs up the program (no `Show terminal` until then). A day, in `workspace.tsx`, `lib/dock.ts` and the palette, which other work is editing.
+3. Remote machines: `herdr --remote` or `ssh -t` as the `command`; ControlMaster reuse; the injection rules of `AGENTS.md` for anything composed into a command line. A day.
+4. Accessibility: announce output politely (reuse `PaneScreen`'s gate), a keyboard way to select, IME preedit. Two days.
+5. Build: zig in CI and release, or prebuilt static libraries per target, pinned libghostty-rs revision tracking `vt-1.0.0`; NOTICE entries (MIT for ghostty, plus the licences of simdutf, Highway, Wuffs and the Unicode tables, all permissive, all compatible with GPL-3.0-or-later). Two days plus the macOS signing job.
+6. Polish: autoscroll, blink and cursor settings, link tooltips, kitty graphics, right-click menu, focus handling between splits.
+
+## Open questions for the owner
+
+- Is zig in every build acceptable, or should the app ship a prebuilt libghostty per platform?
+- Should the terminal replace the read-only view for terminal agents, or sit beside it (`Show terminal` being the existing button that opens the *view*, which is now misnamed)?
+- Ctrl+K and Ctrl+E becoming the program's inside a terminal tab: is `Ctrl+Shift+P` enough as the way out?
+- When the owner's own terminal and ours attach to one herdr session, which one is the "primary" (herdr sizes panes to the smallest client): untested.
+- Should a program be allowed to write the clipboard (OSC 52) by default?

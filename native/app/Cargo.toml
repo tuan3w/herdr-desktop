@@ -7,6 +7,12 @@ publish = false
 
 [workspace]
 
+[features]
+default = []
+# The embedded terminal (src/terminal, docs/specs/terminal.md): a PTY and libghostty-vt. Needs the C library: zig 0.15.x
+# builds it on the first compile (network: the crate fetches ghostty's source), or point pkg-config at an installed one.
+terminal = ["dep:libghostty-vt", "dep:libghostty-vt-sys", "dep:rustix"]
+
 [dependencies]
 nsh-core = "0.4.0"
 nsh-base = "0.4.0"
@@ -17,6 +23,9 @@ parking_lot = "0.12"
 serde_json = "1"
 unicode-width = "0.2"
 log = "0.4"
+libghostty-vt = { version = "0.2.2", optional = true }
+libghostty-vt-sys = { version = "0.2.2", optional = true, features = ["pkg-config"] }
+rustix = { version = "1", optional = true, features = ["pty", "termios", "process", "fs", "stdio"] }
 similar = { version = "2", features = ["unicode"] }
 streaming-iterator = "0.1"
 # The highlighter (src/highlight): tree-sitter grammars with our queries, and the TextMate grammars nsh ships

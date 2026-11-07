@@ -32,6 +32,7 @@ pub mod pane_screen;
 #[cfg(all(target_os = "linux", target_env = "gnu"))]
 pub mod preload_guard;
 pub mod search;
+pub mod terminal;
 
 /// The crate's UI set (`nsh.json` `"rust"`).
 #[native_module("herdr-desktop/native")]
@@ -50,5 +51,6 @@ fn native(registry: &mut Registry) {
         .module::<search::Search>()
         .register::<highlight::view::CodeDiff>()
         .register::<highlight::view::CodeView>()
-        .register::<pane_screen::PaneScreen>();
+        .register::<pane_screen::PaneScreen>()
+        .register::<terminal::Terminal>();
 }
