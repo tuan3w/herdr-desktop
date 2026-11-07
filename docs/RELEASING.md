@@ -69,6 +69,10 @@ xattr -dr com.apple.quarantine "Herdr Desktop.app"
 
 The app's declared reach is `nsh.json` `capabilities`: the clipboard, `openUrl` for `https`, `http` and `mailto`, one network rule (GET `https://api.github.com/repos/tuan3w/herdr-desktop/releases/latest`, for the update check) and a web view for `127.0.0.1`. Rust code (ssh, sockets, files) runs with the process's own permissions and needs no capability. Adding a capability is a change to the app's audit surface: say why in the commit.
 
+## The terminal prototype is not in a release build
+
+`native/app` has a cargo feature `terminal` (the `Terminal` component, `docs/specs/terminal.md`), off by default. A default build, which is what `make check`, `make core`, `make test` and `make package` run, compiles none of libghostty-vt and needs no zig: the optional dependencies sit in `Cargo.lock` but are not built. CI and release workflows are unchanged. Shipping the terminal later means a runner with zig 0.15.2 on `PATH` (a 51 MB download) and network access for the first build (the crate clones ghostty): about 2 minutes cold and 412 MB of build output, per target; or an installed library found through `PKG_CONFIG_PATH`. The owner decides before it is turned on.
+
 ## When something fails
 
 - **Tag does not match**: delete the tag locally and on the remote only if no release was created from it, fix the versions, tag again. If a release exists, bump the version instead.
