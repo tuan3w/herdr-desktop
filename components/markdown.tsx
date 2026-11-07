@@ -7,9 +7,6 @@ import { openLink } from "./links-dialog";
 /** Fenced blocks of this language are custom nodes: the diagram, not a block of code. Every other fence is TextView's own. */
 const EXTENSIONS = [{ name: "mermaid", language: "mermaid" }];
 
-/** Text styles of the root that make every block selectable on its own (see `MarkdownText`, `inList`). */
-const BLOCK_SELECT = { root: { userSelect: "text" as const } };
-
 /**
  * Markdown as it sits inside a page or a chat row, without a scroll view of its own: headings, lists, tables, task lists,
  * quotes and code as `TextView` draws them, and ```` ```mermaid ```` blocks as diagrams (`MermaidBlock`). Only `http` and
@@ -18,12 +15,10 @@ const BLOCK_SELECT = { root: { userSelect: "text" as const } };
  * the picture when its address is a path. The text is selectable and copyable. `streaming` is for text still arriving: its
  * unfinished end (`**bold`, an open fence) is drawn as if it were closed.
  *
- * `inList` is for Markdown in a recycled `List` cell. The whole view is then not one selectable area (`selectable`): on
- * nsh 0.4.0's Linux host a selectable view that a recycled cell unmounts takes the process down (a heap failure in
- * `selectable_view`, seen with a chat of 40 rows). Each block is selectable on its own instead (`userSelect` on the
- * root's text styles, which every part inherits): a selection stays within one paragraph, code block or table cell.
+ * The whole view is one selectable area (`selectable`), in a chat's recycled `List` cell too: the crash that once made that
+ * look unsafe was a preloaded allocator, not a `TextView` (`docs/upstream/nsh-selectable-textview-in-list.md`).
  */
-export function MarkdownText(props: { source: string; machine: string; folder: string; streaming?: boolean; inList?: boolean; class?: string }) {
+export function MarkdownText(props: { source: string; machine: string; folder: string; streaming?: boolean; class?: string }) {
   const press = (target: string) => {
     const path = target.split("#")[0];
     if (/^https?:\/\//i.test(target)) {
@@ -57,8 +52,7 @@ export function MarkdownText(props: { source: string; machine: string; folder: s
       markdown={props.source}
       options={{ streaming: props.streaming ?? false }}
       class={props.class}
-      selectable={!props.inList}
-      styles={props.inList ? BLOCK_SELECT : undefined}
+      selectable
       extensions={EXTENSIONS}
       renderCustom={custom}
       renderImage={image}

@@ -102,7 +102,7 @@ function AgentRow(props: { row: Extract<Row, { kind: "agent" }>; ctx: RowContext
   return (
     <Line class="group py-1">
       <View role="group" accessibilityLabel={itemLabel(props.row.item)}>
-        <MarkdownText source={source()} machine={props.ctx.machine} folder={props.ctx.cwd} streaming={props.row.live} inList />
+        <MarkdownText source={source()} machine={props.ctx.machine} folder={props.ctx.cwd} streaming={props.row.live} />
         <Each of={props.row.item.images} key={(i: ImageView) => i.key}>
           {(image) => <Picture image={image()} ctx={props.ctx} />}
         </Each>
@@ -159,7 +159,7 @@ function ThoughtRow(props: { row: Extract<Row, { kind: "thought" }>; ctx: RowCon
       </Disclosure>
       <If when={props.row.open}>
         <View class="ml-4 border-l border-border pl-3">
-          <MarkdownText source={props.row.item.text ?? ""} machine={props.ctx.machine} folder={props.ctx.cwd} inList class="text-muted-foreground" />
+          <MarkdownText source={props.row.item.text ?? ""} machine={props.ctx.machine} folder={props.ctx.cwd} class="text-muted-foreground" />
         </View>
       </If>
     </Line>

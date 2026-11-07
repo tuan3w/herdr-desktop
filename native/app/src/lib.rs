@@ -11,6 +11,7 @@
 //! * [`files`] is the `Files` and `Pages` modules: the file browser, viewers, `Send a file` and tunnels to a machine's pages.
 //! * [`notify`] tells the person, while the window is away, that an agent needs them (desktop notifications).
 //! * [`fixture`] is the scripted herdr the tests run against.
+//! * `preload_guard` (Linux, glibc) starts the process again without an `LD_PRELOAD` allocator that breaks GTK 4.22 (before `main`).
 
 use nsh_core::prelude::*;
 
@@ -24,10 +25,15 @@ pub mod keys;
 pub mod metrics;
 pub mod notify;
 pub mod pane_screen;
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+pub mod preload_guard;
 
 /// The crate's UI set (`nsh.json` `"rust"`).
 #[native_module("herdr-desktop/native")]
 fn native(registry: &mut Registry) {
+    // Names the guard's constructor so that the linker keeps its object file.
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    std::hint::black_box(&preload_guard::INIT);
     registry
         .module::<api::Herdr>()
         .module::<api::Sessions>()

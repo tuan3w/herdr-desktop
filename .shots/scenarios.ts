@@ -24,6 +24,14 @@ const lab = async (app: App, button: string) => {
   await app.wait(1000);
 };
 
+/** `Show terminal` when the tab is a chat read from a terminal agent's log; a pane that has no chat is already the terminal. */
+const showTerminal = async (app: App) => {
+  if (app.shows("Show terminal")) {
+    await app.press("Show terminal");
+    await app.wait(800);
+  }
+};
+
 export const SCENARIOS: Record<string, Scenario> = {
   // The home: projects as cards (a repository with a linked worktree, two workspaces of one repository, a folder), each
   // agent in its project, and what needs you above them.
@@ -36,6 +44,9 @@ export const SCENARIOS: Record<string, Scenario> = {
   empty: { fixture: "empty", steps: async () => {} },
   // An agent with a chat opens as one (read from its log); `Show terminal` is the mirror of the same pane.
   "agent-chat": { fixture: "mixed", steps: (app) => pressFirst(app, "text:payments review") },
+  // A terminal agent opens as its chat; `Show terminal` replaces the chat's whole view (list, composer, inputs) with the pane mirror.
+  // On nsh 0.4.0's Linux host this once took the process down (see `docs/upstream/nsh-selectable-textview-in-list.md`), so the
+  // button must exist here: the scenario fails when the fixture's agent stops having a chat.
   pane: {
     fixture: "mixed",
     steps: async (app) => {
@@ -44,12 +55,37 @@ export const SCENARIOS: Record<string, Scenario> = {
       await app.wait(800);
     },
   },
+  // An omp pane whose log is not readable as a chat in the fixture: it opens as the mirror at once, there is no `Show terminal`.
   working: {
     fixture: "mixed",
     steps: async (app) => {
       await pressFirst(app, "text:Refactor ledger");
-      await app.press("Show terminal");
-      await app.wait(800);
+      await showTerminal(app);
+    },
+  },
+  // The tab swap that destroys native widgets (a chat's composer and text, then the mirror's) and the tab close, twice over:
+  // chat -> terminal -> chat -> terminal -> chat -> `mod+w`. A host that dies fails the next step ("the host left"); the shot is
+  // the board that is left. Then a second agent's chat is opened and closed with the theme switched in between.
+  "chat-swap": {
+    fixture: "mixed",
+    steps: async (app) => {
+      await pressFirst(app, "text:payments review");
+      for (let i = 0; i < 2; i++) {
+        await app.press("Show terminal");
+        await app.wait(500);
+        await app.press("Show chat");
+        await app.wait(500);
+      }
+      await app.keyboard.press("ctrl+w");
+      await app.wait(600);
+      await pressFirst(app, "text:payments review");
+      await app.setColorScheme("dark");
+      await app.wait(400);
+      await app.setColorScheme("light");
+      await app.setViewport(900, 700);
+      await app.wait(400);
+      await app.keyboard.press("ctrl+w");
+      await app.wait(600);
     },
   },
   triage: { fixture: "projects", steps: (app) => pressFirst(app, "text:Answer one by one") },
