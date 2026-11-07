@@ -43,7 +43,11 @@ The UI thread belongs to the person.
 | `AR=/usr/bin/ar` pinned | A foreign `ar` earlier in `PATH` breaks `cc-rs`. |
 | License GPL-3.0-or-later | The app links GPL-3 crates from herdr-mobile; nsh is Apache-2.0, compatible. |
 
-## 4. Open items
+## 4. Verified spikes
 
-- **unverified:** an `async-channel` receiver awaited inside a `spawn` task is woken from a foreign thread. Spike first in `native/app`; fallback is `set_interval` 8 ms draining `try_recv`. The outcome is written here.
+- **Foreign-thread wake works.** A module function that takes `cx: CallCx` and a `Callback<u32>` starts `cx.start(async { while let Ok(v) = rx.recv().await { listener.post(v) } })` over an `async_channel` receiver; a plain `std::thread` sends 1..300 at 1 kHz; draining with `try_recv` coalesces them and the TSX listener sees the last value (headless `nsh test`, nsh 0.4.0). The `set_interval` fallback is not needed. A `Callback<u32>` is `(value: number) => void` in TS: the one-object event shape applies to components, not to Rust callbacks.
+- **herdr has no `pane_output_changed` event.** `events.subscribe` types use dots (`pane.updated`, `workspace.updated`, `layout.updated`, ...); `pane.agent_status_changed`, `pane.scroll_changed` and `pane.output_matched` need a `pane_id`. Live content changes arrive as global `pane_updated` events (about 25 per second across 26 panes), each carrying the pane's full info with a bumped `revision`. A watched pane is re-read when its revision changes, throttled to 20 Hz.
+
+## 5. Open items
+
 - **unverified:** `Command` inside the kit `Modal`, and `DockArea` on Linux in 0.4.0. Fallbacks: kit `Combobox` panel for the palette, `ResizablePanelGroup` + kit `Tabs` for the workspace.
