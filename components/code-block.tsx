@@ -107,7 +107,7 @@ export function CodeBlock(props: {
     >
       <If when={!props.compact}>
         <View class="min-h-8 flex-row items-center gap-1 pl-3 pr-1">
-          <Text class="flex-1 text-xs text-muted-foreground" style={{ numberOfLines: 1 }}>
+          <Text class="flex-1 text-xs text-muted-foreground" style={{ numberOfLines: 1, userSelect: "none" }}>
             {props.title ?? (info().language || "Text")}
           </Text>
         </View>
@@ -126,7 +126,7 @@ export function CodeBlock(props: {
       <If when={!props.streaming}>{code(false)}</If>
       <If when={foldable()}>
         <Button onPress={toggle} accessibilityLabel={open() ? "Show fewer lines" : `Show all ${lines()} lines`} class={`min-h-8 flex-row items-center justify-center gap-1 hover:bg-accent ${FOCUS_RING}`}>
-          <Text class="text-xs font-medium text-muted-foreground">{open() ? "Show less" : `Show all ${lines()} lines`}</Text>
+          <Text class="text-xs font-medium text-muted-foreground" style={{ userSelect: "none" }}>{open() ? "Show less" : `Show all ${lines()} lines`}</Text>
           <If when={!open()}>
             <Icon name="chevron-down" size={14} tone="muted-foreground" />
           </If>
@@ -147,7 +147,7 @@ function Tool(props: { label: string; text: string; onPress: () => void; selecte
         class={`min-h-7 flex-row items-center gap-1 rounded-md px-2 hover:bg-accent selected:bg-accent ${FOCUS_RING}`}
       >
         <If when={props.icon}>{(name) => <Icon name={name()} size={14} tone="muted-foreground" />}</If>
-        <Text class="text-xs text-muted-foreground">{props.text}</Text>
+        <Text class="text-xs text-muted-foreground" style={{ userSelect: "none" }}>{props.text}</Text>
       </Button>
     </Tipped>
   );

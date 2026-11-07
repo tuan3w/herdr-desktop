@@ -47,21 +47,21 @@ export function DiffBlock(props: {
         <If when={props.onOpenFile}>
           {(open) => (
             <Button onPress={open()} accessibilityLabel={`Open ${props.path}`} class={`min-w-0 flex-1 flex-row rounded-md py-1 ${FOCUS_RING}`}>
-              <Text class="min-w-0 font-mono text-xs text-foreground underline" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
+              <Text class="min-w-0 font-mono text-xs text-foreground underline" style={{ numberOfLines: 1, textOverflow: "ellipsis", userSelect: "none" }}>
                 {props.path ?? "Changes"}
               </Text>
             </Button>
           )}
         </If>
         <If when={!props.onOpenFile}>
-          <Text class="min-w-0 flex-1 font-mono text-xs text-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
+          <Text class="min-w-0 flex-1 font-mono text-xs text-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis", userSelect: "none" }}>
             {props.path ?? "Changes"}
           </Text>
         </If>
         <If when={props.created}>
-          <Text class="text-xs text-muted-foreground">new file</Text>
+          <Text class="text-xs text-muted-foreground" style={{ userSelect: "none" }}>new file</Text>
         </If>
-        <Text class="pr-2 text-xs text-muted-foreground" style={{ fontVariant: ["tabular-nums"] }}>
+        <Text class="pr-2 text-xs text-muted-foreground" style={{ fontVariant: ["tabular-nums"], userSelect: "none" }}>
           {`+${counts().added} \u2212${counts().removed}`}
         </Text>
         <View class="absolute right-1 top-1 flex-row items-center gap-1 rounded-md opacity-0 group-focus-within:opacity-100 group-hover:opacity-100" style={{ backgroundColor: token("code-bg") }}>
@@ -90,7 +90,7 @@ export function DiffBlock(props: {
         onChange={(e: { index: number }) => at.set(e.index)}
       />
       <If when={counts().changes > 1 && at() !== null}>
-        <Text class="px-3 py-1 text-xs text-muted-foreground">{`Change ${(at() ?? 0) + 1} of ${counts().changes}`}</Text>
+        <Text class="px-3 py-1 text-xs text-muted-foreground" style={{ userSelect: "none" }}>{`Change ${(at() ?? 0) + 1} of ${counts().changes}`}</Text>
       </If>
     </View>
   );
@@ -108,7 +108,7 @@ function Tool(props: { label: string; onPress: () => void; text?: string; icon?:
       >
         <If when={props.icon}>{(name) => <Icon name={name()} size={14} tone="muted-foreground" />}</If>
         <If when={props.text}>
-          <Text class="text-xs text-muted-foreground">{props.text}</Text>
+          <Text class="text-xs text-muted-foreground" style={{ userSelect: "none" }}>{props.text}</Text>
         </If>
       </Button>
     </Tipped>

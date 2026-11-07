@@ -178,3 +178,36 @@ test("chat of 5,000 items", async () => {
 
   await mark(app, "end");
 }, TEST_TIMEOUT);
+
+// A conversation in which every fourth answer carries a code block (one in five of those 60 lines): what the chat does with
+// native code views in recycled list cells. The scripted port (`scene: long`, `fences`), because the keeper's agent writes no code.
+test("chat of 5,000 items with code", async () => {
+  const app = await open("../perf-chat.tsx", { ...DESKTOP, host: { params: { mode: "scripted", scene: "long", rows: 5000, fences: true, quiet: true } } });
+  await app.waitFor("label:Conversation", { timeout: 60_000 });
+
+  await mark(app, "chat with code, 5,000 items, idle at the end");
+  await app.wait(4000);
+
+  await mark(app, "chat with code, 5,000 items, scrolled");
+  for (let i = 0; i < 16; i++) {
+    await app.scroll("label:Conversation", i % 4 === 3 ? 2500 : -2500);
+    await app.wait(200);
+  }
+  await app.wait(1000);
+
+  await mark(app, "end");
+}, TEST_TIMEOUT);
+
+// A reply that writes a 600-line fence in pieces of 20 lines, 25 times a second, in a chat that follows its end.
+test("chat streaming a 600-line fence", async () => {
+  const app = await open("../perf-chat.tsx", { ...DESKTOP, host: { params: { mode: "scripted", scene: "code-stream", lines: 600, autostream: 40, quiet: true } } });
+  await app.waitFor("label:Conversation", { timeout: 60_000 });
+
+  await mark(app, "chat streaming a 600-line fence");
+  await app.wait(2500);
+
+  await mark(app, "chat, the fence written, idle");
+  await app.wait(3000);
+
+  await mark(app, "end");
+}, TEST_TIMEOUT);

@@ -19,7 +19,7 @@ One dialog (`Modal huge`) with two steps: the folder, then a file. **Escape leav
 
 `FileViewer`: `Back to the folder`, name, `812 KB · 4 min ago · devbox`, then by kind (`ViewKind`, decided by the core from the name and the first bytes):
 
-- **Text**: nsh's `Editor` with `readOnly`, `language` set to the file name (it finds the syntax by name or extension), `lineNumbers`, `folding={false}` and `goToLine` for a link that names a line (`main.rs:12`). It selects, copies and finds (`mod+f`); it never changes the file. It is named `<file>, read only`.
+- **Text**: a `CodeBlock` (`design/code.md`) with the language its name says, line numbers fixed on, and for a link that names a line (`main.rs:12`) that line marked and scrolled to (`goTo`, `CodeView.goToLine`). It selects and copies, and `mod+f` opens `PaneFind` over the file's lines (Enter and Shift+Enter step, the current line is marked and brought into view); it never changes the file, and is named `<file>, read only`. Decided with evidence: the `Editor` was kept for the one thing the view cannot do, a file of any size: above 512 KB (`CODE_VIEW_LIMIT`) the viewer is the read-only `Editor`, whose own find and caret keys then apply, because the code view builds a row per line.
 - **Markdown**: `Markdown` with a `Preview`/`Source` switch (`Source` is the editor).
 - **Binary**: its size and `Not a text file`. **Too big** (over `TEXT_CAP`, 4 MB): the first part and a sentence above it, `Showing the first 4.0 MB of 18 MB`; never a freeze.
 - `Reveal` and `Open` act on a file of this computer only (`reveal_path`, `open_path`: Rust-only in nsh 0.4.0, so no `fs` capability is needed); `Copy path` works everywhere. A file that changes on disk is not followed: go back and open it again.
@@ -30,7 +30,7 @@ One dialog (`Modal huge`) with two steps: the folder, then a file. **Escape leav
 
 ## Markdown and diagrams
 
-`Markdown` is nsh's `TextView` (selectable, tables, task lists, code) plus: only `http` and `https` links open (in the browser); a relative path opens in the viewer, found like a pane link; an image is never fetched, it is a chip `Image: <alt>` that opens the picture when its address is a path.
+`Markdown` is nsh's `TextView` (selectable, tables, task lists) with its fences drawn by `CodeBlock`, plus: only `http` and `https` links open (in the browser); a relative path opens in the viewer, found like a pane link; an image is never fetched, it is a chip `Image: <alt>` that opens the picture when its address is a path.
 
 **Diagrams are drawn.** A closed ` ```mermaid ` fence is a custom node (`extensions`) shown by `MermaidBlock`: the bundled mermaid in a web view, no network. Decided with evidence (the GTK shot and the AT-SPI tree of the `file-diagram` scenario), because the plan allowed the fallback of a code block:
 

@@ -12,6 +12,8 @@
 const BIDI = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/;
 /** Zero-width characters and the byte-order mark: invisible, so they would otherwise pass unseen. */
 const ZERO_WIDTH = /[\u200b-\u200d\u2060\ufeff]/;
+/** Anything `safeCode` and `visibleText` would show as a code point: control characters (not newline or tab), bidi and zero-width ones. */
+const HIDDEN = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u061c\u200b-\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]/;
 /** Blank lines in a row from which the run folds into a count. */
 const FOLD_FROM = 2;
 
@@ -56,8 +58,11 @@ export function rowsOf(text: string, columns: number): number {
  * puts on the clipboard.
  */
 export function safeCode(text: string): string {
+  const plain = text.replace(/\r\n?/g, "\n");
+  // Nearly all code has nothing hidden in it, and a streamed block is checked again for every chunk: look once, cheaply.
+  if (!HIDDEN.test(plain)) return plain;
   let out = "";
-  for (const c of text.replace(/\r\n?/g, "\n")) {
+  for (const c of plain) {
     const code = c.codePointAt(0) ?? 0;
     const control = (code < 0x20 && c !== "\n" && c !== "\t") || (code >= 0x7f && code <= 0x9f);
     out += control || BIDI.test(c) || ZERO_WIDTH.test(c) ? `‹U+${code.toString(16).toUpperCase().padStart(4, "0")}›` : c;

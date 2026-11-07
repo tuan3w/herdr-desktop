@@ -83,9 +83,10 @@ export function splitFences(source: string): Segment[] {
       const body: string[] = [];
       let closed = false;
       let j = i + 1;
+      // Built once per fence: a streamed message scans its whole text again for every chunk.
+      const closer = new RegExp(`^ {0,3}\\${char}{${length},}\\s*$`);
       for (; j < lines.length; j++) {
-        const close = new RegExp(`^ {0,3}\\${char}{${length},}\\s*$`).test(lines[j]!);
-        if (close) {
+        if (closer.test(lines[j]!)) {
           closed = true;
           break;
         }

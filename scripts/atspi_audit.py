@@ -30,7 +30,6 @@ APP = "nsh"
 # Unnamed controls that nsh 0.4.0 draws itself and the app cannot name, by scenario and role, with the exact count allowed
 # (a new unnamed control still fails). `docs/ACCESSIBILITY.md` says what each one is.
 HOST_UNNAMED = {
-    "file-code": {"button": 2},  # the read-only `Editor`'s own widgets
     "file-markdown": {"check box": 1},  # `TextView` draws an unchecked task-list box without a name (a checked one is named `✓`)
 }
 

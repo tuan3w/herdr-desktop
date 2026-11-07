@@ -33,6 +33,21 @@ What was taken, and from where:
 The nsh runtime this app links (nsh-core, nsh-base, nsh-platform-linux and their dependencies) is
 distributed under the same Apache License, Version 2.0; their licenses ship with those crates.
 
+The code highlighter (`native/app/src/highlight`) links, all under the MIT License unless noted (each crate ships its own
+copyright line in its `LICENSE`, and the copyright holders are the authors of those crates):
+
+- tree-sitter 0.27, https://github.com/tree-sitter/tree-sitter, and the tree-sitter grammars for bash, c, cpp, css, dart,
+  diff, go, html, java, javascript, json, kotlin-ng, lua, markdown (`tree-sitter-md`), php, python, ruby, rust, sequel (SQL),
+  swift, toml-ng, typescript (TypeScript and TSX), yaml and zig, each from its own repository on crates.io. The highlight
+  queries in `native/app/src/highlight/engine/queries/` are this app's own, written over the grammars' node names; where
+  one extends a grammar's stock query it keeps that crate's MIT notice through this file.
+- syntect 5.3, https://github.com/trishume/syntect (Copyright (c) 2017 Tristan Hume, Keith Hall, Google Inc and other
+  contributors), the TextMate grammar engine, used without Oniguruma (`regex-fancy`).
+- two-face 0.4.5, https://github.com/CosmicHorrorDev/two-face (MIT OR Apache-2.0, chosen here: Apache-2.0), which packages the
+  syntax definitions of the bat project, https://github.com/sharkdp/bat; those definitions are the work of their own
+  authors under the licences listed in bat's `assets/syntaxes` and in two-face's `generated` folder, and are used for the
+  languages tree-sitter does not cover here (Dockerfile, Elixir, Haskell, C#, Scala, R, Terraform and others).
+
 `assets/mermaid.min.js` is the minified build of mermaid 11.12.0, https://github.com/mermaid-js/mermaid
 (`dist/mermaid.min.js` of the npm package), licensed under the MIT License:
 

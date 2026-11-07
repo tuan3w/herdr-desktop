@@ -24,7 +24,7 @@ import { SessionChat, SessionTab } from "#components/session-tab";
  *
  * `quiet: true` leaves out the lab's own buttons and lines, for a screenshot of the chat alone. Not part of the app.
  */
-const params = host.params as { mode?: "keeper" | "scripted" | "model"; scene?: string; quiet?: boolean; rows?: number; only?: "user" | "agent"; autostream?: number; upTo?: number; instant?: boolean };
+const params = host.params as { mode?: "keeper" | "scripted" | "model"; scene?: string; quiet?: boolean; rows?: number; only?: "user" | "agent"; autostream?: number; upTo?: number; instant?: boolean; fences?: boolean; lines?: number };
 startHerdr("", "empty");
 void loadSettings();
 warmCode();
@@ -179,8 +179,21 @@ const CODE_ANSWER = [
   "That is all of it.",
 ].join("\n");
 
+/** `n` lines of Rust in pieces of 20, as a long fence is written: the stress of `lines` (`.perf/scenarios.test.tsx`). */
+const bigPieces = (n: number): string[] => [
+  "Writing it out in full:\n\n",
+  "```rust\n",
+  ...Array.from({ length: Math.ceil(n / 20) }, (_, p) => Array.from({ length: Math.min(20, n - p * 20) }, (_, i) => `    let value_${p * 20 + i} = ledger.get(${p * 20 + i}).unwrap_or_default();\n`).join("")),
+  "```\n\n",
+  "That is all of it.",
+];
+
 /** The text a streaming reply writes in `code-stream`, in the pieces the lab cuts it into. */
-const STREAMED = ["Here is the loop, as it is being written:\n\n", "```ts\n", "export async function send(req: Request) {\n", "  for (let i = 0; i < 3; i++) {\n", "    const res = await fetch(req.url);\n", "    if (res.ok) return res;\n", "  }\n", "  throw new Error(\"gave up\");\n", "}\n", "```\n\n", "It tries three times and then gives up."];
+const SMALL_STREAM = ["Here is the loop, as it is being written:\n\n", "```ts\n", "export async function send(req: Request) {\n", "  for (let i = 0; i < 3; i++) {\n", "    const res = await fetch(req.url);\n", "    if (res.ok) return res;\n", "  }\n", "  throw new Error(\"gave up\");\n", "}\n", "```\n\n", "It tries three times and then gives up."];
+
+/** A short and a middling block for the long scene (`fences`): a conversation of code is what the 5,000-row measurement is about. */
+const SMALL_FENCE = ["```ts", "export function total(rows: number[]): number {", "  let sum = 0;", "  for (const r of rows) sum += r;", "  return sum;", "}", "```"].join("\n");
+const MIDDLING_FENCE = ["```rust", ...Array.from({ length: 60 }, (_, i) => `    let value_${i} = ledger.get(${i}).unwrap_or_default();`), "```"].join("\n");
 
 const OUTPUT = Array.from({ length: 40 }, (_, i) => `PASS src/case-${i + 1}.test.ts (${12 + i} ms)`);
 
@@ -237,7 +250,7 @@ function scene(name: string): Scene {
         view: { running: false, phase: "idle", earlierNotice: "Earlier messages are no longer kept" },
         items: Array.from({ length: params.rows ?? 400 }, (_, i) =>
           params.only === "agent" || (params.only !== "user" && i % 2 === 1)
-            ? say("agent", `Answer ${(i - 1) / 2 + 1}: here is what the code does at that point.`)
+            ? say("agent", `Answer ${(i - 1) / 2 + 1}: here is what the code does at that point.${params.fences && i % 8 === 1 ? `\n\n${i % 40 === 1 ? MIDDLING_FENCE : SMALL_FENCE}\n\nThat is the whole of it.` : ""}`)
             : say("user", `Question ${i / 2 + 1}`),
         ),
       };
@@ -401,6 +414,8 @@ function scripted(initial: Scene) {
     },
   };
 }
+
+const STREAMED = params.lines ? bigPieces(params.lines) : SMALL_STREAM;
 
 function Scripted() {
   // The app binds its global shortcuts in `App.tsx`; the two a chat answers are bound here the same way.
