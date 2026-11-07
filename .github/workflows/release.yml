@@ -67,9 +67,11 @@ jobs:
           [[ "$version" == *-* ]] && prerelease=true
           { echo "tag=$TAG"; echo "version=$version"; echo "prerelease=$prerelease"; } >> "$GITHUB_OUTPUT"
 
-      - name: The release notes are the CHANGELOG section of this version
+      - name: The release notes are the CHANGELOG section of this version (and follow its format)
+        # A tag without a non-empty section fails here, before anything is built (scripts/release-notes.sh).
         run: |
           scripts/release-notes.sh "${{ steps.version.outputs.version }}" > release-notes.md
+          node scripts/check-changelog.mjs "${{ steps.version.outputs.version }}"
           cat release-notes.md
 
       - uses: actions/upload-artifact@v4

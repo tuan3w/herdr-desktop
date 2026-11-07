@@ -75,13 +75,17 @@ jobs:
       - name: Files that did not change keep the age of the cache
         run: scripts/ci-mtimes.sh before
 
+      # The four checks are independent: one that fails does not hide the others.
       - name: nsh check, oxlint, oxfmt, imports
         run: make check
       - name: Docs
+        if: ${{ !cancelled() }}
         run: make docs
       - name: Both crates - fmt, clippy -D warnings, tests
+        if: ${{ !cancelled() }}
         run: make core
       - name: Every TSX test
+        if: ${{ !cancelled() }}
         run: make test
 
       - name: Record what target/ was built from
