@@ -4,7 +4,7 @@ import { Button } from "nsh/base";
 
 import type { CodeViewRef } from "herdr-desktop/native";
 
-import { FOCUS_RING, Icon, Tipped } from "#kit";
+import { copyMenu, FOCUS_RING, Icon, notify, Tipped } from "#kit";
 import { touched } from "#lib/code-blocks";
 import { CODE_COLLAPSED_LINES, CODE_MAX_HEIGHT, codeLabel, lineCount } from "#lib/highlight";
 import { hoverTransition } from "#lib/motion";
@@ -72,11 +72,14 @@ export function CodeBlock(props: {
   cleanup(() => touched.release(mine));
 
   const copy = () => {
-    void Clipboard.writeText(props.code).then(() => {
-      copied.set(true);
-      announce("Copied");
-      timer.after(1600, () => copied.set(false));
-    });
+    void Clipboard.writeText(props.code).then(
+      () => {
+        copied.set(true);
+        announce("Copied");
+        timer.after(1600, () => copied.set(false));
+      },
+      (e) => notify(`Could not copy the code: ${e instanceof Error ? e.message : String(e)}`, { type: "error" }),
+    );
   };
 
   const code = (streaming: boolean) => (
@@ -103,6 +106,7 @@ export function CodeBlock(props: {
     <View
       class={`group relative w-full overflow-hidden rounded-md ${props.compact ? "py-1" : ""}`}
       style={{ backgroundColor: token("code-bg") }}
+      onContextMenu={copyMenu(() => [{ label: "Copy code", onSelect: copy }])}
       onMouseEnter={() => touched.set(mine)}
       onMouseLeave={() => touched.release(mine)}
       onFocus={() => touched.set(mine)}

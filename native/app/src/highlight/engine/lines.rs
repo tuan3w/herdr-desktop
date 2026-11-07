@@ -46,18 +46,18 @@ pub struct Line {
 /// How lines are made.
 #[derive(Clone, Copy, Debug)]
 pub struct Options {
-    pub tab_size: usize,
     pub whitespace: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Options {
-            tab_size: 4,
-            whitespace: false,
-        }
+        Options { whitespace: false }
     }
 }
+
+/// The columns a tab advances to. A tab stays a tab in the drawn text, so that copying a selection gives the file's own
+/// bytes back (a Makefile pasted with spaces breaks); the text engine draws it at stops of eight columns, as a terminal does.
+pub const TAB_STOP: usize = 8;
 
 /// The lines of `text` (a `\n` ends one; a trailing `\n` does not start an empty one), coloured by
 /// `spans` (sorted, byte offsets into `text`). Line numbers start at `first`.
@@ -140,13 +140,14 @@ pub fn line_of(body: &str, base: usize, spans: &[Span], options: Options) -> Lin
             let in_trailing = options.whitespace && abs >= trailing;
             if ch == '\t' {
                 flush(&text, plain_from, text.len(), &mut runs, role, false);
-                let width = options.tab_size - column % options.tab_size;
+                let width = TAB_STOP - column % TAB_STOP;
                 let from = text.len();
                 if options.whitespace {
+                    // The view of whitespace: the arrow and the spaces to the stop (copying this view copies those marks).
                     text.push('\u{2192}');
                     text.extend(std::iter::repeat_n(' ', width - 1));
                 } else {
-                    text.extend(std::iter::repeat_n(' ', width));
+                    text.push('\t');
                 }
                 if options.whitespace {
                     flush(&text, from, text.len(), &mut runs, Role::Plain, true);

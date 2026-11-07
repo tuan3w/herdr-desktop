@@ -7,7 +7,7 @@ export HERDR_DESKTOP_TEST := 1
 CORE := native/core/Cargo.toml
 APP  := native/app/Cargo.toml
 
-.PHONY: lint fmt fmt-check hooks verify verify-mac check test test-smoke core docs a11y run package theme perf cpu perf-check schema shots
+.PHONY: lint fmt fmt-check hooks verify verify-mac check test test-smoke core docs a11y copy run package theme perf cpu perf-check schema shots
 
 # Linux: everything. `a11y` needs AT-SPI (dbus, Xvfb, python3-gi), which only Linux has.
 verify: check test core docs a11y
@@ -61,6 +61,10 @@ docs:
 # AT-SPI tree of every screen: no unnamed control (needs dbus-run-session, xvfb-run, python3-gi).
 a11y:
 	dbus-run-session -- xvfb-run -a python3 scripts/atspi_audit.py
+
+# Copy in a real window: real pointer and key events (XTEST), the clipboard read back (needs xclip, xvfb-run, dbus-run-session, python3-gi).
+copy:
+	dbus-run-session -- xvfb-run -a python3 scripts/copy_probe.py
 
 # The window and the package are for the system running make.
 HOST_TARGET := $(if $(filter Darwin,$(shell uname -s)),macos,linux)

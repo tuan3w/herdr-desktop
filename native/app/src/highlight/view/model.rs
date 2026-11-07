@@ -45,7 +45,7 @@ pub struct CodeViewProps {
     /// Wrap long lines (default: scroll sideways, with a fade at the edges).
     #[prop(default)]
     pub wrap: Prop<bool>,
-    /// Show tabs as `→` and trailing spaces as `·`.
+    /// Show tabs as `→` and trailing spaces as `·` (a view of whitespace: copying it copies the marks). Without it a tab is a tab, drawn at stops of eight columns.
     #[prop(default)]
     pub whitespace: Prop<bool>,
     /// Lines to mark as a `file:line` reference points at them: `3`, `3,7-9`.
@@ -60,9 +60,6 @@ pub struct CodeViewProps {
     /// Font size in points (default 13).
     #[prop(default = 13.0)]
     pub font_size: Prop<f32>,
-    /// Columns a tab advances to (default 4).
-    #[prop(default = 4)]
-    pub tab_size: Prop<u32>,
     /// The text is still being written: the view follows its end while it is taller than `maxHeight`.
     #[prop(default)]
     pub follow: Prop<bool>,
@@ -112,9 +109,6 @@ pub struct CodeDiffProps {
     /// Font size in points (default 13).
     #[prop(default = 13.0)]
     pub font_size: Prop<f32>,
-    /// Columns a tab advances to (default 4).
-    #[prop(default = 4)]
-    pub tab_size: Prop<u32>,
     /// What screen readers say the diff is, e.g. `Diff of src/auth.ts, 2 added, 1 removed`.
     pub label: Prop<SharedString>,
     /// The font family (default the theme's `font-mono`).
@@ -386,7 +380,6 @@ pub fn CodeView(props: CodeViewProps, cx: Scope<NoEvent>) -> impl IntoElement {
         let coloured = colouring.spans.get();
         let spans = valid_spans(&coloured, &text);
         let options = Options {
-            tab_size: props.tab_size.get().max(1) as usize,
             whitespace: props.whitespace.get(),
         };
         let mut all = lines::lines(&text, &spans, props.first_line.get().max(1), options);
@@ -464,7 +457,6 @@ pub fn CodeDiff(props: CodeDiffProps, cx: Scope<CodeDiffEvent>) -> impl IntoElem
         );
         let options = DiffOptions {
             lines: Options {
-                tab_size: props.tab_size.get().max(1) as usize,
                 whitespace: props.whitespace.get(),
             },
             context: props.context.get() as usize,

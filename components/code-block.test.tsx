@@ -91,3 +91,21 @@ test("a block of thousands of lines scrolls past the rows first mounted, mountin
   await app.waitUntil(() => Math.max(...numbers()) > first + 150);
   expect(numbers().length).toBeLessThan(150);
 });
+
+test("a right click on a code block offers Copy code, which copies the whole code", async () => {
+  const app = await lab({ part: "languages", from: 1, count: 1, fold: 6 });
+  await app.waitFor("Copy code");
+  await app.rightClick("label:/^Code, /");
+  await app.waitUntil(() => (app.menu() ?? []).some((m) => m.label === "Copy code"));
+  await app.chooseMenuItem("Copy code");
+  await app.waitUntil(() => (app.clipboard() ?? "").includes("export class Reader"));
+});
+
+test("a right click on a diff offers the new version, copied as written", async () => {
+  const app = await lab({ part: "diff" });
+  await app.waitFor("label:/^Diff of src\\/reader\\.ts/");
+  await app.rightClick("label:/^Diff of src\\/reader\\.ts/");
+  await app.waitUntil(() => (app.menu() ?? []).some((m) => m.label === "Copy new version"));
+  await app.chooseMenuItem("Copy new version");
+  await app.waitUntil(() => (app.clipboard() ?? "").includes("export async function load(key: string, signal"));
+});

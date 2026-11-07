@@ -331,7 +331,9 @@ function ToastItem(props: { toast: () => ToastRecord<Data> }) {
     >
       <ToastIcon type={props.toast().type} />
       {/* Never cut: a toast is read once, and what it says is what the user acts on. */}
-      <Text class="flex-1 text-sm text-popover-foreground">{props.toast().text}</Text>
+      <Text class="flex-1 text-sm text-popover-foreground" style={{ userSelect: "text" }}>
+        {props.toast().text}
+      </Text>
       <If when={props.toast().data.undo}>
         <ToastButton
           label="Undo"

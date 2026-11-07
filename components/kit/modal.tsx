@@ -94,7 +94,9 @@ export function Modal(props: {
                 {props.title}
               </Text>
               <If when={props.description}>
-                <Text class="text-sm text-muted-foreground">{props.description}</Text>
+                <Text class="text-sm text-muted-foreground" style={{ userSelect: "text" }}>
+                  {props.description}
+                </Text>
               </If>
             </View>
             <Scroll

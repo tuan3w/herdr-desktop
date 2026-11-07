@@ -89,9 +89,13 @@ export function Empty(props: {
           </View>
         )}
       </If>
-      <Text class="text-base font-medium text-foreground">{props.title}</Text>
+      <Text class="text-base font-medium text-foreground" style={{ userSelect: "text" }}>
+        {props.title}
+      </Text>
       <If when={props.hint}>
-        <Text class="max-w-sm text-center text-sm text-muted-foreground">{props.hint}</Text>
+        <Text class="max-w-sm text-center text-sm text-muted-foreground" style={{ userSelect: "text" }}>
+          {props.hint}
+        </Text>
       </If>
       {props.children}
     </View>

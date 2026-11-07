@@ -92,8 +92,16 @@ fn digits(rows: &[Rc<Row>]) -> usize {
     top.max(9).to_string().len()
 }
 
+/// The columns a line takes: a tab advances to the next stop.
 fn columns(line: &Line) -> usize {
-    line.text.chars().map(|c| c.width().unwrap_or(0)).sum()
+    use crate::highlight::lines::TAB_STOP;
+    line.text.chars().fold(0, |at, c| {
+        if c == '\t' {
+            at + TAB_STOP - at % TAB_STOP
+        } else {
+            at + c.width().unwrap_or(0)
+        }
+    })
 }
 
 /// The widest text of the rows, in cells.
@@ -214,7 +222,14 @@ pub fn body(b: Body) -> impl IntoElement {
                             .collect::<Vec<_>>(),
                     )
                 });
-                view().w_full().flex_col().child(column).into_element()
+                // One selectable area, as the virtual list is: without it each line's text selects alone and a drag
+                // across lines copies only the first one.
+                view()
+                    .w_full()
+                    .flex_col()
+                    .selectable(true)
+                    .child(column)
+                    .into_element()
             }
         })
         .into_element()

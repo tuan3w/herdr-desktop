@@ -3,6 +3,7 @@ export { Avatar } from "./avatar";
 export { Badge, type BadgeTone } from "./badge";
 export { Btn, IconButton, type Variant } from "./button";
 export { CheckRow } from "./check";
+export { type CopyEntry, copyMenu, copyText } from "./copy";
 export { createCheckGroup, type ValueChange } from "./check-group";
 export { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "./collapsible";
 export { Autocomplete, Combobox, type ComboOption, type Suggestion } from "./combo";

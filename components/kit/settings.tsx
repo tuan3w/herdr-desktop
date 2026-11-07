@@ -25,9 +25,13 @@ export function SettingRow(props: { label: string; description?: string; control
   return (
     <View class={`gap-3 py-4 ${props.stacked ? "" : "flex-row items-center justify-between"}`}>
       <View class={`gap-1 ${props.stacked ? "" : "min-w-0 flex-1 pr-6"}`}>
-        <Text class="text-sm text-foreground">{props.label}</Text>
+        <Text class="text-sm text-foreground" style={{ userSelect: "text" }}>
+          {props.label}
+        </Text>
         <If when={props.description}>
-          <Text class="max-w-lg text-sm text-muted-foreground">{props.description}</Text>
+          <Text class="max-w-lg text-sm text-muted-foreground" style={{ userSelect: "text" }}>
+            {props.description}
+          </Text>
         </If>
       </View>
       {props.control}

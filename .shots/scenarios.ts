@@ -377,12 +377,6 @@ export const SCENARIOS: Record<string, Scenario> = {
     params: { pane: "w1:p4" },
     steps: (app) => app.wait(1200),
   },
-  // Where a compositor put the window: the Wayland copy probe reads the pointer's place from its log.
-  "copy-calibrate": {
-    fixture: "empty",
-    entry: "../components/copy-calibrate.tsx",
-    steps: (app) => app.wait(500),
-  },
   "chat-tools": {
     fixture: "empty",
     entry: "../components/session-lab.tsx",

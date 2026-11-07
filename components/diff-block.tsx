@@ -4,7 +4,7 @@ import { Button } from "nsh/base";
 
 import type { CodeDiffRef } from "herdr-desktop/native";
 
-import { FOCUS_RING, Icon, Tipped } from "#kit";
+import { copyMenu, copyText, FOCUS_RING, Icon, Tipped } from "#kit";
 import { CODE_MAX_HEIGHT, diffLabel } from "#lib/highlight";
 import { hoverTransition } from "#lib/motion";
 import { codeWhitespace, codeWrap, diffSplit } from "#lib/settings";
@@ -50,7 +50,18 @@ export function DiffBlock(props: {
   const label = computed(() => diffLabel(props.path, counts().added, counts().removed));
 
   return (
-    <View class="group w-full overflow-hidden rounded-md" style={{ backgroundColor: token("code-bg") }}>
+    <View
+      class="group w-full overflow-hidden rounded-md"
+      style={{ backgroundColor: token("code-bg") }}
+      onContextMenu={copyMenu(() =>
+        [
+          props.patch ? { label: "Copy patch", onSelect: () => void copyText(props.patch ?? "", "Patch") } : undefined,
+          props.newText !== undefined
+            ? { label: "Copy new version", onSelect: () => void copyText(props.newText ?? "", "New version") }
+            : undefined,
+        ].filter((e) => e !== undefined),
+      )}
+    >
       <View class="relative min-h-8 flex-row items-center gap-1 pl-3 pr-1">
         <If when={props.onOpenFile}>
           {(open) => (

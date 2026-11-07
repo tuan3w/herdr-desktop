@@ -418,33 +418,18 @@ mod rows {
     }
 
     #[test]
-    fn tabs_become_columns_and_whitespace_shows_on_request() {
+    fn tabs_stay_tabs_and_whitespace_shows_on_request() {
         let text = "\tlet a = 1;  \n";
-        let plain = lines::lines(
-            text,
-            &[],
-            1,
-            Options {
-                tab_size: 4,
-                whitespace: false,
-            },
-        );
-        assert_eq!(plain[0].text, "    let a = 1;  ");
-        let shown = lines::lines(
-            text,
-            &[],
-            1,
-            Options {
-                tab_size: 4,
-                whitespace: true,
-            },
-        );
-        assert_eq!(shown[0].text, "\u{2192}   let a = 1;\u{b7}\u{b7}");
+        let plain = lines::lines(text, &[], 1, Options { whitespace: false });
+        // A tab stays one character, so a copied selection holds the file's own bytes.
+        assert_eq!(plain[0].text, "\tlet a = 1;  ");
+        let shown = lines::lines(text, &[], 1, Options { whitespace: true });
+        assert_eq!(shown[0].text, "\u{2192}       let a = 1;\u{b7}\u{b7}");
         assert!(shown[0].runs.iter().filter(|r| r.whitespace).count() >= 2);
     }
 
     #[test]
-    fn spans_follow_their_text_through_tab_expansion_and_line_breaks() {
+    fn spans_follow_their_text_past_a_tab_and_through_line_breaks() {
         let text = "const a = 1;\n\tconst b = 2;\n";
         let spans = highlight(Lang::TypeScript, text);
         let l = lines::lines(text, &spans, 1, Options::default());
@@ -456,7 +441,7 @@ mod rows {
             .find(|r| r.role == Role::Keyword)
             .expect("a keyword on line 2");
         assert_eq!(&l[1].text[kw.start as usize..kw.end as usize], "const");
-        assert_eq!(kw.start, 4, "after the tab's four columns");
+        assert_eq!(kw.start, 1, "after the tab, which is one byte");
     }
 
     #[test]

@@ -102,7 +102,10 @@ export function FieldLabel(props: { children: string; errorInLabel?: boolean; cl
     >
       <View class="flex-row items-center gap-1">
         <Icon name="alert" size={12} tone="destructive" />
-        <Text class="line-clamp-1 flex-1 text-xs font-medium text-destructive">{`${props.children}: ${shown()}`}</Text>
+        <Text
+          class="line-clamp-1 flex-1 text-xs font-medium text-destructive"
+          style={{ userSelect: "text" }}
+        >{`${props.children}: ${shown()}`}</Text>
       </View>
     </If>
   );
@@ -112,7 +115,11 @@ export function FieldLabel(props: { children: string; errorInLabel?: boolean; cl
 export function FieldDescription(props: { children: string; class?: string }) {
   const field = FieldScope();
   if (field) cleanup(field.description.add(() => props.children));
-  return <Text class={props.class ?? "text-xs text-muted-foreground"}>{props.children}</Text>;
+  return (
+    <Text class={props.class ?? "text-xs text-muted-foreground"} style={{ userSelect: "text" }}>
+      {props.children}
+    </Text>
+  );
 }
 
 /**
@@ -142,7 +149,9 @@ export function FieldError(props: { match?: boolean | ValidityKey; children?: st
           {(line) => (
             <View class="flex-row items-center gap-1">
               <Icon name="alert" size={12} tone="destructive" />
-              <Text class={props.class ?? "flex-1 text-xs text-destructive"}>{line()}</Text>
+              <Text class={props.class ?? "flex-1 text-xs text-destructive"} style={{ userSelect: "text" }}>
+                {line()}
+              </Text>
             </View>
           )}
         </Each>

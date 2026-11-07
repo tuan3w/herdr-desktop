@@ -4,8 +4,9 @@ import { Button, TextView, type TextViewCodeBlock, type TextViewCustomNode, type
 import { CodeBlock, inlineCodeClasses } from "#components/code-block";
 import { openLink } from "#components/links-dialog";
 import { MermaidBlock } from "#components/mermaid-block";
-import { Icon, notify } from "#kit";
+import { type CopyEntry, copyMenu, copyText, Icon, notify } from "#kit";
 import { fenceLanguage, type FenceSegment, type ProseSegment, type Segment, splitFences } from "#lib/markdown-fences";
+import { plainText } from "#lib/plain-text";
 import { safeCode } from "#lib/visible-text";
 
 /** A mermaid fence inside a list item or a quote is a custom node: the diagram, not a block of code. (Top-level ones are split out by `splitFences`.) */
@@ -46,6 +47,8 @@ export function MarkdownText(props: {
   class?: string;
   folds?: Folds;
   foldKey?: string;
+  /** What the right-click menu offers; by default `Copy text` and `Copy as Markdown`. */
+  entries?: () => readonly CopyEntry[];
 }) {
   const press = (target: string) => {
     const path = target.split("#")[0];
@@ -87,7 +90,17 @@ export function MarkdownText(props: {
   const last = () => parts().at(-1)?.key;
   const streaming = () => props.streaming ?? false;
   return (
-    <View selectable class="gap-3">
+    <View
+      selectable
+      class="gap-3"
+      onContextMenu={copyMenu(
+        props.entries ??
+          (() => [
+            { label: "Copy text", onSelect: () => void copyText(plainText(props.source), "Text") },
+            { label: "Copy as Markdown", onSelect: () => void copyText(props.source, "Markdown") },
+          ]),
+      )}
+    >
       <Each of={parts()} key={(p: Segment) => p.key}>
         {(part) => {
           const prose = () => (part().kind === "prose" ? (part() as ProseSegment) : undefined);

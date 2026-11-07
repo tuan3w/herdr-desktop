@@ -1,14 +1,15 @@
-import { Clipboard, effect, Image, type JSX, Text, View } from "nsh";
+import { effect, Image, type JSX, Text, View } from "nsh";
 import { Button } from "nsh/base";
 
 import type { ImageView } from "herdr-desktop/native";
 
 import { type Folds, MarkdownText } from "#components/markdown";
 import { DiffStat, Disclosure, PartChips, ToolDetails, ToolRow, ToolStatus } from "#components/session-tool";
-import { FOCUS_RING, Icon, IconButton, notify } from "#kit";
+import { type CopyEntry, copyMenu, copyText, FOCUS_RING, Icon, IconButton } from "#kit";
 import { CHAT_COLUMN } from "#lib/layout";
 import { ofKind } from "#lib/list-item";
 import { type Arrivals, arrivals, arriving } from "#lib/motion";
+import { plainText } from "#lib/plain-text";
 import type { SessionModel } from "#lib/session";
 import { loadPicture, pictureSize, pictureState } from "#lib/session-pictures";
 import type { Row } from "#lib/session-rows";
@@ -95,7 +96,11 @@ function UserRow(props: { row: Extract<Row, { kind: "user" }>; ctx: RowContext }
         accessibilityLabel={itemLabel(props.row.item)}
         class="max-w-[85%] rounded-2xl bg-muted px-4 py-2"
       >
-        <Text style={{ userSelect: "text" }} class="text-sm text-foreground">
+        <Text
+          style={{ userSelect: "text" }}
+          class="text-sm text-foreground"
+          onContextMenu={copyMenu(() => [{ label: "Copy message", onSelect: () => void copyText(text(), "Message") }])}
+        >
           {text()}
         </Text>
         <Each of={props.row.item.images} key={(i: ImageView) => i.key}>
@@ -117,6 +122,10 @@ const foldsOf = (model: SessionModel): Folds => ({
 function AgentRow(props: { row: Extract<Row, { kind: "agent" }>; ctx: RowContext }) {
   const source = () => props.row.item.text ?? "";
   const folds = foldsOf(props.ctx.model);
+  const entries = (): CopyEntry[] => [
+    { label: "Copy message", onSelect: () => void copyText(plainText(source()), "Message") },
+    { label: "Copy as Markdown", onSelect: () => void copyText(source(), "Markdown") },
+  ];
   return (
     <Line class="group py-1">
       <View role="group" accessibilityLabel={itemLabel(props.row.item)}>
@@ -127,6 +136,7 @@ function AgentRow(props: { row: Extract<Row, { kind: "agent" }>; ctx: RowContext
           streaming={props.row.live}
           folds={folds}
           foldKey={props.row.key}
+          entries={entries}
         />
         <Each of={props.row.item.images} key={(i: ImageView) => i.key}>
           {(image) => <Picture image={image()} ctx={props.ctx} />}
@@ -134,12 +144,9 @@ function AgentRow(props: { row: Extract<Row, { kind: "agent" }>; ctx: RowContext
         <PartChips parts={props.row.item.parts} machine={props.ctx.machine} cwd={props.ctx.cwd} />
       </View>
       <If when={!props.row.live}>
-        <View class="absolute right-4 top-0 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
-          <IconButton
-            icon="copy"
-            label="Copy message"
-            onPress={() => void Clipboard.writeText(source()).then(() => notify("Message copied"))}
-          />
+        <View class="absolute -top-3 right-4 flex-row gap-1 rounded-md border border-border bg-background opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
+          <IconButton icon="copy" label="Copy message" onPress={() => void copyText(plainText(source()), "Message")} />
+          <IconButton icon="file" label="Copy as Markdown" onPress={() => void copyText(source(), "Markdown")} />
         </View>
       </If>
     </Line>
