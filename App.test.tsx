@@ -36,14 +36,14 @@ test("the app opens on the board, with every agent in the sidebar and the count 
   expect(onBoard(app)).toBe(true);
   expect(app.shows(sidebarRow(FIRST))).toBe(true);
   expect(app.shows(sidebarRow(DONE))).toBe(true);
-  expect(app.count("role:tab")).toBe(1);
+  expect(app.count("role:tab")).toBe(0);
 });
 
 test("opening an agent from the sidebar adds its chat tab and shows it; closing the tab leaves the agent running", async () => {
   const app = await ready();
   await openAgents(app, FIRST);
-  // The agent's tab is in its project's workspace, which has no board tab.
-  expect(app.count("role:tab")).toBe(1);
+  // The agent is alone in its project: one view, no strip.
+  expect(app.count("role:tab")).toBe(0);
   expect(await front(app)).toBe(FIRST);
   expect(shown(app, FIRST)).toBe(false);
   await app.keyboard.press("mod+w");
@@ -62,11 +62,11 @@ test("the same agent opened twice is one tab", async () => {
   expect(await front(app)).toBe(FIRST);
 });
 
-test("the board cannot be closed: its tab stays, and mod+w on it does nothing", async () => {
+test("the board cannot be closed: mod+w on it does nothing, and it stays", async () => {
   const app = await ready();
   await app.keyboard.press("mod+w");
   await settle(app);
-  expect(app.count("role:tab")).toBe(1);
+  expect(app.count("role:tab")).toBe(0);
   expect(onBoard(app)).toBe(true);
 });
 
@@ -90,7 +90,7 @@ test("with nothing that needs you, Next opens nothing and says so", async () => 
   await app.waitFor("nothing running");
   await app.keyboard.press("mod+j");
   await settle(app);
-  expect(app.count("role:tab")).toBe(1);
+  expect(app.count("role:tab")).toBe(0);
   expect(app.shows("Nothing needs you")).toBe(true);
 });
 
@@ -423,6 +423,11 @@ test("walking the app with the keyboard: next agent, type to it, take over its k
   await settle(app);
   expect(app.shows("label:Message")).toBe(false);
   expect(sentKeys()).toEqual([]);
+  // Open pane area (mod+2) has no message box to go to: it puts the keyboard on the first answer and never sends it.
+  await app.keyboard.press("mod+2");
+  await settle(app);
+  expect(app.shows("label:Answer")).toBe(true);
+  expect(sentKeys()).toEqual([]);
   // Pressing it again goes to the next agent that waits and still answers nothing; going back returns to the first.
   await app.keyboard.press("mod+j");
   await settle(app);
@@ -431,14 +436,22 @@ test("walking the app with the keyboard: next agent, type to it, take over its k
   await settle(app);
   expect(await front(app)).toBe(FIRST);
   expect(sentKeys()).toEqual([]);
-  // The pane's view is one press away, and has the chips.
+  // The pane's view is one press away, and has the answers.
   await app.press("Show terminal");
   await settle(app);
   expect(shown(app, FIRST)).toBe(true);
 
-  // The headless harness has no Tab traversal, so the one pointer step is the chip itself; the digits that answer from
-  // the keyboard once a chip has the focus are tested with the dock (`answer-dock.test.tsx`).
+  // The headless harness has no Tab traversal, so the one pointer step is the row itself; the digits that answer from
+  // the keyboard once an answer has the focus are tested with the dock (`answer-dock.test.tsx`).
   await app.press("label:1. Yes");
   await app.waitFor("Sent: 1. Yes");
   expect(sentKeys()).toEqual(["w1:p1: 1 enter"]);
+});
+
+test("no bar sits under the workspace on the board or in a chat that reports no context, and no machine count sits at the window's bottom", async () => {
+  const app = await ready();
+  expect(app.shows("label:Status")).toBe(false);
+  expect(app.shows("1 machine")).toBe(false);
+  await openAgents(app, FIRST);
+  expect(app.shows("label:Status")).toBe(false);
 });

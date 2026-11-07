@@ -49,7 +49,7 @@ export interface Ask {
   subject?: string;
   /** `bash` when the subject is a command. */
   language?: "bash";
-  /** Why this deserves a second look, or nothing. */
+  /** Why the command deserves a second look, or nothing. Only a source whose risk is not one option's own sets it: a terminal menu's reasons live on its rows, where the person sees each once. */
   risk?: string;
   options: AskOption[];
   /** Other agents' (or this session's other) questions still waiting. */
@@ -102,7 +102,6 @@ export function fromPrompt(prompt: PromptView, pane: { machine: string; pane: st
     noun: "question",
     heading: prompt.question,
     subject: prompt.subject ?? undefined,
-    risk: prompt.options.find((o) => o.riskReason)?.riskReason ?? undefined,
     options,
     waitingElsewhere: others,
     async send(option) {

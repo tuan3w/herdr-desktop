@@ -48,7 +48,6 @@ function Lab() {
             pane="w9:p9"
             agent="omp"
             name="Lost agent"
-            blocked={false}
             disabled={false}
             onHandle={() => undefined}
             onSent={() => undefined}

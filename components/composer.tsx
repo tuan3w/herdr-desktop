@@ -25,8 +25,8 @@ const MIN_HEIGHT = 32;
  * The message box of a pane, the one way to say something to a terminal agent in a view that has no keyboard of its
  * own: Enter sends the text and presses Enter in the pane (`Herdr.sendInput`), Shift+Enter is a new line, a bare Enter
  * with nothing typed does nothing. Rules, each with a test in `pane-tab.test.tsx`:
- * - while the answer dock shows (`blocked`) a bare Enter, with nothing typed, sends nothing and says `Pick an answer
- *   above`; typed text still goes (a free-text reply to the question is a real answer);
+ * - the pane tab does not show the box while a question stands (the answer dock takes its place), so a bare Enter never
+ *   reaches a highlighted menu answer;
  * - what was typed survives a failed send: it comes back with the error.
  * A `/command` is plain text here: the agent's own command list belongs to the chat, which has the agent's catalog.
  */
@@ -37,7 +37,6 @@ export function Composer(props: {
   agent: string;
   /** What the pane is called. */
   name: string;
-  blocked: boolean;
   disabled: boolean;
   onHandle: (handle: ComposerHandle) => void;
   /** Text went to the pane: read it again so the view does not wait for herdr's next event. */
@@ -47,7 +46,6 @@ export function Composer(props: {
   const draft = paneKey(props.machine, props.pane);
   const value = signal(draftOf(draft)?.text ?? "");
   const error = signal("");
-  const hint = signal("");
   const height = signal(MIN_HEIGHT);
   let field: InputRef | undefined;
 
@@ -62,12 +60,7 @@ export function Composer(props: {
   const edit = (next: string) => {
     value.set(next);
     error.set("");
-    hint.set("");
   };
-  // The question went away: the hint about it does too.
-  effect(() => {
-    if (!props.blocked) hint.set("");
-  });
 
   const send = async (text: string) => {
     edit("");
@@ -85,18 +78,10 @@ export function Composer(props: {
 
   const submit = (text: string) => {
     if (props.disabled) return;
-    if (text.trim() === "") {
-      // A bare Enter would pick whatever the agent has highlighted: the dock is where that choice is made.
-      if (props.blocked) {
-        hint.set("Pick an answer above");
-        announce("Pick an answer above");
-      }
-      return;
-    }
+    if (text.trim() === "") return;
     void send(text);
   };
 
-  const note = () => error() || hint();
   return (
     <View class="gap-2 border-t border-border bg-card px-4 pb-3 pt-3">
       <View class="flex-row items-end gap-2">
@@ -131,9 +116,9 @@ export function Composer(props: {
           onPress={() => submit(value())}
         />
       </View>
-      <If when={note()}>
-        <Text role="alert" class={`px-1 text-xs ${error() ? "text-destructive" : "text-foreground"}`}>
-          {note()}
+      <If when={error()}>
+        <Text role="alert" class="px-1 text-xs text-destructive">
+          {error()}
         </Text>
       </If>
     </View>

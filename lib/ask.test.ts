@@ -65,15 +65,14 @@ test("a standing grant with no reason of its own is risky and says the permissio
   expect(ask.options[0]).toMatchObject({ risky: true, reason: "grants standing permission" });
 });
 
-test("the risk line of a terminal prompt is the first reason among its options, and none when no option has one", () => {
-  const risky = fromPrompt(
+test("a terminal prompt has no risk line of its own: each risky option carries its reason, so it is read once", () => {
+  const ask = fromPrompt(
     prompt([option(0, "1. Yes"), option(1, "2. Always", { riskReason: "deletes files", standingGrant: true })]),
     PANE,
   );
-  expect(risky.risk).toBe("deletes files");
-  expect(fromPrompt(prompt([option(0, "1. Yes"), option(1, "2. Always", { standingGrant: true })]), PANE).risk).toBe(
-    undefined,
-  );
+  expect(ask.risk).toBe(undefined);
+  expect(ask.options.map((o) => o.reason)).toContain("deletes files");
+  expect(ask.options[1]!.risky).toBe(true);
 });
 
 test("a permission's risk line is the agent's, and allowing is risky only while it is set", () => {

@@ -1,7 +1,7 @@
 import { host, mount, signal, Text, View } from "nsh";
 
-import { AnswerDock } from "#components/answer-dock";
-import { ThemeRoot, ToastHost } from "#kit";
+import { AnswerDock, focusAnswers } from "#components/answer-dock";
+import { Btn, ThemeRoot, ToastHost } from "#kit";
 import { fromPrompt } from "#lib/ask";
 import { board, meta, startHerdr } from "#lib/herdr";
 
@@ -35,6 +35,8 @@ function Lab() {
             />
           )}
         </If>
+        {/* What `mod+2` does while a question stands (the shortcut itself is the app's). */}
+        <Btn label="Focus the answers" onPress={focusAnswers} />
       </View>
       <ToastHost />
     </ThemeRoot>

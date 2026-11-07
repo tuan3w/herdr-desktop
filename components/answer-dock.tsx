@@ -1,12 +1,13 @@
 import { Code, CodeView, Sessions } from "herdr-desktop/native";
-import { announce, computed, effect, keymap, Scroll, signal, Text, token, untracked, View } from "nsh";
+import { announce, cleanup, computed, effect, keymap, Scroll, signal, Text, token, untracked, View } from "nsh";
+import { Input } from "nsh/base";
 
 import type { DiffItem, SessionView } from "herdr-desktop/native";
-import type { ScrollRef } from "nsh/types";
+import type { ScrollRef, ViewRef } from "nsh/types";
 
 import { PermissionDiff } from "#components/permission-diff";
 import { PlanSteps } from "#components/plan-steps";
-import { Btn, Clipped, Field, FOCUS_RING, Icon, Kbd, Spinner } from "#kit";
+import { Btn, Clipped, FOCUS_RING, Icon, IconButton, INPUT_CLASS, Kbd, Spinner } from "#kit";
 import { replyTarget } from "#lib/ask";
 import type { Ask, AskOption, AskOutcome } from "#lib/ask";
 import { codeLabel, lineCount } from "#lib/highlight";
@@ -22,10 +23,10 @@ import { rowsOf, visibleText } from "#lib/visible-text";
 const GUARD_MS = 400;
 /** How long a risky answer stays armed after its first press. */
 const ARM_MS = 4000;
-/** How long `The question changed` shows on the chip that was pressed. */
+/** How long `The question changed` shows on the row that was pressed. */
 const FLASH_MS = 1500;
-/** Chips on one dock; with more options the last chip is `N more…`. */
-const MAX_CHIPS = 5;
+/** Answer rows on one dock; with more options than this the list shows one fewer and `N more…`. */
+const MAX_ROWS = 6;
 /** Rows of the subject box before it scrolls, and after `Show all`; the line height and the padding, in points. */
 const BOX_ROWS = 8;
 const OPEN_ROWS = 24;
@@ -35,8 +36,21 @@ const PAD = 8;
 const COLUMNS = 96;
 /** Rows of the transcript looked at for what the agent said and did just before asking. */
 const WINDOW = 12;
-/** The keys shown on chips: the digits answer from 1, and a numbered menu already says its own. */
-const HINTS = 3;
+/** The digits that answer: the 1st to the 9th row. */
+const DIGITS = 9;
+
+/** The dock that is the one place to answer (not a card's), for `focusAnswers`. */
+let answering: (() => boolean) | undefined;
+
+/**
+ * `mod+2` while a question stands: the keyboard goes to the first answer. Focusing sends nothing and arms nothing; the
+ * digits then answer, as they do for any focused answer, past the guard. A host where a view cannot take the focus from
+ * code (the Linux one) says where the answers are instead.
+ */
+export function focusAnswers(): void {
+  const where = "Answer the question first. Tab moves to the answers.";
+  if (!answering?.()) announce(where);
+}
 
 /** What the agent said and was about to change when it asked: the last thing it wrote since the person spoke, and the edits of the call that waits. */
 function lead(machine: string, id: string, view: SessionView, title: string): { said?: string; diffs: DiffItem[] } {
@@ -72,7 +86,7 @@ function lead(machine: string, id: string, view: SessionView, title: string): { 
  * - no timer or default sends: only a press on an answer does;
  * - an answer pressed within 400 ms of appearing or of the question changing is ignored, and dimmed until then;
  * - the press goes through `ask.send`, which reads the pane or request again and sends only if it still shows this
- *   question: otherwise nothing is sent and the chip says `The question changed`;
+ *   question: otherwise nothing is sent and the row says `The question changed`;
  * - a risky answer (a risk reason, or a permission that outlives the answer) is two-step, not a timed hold: the first
  *   press arms it for 4 s and shows why, the second sends; it disarms by itself or when the question changes;
  * - an allow of a command too long for its box is read first: the first press scrolls to the end instead of sending,
@@ -147,10 +161,24 @@ export function AnswerDock(props: {
   });
 
   const options = () => props.ask?.options ?? [];
-  const chips = computed(() =>
-    !more() && options().length > MAX_CHIPS ? options().slice(0, MAX_CHIPS - 1) : options(),
-  );
-  const hidden = () => options().length - chips().length;
+  const rows = computed(() => (!more() && options().length > MAX_ROWS ? options().slice(0, MAX_ROWS - 1) : options()));
+  const hidden = () => options().length - rows().length;
+  let first: ViewRef | undefined;
+  if (!props.inline) {
+    const mine = () => {
+      if (!props.ask || !first || rows().length === 0) return false;
+      first.focus();
+      // Where a view cannot take the focus from code nothing happens: say where the answers are then.
+      setTimeout(() => {
+        if (focused() === 0) announce("Answer the question first. Tab moves to the answers.");
+      }, 50);
+      return true;
+    };
+    answering = mine;
+    cleanup(() => {
+      if (answering === mine) answering = undefined;
+    });
+  }
   const busy = () => sending() !== null || flash() !== null;
   const frozen = () => guarded() || busy();
 
@@ -177,7 +205,7 @@ export function AnswerDock(props: {
   });
   const target = computed(() => (props.ask ? replyTarget(props.ask) : undefined));
 
-  /** What an answer's end says on the dock; the one place all three ways of answering (a chip, a digit, the reply) end. */
+  /** What an answer's end says on the dock; the one place all three ways of answering (a row, a digit, the reply) end. */
   function settle(ask: Ask, pressed: string, out: AskOutcome, others: number) {
     sending.set(null);
     switch (out.kind) {
@@ -282,8 +310,8 @@ export function AnswerDock(props: {
   effect(() => {
     if (focused() === 0) return;
     const keys: Record<string, () => void> = {};
-    chips().forEach((option, i) => {
-      if (i < 9) keys[String(i + 1)] = () => void activate(option);
+    rows().forEach((option, i) => {
+      if (i < DIGITS) keys[String(i + 1)] = () => void activate(option);
     });
     return keymap.bind(keys);
   });
@@ -300,7 +328,7 @@ export function AnswerDock(props: {
     </View>
   );
 
-  const frame = () => (props.inline ? "gap-2" : "gap-3 border-t border-border bg-background px-4 py-3");
+  const frame = () => (props.inline ? "gap-2" : "gap-2 border-t border-border bg-background px-4 py-3");
 
   return (
     <If
@@ -378,53 +406,72 @@ export function AnswerDock(props: {
             <PermissionDiff diffs={around().diffs} />
           </If>
           <If when={ask().session}>{(s) => <PlanSteps plan={s().view.plan} />}</If>
-          <View role="group" accessibilityLabel="Answers" class="flex-row flex-wrap items-start gap-2">
-            <Each of={chips()} key={(o: AskOption) => o.id}>
+          <View role="group" accessibilityLabel="Answers" class="gap-0.5">
+            <Each of={rows()} key={(o: AskOption) => o.id}>
               {(option) => (
-                <Chip
+                <Row
                   option={option()}
-                  hint={hintOf(option(), chips())}
+                  hint={String(rows().indexOf(option()) + 1)}
+                  numbered={option().label.startsWith(`${rows().indexOf(option()) + 1}.`)}
                   noun={ask().noun}
                   armed={armed() === option().id}
                   busy={sending() === option().id}
                   flashed={flash() === option().id}
                   dim={frozen()}
+                  onRef={(node) => {
+                    if (option().id === rows()[0]?.id) first = node;
+                  }}
                   onPress={() => void activate(option())}
                   onFocus={() => focused.update((n) => n + 1)}
                   onBlur={() => focused.update((n) => Math.max(0, n - 1))}
                 />
               )}
             </Each>
-            <If when={hidden() > 0}>
-              <Btn
-                label={`${hidden()} more…`}
-                onPress={() => {
-                  // The list is new to the eye: what is pressed in the moment it opens is ignored.
-                  guarded.set(true);
-                  guard.after(GUARD_MS, () => guarded.set(false));
-                  more.set(true);
-                }}
-              />
-            </If>
-            <If when={ask().cancel}>
-              <Btn
-                variant="ghost"
-                label="Cancel request"
-                loading={sending() === "cancel"}
-                onPress={() => void cancel()}
-              />
+            <If when={hidden() > 0 || ask().cancel}>
+              <View class="flex-row flex-wrap items-center gap-2">
+                <If when={hidden() > 0}>
+                  <Btn
+                    small
+                    label={`${hidden()} more…`}
+                    onPress={() => {
+                      // The list is new to the eye: what is pressed in the moment it opens is ignored.
+                      guarded.set(true);
+                      guard.after(GUARD_MS, () => guarded.set(false));
+                      more.set(true);
+                    }}
+                  />
+                </If>
+                <If when={ask().cancel}>
+                  <Btn
+                    small
+                    variant="ghost"
+                    label="Cancel request"
+                    loading={sending() === "cancel"}
+                    onPress={() => void cancel()}
+                  />
+                </If>
+              </View>
             </If>
           </View>
           <If when={target()}>
-            <View class="flex-row items-end gap-2">
-              <Field
-                label="Decline and say this"
-                placeholder="Tell the agent what to do instead"
+            <View>
+              <Input
                 value={words()}
-                onChange={(v) => words.set(v)}
+                onChange={({ value }) => words.set(value)}
+                placeholder="Decline and tell the agent what to do instead"
+                accessibilityLabel="Decline and say this"
+                submitBehavior="submit"
                 onSubmit={() => void reply()}
+                autoCorrect={false}
+                autoComplete="off"
+                style={{ minHeight: largeTargets() ? 44 : 32, ...hoverTransition() }}
+                class={`${INPUT_CLASS} pr-10`}
               />
-              <Btn small label="Decline and send" disabled={words().trim() === ""} onPress={() => void reply()} />
+              <If when={words().trim() !== ""}>
+                <View class="absolute bottom-0 right-1 top-0 justify-center">
+                  <IconButton icon="send" label="Decline and send" onPress={() => void reply()} />
+                </View>
+              </If>
             </View>
           </If>
           {footer}
@@ -434,22 +481,22 @@ export function AnswerDock(props: {
   );
 }
 
-/** The key that answers `option`, shown when its own words do not already say it. */
-function hintOf(option: AskOption, shown: readonly AskOption[]): string | undefined {
-  const at = shown.indexOf(option);
-  if (at < 0 || at >= HINTS || option.label.startsWith(`${at + 1}.`)) return undefined;
-  return String(at + 1);
-}
-
-/** One answer. Its name is the agent's own words; armed, it says what to do next and why. */
-function Chip(props: {
+/**
+ * One answer, a full-width row: its key, the agent's own words in as many lines as they need (never cut: what an answer
+ * grants is read in full), after the key a glyph when it needs a second press, then the words, and after them why, wrapping under them when the line is full. Armed, it says what to do next
+ * in words, with the border and fill as the second signal. A numbered menu's own `1. ` is dropped from the words: the key
+ * at the left says it once, the accessible name keeps the whole label.
+ */
+function Row(props: {
   option: AskOption;
-  hint?: string;
+  hint: string;
+  numbered: boolean;
   noun: string;
   armed: boolean;
   busy: boolean;
   flashed: boolean;
   dim: boolean;
+  onRef: (node: ViewRef) => void;
   onPress: () => void;
   onFocus: () => void;
   onBlur: () => void;
@@ -460,8 +507,12 @@ function Chip(props: {
     if (props.busy) return `${props.option.label}, sending`;
     return props.option.label;
   };
+  const words = () => (props.numbered ? props.option.label.replace(/^\d+\.\s*/, "") : props.option.label);
+  const second = () =>
+    props.armed ? `Press again to send · ${props.option.reason}` : props.option.risky ? props.option.reason : "";
   return (
     <View
+      ref={props.onRef}
       role="button"
       accessibilityLabel={name()}
       accessibilityHint={props.option.risky && !props.armed ? "Needs a second press" : undefined}
@@ -470,22 +521,24 @@ function Chip(props: {
       onFocus={props.onFocus}
       onBlur={props.onBlur}
       style={hoverTransition()}
-      class={`max-w-full flex-row items-center gap-2 rounded-md border px-3 py-2 hover:bg-accent ${largeTargets() ? "min-h-11" : "min-h-9"} ${
+      class={`w-full flex-row items-start gap-2 rounded-md border px-3 py-1 hover:bg-accent ${largeTargets() ? "min-h-11" : "min-h-7"} ${
         props.dim ? "opacity-50" : ""
       } ${props.armed ? "border-warning bg-warning/20 dark:bg-warning/12" : "border-input bg-card"} ${FOCUS_RING}`}
     >
+      <Kbd keys={props.hint} />
       <If when={props.option.risky}>
-        <Icon name="alert" size={14} tone="muted-foreground" />
+        <View class="pt-0.5">
+          <Icon name="alert" size={14} tone={props.armed ? "warning" : "muted-foreground"} />
+        </View>
       </If>
-      <View class="shrink gap-0.5">
-        <Text class="text-sm font-medium text-foreground">
-          {props.flashed ? `The ${props.noun} changed` : props.option.label}
-        </Text>
-        <If when={props.armed}>
-          <Text class="text-xs text-foreground">{`Press again to send · ${props.option.reason}`}</Text>
+      <View class="min-w-0 flex-1 flex-row flex-wrap items-baseline gap-x-2">
+        <Text class="text-sm font-medium text-foreground">{props.flashed ? `The ${props.noun} changed` : words()}</Text>
+        <If when={second()}>
+          <Text class={`text-xs ${props.armed ? "font-medium text-foreground" : "text-muted-foreground"}`}>
+            {second()}
+          </Text>
         </If>
       </View>
-      <If when={props.hint}>{(key) => <Kbd keys={key()} />}</If>
       <If when={props.busy}>
         <Spinner size={14} tone="muted-foreground" />
       </If>

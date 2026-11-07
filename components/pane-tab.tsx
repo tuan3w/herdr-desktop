@@ -3,7 +3,7 @@ import { announce, cleanup, Clipboard, computed, effect, signal, Text, View } fr
 
 import type { PaneLink, PaneScreenRef } from "herdr-desktop/native";
 
-import { AnswerDock } from "#components/answer-dock";
+import { AnswerDock, focusAnswers } from "#components/answer-dock";
 import { Composer, type ComposerHandle } from "#components/composer";
 import { LinksDialog, openLink } from "#components/links-dialog";
 import { PaneFind } from "#components/pane-find";
@@ -75,9 +75,8 @@ export function PaneTab(props: {
 
   const handle: Required<Pick<PaneInput, "focusComposer" | "showLinks" | "searchInPane">> = {
     showLinks: () => void showLinks(),
-    // With a menu showing there is no message box: say where the answers are instead of doing nothing.
-    focusComposer: () =>
-      composer ? composer.focus() : announce("Answer the question first. Tab moves to the answers."),
+    // With a menu showing there is no message box: the keyboard goes to the first answer instead.
+    focusComposer: () => (composer ? composer.focus() : focusAnswers()),
     searchInPane: () => finding.set(true),
   };
   effect(() => {
@@ -181,7 +180,6 @@ export function PaneTab(props: {
                 pane={props.pane}
                 agent={i().agent}
                 name={i().name}
-                blocked={false}
                 disabled={!live()}
                 onHandle={(h) => {
                   composer = h;

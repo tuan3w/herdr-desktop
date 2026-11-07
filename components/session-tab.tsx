@@ -3,7 +3,7 @@ import { announce, cleanup, Clipboard, computed, effect, signal, Text, untracked
 
 import type { SessionInfo, SessionView } from "herdr-desktop/native";
 
-import { AnswerDock } from "#components/answer-dock";
+import { AnswerDock, focusAnswers } from "#components/answer-dock";
 import { SessionActivity } from "#components/session-activity";
 import { SessionComposer, type SessionComposerHandle } from "#components/session-composer";
 import { SessionHeader } from "#components/session-header";
@@ -190,9 +190,8 @@ export function SessionChat(props: {
       else void Clipboard.writeText(text).then(() => notify(done));
     };
     return registerPane({
-      // While a question stands there is no message box: the answers are one Tab away, and saying so beats a key that does nothing.
-      focusComposer: () =>
-        composer ? composer.focus() : announce("Answer the question first. Tab moves to the answers."),
+      // While a question stands there is no message box: the keyboard goes to the first answer instead.
+      focusComposer: () => (composer ? composer.focus() : focusAnswers()),
       copyReply: () => copy(lastReply(model.rows()), "Answer copied", "The agent has not answered yet"),
       copyCode: () =>
         copy(touched.text() ?? lastCode(lastReply(model.rows())), "Code copied", "No code in the last answer"),

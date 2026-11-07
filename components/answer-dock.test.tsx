@@ -173,14 +173,14 @@ const SEVEN = [
   " Esc to cancel · Tab to amend",
 ];
 
-test("with more than five answers the last chip is 'N more…' and opens every answer in place, with the same care", async () => {
+test("with more than six answers the list ends in 'N more…' and opens every answer in place, with the same care", async () => {
   const app = await lab();
   await settle(app);
   scripted("mixed").show("w1:p1", SEVEN);
-  await app.waitFor("3 more…");
+  await app.waitFor("2 more…");
   expect(app.shows("label:7. No")).toBe(false);
   await app.clock!.runFor(450);
-  await app.press("3 more…");
+  await app.press("2 more…");
   await app.waitFor("label:7. No");
   // In place: no dialog opens over the window.
   expect(app.shows("All answers")).toBe(false);
@@ -207,10 +207,14 @@ test("an agent that is not waiting any more gets nothing, and the dock says so",
   expect(sentKeys()).toEqual([]);
 });
 
-test("a numbered menu says its own keys: no second hint is drawn beside 1. Yes", async () => {
+test("each answer is a row with its key at the left, and a numbered menu's own number is not said twice", async () => {
   const app = await lab();
   await settle(app);
-  expect(app.texts()).not.toContain("1");
+  for (const key of ["1", "2", "3", "4"]) expect(app.texts()).toContain(key);
+  expect(app.texts()).toContain("Yes");
+  expect(app.texts()).not.toContain("1. Yes");
+  // The row keeps the agent's whole words as its name.
+  expect(app.shows(YES)).toBe(true);
   expect(app.texts()).toContain("Nothing is sent until you choose");
 });
 
@@ -232,6 +236,46 @@ test("after an answer the dock offers Next with the count of others waiting, and
   await app.press("Next");
   expect(app.texts()).toContain("Next pressed: 1");
   expect(sentKeys()).toEqual(["w1:p1: 1 enter"]);
+});
+
+// Headless Tab only reaches pressable views on the macOS idiom; the same holds for focus from code.
+test("mod+2 puts the keyboard on the first answer: it sends and arms nothing, and then a digit answers", async () => {
+  const app = await lab("macos");
+  await settle(app);
+  await app.press("Focus the answers");
+  expect(sentKeys()).toEqual([]);
+  expect(app.texts().some((t) => t.startsWith("Press again to send"))).toBe(false);
+
+  await app.keyboard.press("1");
+  await app.waitFor("Reported sent: 1");
+  expect(sentKeys()).toEqual(["w1:p1: 1 enter"]);
+});
+
+test("a risky answer's reason is on its row, and armed the row says what to do next", async () => {
+  const app = await lab();
+  await settle(app);
+  expect(app.texts()).toContain("standing permission");
+  await app.press(ALWAYS);
+  expect(app.texts().some((t) => t.startsWith("Press again to send · "))).toBe(true);
+  expect(sentKeys()).toEqual([]);
+});
+
+test("Enter in the reply sends it as decline-and-say, through the same checked path", async () => {
+  const app = await lab("macos");
+  await settle(app);
+  await app.type("label:Decline and say this", "use a temp file instead");
+  await app.keyboard.press("enter");
+  await app.waitUntil(() => sentKeys().length === 1);
+  expect(sentKeys()).toEqual(["w1:p1: 4 enter"]);
+  expect(typed()).toEqual([]);
+});
+
+test("the reply has no send button until it holds words", async () => {
+  const app = await lab();
+  await settle(app);
+  expect(app.shows("Decline and send")).toBe(false);
+  await app.type("label:Decline and say this", "x");
+  expect(app.shows("Decline and send")).toBe(true);
 });
 
 /** Types words in the reply field and presses its button, past the guard. */

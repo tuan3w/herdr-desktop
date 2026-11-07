@@ -24,7 +24,7 @@ The pane's columns fill the width (`PaneScreen` scales the font from `paneFontSi
 
 - **Answer** a question the agent asks with the `AnswerDock` chips (`design/board.md` for the safety rules).
 - **Stop** the agent (header, only while it works): `Herdr.sendKeys` of Escape.
-- **Say something** in the `Composer`, the one way to steer a terminal agent in a view with no keyboard of its own. Enter sends `Herdr.sendInput(text, ["enter"])` as one request; Shift+Enter is a new line; Enter on an empty box does nothing. While the dock shows, an *empty* Enter says `Pick an answer above` (Enter would pick whatever the agent has highlighted); typed text still goes, because a free-text reply is an answer. Text survives a failed send: it comes back in front of anything typed since, with the reason. A `/command` is plain text here. `focusComposer()` is the `Reply…` hand-off. A shell pane's box says `Send a line to <name>`.
+- **Say something** in the `Composer`, the one way to steer a terminal agent in a view with no keyboard of its own. Enter sends `Herdr.sendInput(text, ["enter"])` as one request; Shift+Enter is a new line; Enter on an empty box does nothing. While the dock shows, an *empty* Enter does nothing (Enter would pick whatever the agent has highlighted); typed text still goes, because a free-text reply is an answer. Text survives a failed send: it comes back in front of anything typed since, with the reason. A `/command` is plain text here. `focusComposer()` is the `Reply…` hand-off. A shell pane's box says `Send a line to <name>`.
 - **Look**: scroll, select, follow the end; `New output` pill when scrolled away.
 
 ## Links, find, options
