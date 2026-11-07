@@ -3,6 +3,12 @@ import { expect, open, test } from "nsh/test";
 
 import type { App } from "nsh/test";
 
+import { changeEntries } from "#components/changes-diff";
+import { filePosition, folderTail, headings, splitMiddle } from "#components/changes-list";
+import { changeText } from "#components/diff-block";
+import type { MenuAction, MenuEntry, MenuGroup } from "#kit";
+import type { Item } from "#lib/changes";
+
 const DESKTOP = { width: 1280, height: 800, platform: "linux" as const, clock: {} };
 
 /**
@@ -47,12 +53,12 @@ test("the changed files are grouped by what happened, each with how much changed
   expect(app.shows(`label:src/rate-limit.ts, new, not in git, +17 ${MINUS}0`)).toBe(true);
   expect(app.shows("label:assets/logo.png, modified, binary, 12 bytes")).toBe(true);
   expect(said(app, `8 files \u00b7 +38 ${MINUS}8`)).toBe(true);
-  expect(said(app, "Changes in ")).toBe(true);
+  expect(said(app, "File 1 of 8")).toBe(true);
 });
 
 test("the first file's change is drawn at once, and a press shows another", async () => {
   const app = await ready();
-  expect(app.shows("label:/^Diff of README\\.md, 4 added, 0 removed/")).toBe(true);
+  await app.waitFor("label:/^Diff of README\\.md, 4 added, 0 removed/");
   await select(app, "src/auth.ts");
   expect(app.shows("label:/^Diff of src\\/auth\\.ts, 8 added, 2 removed/")).toBe(true);
   expect(app.shows("label:/^Diff of README/")).toBe(false);
@@ -109,7 +115,7 @@ test("x marks the file reviewed, and a change to the file takes the mark back", 
   await app.keyboard.press("x");
   await app.clock!.runFor(50);
   expect(app.shows("label:/^README\\.md, modified, .*, reviewed$/")).toBe(true);
-  expect(said(app, "1 reviewed")).toBe(true);
+  expect(said(app, "1 of 8 reviewed")).toBe(true);
   expect(app.shows("Mark not reviewed")).toBe(true);
   // The agent edits it again: the review was of the earlier change.
   const before = Git.testRead("README.md");
@@ -117,7 +123,7 @@ test("x marks the file reviewed, and a change to the file takes the mark back", 
   await app.keyboard.press("r");
   await app.waitUntil(() => app.shows("label:/^README\\.md, modified, \\+6/"));
   expect(app.shows("label:/^README\\.md, modified, .*, reviewed$/")).toBe(false);
-  expect(said(app, "1 reviewed")).toBe(false);
+  expect(said(app, "1 of 8 reviewed")).toBe(false);
 });
 
 test("the filter narrows the files as you type, and says when nothing matches", async () => {
@@ -362,4 +368,69 @@ test("the files stack in a narrow window: the list first, then the change with a
   expect(app.shows(file("README.md"))).toBe(false);
   await app.press("Back to the files");
   await app.waitFor(file("README.md"));
+});
+
+test("the group headings stay at the top of the list while their files scroll under them", () => {
+  const items = [{ kind: "head" }, { kind: "file" }, { kind: "file" }, { kind: "head" }, { kind: "file" }] as Item[];
+  expect(headings(items)).toEqual([0, 3]);
+  expect(headings([])).toEqual([]);
+});
+
+test("a 90 character file name is cut in its middle to a length a row fits, keeping both ends and the extension", () => {
+  const name = `${"a".repeat(40)}-the-long-middle-of-it-${"b".repeat(20)}.test.tsx`;
+  expect(name.length).toBeGreaterThanOrEqual(90);
+  const shown = splitMiddle(name, 32);
+  expect(shown.length).toBeLessThanOrEqual(32);
+  expect(shown).toContain("\u2026");
+  expect(shown.startsWith("aaaa")).toBe(true);
+  expect(shown.endsWith(".tsx")).toBe(true);
+  expect(splitMiddle("auth.ts", 32)).toBe("auth.ts");
+  // No extension, and a dotfile: the cut still fits.
+  expect(splitMiddle("x".repeat(90), 32).length).toBeLessThanOrEqual(32);
+  expect(splitMiddle(`.${"y".repeat(60)}`, 32).length).toBeLessThanOrEqual(32);
+});
+
+test("a folder shows its last two segments and says that it left the rest out", () => {
+  expect(folderTail("")).toBe("");
+  expect(folderTail("src/")).toBe("src/");
+  expect(folderTail("src/lib/")).toBe("src/lib/");
+  expect(folderTail(".claude/skills/herdr/scripts/")).toBe("\u2026/herdr/scripts/");
+});
+
+test("the list says where the file in view stands among the files it lists", () => {
+  const file = (path: string) => ({ kind: "file", key: path, change: { path } }) as unknown as Item;
+  const items = [{ kind: "head", key: "h" } as unknown as Item, file("a"), file("b"), file("c")];
+  expect(filePosition(items, "b")).toEqual({ at: 2, of: 3 });
+  expect(filePosition(items, "gone")).toEqual({ at: 0, of: 3 });
+  expect(filePosition(items, undefined)).toEqual({ at: 0, of: 3 });
+});
+
+test("the diff header says which change is in view, and how many before the first step", () => {
+  expect(changeText(null, 0)).toBe("");
+  expect(changeText(null, 5)).toBe("5 changes");
+  expect(changeText(null, 1)).toBe("1 change");
+  expect(changeText(1, 5)).toBe("Change 2 of 5");
+});
+
+test("the file's menu puts a divider before each revert, radios for the context and an icon on every row", () => {
+  const none = () => {};
+  const entries: MenuEntry[] = changeEntries({
+    context: 12,
+    setContext: none,
+    canRevertChange: false,
+    reload: none,
+    note: none,
+    revertChange: none,
+    revertFile: none,
+  });
+  const danger = entries.flatMap((e, i) => (typeof e === "object" && "danger" in e && e.danger ? [i] : []));
+  expect(danger).toHaveLength(2);
+  for (const i of danger) expect(entries[i - 1]).toBe("separator");
+  expect((entries[danger[1]] as MenuAction).label).toBe("Revert this file\u2026");
+  expect((entries[danger[0]] as MenuAction).disabled).toBe(true);
+  const group = entries.find((e) => typeof e === "object" && "items" in e && !("type" in e)) as MenuGroup;
+  const radios = group.items[0] as Extract<MenuEntry, { type: "radio" }>;
+  expect(radios.value).toBe("12");
+  expect(radios.items.map((r) => r.label)).toEqual(["3 lines", "12 lines", "Whole file"]);
+  for (const e of entries) if (typeof e === "object") expect((e as MenuAction | MenuGroup).icon).toBeDefined();
 });

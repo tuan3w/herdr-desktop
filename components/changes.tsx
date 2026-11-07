@@ -116,13 +116,11 @@ export function Changes(props: { machine: string; cwd: string; active: boolean }
   });
   cleanup(() => model.attach(null));
 
-  const header = () => {
-    const files = model.files();
-    const parts = [summaryText(files)];
-    const done = model.reviewedCount();
-    if (files.length > 0 && done > 0) parts.push(`${done} reviewed`);
-    return parts.join(" \u00b7 ");
-  };
+  // The repository's name is the list's heading and the reviewed count its progress: this line is the branch and the totals.
+  const summary = () =>
+    [model.branch(), ready() && model.files().length > 0 ? summaryText(model.files()) : ""]
+      .filter(Boolean)
+      .join(" \u00b7 ");
 
   return (
     <View
@@ -130,15 +128,13 @@ export function Changes(props: { machine: string; cwd: string; active: boolean }
       accessibilityLabel={`Changes in ${model.repoName()}`}
       class="min-h-0 min-w-0 flex-1 bg-background"
     >
-      <View class="min-h-14 flex-row items-center gap-3 border-b border-border px-6 py-2">
-        <View class="min-w-0 flex-1">
-          <Text class="text-sm font-medium text-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
-            {`Changes in ${model.repoName()}`}
-          </Text>
-          <Text class="text-xs text-muted-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
-            {[model.branch(), ready() && model.files().length > 0 ? header() : ""].filter(Boolean).join(" \u00b7 ")}
-          </Text>
-        </View>
+      <View class="min-h-12 flex-row items-center gap-3 border-b border-border px-6 py-2">
+        <Text
+          class="min-w-0 flex-1 text-xs text-muted-foreground"
+          style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
+        >
+          {summary()}
+        </Text>
         <If when={model.notes().length > 0}>
           <Btn
             variant="primary"

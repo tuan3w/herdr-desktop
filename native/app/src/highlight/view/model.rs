@@ -91,7 +91,7 @@ pub struct CodeDiffProps {
     /// The file the text came from: its name finds the language (a patch brings its own).
     #[prop(default)]
     pub path: Prop<Option<SharedString>>,
-    /// `"unified"` (default) or `"split"`: old on the left, new on the right.
+    /// `"unified"` (default), `"split"` (old on the left, new on the right) or `"code"` (a new file, drawn plain).
     #[prop(default)]
     pub layout: Prop<DiffLayout>,
     /// Unchanged lines kept around a change (default 3); the rest fold.
@@ -124,6 +124,9 @@ pub enum DiffLayout {
     Unified,
     /// Two columns: the old text on the left, the new on the right.
     Split,
+    /// The new text as plain code with one number column: no tint, bar or sign, no hunk line. For a file
+    /// that is all new, where every row saying "added" says nothing (the header says it once).
+    Code,
 }
 
 /// What a diff reports.
@@ -414,7 +417,7 @@ pub fn CodeView(props: CodeViewProps, cx: Scope<NoEvent>) -> impl IntoElement {
         line_numbers: computed(move || props.line_numbers.get()),
         max_height: computed(move || props.max_height.get()),
         wrap: computed(move || props.wrap.get()),
-        layout: Layout::Code,
+        layout: computed(|| Layout::Code),
         on_fold: None,
         focus_row: None,
         list,
@@ -437,8 +440,7 @@ pub fn CodeDiff(props: CodeDiffProps, cx: Scope<CodeDiffEvent>) -> impl IntoElem
         Geometry::new(
             props.font_size.get(),
             ratio.get(),
-            props.wrap.get() && props.layout.get() == DiffLayout::Unified
-                || props.layout.get() == DiffLayout::Split,
+            props.wrap.get() || props.layout.get() == DiffLayout::Split,
         )
     });
     let expanded: Signal<HashSet<u32>> = signal(HashSet::new());
@@ -493,7 +495,7 @@ pub fn CodeDiff(props: CodeDiffProps, cx: Scope<CodeDiffEvent>) -> impl IntoElem
     let rows = computed(move || {
         let u = unified.get().0;
         let fresh: Vec<Row> = match props.layout.get() {
-            DiffLayout::Unified => u
+            DiffLayout::Unified | DiffLayout::Code => u
                 .rows
                 .iter()
                 .map(|r| match r {
@@ -516,7 +518,7 @@ pub fn CodeDiff(props: CodeDiffProps, cx: Scope<CodeDiffEvent>) -> impl IntoElem
         };
         // Which row each change starts at differs between the layouts: remember it for the keys.
         let at = match props.layout.get() {
-            DiffLayout::Unified => u.changes.clone(),
+            DiffLayout::Unified | DiffLayout::Code => u.changes.clone(),
             DiffLayout::Split => split_change_rows(&u),
         };
         CHANGES.with(|c| *c.borrow_mut() = at);
@@ -557,10 +559,11 @@ pub fn CodeDiff(props: CodeDiffProps, cx: Scope<CodeDiffEvent>) -> impl IntoElem
         line_numbers: computed(|| true),
         max_height: computed(move || props.max_height.get()),
         wrap: computed(move || props.wrap.get() || props.layout.get() == DiffLayout::Split),
-        layout: match props.layout.get_untracked() {
+        layout: computed(move || match props.layout.get() {
             DiffLayout::Unified => Layout::Unified,
             DiffLayout::Split => Layout::Split,
-        },
+            DiffLayout::Code => Layout::Code,
+        }),
         on_fold: Some(Rc::new(move |id| {
             expanded.update(|set| {
                 set.insert(id);

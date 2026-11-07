@@ -59,7 +59,8 @@ pub struct Body {
     pub line_numbers: Memo<bool>,
     pub max_height: Memo<f32>,
     pub wrap: Memo<bool>,
-    pub layout: Layout,
+    /// A memo, so a diff that turns into a new file (or the person choosing split) changes how its rows are drawn.
+    pub layout: Memo<Layout>,
     pub on_fold: Option<Rc<dyn Fn(u32)>>,
     pub focus_row: Option<Memo<Option<usize>>>,
     pub list: ElementRef,
@@ -135,7 +136,7 @@ pub fn body(b: Body) -> impl IntoElement {
         cut,
     } = b;
     let shown_digits = computed(move || {
-        if layout == Layout::Code && !line_numbers.get() {
+        if layout.get() == Layout::Code && !line_numbers.get() {
             0
         } else {
             rows.with(|r| digits(&r.0))
@@ -145,11 +146,11 @@ pub fn body(b: Body) -> impl IntoElement {
     // The width of the text column in points: what a row that does not wrap needs.
     let content_w = computed(move || {
         let g = geometry.get();
-        let gutter = gutter_width(layout, shown_digits.get(), g.cell);
+        let gutter = gutter_width(layout.get(), shown_digits.get(), g.cell);
         gutter + rows.with(|r| widest(&r.0)) as f32 * g.cell + 2.0 * PAD_X
     });
     let scrolls = computed(move || {
-        !wrap.get() && layout != Layout::Split && content_w.get() > view_w.get() + 1.0
+        !wrap.get() && layout.get() != Layout::Split && content_w.get() > view_w.get() + 1.0
     });
 
     // A list builds a cell's content once and moves the cell to another row by changing its position,
@@ -342,12 +343,13 @@ fn row_view(
     geometry: Memo<Geometry>,
     palette: Memo<PaletteRef>,
     digits: Memo<usize>,
-    layout: Layout,
+    layout: Memo<Layout>,
     on_fold: Option<Rc<dyn Fn(u32)>>,
     focus_row: Option<Memo<Option<usize>>>,
 ) -> impl IntoElement {
     dynamic(move || {
         let (g, pal, digits) = (geometry.get(), palette.get().0, digits.get());
+        let layout = layout.get();
         let focused = focus_row.is_some_and(|f| f.get() == Some(index()));
         match row.get().as_deref() {
             None => view().into_element(),
@@ -355,6 +357,8 @@ fn row_view(
             Some(Row::Split(old, new)) => {
                 split_row(old.as_ref(), new.as_ref(), g, &pal, digits, focused)
             }
+            // A new file drawn as plain code has one hunk, which says nothing the header does not.
+            Some(Row::Hunk(_)) if layout == Layout::Code => view().into_element(),
             Some(Row::Hunk(text)) => note_row(text.clone(), g, &pal, pal.hunk_bg, None),
             Some(Row::Fold { id, hidden }) => {
                 let label = format!(
@@ -373,11 +377,11 @@ fn row_view(
     })
 }
 
-fn row_bg(line: &Line, pal: &Colours) -> Option<AdaptiveColor> {
-    match line.kind {
+fn row_bg(kind: Kind, marked: bool, pal: &Colours) -> Option<AdaptiveColor> {
+    match kind {
         Kind::Add => Some(pal.add_bg),
         Kind::Remove => Some(pal.remove_bg),
-        Kind::Context if line.marked => Some(pal.line_bg),
+        Kind::Context if marked => Some(pal.line_bg),
         Kind::Context => None,
     }
 }
@@ -484,7 +488,14 @@ fn code_row(
         .items_start()
         .pl(px(PAD_X * 0.5))
         .pr(px(PAD_X));
-    if let Some(bg) = row_bg(line, pal) {
+    // Plain code (`Layout::Code`, also a new file's diff) says nothing about added or removed: the file is
+    // announced once, in the header, so no tint, no bar and no sign repeat it on every row.
+    let kind = if layout == Layout::Code {
+        Kind::Context
+    } else {
+        line.kind
+    };
+    if let Some(bg) = row_bg(kind, line.marked, pal) {
         row = row.bg(bg);
     }
     let number = (digits as f32 + 2.0) * g.cell;
@@ -507,7 +518,7 @@ fn code_row(
         row = row.pl(px(PAD_X));
     }
     row = row.child(code_text(line, g, pal));
-    row.with_bar(line.kind, focused, pal)
+    row.with_bar(kind, focused, pal)
 }
 
 fn split_row(
@@ -528,7 +539,7 @@ fn split_row(
             .pl(px(PAD_X * 0.5));
         match line {
             Some(l) => {
-                if let Some(bg) = row_bg(l, pal) {
+                if let Some(bg) = row_bg(l.kind, l.marked, pal) {
                     half = half.bg(bg);
                 }
                 half = half
@@ -630,4 +641,22 @@ impl WithBar for View {
 #[allow(dead_code)]
 fn unused() {
     let _ = measure_text;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plain_code_has_one_number_column_where_a_diff_has_two_and_a_sign() {
+        let (code, unified) = (
+            gutter_width(Layout::Code, 3, 8.0),
+            gutter_width(Layout::Unified, 3, 8.0),
+        );
+        assert_eq!(code, 5.0 * 8.0);
+        assert!(
+            unified > 2.0 * code,
+            "{unified} is not two columns and a sign"
+        );
+    }
 }

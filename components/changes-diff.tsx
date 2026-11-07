@@ -15,7 +15,55 @@ const CHROME = 76;
 /** The least height the diff view gets, however little room the notes leave. */
 const MIN_DIFF = 160;
 
-const contextText = (n: number): string => (n >= CONTEXTS[CONTEXTS.length - 1] ? "the whole file" : `${n} lines`);
+const CONTEXT_CHOICES: readonly { lines: number; label: string }[] = [
+  { lines: CONTEXTS[0], label: `${CONTEXTS[0]} lines` },
+  { lines: CONTEXTS[1], label: `${CONTEXTS[1]} lines` },
+  { lines: CONTEXTS[2], label: "Whole file" },
+];
+
+/**
+ * The file's menu: what is about the file or the change in view first, then the two ways to take changes back, each after
+ * a divider of its own so they are never next to each other. `Revert this change\u2026` sits right after the actions on a
+ * change; `Revert this file\u2026` is last. Every row has an icon; the key hints are the ones that work from the tab.
+ */
+export function changeEntries(a: {
+  /** Unchanged lines now shown around each change. */
+  context: number;
+  setContext: (lines: number) => void;
+  canRevertChange: boolean;
+  reload: () => void;
+  note: () => void;
+  revertChange: () => void;
+  revertFile: () => void;
+}): MenuEntry[] {
+  return [
+    { label: "Reload", icon: "refresh", shortcut: "r", onSelect: a.reload },
+    { label: "Add a note on this change", icon: "pencil", shortcut: "c", onSelect: a.note },
+    {
+      label: "Context",
+      icon: "list",
+      items: [
+        {
+          type: "radio",
+          value: String(a.context),
+          onValueChange: (v) => a.setContext(Number(v)),
+          closeOnClick: true,
+          items: CONTEXT_CHOICES.map((c) => ({ value: String(c.lines), label: c.label })),
+        },
+      ],
+    },
+    "separator",
+    {
+      label: "Revert this change\u2026",
+      icon: "undo",
+      danger: true,
+      disabled: !a.canRevertChange,
+      onSelect: a.revertChange,
+    },
+    "separator",
+    { label: "Revert this file\u2026", icon: "trash", danger: true, onSelect: a.revertFile },
+  ];
+}
 
 /** What stands in for a diff when there is none to draw, and why. */
 function NoPatch(props: { change: ChangeView; diff: DiffView; machine: string; root: string }) {
@@ -81,23 +129,20 @@ export function ChangesDiff(props: { model: ChangesModel; onBack?: () => void })
       (c?.kind === "modified" || c?.kind === "renamed") && model.group() >= 0 && !(model.diff()?.truncated ?? true)
     );
   };
-  const entries = (c: ChangeView): MenuEntry[] => [
-    { label: "Add a note on this change", icon: "pencil", shortcut: "c", onSelect: () => model.startNote() },
-    {
-      label: `Context: ${contextText(model.context())}, show more`,
-      shortcut: "Enter",
-      onSelect: () => model.cycleContext(),
-    },
-    { label: "Reload", icon: "refresh", onSelect: () => void model.refresh(true) },
-    {
-      label: "Revert this change\u2026",
-      icon: "undo",
-      danger: true,
-      disabled: !canRevertGroup(),
-      onSelect: () => void model.revertGroup(),
-    },
-    { label: "Revert this file\u2026", icon: "trash", danger: true, onSelect: () => void model.revertFile(c) },
-  ];
+  // The model steps through the choices; asking for one walks there (at most two steps, each announced).
+  const setContext = (lines: number) => {
+    for (let i = 0; i < CONTEXTS.length && model.context() !== lines; i++) model.cycleContext();
+  };
+  const entries = (c: ChangeView): MenuEntry[] =>
+    changeEntries({
+      context: model.context(),
+      setContext,
+      canRevertChange: canRevertGroup(),
+      reload: () => void model.refresh(true),
+      note: () => model.startNote(),
+      revertChange: () => void model.revertGroup(),
+      revertFile: () => void model.revertFile(c),
+    });
   return (
     <If when={change()} else={<Empty fill icon="file" title="Pick a file" hint="Its change shows here." />}>
       {(c) => (
@@ -114,7 +159,6 @@ export function ChangesDiff(props: { model: ChangesModel; onBack?: () => void })
             </View>
             <Btn
               small
-              variant="ghost"
               icon={model.reviewed(c()) ? "check" : undefined}
               label={model.reviewed(c()) ? "Mark not reviewed" : "Mark reviewed"}
               hint="x"
@@ -130,7 +174,7 @@ export function ChangesDiff(props: { model: ChangesModel; onBack?: () => void })
               }}
               onPress={() => model.startNote()}
             />
-            <ActionMenu label="More for this file" icon="ellipsis" entries={entries(c())} />
+            <ActionMenu small label="More for this file" icon="ellipsis" entries={entries(c())} />
           </View>
           <View class="min-h-0 flex-1" onLayout={({ bounds }) => height.set(bounds.size.height)}>
             <If
@@ -162,6 +206,7 @@ export function ChangesDiff(props: { model: ChangesModel; onBack?: () => void })
                   >
                     <DiffBlock
                       path={d().path}
+                      showPath={false}
                       patch={d().patch}
                       context={model.context()}
                       created={c().kind === "added" || c().kind === "untracked"}

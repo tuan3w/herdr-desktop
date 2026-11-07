@@ -9,6 +9,13 @@ import { CODE_MAX_HEIGHT, diffLabel } from "#lib/highlight";
 import { hoverTransition } from "#lib/motion";
 import { codeWhitespace, codeWrap, diffSplit } from "#lib/settings";
 
+/** Where the change in view stands: `Change 2 of 5`, or how many there are before the first step (`5 changes`); nothing when none. */
+export function changeText(at: number | null, total: number): string {
+  if (total === 0) return "";
+  if (at === null || total === 1) return `${total} ${total === 1 ? "change" : "changes"}`;
+  return `Change ${at + 1} of ${total}`;
+}
+
 /**
  * A file's change, drawn like a block of code: the file in the corner with `+3 −1` as words (the same counts the
  * screen reader hears), unified or side by side, the words that changed inside a line marked, long unchanged stretches
@@ -16,8 +23,8 @@ import { codeWhitespace, codeWrap, diffSplit } from "#lib/settings";
  * never the only signal. Both sides are syntax-highlighted. Give `oldText` and `newText` (a new file has an empty
  * `oldText`), or a `patch` of one file.
  *
- * Changes are reachable from the keyboard: `Previous change` and `Next change` are buttons in the header (Tab, Enter) and
- * step through the groups of changed lines, wrapping.
+ * Changes are reachable from the keyboard: `Previous change` and `Next change` are buttons in the header (Tab, Enter), always
+ * drawn, and step through the groups of changed lines, wrapping; the header says which one is in view.
  */
 export function DiffBlock(props: {
   /** The file's path as shown and as the language's source. */
@@ -32,8 +39,10 @@ export function DiffBlock(props: {
   maxHeight?: number;
   /** Force a layout; by default the person's choice (`diffSplit`). */
   split?: boolean;
-  /** The file is new: says so in the header. */
+  /** The file is new: the header says so once, and its lines are drawn as plain code (no tint, bar or sign on every row). */
   created?: boolean;
+  /** Draw the file's path in the header (default). A screen that already names the file elsewhere turns it off. */
+  showPath?: boolean;
   /** Makes the file name a button (`Open <path>`) that shows the file. */
   onOpenFile?: () => void;
   /** Hands over the steps `Previous change` and `Next change` take, once drawn (`null` when the block goes), for a screen with keys of its own. */
@@ -51,7 +60,7 @@ export function DiffBlock(props: {
 
   return (
     <View
-      class="group w-full overflow-hidden rounded-md"
+      class="w-full overflow-hidden rounded-md"
       style={{ backgroundColor: token("code-bg") }}
       onContextMenu={copyMenu(() =>
         [
@@ -63,7 +72,7 @@ export function DiffBlock(props: {
       )}
     >
       <View class="relative min-h-8 flex-row items-center gap-1 pl-3 pr-1">
-        <If when={props.onOpenFile}>
+        <If when={props.showPath !== false ? props.onOpenFile : undefined}>
           {(open) => (
             <Button
               onPress={open()}
@@ -79,7 +88,7 @@ export function DiffBlock(props: {
             </Button>
           )}
         </If>
-        <If when={!props.onOpenFile}>
+        <If when={props.showPath !== false && !props.onOpenFile}>
           <Text
             class="min-w-0 flex-1 font-mono text-xs text-foreground"
             style={{ numberOfLines: 1, textOverflow: "ellipsis", userSelect: "none" }}
@@ -87,23 +96,26 @@ export function DiffBlock(props: {
             {props.path ?? "Changes"}
           </Text>
         </If>
+        <If when={props.showPath === false}>
+          <View class="min-w-0 flex-1" />
+        </If>
         <If when={props.created}>
           <Text class="text-xs text-muted-foreground" style={{ userSelect: "none" }}>
             new file
           </Text>
         </If>
+        <Text class="text-xs text-muted-foreground" style={{ fontVariant: ["tabular-nums"], userSelect: "none" }}>
+          {changeText(at(), counts().changes)}
+        </Text>
         <Text class="pr-2 text-xs text-muted-foreground" style={{ fontVariant: ["tabular-nums"], userSelect: "none" }}>
           {`+${counts().added} \u2212${counts().removed}`}
         </Text>
-        <View
-          class="absolute right-1 top-1 flex-row items-center gap-1 rounded-md opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
-          style={{ backgroundColor: token("code-bg") }}
-        >
-          <Tool label="Previous change" icon="arrow-up" disabled={counts().changes === 0} onPress={() => step(-1)} />
-          <Tool label="Next change" icon="chevron-down" disabled={counts().changes === 0} onPress={() => step(1)} />
+        <Tool label="Previous change" icon="arrow-up" disabled={counts().changes === 0} onPress={() => step(-1)} />
+        <Tool label="Next change" icon="chevron-down" disabled={counts().changes === 0} onPress={() => step(1)} />
+        <If when={!props.created}>
           <Tool label="Side by side" text="Split" selected={split()} onPress={() => diffSplit.set(!split())} />
-          <Tool label="Wrap lines" text="Wrap" selected={codeWrap()} onPress={() => codeWrap.set(!codeWrap())} />
-        </View>
+        </If>
+        <Tool label="Wrap lines" text="Wrap" selected={codeWrap()} onPress={() => codeWrap.set(!codeWrap())} />
       </View>
       <CodeDiff
         ref={(ref: CodeDiffRef) => {
@@ -115,7 +127,7 @@ export function DiffBlock(props: {
         patch={props.patch ?? ""}
         path={props.path}
         language={props.language}
-        layout={split() ? "split" : "unified"}
+        layout={props.created ? "code" : split() ? "split" : "unified"}
         context={props.context ?? 3}
         wrap={codeWrap()}
         whitespace={codeWhitespace()}
@@ -127,12 +139,6 @@ export function DiffBlock(props: {
           props.onChange?.(e.index);
         }}
       />
-      <If when={counts().changes > 1 && at() !== null}>
-        <Text
-          class="px-3 py-1 text-xs text-muted-foreground"
-          style={{ userSelect: "none" }}
-        >{`Change ${(at() ?? 0) + 1} of ${counts().changes}`}</Text>
-      </If>
     </View>
   );
 }

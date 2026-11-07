@@ -44,15 +44,9 @@ pub struct Line {
 }
 
 /// How lines are made.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Options {
     pub whitespace: bool,
-}
-
-impl Default for Options {
-    fn default() -> Self {
-        Options { whitespace: false }
-    }
 }
 
 /// The columns a tab advances to. A tab stays a tab in the drawn text, so that copying a selection gives the file's own
