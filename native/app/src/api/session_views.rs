@@ -692,6 +692,8 @@ pub struct QueuedView {
     pub text: String,
     /// Files that go with it (paths on the agent's machine).
     pub files: Vec<String>,
+    /// Pictures of this computer that go with it.
+    pub pictures: Vec<PictureInput>,
     /// Why it will not go by itself (`the turn failed`); `releaseQueue` lets it go.
     #[prop(skip_none)]
     pub held: Option<String>,
@@ -783,6 +785,8 @@ pub struct UnsentView {
     pub text: String,
     /// Its files.
     pub files: Vec<String>,
+    /// Its pictures, as they were sent.
+    pub pictures: Vec<PictureInput>,
 }
 
 /// A session as it stands: everything but the rows of the conversation, which are pulled in windows with
@@ -1008,6 +1012,7 @@ impl From<&SessionSnapshot> for SessionView {
                     id: u32::try_from(q.id).unwrap_or(u32::MAX),
                     text: q.text.clone(),
                     files: q.files.clone(),
+                    pictures: q.pictures.iter().map(PictureInput::from).collect(),
                     held: q.held.clone(),
                 })
                 .collect(),
@@ -1065,6 +1070,7 @@ impl From<&SessionSnapshot> for SessionView {
                 seq: u32::try_from(u.seq).unwrap_or(u32::MAX),
                 text: u.text.clone(),
                 files: u.files.clone(),
+                pictures: u.pictures.iter().map(PictureInput::from).collect(),
             }),
             observed: s.observed.as_ref().map(ObservedView::from),
             acp: (&s.acp).into(),
@@ -1162,4 +1168,28 @@ pub struct UnqueuedView {
     pub text: String,
     /// The files that went with it.
     pub files: Vec<String>,
+    /// The pictures that went with it.
+    pub pictures: Vec<PictureInput>,
+}
+
+/// A picture of THIS computer a message carries: a file of `Compose.preparePicture`, with the number its
+/// `[Image n]` has in the text.
+#[derive(Debug, Clone, PartialEq, Eq, JsObject)]
+pub struct PictureInput {
+    /// The prepared file.
+    pub path: String,
+    /// What the transcript calls it.
+    pub name: String,
+    /// Its number in the text (`[Image 2]`).
+    pub number: u32,
+}
+
+impl From<&core::Pasted> for PictureInput {
+    fn from(p: &core::Pasted) -> Self {
+        Self {
+            path: p.path.clone(),
+            name: p.name.clone(),
+            number: p.number,
+        }
+    }
 }

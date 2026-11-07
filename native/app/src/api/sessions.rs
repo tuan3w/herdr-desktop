@@ -15,12 +15,14 @@
 use std::sync::Arc;
 
 use herdr_core::observed::session::ObservedHandle;
-use herdr_core::session::{KeeperError, Refusal, SendOutcome, SessionHandle, SessionSnapshot};
+use herdr_core::session::{
+    KeeperError, Pasted, Refusal, SendOutcome, SessionHandle, SessionSnapshot,
+};
 use nsh_core::prelude::*;
 
 use super::session_views::{
-    ActionResult, AgentRoute, FieldAnswerInput, PastSessionsView, ResumeSession, SessionInfo,
-    SessionItem, SessionRef, SessionView, StartSession, UnqueuedView,
+    ActionResult, AgentRoute, FieldAnswerInput, PastSessionsView, PictureInput, ResumeSession,
+    SessionInfo, SessionItem, SessionRef, SessionView, StartSession, UnqueuedView,
 };
 use super::{engine, run};
 
@@ -287,9 +289,15 @@ impl Sessions {
     }
 
     /// Sends a message, or queues it while the agent works (`queued`; it goes when the turn ends).
-    /// `files` are absolute paths on the agent's machine; a picture is read here and travels inside the
-    /// message (so it works for a remote session too), any other file goes as a link the agent opens
-    /// itself. Upload a local file to a remote machine with `Files` first.
+    ///
+    /// `files` are absolute paths on the agent's machine (files and folders: what `@` and `+` named). Each is
+    /// read here, on this call's thread, whatever machine it is on: a picture file travels inside the message
+    /// when the agent sees pictures, a text file of at most 32 KB travels as its text when the agent takes
+    /// embedded context, anything else (a folder, a big or binary file) goes as a link the agent opens itself.
+    /// `pictures` are pictures of THIS computer from `Compose.preparePictures` / `preparePaths`, each with the
+    /// number its `[Image n]` has in `text`; they travel inside the message, and an agent that cannot see is
+    /// given a link (this computer's agent) or the call fails with `invalid` and the reason (another machine's:
+    /// it cannot open this one's files). Upload a local file to a remote machine with `Files` first.
     ///
     /// In a chat read from a terminal the message is typed into the pane's own composer and Enter is pressed
     /// (the agent takes it at once), and the log shows when it arrived; it is refused (`blocked`, nothing
@@ -300,13 +308,28 @@ impl Sessions {
         id: String,
         text: String,
         files: Vec<String>,
+        pictures: Vec<PictureInput>,
     ) -> Result<ActionResult, String> {
+        let engine = engine()?;
+        let local = engine.is_local_machine(&machine)?;
+        let fs = engine.files_of(&machine)?;
+        let pasted: Vec<Pasted> = pictures
+            .into_iter()
+            .map(|p| Pasted {
+                path: p.path,
+                name: p.name,
+                number: p.number,
+            })
+            .collect();
         act(
             machine,
             id,
             move |chat| match chat {
-                Chat::Keeper(h) => h.send(&text, &files),
-                Chat::Observed(h) if files.is_empty() => h.send(&text),
+                Chat::Keeper(h) => {
+                    let with = h.prepare(fs.as_ref(), local, &files, &pasted)?;
+                    h.send(&text, with)
+                }
+                Chat::Observed(h) if files.is_empty() && pasted.is_empty() => h.send(&text),
                 Chat::Observed(_) => {
                     Err(Refusal::Invalid("Attach files in the terminal.".to_owned()))
                 }
@@ -337,6 +360,7 @@ impl Sessions {
                 .map(|u| UnqueuedView {
                     text: u.text,
                     files: u.files,
+                    pictures: u.pictures.iter().map(PictureInput::from).collect(),
                 }))
         })
         .await

@@ -1,5 +1,6 @@
 import { Storage } from "nsh";
 
+import type { Ref } from "#lib/composer-refs";
 import { save } from "#lib/save";
 
 /**
@@ -9,7 +10,8 @@ import { save } from "#lib/save";
  * and find what they held when the project is shown again.
  *
  * - **Drafts** are text the person has not sent. They can hold something pasted that must not be written down (a token),
- *   so they live in memory only: they survive a project switch and never a restart.
+ *   so they live in memory only: they survive a project switch and never a restart. Pictures a draft holds are files in
+ *   the app's own folder (`Compose.preparePicture`), removed by age.
  * - **Scroll anchors** of chats are two numbers per tab and are kept in `Storage` (`herdr.views.v1`) so a chat comes back
  *   where it was left after a restart as well. A terminal pane has none: it is live, and a restored pane tab is a fresh
  *   mirror of the same pane.
@@ -21,10 +23,15 @@ export const ANCHOR_CAP = 200;
 /** Quiet time before the anchors are written: a chat reports its scroll on every frame of a drag. */
 export const SAVE_DELAY_MS = 500;
 
-/** What a message box held. `files` are the attachments chosen and not yet sent (a chat only). */
+/**
+ * What a message box held: the words, the files chosen with `+` or a drop and not yet sent (a chat only), and every
+ * mention, picture and long paste the box made (`lib/composer-refs.ts`; their tokens are in `text`). The refs are kept
+ * with the words so a project switch brings the chips back with them.
+ */
 export interface Draft {
   text: string;
   files: string[];
+  refs: Ref[];
 }
 
 /** Where a chat was left: at the end (it follows new messages), or this many points above the end of its content. */
@@ -42,7 +49,7 @@ export const draftOf = (key: string): Draft | undefined => drafts.get(key);
 
 /** Remembers a tab's unsent message; an empty one forgets it. */
 export function setDraft(key: string, draft: Draft): void {
-  if (draft.text === "" && draft.files.length === 0) drafts.delete(key);
+  if (draft.text === "" && draft.files.length === 0 && draft.refs.length === 0) drafts.delete(key);
   else drafts.set(key, draft);
 }
 

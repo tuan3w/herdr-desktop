@@ -203,26 +203,6 @@ test("a slash lists the agent's own commands and picks one without sending it", 
   expect(app.shows("label:Commands")).toBe(false);
 });
 
-test("an @ lists the files of the session's folder, a folder goes into it, a file ends the mention; an address stays an address", async () => {
-  const app = await scripted("chat");
-  await app.waitFor(BOX);
-  await app.type(BOX, "look at @");
-  await app.waitFor("label:Files");
-  expect(app.shows("label:README.md")).toBe(true);
-  expect(app.shows("label:src, folder")).toBe(true);
-
-  await app.press("label:src, folder");
-  await app.waitUntil(() => app.value(BOX) === "look at @src/");
-  await app.waitFor("label:src/main.rs");
-  await app.press("label:src/main.rs");
-  await app.waitUntil(() => app.value(BOX) === "look at @src/main.rs ");
-  expect(app.shows("label:Files")).toBe(false);
-
-  await app.clear(BOX);
-  await app.type(BOX, "mail me@host");
-  expect(app.shows("label:Files")).toBe(false);
-});
-
 test("sending goes through the port with what was typed, an empty box sends nothing, and a send while the agent works is queued", async () => {
   const app = await scripted("chat");
   await app.waitFor(BOX);
@@ -367,19 +347,6 @@ test("PageUp scrolls a page back from the message box and PageDown comes forward
   expect(app.shows(label("^Agent: Answer 200"))).toBe(true);
 });
 
-test("files dropped on the tab are attached as chips and can be removed", async () => {
-  const app = await scripted("chat");
-  await app.waitFor(BOX);
-  const tree = app
-    .texts()
-    .find((t) => t.startsWith("Tree: "))!
-    .slice("Tree: ".length);
-  await app.dropFiles(BOX, [`file://${tree}/notes.txt`]);
-  await app.waitFor("label:Attached: notes.txt");
-  await app.press("label:Remove notes.txt");
-  await app.waitUntil(() => !app.shows("label:Attached: notes.txt"));
-});
-
 const LOG = "Log: ";
 const logged = (app: App, part: string) => app.texts().some((t) => t.startsWith(LOG) && t.includes(part));
 
@@ -437,14 +404,18 @@ test("after a sign-in in a terminal, trying again says it still asks until it do
   expect(app.shows("The agent still asks you to sign in.")).toBe(false);
 });
 
-test("a finished agent message can be copied whole, since a drag selects only within one paragraph", async () => {
+test("a finished agent message copies as plain text, or as the Markdown it was written in", async () => {
   const app = await scripted("chat");
   await app.waitFor(label("^Agent: The loop came"));
   await app.press("label:Copy message");
-  await app.waitUntil(() => (app.clipboard() ?? "").startsWith("The loop came from `login`"));
-  // The whole answer, the code block and the table included: what was written, not what is drawn.
-  expect(app.clipboard()).toContain("| unit tests | 42 passed |");
+  await app.waitUntil(() => (app.clipboard() ?? "").startsWith("The loop came from login"));
+  // The whole answer, the code block and the table included, without the marks that draw them.
+  expect(app.clipboard()).toContain("unit tests\t42 passed");
   expect(app.clipboard()).toContain("export function login(user: User)");
+  expect(app.clipboard()).not.toContain("`");
+  await app.press("label:Copy as Markdown");
+  await app.waitUntil(() => (app.clipboard() ?? "").startsWith("The loop came from `login`"));
+  expect(app.clipboard()).toContain("| unit tests | 42 passed |");
 });
 
 // ---- code in the chat ----

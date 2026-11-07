@@ -181,7 +181,7 @@ export function NewSession(props: {
       if (first !== "") {
         // A session that is still opening refuses a message; once it is open the first one goes before the person sees it.
         const sent = (await opened(ref.machine, ref.id))
-          ? await Sessions.send(ref.machine, ref.id, first, [])
+          ? await Sessions.send(ref.machine, ref.id, first, [], [])
           : undefined;
         if (!sent || (sent.kind !== "done" && sent.kind !== "queued"))
           notify(

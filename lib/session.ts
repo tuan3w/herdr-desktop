@@ -1,7 +1,7 @@
 import { Sessions } from "herdr-desktop/native";
 import { cleanup, computed, effect, signal, untracked } from "nsh";
 
-import type { ActionResult, SessionItem, SessionView, UnqueuedView } from "herdr-desktop/native";
+import type { ActionResult, PictureInput, SessionItem, SessionView, UnqueuedView } from "herdr-desktop/native";
 import type { Accessor } from "nsh";
 
 import { revision } from "#lib/herdr";
@@ -35,7 +35,7 @@ export interface SessionPort {
   view(): SessionView | null;
   items(start: number, count: number): SessionItem[];
   itemIds(): number[];
-  send(text: string, files: string[]): Promise<ActionResult>;
+  send(text: string, files: string[], pictures: PictureInput[]): Promise<ActionResult>;
   unqueue(queued: number): Promise<UnqueuedView | null>;
   releaseQueue(): Promise<ActionResult>;
   cancel(): Promise<ActionResult>;
@@ -54,7 +54,7 @@ export function sessionPort(machine: string, id: string): SessionPort {
     view: () => Sessions.view(machine, id),
     items: (start, count) => Sessions.items(machine, id, start, count),
     itemIds: () => Sessions.itemIds(machine, id),
-    send: (text, files) => Sessions.send(machine, id, text, files),
+    send: (text, files, pictures) => Sessions.send(machine, id, text, files, pictures),
     unqueue: (queued) => Sessions.unqueue(machine, id, queued),
     releaseQueue: () => Sessions.releaseQueue(machine, id),
     cancel: () => Sessions.cancel(machine, id),

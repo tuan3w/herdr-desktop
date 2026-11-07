@@ -33,7 +33,7 @@ function Lab() {
     result.set(`result ${r.kind}${r.message ? `: ${r.message}` : ""}`);
     pull();
   };
-  const send = (text: string) => say(Sessions.send(ref()!.machine, ref()!.id, text, []));
+  const send = (text: string) => say(Sessions.send(ref()!.machine, ref()!.id, text, [], []));
   const waiting = () => view()?.waiting[0];
   const agentSaid = () =>
     items()

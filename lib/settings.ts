@@ -33,6 +33,10 @@ export const codeLineNumbers = signal(false);
 export const codeWhitespace = signal(false);
 /** Diffs side by side (old left, new right) instead of one column. */
 export const diffSplit = signal(false);
+/** Enter is a new line and `mod+Enter` sends, in the chat's message box. */
+export const enterNewline = signal(false);
+/** Pictures go to the agent as they are, not scaled to 2000 pixels on the long side. */
+export const picturesOriginal = signal(false);
 export const settingsReady = signal(false);
 
 interface Saved {
@@ -48,6 +52,8 @@ interface Saved {
   codeLineNumbers: boolean;
   codeWhitespace: boolean;
   diffSplit: boolean;
+  enterNewline: boolean;
+  picturesOriginal: boolean;
 }
 
 export async function loadSettings(): Promise<void> {
@@ -69,6 +75,8 @@ export async function loadSettings(): Promise<void> {
       if (typeof saved.codeLineNumbers === "boolean") codeLineNumbers.set(saved.codeLineNumbers);
       if (typeof saved.codeWhitespace === "boolean") codeWhitespace.set(saved.codeWhitespace);
       if (typeof saved.diffSplit === "boolean") diffSplit.set(saved.diffSplit);
+      if (typeof saved.enterNewline === "boolean") enterNewline.set(saved.enterNewline);
+      if (typeof saved.picturesOriginal === "boolean") picturesOriginal.set(saved.picturesOriginal);
     }
   } catch (e) {
     console.error("herdr-desktop: cannot read settings", e);
@@ -91,6 +99,8 @@ effect(() => {
     codeLineNumbers: codeLineNumbers(),
     codeWhitespace: codeWhitespace(),
     diffSplit: diffSplit(),
+    enterNewline: enterNewline(),
+    picturesOriginal: picturesOriginal(),
   };
   save(KEY, JSON.stringify(saved));
 });

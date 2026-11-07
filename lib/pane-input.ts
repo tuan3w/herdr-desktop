@@ -1,4 +1,4 @@
-import { signal } from "nsh";
+import { announce, Clipboard, signal } from "nsh";
 
 import { fold } from "#lib/text";
 
@@ -19,6 +19,12 @@ export interface PaneInput {
   copyReply?(): void;
   /** Copies the code block the person pointed at, else the last one of the last answer: a chat only. */
   copyCode?(): void;
+  /** Opens the system's file dialog to attach files to the message: a chat only. */
+  attachFiles?(): void;
+  /** Quotes `text` in the message box: a chat only. */
+  quote?(text: string): void;
+  /** Mentions the file or folder `path` of `machine` in the message box and says whether this chat is on that machine: a chat only. */
+  mention?(machine: string, path: string): boolean;
 }
 
 const registered = signal<readonly PaneInput[]>([]);
@@ -45,6 +51,22 @@ export const copyReply = (): void => front()?.copyReply?.();
 
 /** `mod+shift+c`: the chat in front copies a code block. */
 export const copyCode = (): void => front()?.copyCode?.();
+
+/** `mod+shift+o`: the chat in front opens the file dialog. */
+export const attachFiles = (): void => front()?.attachFiles?.();
+
+/**
+ * "Send to the agent" from a file viewer: the chat in front mentions `path` (absolute, on `machine`) in its message box, as
+ * if it had been picked with `@`. False when no chat is in front or the chat in front runs on another machine.
+ */
+export const mentionInChat = (machine: string, path: string): boolean => front()?.mention?.(machine, path) ?? false;
+
+/** `mod+shift+q`: the chat in front quotes what the person copied in its message box. */
+export async function quoteCopied(): Promise<void> {
+  const text = await Clipboard.readText();
+  if (text.trim() === "") announce("Nothing is copied. Select text in the conversation and copy it first");
+  else front()?.quote?.(text);
+}
 
 /** Whether the tab in front is a chat: the palette offers `Copy code` and `Copy last answer` only then. Reactive. */
 export const chatInFront = (): boolean => front()?.copyReply !== undefined;

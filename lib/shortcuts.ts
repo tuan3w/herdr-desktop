@@ -80,6 +80,8 @@ export type GlobalShortcut =
   | "splitDown"
   | "copyCode"
   | "copyReply"
+  | "attachFiles"
+  | "quoteCopied"
   | "search"
   | "newAgent"
   | "settings"
@@ -144,6 +146,20 @@ export const GLOBAL: Record<GlobalShortcut, Shortcut> = {
     always: true,
   },
   copyReply: { keys: ["mod+shift+y"], label: "Copy the agent's last answer", group: "chat", always: true },
+  // `always`: the box has the keyboard when these are wanted, and a text field would otherwise keep the chord.
+  attachFiles: {
+    keys: ["mod+shift+o"],
+    label: "Attach files to the message (system file dialog)",
+    group: "chat",
+    always: true,
+  },
+  // Reading a selection out of the conversation is not something nsh gives an app, so the copied text is what is quoted.
+  quoteCopied: {
+    keys: ["mod+shift+q"],
+    label: "Quote the copied text in the message box",
+    group: "chat",
+    always: true,
+  },
   devPanel: { keys: ["mod+shift+d"], label: "Developer panel (frame time, latency, data)", group: "dev" },
 };
 

@@ -239,7 +239,7 @@ function Live() {
   const say = (text: string) => async () => {
     const r = ref();
     if (!r) return;
-    const result = await Sessions.send(r.machine, r.id, text, []);
+    const result = await Sessions.send(r.machine, r.id, text, [], []);
     if (result.kind !== "done" && result.kind !== "queued") failure.set(result.message);
   };
   return (

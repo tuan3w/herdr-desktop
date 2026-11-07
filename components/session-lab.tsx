@@ -357,8 +357,8 @@ function scene(name: string): Scene {
             { content: "Run the tests", status: "pending" },
           ],
           queue: [
-            { id: 1, text: "Also add a regression test for the callback", files: [] },
-            { id: 2, text: "Then update the changelog", files: [`${tree}/README.md`] },
+            { id: 1, text: "Also add a regression test for the callback", files: [], pictures: [] },
+            { id: 2, text: "Then update the changelog", files: [`${tree}/README.md`], pictures: [] },
           ],
           commands: [
             { name: "compact", description: "Summarise the conversation to free context" },
@@ -395,6 +395,21 @@ function scene(name: string): Scene {
       };
     case "blank":
       return { view: { phase: "idle" }, items: [] };
+    case "blind":
+      return { view: { phase: "idle", acceptsPictures: false }, items: [] };
+    case "commands":
+      return {
+        view: {
+          phase: "idle",
+          commands: [
+            { name: "compact", description: "Summarise the conversation to free context" },
+            { name: "review", description: "Review the changes on this branch", hint: "<branch>" },
+            { name: "init", description: "Write an AGENTS.md for this project" },
+            { name: "cost", description: "Show what this session has used" },
+          ],
+        },
+        items: [],
+      };
     case "signin":
       return {
         view: {
@@ -481,10 +496,12 @@ function scripted(initial: Scene) {
     view: () => view,
     items: (start, count) => items.slice(start, start + count),
     itemIds: () => items.map((i) => i.id),
-    send: async (text, files) => {
-      told(`send ${text}${files.length > 0 ? ` +${files.join(",")}` : ""}`);
+    send: async (text, files, pictures) => {
+      told(
+        `send ${text.length > 200 ? `${text.slice(0, 80)}… (${text.length} characters, ends ${text.slice(-12)})` : text}${files.length > 0 ? ` +${files.join(",")}` : ""}${pictures.length > 0 ? ` +pictures ${pictures.map((p) => p.number).join(",")}` : ""}`,
+      );
       if (view.running) {
-        queued = [...queued, { id: 100 + queued.length, text, files }];
+        queued = [...queued, { id: 100 + queued.length, text, files, pictures }];
         change({ queue: queued });
         return ok("queued");
       }
@@ -498,7 +515,7 @@ function scripted(initial: Scene) {
       if (!q) return null;
       queued = queued.filter((x) => x.id !== id);
       change({ queue: queued });
-      return { text: q.text, files: q.files };
+      return { text: q.text, files: q.files, pictures: q.pictures };
     },
     releaseQueue: async () => {
       told("release");
@@ -677,7 +694,7 @@ function ModelProbe() {
       <Text>{`Working: ${model.working() ? "yes" : "no"}`}</Text>
       <View class="flex-row flex-wrap gap-2">
         <Btn small label="Replay is over" onPress={() => lab.set({ phase: "idle" })} />
-        <Btn small label="Person asks" onPress={() => void lab.port.send("go", [])} />
+        <Btn small label="Person asks" onPress={() => void lab.port.send("go", [], [])} />
         <Btn small label="Agent starts" onPress={() => lab.message("One")} />
         <Btn small label="Agent streams" onPress={() => lab.stream(" two")} />
         <Btn small label="Turn ends" onPress={() => lab.finish()} />

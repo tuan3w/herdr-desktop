@@ -31,7 +31,17 @@ import { allRows, board, meta, reviewable } from "#lib/herdr";
 import { back, forward, previousAgent, previousProject, stepProject, switcherKey } from "#lib/nav";
 import { canShowChat, openAgent, showChat, showTerminal } from "#lib/open-agent";
 import { openPalette, paletteKey } from "#lib/palette/controller";
-import { chatInFront, copyCode, copyReply, focusComposer, paneInFront, searchInPane, showLinks } from "#lib/pane-input";
+import {
+  attachFiles,
+  chatInFront,
+  copyCode,
+  copyReply,
+  focusComposer,
+  paneInFront,
+  quoteCopied,
+  searchInPane,
+  showLinks,
+} from "#lib/pane-input";
 import { perfOpen } from "#lib/perf";
 import { sidebarCollapsed, themeId } from "#lib/settings";
 import { type GlobalShortcut, GLOBAL, keysOf, type ShortcutGroup } from "#lib/shortcuts";
@@ -355,6 +365,8 @@ export const globalActions: Record<GlobalShortcut, () => void> = {
   splitDown: () => void moveFocused("bottom"),
   copyCode: () => (chatInFront() ? copyCode() : announce("Open a chat first")),
   copyReply: () => (chatInFront() ? copyReply() : announce("Open a chat first")),
+  attachFiles: () => (chatInFront() ? attachFiles() : announce("Open a chat first")),
+  quoteCopied: () => (chatInFront() ? void quoteCopied() : announce("Open a chat first")),
   search: () => (paneInFront() ? searchInPane() : announce("Open a pane first")),
   newAgent: () => newSession(),
   settings: () => settingsOpen.set(true),
@@ -460,6 +472,8 @@ export function actions(): Action[] {
   global("search", ["find"], !pane);
   global("copyCode", ["code block", "clipboard", "snippet"], !chatInFront());
   global("copyReply", ["answer", "message", "clipboard", "markdown"], !chatInFront());
+  global("attachFiles", ["file", "picture", "image", "photo", "upload"], !chatInFront());
+  global("quoteCopied", ["quote", "reply", "blockquote"], !chatInFront());
   global("closeTab", ["view"], focused() === "board" || focused() === "");
   global("devPanel", ["performance", "frame"]);
   global("undo");

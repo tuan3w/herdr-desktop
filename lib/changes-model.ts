@@ -433,7 +433,7 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
     if (count === 0) return false;
     try {
       if (row.session) {
-        const result = await Sessions.send(row.machine, row.paneId, text, []);
+        const result = await Sessions.send(row.machine, row.paneId, text, [], []);
         if (result.kind !== "done" && result.kind !== "queued") {
           notify(result.message || "The notes were not sent", { lasting: true });
           return false;

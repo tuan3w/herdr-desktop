@@ -193,6 +193,13 @@ export function SessionChat(props: {
       copyReply: () => copy(lastReply(model.rows()), "Answer copied", "The agent has not answered yet"),
       copyCode: () =>
         copy(touched.text() ?? lastCode(lastReply(model.rows())), "Code copied", "No code in the last answer"),
+      attachFiles: () => composer?.attach(),
+      quote: (text) => composer?.quote(text),
+      mention: (machine, path) => {
+        if (machine !== props.machine || !composer) return false;
+        composer.mention(path);
+        return true;
+      },
     });
   });
 

@@ -5,7 +5,7 @@
 mod common;
 
 use common::{start, start_in, wait_for};
-use herdr_core::session::{Refusal, SessionPhase};
+use herdr_core::session::{Outgoing, Refusal, SessionPhase};
 use herdr_desktop_native::engine::Engine;
 
 /// Ends the keepers a test started, even when it fails.
@@ -55,7 +55,7 @@ fn a_session_that_needs_you_is_on_the_board_counted_and_titled_with_the_agents_t
         (0, 1)
     );
 
-    session.send("ask", &[]).expect("sent");
+    session.send("ask", Outgoing::default()).expect("sent");
     wait_for("the session to need you", || {
         rig.engine.board().board.counts.needs_you == 1
     });
@@ -123,5 +123,8 @@ fn a_restart_remembers_which_keepers_this_app_started_and_only_those_can_be_ende
         rig.engine.setting("sessions.owned") == Some(serde_json::json!([]))
     });
     // Ending it closed this app's connection to it.
-    assert_eq!(again.send("plain", &[]), Err(Refusal::Stopped));
+    assert_eq!(
+        again.send("plain", Outgoing::default()),
+        Err(Refusal::Stopped)
+    );
 }

@@ -75,3 +75,9 @@ export const PAD = { page: "px-6 pt-6", card: "p-3" } as const;
 
 /** The chat's column (conversation, composer, docks): `max-w-3xl` is `COLUMN.chat`, 24 pt of page padding either side. */
 export const CHAT_COLUMN = "w-full max-w-3xl self-center px-6";
+
+/**
+ * The chat's message box: one line is 28 pt (a 21-pt line of `text-sm` and the padding), it grows with its text to 12 lines and
+ * then scrolls inside itself, so a long message never pushes the conversation out of the window.
+ */
+export const COMPOSER_INPUT = { min: 28, lines: 12, max: 260 } as const;

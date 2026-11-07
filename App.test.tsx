@@ -291,6 +291,15 @@ const CHECKS: Record<GlobalShortcut, Check> = {
     await press();
     expect(app.clipboard() ?? "").toBe("");
   },
+  // Outside a chat both say so and do nothing: the file dialog needs a message box to attach to.
+  attachFiles: async (app, press) => {
+    await press();
+    expect(app.shows("label:Message")).toBe(false);
+  },
+  quoteCopied: async (app, press) => {
+    await press();
+    expect(app.shows("label:Message")).toBe(false);
+  },
   search: async (app, press) => {
     await press();
     expect(app.shows("label:Find in the pane >> nth=0")).toBe(true);
@@ -378,6 +387,8 @@ const ORDER: GlobalShortcut[] = [
   "splitRight",
   "splitDown",
   "changes",
+  "attachFiles",
+  "quoteCopied",
 ];
 
 for (const platform of ["macos", "windows", "linux"] as const) {

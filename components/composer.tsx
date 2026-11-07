@@ -55,7 +55,7 @@ export function Composer(props: {
 
   props.onHandle({ focus: () => field?.focus() });
 
-  effect(() => setDraft(draft, { text: value(), files: [] }));
+  effect(() => setDraft(draft, { text: value(), files: [], refs: [] }));
 
   // What the person changes retires the notes about the text before it. A restore after a failed send is not an edit,
   // so it keeps its error.

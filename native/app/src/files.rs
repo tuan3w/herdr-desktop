@@ -295,7 +295,8 @@ fn file_data(view: FileView, local: bool) -> FileData {
 }
 
 /// The quick-open index of every folder asked, for the life of the app.
-static QUICK: LazyLock<Quick> = LazyLock::new(Quick::new);
+/// The quick-open indexes of the process; `Compose.mentions` asks the same ones, so a root is walked once.
+pub(crate) static QUICK: LazyLock<Quick> = LazyLock::new(Quick::new);
 
 fn file_search(found: QuickSearch) -> FileSearch {
     FileSearch {

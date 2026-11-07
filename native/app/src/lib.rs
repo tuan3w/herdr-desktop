@@ -4,6 +4,7 @@
 //!
 //! * [`engine`] keeps every machine's link, the persisted state and the pane watches, on its own threads.
 //! * [`api`] is the `Herdr` module TSX calls: it pulls state after a tick and acts on it.
+//! * [`compose`] is the `Compose` module: what a chat's message box needs (pictures, the file dialog, `@`).
 //! * [`diagrams`] serves the bundled mermaid script to the web views that draw diagrams.
 //! * [`feed`] is the seam between the engine and `PaneScreen`.
 //! * [`highlight`] reads code into coloured spans (tree-sitter, TextMate) and draws it: `CodeView`, `CodeDiff`, the `Code` module.
@@ -19,6 +20,7 @@
 use nsh_core::prelude::*;
 
 pub mod api;
+pub mod compose;
 pub mod diagrams;
 pub mod engine;
 pub mod feed;
@@ -43,6 +45,7 @@ fn native(registry: &mut Registry) {
     registry
         .module::<api::Herdr>()
         .module::<api::Sessions>()
+        .module::<compose::Compose>()
         .module::<diagrams::Diagrams>()
         .module::<highlight::api::Code>()
         .module::<files::Files>()
