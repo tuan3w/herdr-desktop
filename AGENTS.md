@@ -73,6 +73,26 @@ scripts/                gen-theme, perf, cpu, check-docs, atspi_audit, sync-sche
 
 `components/*-probe, *.fixture, *-lab .tsx` are test entries for the end-to-end tests (`open()` needs an entry under the app directory); they are not the app.
 
+## Read first
+
+| You are changing | Read |
+|---|---|
+| any UI | `DESIGN.md` (the quiet look, the rules, the closed lists) |
+| colour, theme, a token, terminal colours | `design/colors.md`, `design/themes.md` |
+| text, fonts, copy | `design/typography.md` |
+| a component or the sidebar | `design/components.md` |
+| a field, validation, a form | `design/forms.md`, `design/inputs.md` |
+| a menu, select, combobox | `design/menus.md`, `design/combobox.md` |
+| a tooltip, popover, any popup | `design/overlays.md` |
+| checkbox, radio, switch, tabs, accordion, progress | `design/controls.md` |
+| a dialog, a toast, undo | `design/dialogs.md` |
+| a table or long list | `design/data.md` |
+| feedback, undo, settings, window size | `design/patterns.md` |
+| anything that moves | `design/motion.md` |
+| accessibility, screen readers, keyboard | `docs/ACCESSIBILITY.md` |
+| how nsh 0.4.0 behaves on this host (quirks that bit us) | `docs/DEVELOPMENT.md`, "nsh host quirks" |
+| threads, links, data flow, herdr protocol facts | `docs/ARCHITECTURE.md` |
+
 ## Code rules
 
 - UI is built from the kit. A screen never pastes a kit component's class string. Colour is a semantic token class, never hex or `rgb()`: themes switch at runtime. Terminal colours are the one exception and come from `term-*` tokens.

@@ -1,0 +1,19 @@
+Demo agent  v0.1
+Working directory: ~/scratch/demo
+
+Plan
+  1. read src/main.rs
+  2. add a test
+Note: this is
+a bold-red tail
+italic text and underlined and struck
+ Status: ready
++ let answer = 42;
+- let answer = 41;
+日本語 テスト w/ wide chars
+café 🚀 launch
+┌──────────┐
+│ box text │
+└──────────┘
+Edit src/main.rs:42:7 or see https://example.com/docs.
+

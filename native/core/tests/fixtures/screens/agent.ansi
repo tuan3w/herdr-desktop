@@ -1,0 +1,19 @@
+[1m[38;2;120;200;255mDemo agent  v0.1[0m                                            
+Working directory: ~/scratch/demo                           
+                                                            
+[1mPlan[0m                                                        
+[38;5;244m  1. read src/main.rs[0m                                       
+[2m  2. add a test[0m                                             
+Note: this is                                               
+a [1;31mbold-red[0m tail                                             
+[3mitalic text[23m and [4munderlined[24m and [9mstruck[29m[0m                       
+[48;2;40;44;60m[38;2;230;230;230m Status: ready                                              [0m
+[38;2;80;200;120m+ let answer = 42;[0m                                          
+[38;2;230;90;90m- let answer = 41;[0m                                          
+日本語 テスト w/ wide chars                                 
+café 🚀 launch                                              
+┌──────────┐                                                
+│ box text │                                                
+└──────────┘                                                
+Edit src/main.rs:42:7 or see https://example.com/docs.      
+                                                            

@@ -1,0 +1,35 @@
+{
+  "type": "session_snapshot",
+  "snapshot": {
+    "version": "0.9.5",
+    "protocol": 22,
+    "focused_workspace_id": "w1",
+    "focused_tab_id": "w1:t1",
+    "focused_pane_id": "w1:p1",
+    "workspaces": [
+      {"workspace_id": "w1", "number": 1, "label": "payments", "focused": true, "pane_count": 4, "tab_count": 1, "active_tab_id": "w1:t1", "agent_status": "blocked", "future_field": 1},
+      {"workspace_id": "w2", "number": 2, "label": "web", "focused": false, "pane_count": 3, "tab_count": 1, "active_tab_id": "w2:t1", "agent_status": "idle"}
+    ],
+    "tabs": [
+      {"tab_id": "w1:t1", "workspace_id": "w1", "number": 1, "label": "main", "focused": true, "pane_count": 4, "agent_status": "blocked"},
+      {"tab_id": "w2:t1", "workspace_id": "w2", "number": 1, "label": "main", "focused": false, "pane_count": 3, "agent_status": "idle"}
+    ],
+    "panes": [
+      {"pane_id": "w1:p1", "terminal_id": "t-1", "workspace_id": "w1", "tab_id": "w1:t1", "focused": true, "cwd": "/home/dev/payments-api", "agent": "omp", "label": "payments review", "terminal_title": "π > payments-api", "terminal_title_stripped": "π > payments-api", "agent_status": "blocked", "revision": 40},
+      {"pane_id": "w1:p2", "terminal_id": "t-2", "workspace_id": "w1", "tab_id": "w1:t1", "focused": false, "cwd": "/home/dev/auth", "agent": "claude", "terminal_title": "⠋ Fix login flow", "terminal_title_stripped": "Fix login flow", "agent_status": "done", "revision": 12},
+      {"pane_id": "w1:p3", "terminal_id": "t-3", "workspace_id": "w1", "tab_id": "w1:t1", "focused": false, "cwd": "/home/dev/payments-api", "agent": "omp", "terminal_title": "π > payments-api", "agent_status": "working", "revision": 9},
+      {"pane_id": "w1:p4", "terminal_id": "t-4", "workspace_id": "w1", "tab_id": "w1:t1", "focused": false, "cwd": "/home/dev", "terminal_title": "bash", "agent_status": "unknown", "revision": 2},
+      {"pane_id": "w2:p1", "terminal_id": "t-5", "workspace_id": "w2", "tab_id": "w2:t1", "focused": false, "cwd": "/home/dev/web", "agent": "codex", "terminal_title": "", "agent_status": "idle", "revision": 5},
+      {"pane_id": "w2:p2", "terminal_id": "t-6", "workspace_id": "w2", "tab_id": "w2:t1", "focused": false, "agent": "pi", "terminal_title": "terminal", "agent_status": "sleeping", "revision": 1},
+      {"terminal_id": "t-7", "workspace_id": "w2", "tab_id": "w2:t1", "agent_status": "idle"}
+    ],
+    "layouts": [],
+    "agents": [
+      {"terminal_id": "t-1", "agent": "omp", "agent_status": "blocked", "workspace_id": "w1", "tab_id": "w1:t1", "pane_id": "w1:p1", "focused": true, "state_change_seq": 10, "cwd": "/home/dev/payments-api", "terminal_title": "π > payments-api", "terminal_title_stripped": "π > payments-api", "revision": 40, "agent_session": {"agent": "omp", "kind": "path", "source": "herdr:omp", "value": "/home/dev/.omp/sessions/a.jsonl"}},
+      {"terminal_id": "t-2", "agent": "claude", "agent_status": "done", "workspace_id": "w1", "tab_id": "w1:t1", "pane_id": "w1:p2", "focused": false, "state_change_seq": 7, "completion_seq": 3, "cwd": "/home/dev/auth", "terminal_title": "⠋ Fix login flow", "terminal_title_stripped": "Fix login flow", "revision": 12},
+      {"terminal_id": "t-3", "agent": "omp", "agent_status": "working", "workspace_id": "w1", "tab_id": "w1:t1", "pane_id": "w1:p3", "focused": false, "state_change_seq": 3, "cwd": "/home/dev/payments-api", "terminal_title": "π > payments-api", "revision": 9},
+      {"terminal_id": "t-5", "agent": "codex", "agent_status": "idle", "workspace_id": "w2", "tab_id": "w2:t1", "pane_id": "w2:p1", "focused": false, "state_change_seq": 1, "cwd": "/home/dev/web", "terminal_title": "", "revision": 5},
+      {"terminal_id": "t-6", "agent": "pi", "agent_status": "sleeping", "workspace_id": "w2", "tab_id": "w2:t1", "pane_id": "w2:p2", "focused": false, "state_change_seq": 2, "terminal_title": "terminal", "revision": 1}
+    ]
+  }
+}
