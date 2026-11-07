@@ -2,7 +2,7 @@ import { Files, Search } from "herdr-desktop/native";
 import { announce, computed, effect, keymap, signal, Text, untracked, View } from "nsh";
 import { Command, type CommandItem, type CommandRef } from "nsh/base";
 
-import type { FileSearch } from "herdr-desktop/native";
+import type { FileSearch, SearchFocus } from "herdr-desktop/native";
 
 import { ArgChips, ScopeChips } from "#components/palette-chips";
 import { Row } from "#components/palette-row";
@@ -64,10 +64,13 @@ export function Palette(props: { open: boolean; onClose: () => void }) {
   let command: CommandRef | undefined;
   let commandList: PaletteCommand[] = [];
   let commandMap: ReadonlyMap<string, PaletteCommand> = new Map();
-  let filesAt: { machine: string; root: string; project: string } | null = null;
+  // Where it was opened from; the project's folder is read from the board as it is NOW, so a board that arrives or changes
+  // after the palette opened (the first moments of the app, a folder herdr reports late) is searched at its new folder.
+  const focusAt = signal<SearchFocus>({});
+  const filesAt = computed(() => filesRoot(focusAt()));
   let sequence = 0;
   let opened = false;
-  let warmed = false;
+  let warmedRoot = "";
 
   // ---- opening and closing ----
 
@@ -75,7 +78,7 @@ export function Palette(props: { open: boolean; onClose: () => void }) {
     commandList = paletteCommands();
     commandMap = new Map(commandList.map((c) => [c.spec.id, c]));
     const focus = paletteFocus();
-    filesAt = filesRoot(focus);
+    focusAt.set(focus);
     try {
       session.set(
         Search.open(
@@ -93,7 +96,7 @@ export function Palette(props: { open: boolean; onClose: () => void }) {
     highlighted.set(null);
     found.set(null);
     kinds.set(null);
-    warmed = false;
+    warmedRoot = "";
     announce("Command palette");
   };
 
@@ -149,7 +152,7 @@ export function Palette(props: { open: boolean; onClose: () => void }) {
 
   const fileRows = (choose?: (row: PaletteRow) => void): PaletteRow[] => {
     const result = found();
-    const at = filesAt;
+    const at = filesAt();
     if (!result || !at) return [];
     return result.hits.map((h) => {
       const path = `${at.root}/${h.path}`;
@@ -227,9 +230,11 @@ export function Palette(props: { open: boolean; onClose: () => void }) {
           scope.set("messages"),
         ),
       );
-    if (filesAt && scope() !== "files")
+    if (filesAt() && scope() !== "files")
       rows.push(
-        synthetic("next:files", `Search files for “${q}”`, [filesAt.project], "file", () => scope.set("files")),
+        synthetic("next:files", `Search files for “${q}”`, [filesAt()?.project ?? ""], "file", () =>
+          scope.set("files"),
+        ),
       );
     const start = commandMap.get("newSessionIn");
     if (start)
@@ -242,7 +247,7 @@ export function Palette(props: { open: boolean; onClose: () => void }) {
       rows.push(
         synthetic("next:path", `Open “${q}”`, ["As a path on this computer"], "file", () => {
           props.onClose();
-          viewFile(filesAt?.machine ?? "local", q);
+          viewFile(filesAt()?.machine ?? "local", q);
         }),
       );
     return rows.map((r) => ({ ...r, group }));
@@ -333,17 +338,15 @@ export function Palette(props: { open: boolean; onClose: () => void }) {
     const wants =
       props.open && (scope() === "files" || (m.kind === "step" && m.command.args?.[m.chosen.length] === "file"));
     const q = text();
+    const at = filesAt();
     if (!wants) return;
     untracked(() => {
-      // The board may not have been there when the palette opened (the first moments of the app).
-      filesAt = filesAt ?? filesRoot();
-      const at = filesAt;
       if (!at) {
         found.set(null);
         return;
       }
-      if (!warmed) {
-        warmed = true;
+      if (warmedRoot !== `${at.machine}:${at.root}`) {
+        warmedRoot = `${at.machine}:${at.root}`;
         void Files.warm(at.machine, at.root).catch(() => undefined);
       }
       const mine = ++sequence;
@@ -547,7 +550,7 @@ export function Palette(props: { open: boolean; onClose: () => void }) {
         ? `Could not ask the machine: ${kindsError()}`
         : "Asking the machine which agents it can run…";
     if (scope() === "files" || (m.kind === "step" && m.command.args?.[m.chosen.length] === "file"))
-      return filesAt
+      return filesAt()
         ? "No file matches"
         : "Open an agent or a project first: files are searched in the project in front";
     if (scope() === "messages") return "Nothing matches the last messages and output";

@@ -15,8 +15,8 @@ const PROJECT = "label:Choose a project";
 const AGENT = "label:Choose an agent";
 
 async function atProjectStep(app: Awaited<ReturnType<typeof lab>>) {
-  // The board arrives from the scripted herdr a moment after the lab opens.
-  await app.wait(600);
+  // The board arrives from the scripted herdr after the lab opens (later on a slow machine); a chat starts in the project's folder.
+  await app.waitFor("project folder ready", { timeout: 30_000 });
   await app.press("Open palette");
   await app.waitFor(FIELD);
   await app.type(FIELD, "new session pay");
@@ -36,7 +36,7 @@ test("a project, then an agent, then a chat is started in the project's folder",
   await app.press("label:/^omp/");
   await app.waitUntil(() => !app.shows(AGENT));
   let held = await Sessions.list("local");
-  for (let tries = 0; held.length === 0 && tries < 50; tries++) {
+  for (let tries = 0; held.length === 0 && tries < 300; tries++) {
     await app.wait(100);
     held = await Sessions.list("local");
   }
