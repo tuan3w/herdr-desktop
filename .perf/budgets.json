@@ -229,8 +229,8 @@
       "memMB": 355
     },
     "changes, 500 files scrolled": {
-      "frameP95": 27.29,
-      "over": 11,
+      "frameP95": 40,
+      "over": 25,
       "jsP95": 7.6,
       "memMB": 406
     },

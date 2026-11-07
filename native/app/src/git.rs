@@ -637,8 +637,10 @@ fn big(dir: &Path) -> Result<(), String> {
             body("before")
         ),
     )?;
+    put(dir, "src/small.ts", "export const small = 1;\n")?;
     sh(dir, &["add", "-A"])?;
     sh(dir, &["commit", "-q", "-m", "Big file"])?;
+    put(dir, "src/small.ts", "export const small = 2;\n")?;
     put(
         dir,
         "src/big.ts",
