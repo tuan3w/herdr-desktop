@@ -69,6 +69,10 @@ struct Fetches {
     listeners: Mutex<Vec<(u32, async_channel::Sender<()>)>>,
 }
 
+/// The test seam's switches: copy this computer's files like another machine's, and how long each progress report waits.
+static FORCE_COPY: AtomicBool = AtomicBool::new(false);
+static COPY_DELAY_MS: AtomicU32 = AtomicU32::new(0);
+
 static FETCHES: Fetches = Fetches {
     list: Mutex::new(Vec::new()),
     next: AtomicU32::new(1),
@@ -132,7 +136,7 @@ pub struct CodecsView {
 
 /// The start of a file that is not text.
 #[derive(Debug, Clone, PartialEq, JsObject)]
-pub struct PeekView {
+pub struct BytesPeek {
     /// The file's size in bytes.
     pub size: f64,
     /// What its first bytes say it is (`ELF executable`), when recognised.
@@ -213,7 +217,9 @@ impl Media {
                 message: None,
                 too_big: false,
             };
-            if let Some(local) = files.local_path(&path) {
+            if !FORCE_COPY.load(Ordering::Relaxed)
+                && let Some(local) = files.local_path(&path)
+            {
                 view.state = FetchStateName::Ready;
                 view.done = view.total;
                 view.local = Some(local.to_string_lossy().into_owned());
@@ -241,6 +247,19 @@ impl Media {
         .await
     }
 
+    /// Opens a ready file (the file itself, or its copy in the cache) with the application the system chooses for it:
+    /// what `Open in the system player` does for a file of another machine. Throws when the copy is not ready.
+    pub async fn open_fetched(id: u32) -> Result<(), String> {
+        let local = FETCHES
+            .list
+            .lock()
+            .iter()
+            .find(|f| f.view.id == id)
+            .and_then(|f| f.view.local.clone())
+            .ok_or_else(|| "The file is not ready yet".to_owned())?;
+        open_path(PathBuf::from(local)).await
+    }
+
     /// Stops a running copy; nothing is left behind.
     pub fn cancel_fetch(id: u32) {
         if let Some(f) = FETCHES.list.lock().iter().find(|f| f.view.id == id) {
@@ -257,6 +276,9 @@ impl Media {
                 .position(|f| f.view.id == id)
                 .map(|at| list.remove(at))
         };
+        if let Ok(server) = SERVER.as_ref() {
+            server.tokens.lock().retain(|_, served| served.fetch != id);
+        }
         if let Some(fetch) = removed {
             fetch.cancel.store(true, Ordering::Relaxed);
             if let (Some(held), Ok(engine)) = (fetch.held, engine()) {
@@ -287,6 +309,45 @@ impl Media {
         Stop::new(move || FETCHES.listeners.lock().retain(|(i, _)| *i != id))
     }
 
+    /// Where a ready PDF is shown from: a loopback address (`http://127.0.0.1:<port>/f/<token>/<name>`, this computer only)
+    /// that serves exactly that file, with ranges, to the web view that draws it. The token is random and lives as long as
+    /// the copy: `releaseFetch` ends it. Throws for a file that is not ready or not a PDF.
+    pub fn serve(id: u32) -> Result<String, String> {
+        let path = {
+            let list = FETCHES.list.lock();
+            let local = list
+                .iter()
+                .find(|f| f.view.id == id)
+                .and_then(|f| f.view.local.clone())
+                .ok_or_else(|| "The file is not ready yet".to_owned())?;
+            PathBuf::from(local)
+        };
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        if !name.to_ascii_lowercase().ends_with(".pdf") {
+            return Err("Only PDF files are shown this way".to_owned());
+        }
+        // The name is only a label for the viewer's title: encoded so any file name is a valid path segment.
+        let segment: String = name
+            .bytes()
+            .map(|b| match b {
+                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'.' | b'-' | b'_' => {
+                    (b as char).to_string()
+                }
+                other => format!("%{other:02X}"),
+            })
+            .collect();
+        let server = SERVER.as_ref().map_err(Clone::clone)?;
+        let token = new_token()?;
+        server
+            .tokens
+            .lock()
+            .insert(token.clone(), Served { path, fetch: id });
+        Ok(format!("{}/f/{token}/{segment}", server.origin))
+    }
+
     /// What the headers of a video or sound file say it holds, for the sentence that names why it cannot play
     /// (`This computer cannot play H.265 video`). Reads a few ranges, never the file.
     pub async fn probe(machine: String, path: String) -> Result<CodecsView, String> {
@@ -306,12 +367,12 @@ impl Media {
 
     /// The first 4 KB of a file as a hex dump, its size and the type its bytes announce: what a file that is not
     /// text shows.
-    pub async fn peek(machine: String, path: String) -> Result<PeekView, String> {
+    pub async fn peek(machine: String, path: String) -> Result<BytesPeek, String> {
         let engine = engine()?;
         run(move || {
             let files = engine.files_of(&machine)?;
             let peek = files::peek(files.as_ref(), &path).map_err(|e| e.message)?;
-            Ok(PeekView {
+            Ok(BytesPeek {
                 size: number(peek.size),
                 detected: peek.detected,
                 rows: peek.rows,
@@ -372,6 +433,44 @@ impl Media {
         })
     }
 
+    /// Test seam: with `force`, `fetch` copies this computer's files into the cache like another machine's, and each
+    /// progress report waits `delay_ms` first, so a test can watch a copy run and stop it. Throws unless
+    /// `HERDR_DESKTOP_TEST=1`.
+    pub fn test_slow_copies(force: bool, delay_ms: u32) -> Result<(), String> {
+        if !test_seam_open() {
+            return Err(format!("The test seam is closed: set {TEST_FLAG}=1"));
+        }
+        FORCE_COPY.store(force, Ordering::Relaxed);
+        COPY_DELAY_MS.store(delay_ms, Ordering::Relaxed);
+        Ok(())
+    }
+
+    /// Test seam: writes `lines` lines of a synthetic log (`000123 hay hay hay`, with `NEEDLE` on line 45679) to the data
+    /// directory and returns its path: a text file over 4 MB for the big-text viewer. Throws unless `HERDR_DESKTOP_TEST=1`.
+    pub fn test_big_log(lines: u32) -> Result<String, String> {
+        use std::io::Write;
+        if !test_seam_open() {
+            return Err(format!("The test seam is closed: set {TEST_FLAG}=1"));
+        }
+        let dir = engine()?.test_tree_dir().with_file_name("test-big");
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let path = dir.join("big.log");
+        let mut out =
+            std::io::BufWriter::new(std::fs::File::create(&path).map_err(|e| e.to_string())?);
+        for i in 0..lines {
+            let tail = if i == 45_678 {
+                "the NEEDLE is here"
+            } else {
+                "hay hay hay hay hay hay hay hay hay hay hay hay hay hay hay hay"
+            };
+            writeln!(out, "{i:07} {tail}").map_err(|e| e.to_string())?;
+        }
+        out.flush().map_err(|e| e.to_string())?;
+        path.into_os_string()
+            .into_string()
+            .map_err(|_| "the data directory is not text".to_owned())
+    }
+
     /// Test seam: the most the cache may hold, in bytes. Throws unless `HERDR_DESKTOP_TEST=1`.
     pub fn test_cap(bytes: f64) -> Result<(), String> {
         if !test_seam_open() {
@@ -395,6 +494,10 @@ fn copy(
     let cache = engine.media_cache();
     let mut last = Instant::now();
     let mut progress = |done: u64, total: u64| {
+        let delay = COPY_DELAY_MS.load(Ordering::Relaxed);
+        if delay > 0 {
+            std::thread::sleep(Duration::from_millis(u64::from(delay)));
+        }
         if last.elapsed() >= PROGRESS_EVERY || done == total {
             last = Instant::now();
             FETCHES.update(id, |f| {
@@ -438,6 +541,170 @@ fn copy(
             });
         }
     }
+}
+
+// ---- Served: a ready PDF, to the web view that shows it --------------------------------------------------------
+
+/// What a token opens: a ready file, and the copy it belongs to (released together).
+struct Served {
+    path: PathBuf,
+    fetch: u32,
+}
+
+struct Server {
+    origin: String,
+    tokens: Mutex<std::collections::HashMap<String, Served>>,
+}
+
+static SERVER: LazyLock<Result<Arc<Server>, String>> = LazyLock::new(start_server);
+
+/// 16 random bytes as hex, from the system's source: a token is the only thing that opens a file, so it is not guessed.
+fn new_token() -> Result<String, String> {
+    use std::io::Read;
+    let mut bytes = [0u8; 16];
+    std::fs::File::open("/dev/urandom")
+        .and_then(|mut f| f.read_exact(&mut bytes))
+        .map_err(|e| format!("cannot make a token for the file: {e}"))?;
+    Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
+}
+
+/// `bytes=a-b` of a Range header against a file of `len` bytes: the first and last byte to send, or `None` for a range
+/// that cannot be met (an `Err` of `()` means "416").
+fn byte_range(header: &str, len: u64) -> Option<Result<(u64, u64), ()>> {
+    let spec = header.trim().strip_prefix("bytes=")?;
+    let (from, to) = spec.split_once('-')?;
+    if len == 0 {
+        return Some(Err(()));
+    }
+    let (first, last) = match (from.trim().parse::<u64>(), to.trim().parse::<u64>()) {
+        (Ok(f), Ok(t)) => (f, t.min(len - 1)),
+        (Ok(f), Err(_)) if to.trim().is_empty() => (f, len - 1),
+        // `bytes=-N`: the last N bytes.
+        (Err(_), Ok(n)) if from.trim().is_empty() => (len.saturating_sub(n), len - 1),
+        _ => return Some(Err(())),
+    };
+    Some(if first > last || first >= len {
+        Err(())
+    } else {
+        Ok((first, last))
+    })
+}
+
+fn serve_file(server: &Server, mut stream: std::net::TcpStream) {
+    use std::io::{Read, Seek, SeekFrom, Write};
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(30)));
+    let mut buf = vec![0u8; 8192];
+    let mut have = 0;
+    while have < buf.len() && !buf[..have].windows(4).any(|w| w == b"\r\n\r\n") {
+        match stream.read(&mut buf[have..]) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => have += n,
+        }
+    }
+    let text = String::from_utf8_lossy(&buf[..have]).into_owned();
+    let mut lines = text.lines();
+    let first = lines.next().unwrap_or("");
+    let range = lines.find_map(|l| {
+        l.split_once(':')
+            .filter(|(k, _)| k.eq_ignore_ascii_case("range"))
+            .map(|(_, v)| v.to_owned())
+    });
+    let mut parts = first.split(' ');
+    let (method, target) = (parts.next().unwrap_or(""), parts.next().unwrap_or(""));
+    let refuse = |stream: &mut std::net::TcpStream, status: &str| {
+        let _ = stream.write_all(
+            format!("HTTP/1.1 {status}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                .as_bytes(),
+        );
+    };
+    if method != "GET" && method != "HEAD" {
+        return refuse(&mut stream, "405 Method Not Allowed");
+    }
+    // `/f/<token>/<name>`: nothing else is served.
+    let token = target
+        .strip_prefix("/f/")
+        .and_then(|rest| rest.split('/').next())
+        .unwrap_or("");
+    let path = server.tokens.lock().get(token).map(|s| s.path.clone());
+    let Some(path) = path else {
+        return refuse(&mut stream, "404 Not Found");
+    };
+    let Ok(mut file) = std::fs::File::open(&path) else {
+        return refuse(&mut stream, "404 Not Found");
+    };
+    let Ok(len) = file.metadata().map(|m| m.len()) else {
+        return refuse(&mut stream, "404 Not Found");
+    };
+    let (status, first_byte, last_byte) = match range.as_deref().and_then(|r| byte_range(r, len)) {
+        Some(Ok((a, b))) => ("206 Partial Content", a, b),
+        Some(Err(())) => {
+            let _ = stream.write_all(
+                format!("HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{len}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").as_bytes(),
+            );
+            return;
+        }
+        None => ("200 OK", 0, len.saturating_sub(1)),
+    };
+    let size = if len == 0 {
+        0
+    } else {
+        last_byte - first_byte + 1
+    };
+    let content_range = if status.starts_with("206") {
+        format!("Content-Range: bytes {first_byte}-{last_byte}/{len}\r\n")
+    } else {
+        String::new()
+    };
+    let head = format!(
+        "HTTP/1.1 {status}\r\nContent-Type: application/pdf\r\nContent-Length: {size}\r\n{content_range}Accept-Ranges: bytes\r\nContent-Disposition: inline\r\nX-Content-Type-Options: nosniff\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n"
+    );
+    if stream.write_all(head.as_bytes()).is_err() || method == "HEAD" || size == 0 {
+        return;
+    }
+    if file.seek(SeekFrom::Start(first_byte)).is_err() {
+        return;
+    }
+    // Never the file whole: 64 KB at a time.
+    let mut left = size;
+    let mut chunk = vec![0u8; 64 * 1024];
+    while left > 0 {
+        let want = chunk.len().min(left as usize);
+        match file.read(&mut chunk[..want]) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => {
+                if stream.write_all(&chunk[..n]).is_err() {
+                    break;
+                }
+                left -= n as u64;
+            }
+        }
+    }
+}
+
+fn start_server() -> Result<Arc<Server>, String> {
+    use std::net::{Ipv4Addr, SocketAddr, TcpListener};
+    let fail = |e: std::io::Error| format!("cannot serve the file to the viewer: {e}");
+    let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).map_err(fail)?;
+    let port = listener.local_addr().map_err(fail)?.port();
+    let server = Arc::new(Server {
+        origin: format!("http://127.0.0.1:{port}"),
+        tokens: Mutex::new(std::collections::HashMap::new()),
+    });
+    let serving = server.clone();
+    std::thread::Builder::new()
+        .name("herdr-served".to_owned())
+        .spawn(move || {
+            for stream in listener.incoming().flatten() {
+                let server = serving.clone();
+                // One short-lived thread per connection: a client that stalls holds only its own.
+                let _ = std::thread::Builder::new()
+                    .name("herdr-served-conn".to_owned())
+                    .spawn(move || serve_file(&server, stream));
+            }
+        })
+        .map_err(fail)?;
+    Ok(server)
 }
 
 // ---- Lines: a big text file read a page at a time ---------------------------------------------------------
@@ -604,5 +871,124 @@ impl Lines {
     /// How many files are open for paging (a test reads it after closing viewers).
     pub fn open_count() -> u32 {
         OPEN_LINES.lock().len() as u32
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::{Read, Write};
+
+    #[test]
+    fn a_range_is_met_clamped_or_refused() {
+        assert_eq!(byte_range("bytes=0-9", 100), Some(Ok((0, 9))));
+        assert_eq!(byte_range("bytes=90-", 100), Some(Ok((90, 99))));
+        assert_eq!(byte_range("bytes=90-500", 100), Some(Ok((90, 99))));
+        assert_eq!(byte_range("bytes=-10", 100), Some(Ok((90, 99))));
+        assert_eq!(byte_range("bytes=100-", 100), Some(Err(())), "past the end");
+        assert_eq!(byte_range("bytes=9-3", 100), Some(Err(())), "backwards");
+        assert_eq!(
+            byte_range("bytes=0-1", 0),
+            Some(Err(())),
+            "an empty file has no range"
+        );
+        assert_eq!(
+            byte_range("items=0-1", 100),
+            None,
+            "not a byte range: the whole file"
+        );
+    }
+
+    fn ask(port: u16, request: &str) -> (String, Vec<u8>) {
+        let mut stream = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+        stream.write_all(request.as_bytes()).unwrap();
+        let mut all = Vec::new();
+        stream.read_to_end(&mut all).unwrap();
+        let split = all.windows(4).position(|w| w == b"\r\n\r\n").unwrap() + 4;
+        (
+            String::from_utf8_lossy(&all[..split]).into_owned(),
+            all[split..].to_vec(),
+        )
+    }
+
+    #[test]
+    fn the_viewer_server_serves_only_a_registered_file_with_ranges() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("doc.pdf");
+        let body: Vec<u8> = (0..200_000u32).map(|i| (i % 251) as u8).collect();
+        std::fs::write(&file, &body).unwrap();
+        let server = SERVER.as_ref().unwrap().clone();
+        let port: u16 = server.origin.rsplit(':').next().unwrap().parse().unwrap();
+        let token = new_token().unwrap();
+        assert_eq!(token.len(), 32);
+        server.tokens.lock().insert(
+            token.clone(),
+            Served {
+                path: file,
+                fetch: 9_999,
+            },
+        );
+
+        let (head, all) = ask(
+            port,
+            &format!("GET /f/{token}/doc.pdf HTTP/1.1\r\nHost: x\r\n\r\n"),
+        );
+        assert!(
+            head.starts_with("HTTP/1.1 200 OK") && head.contains("application/pdf"),
+            "{head}"
+        );
+        assert!(head.contains("Accept-Ranges: bytes") && head.contains("Content-Length: 200000"));
+        assert_eq!(all, body);
+
+        let (head, part) = ask(
+            port,
+            &format!("GET /f/{token}/doc.pdf HTTP/1.1\r\nrange: bytes=1000-1999\r\n\r\n"),
+        );
+        assert!(
+            head.starts_with("HTTP/1.1 206")
+                && head.contains("Content-Range: bytes 1000-1999/200000"),
+            "{head}"
+        );
+        assert_eq!(part, body[1000..2000]);
+
+        let (head, tail) = ask(
+            port,
+            &format!("GET /f/{token}/doc.pdf HTTP/1.1\r\nRange: bytes=-5\r\n\r\n"),
+        );
+        assert!(head.starts_with("HTTP/1.1 206"), "{head}");
+        assert_eq!(tail, body[199_995..]);
+
+        let (head, _) = ask(
+            port,
+            &format!("GET /f/{token}/doc.pdf HTTP/1.1\r\nRange: bytes=300000-\r\n\r\n"),
+        );
+        assert!(
+            head.starts_with("HTTP/1.1 416") && head.contains("bytes */200000"),
+            "{head}"
+        );
+
+        let (head, empty) = ask(port, &format!("HEAD /f/{token}/doc.pdf HTTP/1.1\r\n\r\n"));
+        assert!(head.starts_with("HTTP/1.1 200") && empty.is_empty());
+
+        // Nothing else is served: a guessed token, the root, a path that climbs, a method that writes.
+        for request in [
+            "GET /f/00000000000000000000000000000000/doc.pdf HTTP/1.1\r\n\r\n".to_owned(),
+            "GET / HTTP/1.1\r\n\r\n".to_owned(),
+            "GET /f/../../etc/passwd HTTP/1.1\r\n\r\n".to_owned(),
+            "GET /etc/passwd HTTP/1.1\r\n\r\n".to_owned(),
+        ] {
+            let (head, body) = ask(port, &request);
+            assert!(
+                head.starts_with("HTTP/1.1 404") && body.is_empty(),
+                "{request}: {head}"
+            );
+        }
+        let (head, _) = ask(port, &format!("POST /f/{token}/doc.pdf HTTP/1.1\r\n\r\n"));
+        assert!(head.starts_with("HTTP/1.1 405"), "{head}");
+
+        // Letting go of the copy ends its tokens.
+        server.tokens.lock().retain(|_, s| s.fetch != 9_999);
+        let (head, _) = ask(port, &format!("GET /f/{token}/doc.pdf HTTP/1.1\r\n\r\n"));
+        assert!(head.starts_with("HTTP/1.1 404"), "{head}");
     }
 }

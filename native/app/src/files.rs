@@ -473,11 +473,42 @@ impl Files {
         reveal_path(local).await
     }
 
-    /// Opens a file of THIS computer with the application the system chooses for it. Throws for
-    /// another machine's file.
+    /// Opens a file with the application the system chooses for it. A file of another machine is copied into the
+    /// media cache first (up to its cap: a bigger one throws with the sentence that says so) and its copy is opened.
     pub async fn open_externally(machine: String, path: String) -> Result<(), String> {
-        let local = local_path(&machine, &path)?;
-        open_path(local).await
+        let engine = engine()?;
+        let copy = {
+            let machine = machine.clone();
+            let path = path.clone();
+            run(move || {
+                let files = engine.files_of(&machine)?;
+                if let Some(local) = files.local_path(&path) {
+                    return Ok((local, None));
+                }
+                let stat = files.stat(&path).map_err(|e| e.message)?;
+                let cache = engine.media_cache();
+                let copy = files::fetch(
+                    files.as_ref(),
+                    &cache,
+                    &machine,
+                    &path,
+                    stat.size,
+                    stat.modified,
+                    &AtomicBool::new(false),
+                    &mut |_, _| {},
+                )
+                .map_err(|e| e.to_string())?;
+                Ok((copy.clone(), Some(copy)))
+            })
+            .await?
+        };
+        let (local, held) = copy;
+        let opened = open_path(local).await;
+        if let (Some(held), Ok(engine)) = (held, crate::api::engine()) {
+            // The system's app has the file open by now; the cache may take its copy away when it needs the room.
+            engine.media_cache().unpin(&held);
+        }
+        opened
     }
 
     /// The local path a dropped `file:` address names, or `undefined` for anything that is not a file of
@@ -554,28 +585,20 @@ impl Files {
     /// returns its path, so a test browses, views and uploads into a folder it owns. Throws unless
     /// `HERDR_DESKTOP_TEST=1`.
     pub fn test_tree() -> Result<String, String> {
-        if !test_seam_open() {
-            return Err(format!("The test seam is closed: set {TEST_FLAG}=1"));
+        copy_fixture("project", engine()?.test_tree_dir())
+    }
+
+    /// Test seam: copies another synthetic folder of `fixtures/files` (`media`: a Theora clip, a Vorbis song, a WAV
+    /// tone and an H.265 movie; `viewers`: a PDF, a zip and a tar.gz, a table, minified JSON, an SVG, a log and a
+    /// binary) into the data directory and returns its path. Throws unless `HERDR_DESKTOP_TEST=1`.
+    pub fn test_set(name: String) -> Result<String, String> {
+        if !matches!(name.as_str(), "media" | "viewers") {
+            return Err(format!("There is no fixture set called {name}"));
         }
-        let from = [
-            std::env::current_dir()
-                .ok()
-                .map(|d| d.join("fixtures/files/project")),
-            Some(
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("../../fixtures/files/project"),
-            ),
-        ]
-        .into_iter()
-        .flatten()
-        .find(|d| d.is_dir())
-        .ok_or_else(|| "fixtures/files/project was not found".to_owned())?;
-        let to = engine()?.test_tree_dir();
-        let _ = std::fs::remove_dir_all(&to);
-        copy_tree(&from, &to).map_err(|e| format!("cannot copy the test tree: {e}"))?;
-        to.into_os_string()
-            .into_string()
-            .map_err(|_| "the data directory is not text".to_owned())
+        let to = engine()?
+            .test_tree_dir()
+            .with_file_name(format!("test-{name}"));
+        copy_fixture(&name, to)
     }
 
     /// Calls `listener` when an upload moved or ended (at most every 100 ms while one sends); the call
@@ -640,6 +663,31 @@ fn send(
             v.message = Some(e.message.clone());
         }
     });
+}
+
+/// Copies `fixtures/files/<name>` to `to` (emptied first) and returns `to` as text.
+fn copy_fixture(name: &str, to: std::path::PathBuf) -> Result<String, String> {
+    if !test_seam_open() {
+        return Err(format!("The test seam is closed: set {TEST_FLAG}=1"));
+    }
+    let relative = format!("fixtures/files/{name}");
+    let from = [
+        std::env::current_dir().ok().map(|d| d.join(&relative)),
+        Some(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../..")
+                .join(&relative),
+        ),
+    ]
+    .into_iter()
+    .flatten()
+    .find(|d| d.is_dir())
+    .ok_or_else(|| format!("{relative} was not found"))?;
+    let _ = std::fs::remove_dir_all(&to);
+    copy_tree(&from, &to).map_err(|e| format!("cannot copy the test tree: {e}"))?;
+    to.into_os_string()
+        .into_string()
+        .map_err(|_| "the data directory is not text".to_owned())
 }
 
 fn copy_tree(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
