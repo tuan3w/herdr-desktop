@@ -4,6 +4,10 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+## [0.1.0-alpha.2] - 2026-11-07
+
+Second alpha: the chat reads code properly, macOS builds are signed with our own certificate, and the source is formatted and linted.
+
 - **macOS: one signature for every release.** The app is signed with the project's own certificate instead of a new ad hoc signature per build, so the keychain and permissions macOS remembers survive updates. It is still not notarized: the first launch needs `xattr -dr com.apple.quarantine "Herdr Desktop.app"` or `Open Anyway`.
 - **Code reads like code.** Fenced code in an agent's answer, a command and its output, an edit and the permission dock's command are drawn by one renderer: highlighted in 25 languages (more through TextMate grammars), the language in the corner, `Copy code` on hover or focus, a fold past 16 lines (`Show all N lines`), wrap and line-number switches, and edits as diffs with the changed words marked and a `+`/`−` column. An answer still being written shows its open block as it stands. `Ctrl+Shift+C` copies the code of the last answer (or of the block under the pointer), `Ctrl+Shift+Y` the whole answer; Settings > Look has wrap, line numbers, tabs and spaces, and side-by-side diffs. The file viewer draws code the same way and finds text with `Ctrl+F`.
 
