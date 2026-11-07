@@ -23,7 +23,7 @@ Anything that trusts the app by its signature (a keychain item, a granted permis
 |---|---|
 | Identity | a self-signed RSA 3072 certificate, `CN=Herdr Desktop (self-signed), O=herdr-desktop`, valid 10 years, `keyUsage=digitalSignature`, `extendedKeyUsage=codeSigning`, `CA:false` |
 | Where the key lives | `~/.herdr-desktop-signing/` of the owner (`identity.p12`, `p12.pass`, `cert.pem`, mode 0600 in a 0700 directory) and the GitHub Actions secrets `HERDR_SIGN_P12` (base64) and `HERDR_SIGN_PASSWORD`. Never in the repository (`*.p12`, `*.pem`, `*.key` are ignored) |
-| Designated requirement | `identifier "dev.herdrmobile.herdr_desktop" and certificate root = H"<hash of the certificate>"` (a self-signed certificate is its own root; CI measured exactly this form)`: it names the certificate, not the code, so it is **identical in every build signed with it** |
+| Designated requirement | `identifier "dev.herdrmobile.herdr_desktop" and certificate root = H"<hash of the certificate>"` (a self-signed certificate is its own root; CI measured exactly this form): it names the certificate, not the code, so it is **identical in every build signed with it** |
 | Why | an ad hoc signature is the hash of the code (`cdhash`) and changes with every build, so the system asked again about anything tied to the app after each update. With one certificate it does not |
 | What it does not do | Gatekeeper does not know the certificate: the first launch still needs `xattr -dr com.apple.quarantine` or `Open Anyway`. It is not notarization |
 
