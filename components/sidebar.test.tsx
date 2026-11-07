@@ -42,8 +42,29 @@ test("agents are listed under their project, and each row names the agent, its s
   expect(app.shows("label:web, This computer")).toBe(true);
   expect(app.shows("label:payments review, claude, needs you, payments, This computer")).toBe(true);
   expect(app.shows(row("Fix login flow"))).toBe(true);
-  // One healthy machine is not a header over everything.
-  expect(app.shows("label:This computer, Connected · herdr 0.9.5")).toBe(false);
+  // This computer is the default: no line of its own and no name in a header (the screen reader still hears it).
+  expect(app.texts()).not.toContain("This computer");
+});
+
+test("an expanded project header shows no count, a folded one shows how many wait", async () => {
+  const app = await ready();
+  // payments: 2 need you, 2 working, 1 to review; nothing but the rows says so while it is open (the one "2" is Board's).
+  const twos = () => app.texts().filter((t) => t === "2").length;
+  expect(twos()).toBe(1);
+  expect(app.texts().some((t) => /working|to review/.test(t))).toBe(false);
+  await app.press(FOLD_PAYMENTS);
+  expect(twos()).toBe(2);
+  expect(app.texts().some((t) => /working|to review/.test(t))).toBe(false);
+  // web waits for nothing: folded, it says nothing at all.
+  await app.press("label:Fold web");
+  expect(twos()).toBe(2);
+});
+
+test("a project header offers a plus that starts a session in its folder", async () => {
+  const app = await ready();
+  await app.press("label:New agent session in web");
+  expect(app.shows("new session dialog open")).toBe(true);
+  expect(app.shows("new session folder /home/dev/web")).toBe(true);
 });
 
 test("an agent that stops needing you keeps its place in its project, and the counts follow", async () => {

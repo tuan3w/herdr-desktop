@@ -12,7 +12,7 @@ The one hot colour is `signal` (`design/colors.md`). Everything below is about w
 4. **Shape first, thin and muted.** The five shapes (needs you = filled with a bar, working = half ring, done = check, idle = ring, unknown = dashed ring) are small and in `muted-foreground`; idle and unknown at 60% opacity; a needs-you row takes the signal colour on its shape alone. Colour was never the signal: the shape and the words are. A sidebar row is a glyph and a title; only an exception adds a word (`quiet 41m`) or a dashed glyph (stale machine). The glyph for a connected machine is a dot, never the check that means done: one glyph, one meaning.
 5. **The question is shown once, in the agent's conversation**, in the one answer dock in place of the composer (`design/board.md`). Answering many agents at once is the Board's filtered view, not a second list.
 6. **Orange text is rare.** No text is `text-signal`: not a status line, not a heading, not the status bar. A count is a number in `foreground` or `muted-foreground`. The exception is the chat's `New output` pill while the agent waits (the single mark of that agent in a chat scrolled away from its dock).
-7. **Risk is a shape, not a colour.** The `alert` icon on a risky answer chip is muted; the amber `warning` colour appears only when the chip is armed (`Press again to send`), the one moment the colour is an instruction.
+7. **Risk is a shape, not a colour.** The `alert` icon on a risky answer row is muted; the amber `warning` colour appears only when the row is armed (`Press again to send`), the one moment the colour is an instruction.
 8. **The window title and the tray count stay.** `Window.setTitle` shows `(N) Herdr Desktop`; it is the one count seen from another window.
 9. **A stale machine is said once** as an amber machine name, dashed glyphs on its rows and one footer line, never as a banner.
 
@@ -27,7 +27,7 @@ The one hot colour is `signal` (`design/colors.md`). Everything below is about w
 | status bar | none | none (connection truth only) |
 | pane or chat header | none: no state word, no mark; the dock says it in the chat | none |
 
-Decided, not built yet: the table above is the target (owner decision 2026-11-07). Done in the sidebar: a row is a glyph and a title, and the state word (`waiting for you`) is in its tooltip, no longer in a meta line. Still in the code: the home board draws a `Needs you` inbox (`NeedsYou` in `components/board.tsx`) and project cards, and `ProjectMark` dots and counts are on every sidebar header. The cutover removes them in one change. The chat header no longer carries the word (built).
+Decided; built in the sidebar: a row is a glyph and a title (the state word `waiting for you` is in its tooltip), a project header says nothing while open and one count of what waits while folded, a project names its machine in muted text (amber when stale, none for this computer) and a stale machine's rows carry the dashed glyph with no word. Not yet built: the footer line for a stale machine, the `quiet 41m` word, and removing the home board's `Needs you` inbox (`NeedsYou` in `components/board.tsx`) and project cards. The chat header no longer carries the word (built).
 
 ## Why
 
@@ -38,7 +38,7 @@ On the old `storm` screen (twenty waiting in five projects) the first view held 
 - `StatusGlyph` is quiet unless `loud` is passed.
 - `ProjectMark` is the only component that draws a project's aggregate.
 - `text-signal` is used by nothing but the chat pill (`session-transcript.tsx`); a new use is a design change (edit this file).
-- `components/board.test.tsx` pins the count of answer chips to one set.
+- `components/board.test.tsx` pins the count of answer rows to one set.
 
 ## Accessibility
 

@@ -8,21 +8,32 @@ import { statusText } from "#lib/status";
 import { fold } from "#lib/text";
 
 /**
- * What the sidebar lists and how it reads it aloud. The list is the board's projects in the board's order: machines
- * (when there is more than one, or one has a problem) hold projects, a project holds its checkouts (when it has more than
- * one) and its agents. The home shows the same projects, so the two never disagree; folding a project or the search
+ * What the sidebar lists and how it reads it aloud. The list is the board's projects in the board's order: a project
+ * names its machine in its own header (unless it is this computer) and holds its checkouts (when it has more than one)
+ * and its agents. A machine is never a line of its own: its link is the footer's. The home shows the same projects, so the two never disagree; folding a project or the search
  * narrows what is listed, nothing else.
  */
 
 /** One line of the tree. The list is virtualized, so a line is plain data and its view keeps no state. */
 export type SidebarItem =
-  | { kind: "host"; key: string; status: MachineStatus }
-  | { kind: "project"; key: string; project: BoardProject; folded: boolean }
+  | {
+      kind: "project";
+      key: string;
+      project: BoardProject;
+      folded: boolean;
+      /** The machine's name for the header, or null for this computer (the usual case says nothing). */
+      machine: string | null;
+      /** The machine is not online: the header's machine name turns amber and the rows are dashed. */
+      stale: boolean;
+    }
   | { kind: "checkout"; key: string; project: string; checkout: BoardCheckout }
   | { kind: "row"; key: string; project: string; row: BoardRow; nested: boolean }
   | { kind: "more"; key: string; project: string; count: number; open: boolean };
 
 const KEY = "herdr.sidebar.v1";
+
+/** The id of this computer's machine (`store::LOCAL_ID` in the core): `BoardProject.machine` is this for its projects. */
+const LOCAL_MACHINE = "local";
 
 /** The sidebar's width in points: the person drags its edge, and a compact window overrides it with the rail. */
 export const sidebarWidth = signal<number>(SIDEBAR_WIDTH.default);
@@ -107,18 +118,15 @@ export function projectState(project: Pick<BoardProject, "needsYou" | "working" 
 
 /**
  * What a project's header says in words, the quiet half of its one aggregate (the signal dot, when something waits, is the
- * other half). `compact` (the sidebar) is the one number that matters: `2` while something waits, else `2 working`, else
- * `1 to review`; the card lists every part: `2 waiting · 2 working · 1 to review`. Empty when all are zero.
+ * other half). `compact` (a folded sidebar header) is the one number that matters, how many wait: `2`, empty when none do
+ * (the rows that are not asking are visible or can be unfolded); the card lists every part: `2 waiting · 2 working · 1 to
+ * review`. Empty when all are zero.
  */
 export function projectSummary(
   project: Pick<BoardProject, "needsYou" | "working" | "toReview">,
   compact: boolean,
 ): string {
-  if (compact) {
-    if (project.needsYou > 0) return `${project.needsYou}`;
-    if (project.working > 0) return `${project.working} working`;
-    return project.toReview > 0 ? `${project.toReview} to review` : "";
-  }
+  if (compact) return project.needsYou > 0 ? `${project.needsYou}` : "";
   const parts: string[] = [];
   if (project.needsYou > 0) parts.push(`${project.needsYou} waiting`);
   if (project.working > 0) parts.push(`${project.working} working`);
@@ -187,10 +195,10 @@ function byCheckout(
 }
 
 /**
- * The lines to show. Machines come in the board's machine order (`statuses`) and are a header only when there is more
- * than one or one is not connected (a single healthy machine would be a header over everything). A search lists every
- * match (open, without the idle cut: a hit must not hide behind `22 more idle`) and drops projects and machines with no
- * match; a project that is folded lists only its header, and a search overrides folds.
+ * The lines to show, the board's projects in the board's order. A project carries its machine (null for this computer)
+ * and whether that machine is not online. A search lists every match (open, without the idle cut: a hit must not hide
+ * behind `22 more idle`) and drops projects with no match; a project that is folded lists only its header, and a search
+ * overrides folds.
  */
 export function sidebarItems(
   data: BoardData,
@@ -201,48 +209,37 @@ export function sidebarItems(
 ): SidebarItem[] {
   const searching = fold(query).trim() !== "";
   const out: SidebarItem[] = [];
-  const headers = statuses.length > 1 || statuses.some((s) => s.state !== "online");
-  for (const host of statuses) {
-    const lines: SidebarItem[] = [];
-    for (const project of data.projects.filter((p) => p.machine === host.id)) {
-      const rows = searching ? project.rows.filter((r) => matches(r, project.name, query)) : project.rows;
-      if (rows.length === 0) continue;
-      const isFolded = !searching && folds.includes(project.key);
-      lines.push({ kind: "project", key: `p:${project.key}`, project, folded: isFolded });
-      if (isFolded) continue;
-      const all = searching || opened.includes(project.key);
-      const { shown } = shownRows(rows, all);
-      const grouped = project.checkouts.length > 1;
-      for (const group of byCheckout(project, shown)) {
-        if (grouped && group.checkout)
-          lines.push({
-            kind: "checkout",
-            key: `c:${project.key}:${group.checkout.path}`,
-            project: project.key,
-            checkout: group.checkout,
-          });
-        for (const row of group.rows)
-          lines.push({
-            kind: "row",
-            key: row.key,
-            project: project.key,
-            row,
-            nested: grouped && group.checkout !== null,
-          });
-      }
-      const quiet = rows.filter(isQuiet).length;
-      if (!searching && quiet > QUIET_SHOWN)
-        lines.push({
-          kind: "more",
-          key: `m:${project.key}`,
+  for (const project of data.projects) {
+    const rows = searching ? project.rows.filter((r) => matches(r, project.name, query)) : project.rows;
+    if (rows.length === 0) continue;
+    const host = statuses.find((s) => s.id === project.machine);
+    const isFolded = !searching && folds.includes(project.key);
+    out.push({
+      kind: "project",
+      key: `p:${project.key}`,
+      project,
+      folded: isFolded,
+      machine: project.machine === LOCAL_MACHINE ? null : (host?.name ?? project.machineName),
+      stale: host !== undefined && host.state !== "online",
+    });
+    if (isFolded) continue;
+    const all = searching || opened.includes(project.key);
+    const { shown } = shownRows(rows, all);
+    const grouped = project.checkouts.length > 1;
+    for (const group of byCheckout(project, shown)) {
+      if (grouped && group.checkout)
+        out.push({
+          kind: "checkout",
+          key: `c:${project.key}:${group.checkout.path}`,
           project: project.key,
-          count: quiet - QUIET_SHOWN,
-          open: all,
+          checkout: group.checkout,
         });
+      for (const row of group.rows)
+        out.push({ kind: "row", key: row.key, project: project.key, row, nested: grouped && group.checkout !== null });
     }
-    if (lines.length === 0 && searching) continue;
-    if (headers) out.push({ kind: "host", key: `h:${host.id}`, status: host });
-    out.push(...lines);
+    const quiet = rows.filter(isQuiet).length;
+    if (!searching && quiet > QUIET_SHOWN)
+      out.push({ kind: "more", key: `m:${project.key}`, project: project.key, count: quiet - QUIET_SHOWN, open: all });
   }
   return out;
 }

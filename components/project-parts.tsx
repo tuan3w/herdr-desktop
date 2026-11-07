@@ -7,7 +7,7 @@ import { monogram, projectState, projectSummary } from "#lib/sidebar";
 
 /**
  * What a project says about its agents, said once: the signal dot while anything waits (the only coloured mark a project
- * carries) and the rest as muted words. In the sidebar (`compact`) that is the dot and the number; on a card it is every
+ * carries) and the rest as muted words. In a folded sidebar header (`compact`) that is the dot and how many wait, nothing when none do; on a card it is every
  * part (`2 waiting · 2 working · 1 to review`). Nothing here repeats the agents' own rows. The group is read as one phrase
  * (`2 need you, 1 working`) unless `decorative` (inside a control whose own group already says it); the dot and the words
  * are decorative either way.
@@ -20,7 +20,7 @@ export function ProjectMark(props: {
 }) {
   const p = () => props.project;
   return (
-    <If when={projectState(p()) !== ""}>
+    <If when={props.compact ? p().needsYou > 0 : projectState(p()) !== ""}>
       <View
         role={props.decorative ? undefined : "group"}
         accessibilityLabel={props.decorative ? undefined : projectState(p())}

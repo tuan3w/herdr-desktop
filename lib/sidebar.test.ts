@@ -20,10 +20,8 @@ import {
 const shape = (items: SidebarItem[]) =>
   items.map((i) => {
     switch (i.kind) {
-      case "host":
-        return `@ ${i.status.name}`;
       case "project":
-        return `# ${i.project.name}${i.folded ? " (folded)" : ""}`;
+        return `# ${i.project.name}${i.machine ? ` on ${i.machine}` : ""}${i.folded ? " (folded)" : ""}`;
       case "checkout":
         return `~ ${i.checkout.name}`;
       case "row":
@@ -34,7 +32,7 @@ const shape = (items: SidebarItem[]) =>
   });
 const one = [machine("local")];
 
-test("projects list in the board's order with their agents under them, and a single healthy machine has no header", () => {
+test("projects list in the board's order with their agents under them, and this computer is not named", () => {
   const board = boardData([
     project("api", [
       row("local/p1", { name: "blocked one", status: "blocked" }),
@@ -51,22 +49,26 @@ test("projects list in the board's order with their agents under them, and a sin
   ]);
 });
 
-test("with several machines each is a header over its own projects, and a machine with a problem is listed even alone", () => {
+test("a project on another machine names it in its header, this computer does not, and the same project on two machines is two groups", () => {
   const board = boardData([
     project("api", [row("local/p1", { name: "mine" })]),
     project("api", [row("lab/p2", { name: "theirs" })]),
   ]);
-  expect(shape(sidebarItems(board, [machine("local"), machine("lab")], "", [], []))).toEqual([
-    "@ This computer",
-    "# api",
-    "mine",
-    "@ lab",
-    "# api",
-    "theirs",
-  ]);
-  expect(shape(sidebarItems(boardData([]), [machine("local", { state: "offline" })], "", [], []))).toEqual([
-    "@ This computer",
-  ]);
+  const items = sidebarItems(board, [machine("local"), machine("lab")], "", [], []);
+  expect(shape(items)).toEqual(["# api", "mine", "# api on lab", "theirs"]);
+  expect(items.filter((i) => i.kind === "project").map((i) => i.key)).toHaveLength(2);
+  expect(new Set(items.map((i) => i.key)).size).toBe(items.length);
+});
+
+test("a project is stale when its machine is not online, and a machine with no project lists nothing", () => {
+  const board = boardData([project("api", [row("local/p1")]), project("api", [row("lab/p2", { offline: true })])]);
+  const stale = (state: "online" | "offline") =>
+    sidebarItems(board, [machine("local"), machine("lab", { state })], "", [], [])
+      .filter((i) => i.kind === "project")
+      .map((i) => i.stale);
+  expect(stale("online")).toEqual([false, false]);
+  expect(stale("offline")).toEqual([false, true]);
+  expect(sidebarItems(boardData([]), [machine("local", { state: "offline" })], "", [], [])).toEqual([]);
 });
 
 test("a folded project keeps its header and hides its agents", () => {
@@ -199,12 +201,11 @@ test("ages read as a glance wants them", () => {
   expect([null, 10, 90, 3500, 7300, 200000].map(ageText)).toEqual(["", "just now", "2 min", "58 min", "2 h", "2 d"]);
 });
 
-test("a project says what it does once: the number alone in the sidebar, every part in words on a card", () => {
+test("a folded header says how many wait, nothing else; a card lists every part", () => {
   const mixed = { needsYou: 2, working: 1, toReview: 3 };
   expect(projectSummary(mixed, true)).toBe("2");
   expect(projectSummary(mixed, false)).toBe("2 waiting · 1 working · 3 to review");
-  expect(projectSummary({ needsYou: 0, working: 2, toReview: 1 }, true)).toBe("2 working");
-  expect(projectSummary({ needsYou: 0, working: 0, toReview: 1 }, true)).toBe("1 to review");
+  expect(projectSummary({ needsYou: 0, working: 2, toReview: 1 }, true)).toBe("");
   expect(projectSummary({ needsYou: 0, working: 0, toReview: 0 }, false)).toBe("");
 });
 

@@ -12,7 +12,6 @@ import { StatusGlyph } from "#components/status-glyph";
 import {
   ActionMenu,
   Badge,
-  Btn,
   Clipped,
   compact,
   copyMenu,
@@ -139,43 +138,6 @@ function MachineGlyph(props: { status: MachineStatus }) {
   );
 }
 
-/**
- * A machine, as the quiet header of its projects: its name, how many of its agents need you, and, when it is not
- * connected, why and what happens next (with `Fix` when it needs the person). Shown when there is more than one machine
- * or one has a problem.
- */
-function Host(props: { item: () => Extract<SidebarItem, { kind: "host" }> }) {
-  const s = () => props.item().status;
-  const line = () => linkText(s());
-  const label = () => `${s().name}, ${line()}`;
-  return (
-    <View class="mt-4 gap-1">
-      <Button
-        onPress={() => machinesOpen.set(true)}
-        accessibilityLabel={label()}
-        style={hoverTransition()}
-        class={`flex-row items-center gap-2 ${ROW.nav.class} ${FILL}`}
-      >
-        <StatusGlyph status={linkGlyph(s().state)} size={12} />
-        <Clipped class="min-w-0 flex-1 text-xs font-medium text-muted-foreground">{s().name}</Clipped>
-        <Text style={NUM} class="text-xs text-muted-foreground">
-          {s().needsYou > 0 ? `${s().needsYou}` : ""}
-        </Text>
-      </Button>
-      <If when={s().state !== "online"}>
-        <Clipped lines={2} class="px-2 text-xs text-muted-foreground">
-          {line()}
-        </Clipped>
-      </If>
-      <If when={s().state === "attention"}>
-        <View class="items-start px-2 pb-1">
-          <Btn small variant="outline" label="Fix" name={`Fix ${s().name}`} onPress={() => machinesOpen.set(true)} />
-        </View>
-      </If>
-    </View>
-  );
-}
-
 /** `Review changes`: one entry for a project with one checkout, one per checkout (named by its folder) for a project with several. */
 function changesEntries(project: BoardProject) {
   const checkouts = checkoutsOf(project);
@@ -232,8 +194,9 @@ function projectEntries(project: BoardProject) {
 }
 
 /**
- * A project: fold button, name, its one aggregate (the signal dot and the number while something waits) and, on hover or
- * focus over it, its menu.
+ * A project: fold button, name, its machine (muted, amber when stale; none for this computer), while folded how many of
+ * its agents wait (the signal dot and the number) and, on hover or focus over it, a plus (a new session in its folder) and
+ * its menu.
  * The row reads its item and holds no state, because the list recycles cells.
  */
 function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> }) {
@@ -268,10 +231,25 @@ function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> 
               class="size-1.5 rounded-full bg-sidebar-foreground"
             />
           </If>
-          <ProjectMark project={p()} compact onSidebar />
+          <If when={props.item().machine !== null}>
+            <Clipped class={`shrink text-xs ${props.item().stale ? "text-warning" : "text-muted-foreground"}`}>
+              {props.item().machine ?? ""}
+            </Clipped>
+          </If>
+          <If when={props.item().folded}>
+            <ProjectMark project={p()} compact onSidebar />
+          </If>
         </View>
       </View>
-      <View class="absolute bottom-0 right-0 top-0 justify-center bg-sidebar pl-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+      <View class="absolute bottom-0 right-0 top-0 flex-row items-center bg-sidebar pl-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+        <If when={!p().offline}>
+          <IconButton
+            onSidebar
+            icon="plus"
+            label={`New agent session in ${p().name}`}
+            onPress={() => newSession({ machine: p().machine, folder: projectFolder(p()) })}
+          />
+        </If>
         <ActionMenu label={`Options for ${p().name}`} entries={projectEntries(p())} />
       </View>
     </View>
@@ -320,8 +298,8 @@ const rowDetail = (row: BoardRow) =>
     .join(" · ");
 
 /**
- * An agent in one line: its state as a quiet shape and its name. Only an exception adds a word (`offline`); the program,
- * machine and age are in the bubble and in the accessible name. The box that picks it for a bulk action takes the
+ * An agent in one line: its state as a quiet shape and its name. A stale machine's agent is a dashed ring, no word (`rowLabel` still says
+ * `offline`); the program, machine and age are in the bubble and in the accessible name. The box that picks it for a bulk action takes the
  * glyph's place on hover.
  */
 function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
@@ -359,11 +337,8 @@ function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> 
       style={hoverTransition()}
       class={`min-w-0 flex-row items-center gap-3 ${ROW.agentCompact.class} ${FILL} ${row().offline ? "opacity-60" : ""}`}
     >
-      <StatusGlyph status={row().status} id={row().key} />
+      <StatusGlyph status={row().offline ? "unknown" : row().status} id={row().key} />
       <Clipped class="min-w-0 flex-1 text-sm text-sidebar-foreground">{row().name}</Clipped>
-      <If when={row().offline}>
-        <Text class="text-xs text-muted-foreground">offline</Text>
-      </If>
     </View>
   );
 }
@@ -385,7 +360,7 @@ function More(props: { item: () => Extract<SidebarItem, { kind: "more" }> }) {
   );
 }
 
-/** The tree: machines, projects, checkouts, agents. Rows are recycled, so each reads its item and holds nothing of its own. */
+/** The tree: projects, checkouts, agents. Rows are recycled, so each reads its item and holds nothing of its own. */
 function Tree() {
   let list: ListRef | undefined;
   /** The lines in view, by key: the open agent's line is brought in only when it is not one of them. */
@@ -423,35 +398,27 @@ function Tree() {
       accessibilityLabel="Projects and agents"
     >
       {(item) => {
-        const host = ofKind(item, "host");
         const project = ofKind(item, "project");
         const checkout = ofKind(item, "checkout");
         const row = ofKind(item, "row");
         const more = ofKind(item, "more");
         return (
           <If
-            when={item().kind === "host"}
+            when={item().kind === "project"}
             else={
               <If
-                when={item().kind === "project"}
+                when={item().kind === "checkout"}
                 else={
-                  <If
-                    when={item().kind === "checkout"}
-                    else={
-                      <If when={item().kind === "row"} else={<More item={more} />}>
-                        <Agent item={row} />
-                      </If>
-                    }
-                  >
-                    <Checkout item={checkout} />
+                  <If when={item().kind === "row"} else={<More item={more} />}>
+                    <Agent item={row} />
                   </If>
                 }
               >
-                <Project item={project} />
+                <Checkout item={checkout} />
               </If>
             }
           >
-            <Host item={host} />
+            <Project item={project} />
           </If>
         );
       }}
