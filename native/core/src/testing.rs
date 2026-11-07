@@ -93,6 +93,11 @@ impl FakeHerdr {
             while !accept_shared.stop.load(Ordering::Relaxed) {
                 match listener.accept() {
                     Ok((stream, _)) => {
+                        // BSD and macOS hand the accepted socket the listener's non-blocking flag (Linux does not): a
+                        // burst of events would then fail with WouldBlock once the small socket buffer is full.
+                        if stream.set_nonblocking(false).is_err() {
+                            continue;
+                        }
                         let shared = accept_shared.clone();
                         std::thread::spawn(move || serve(stream, shared));
                     }
