@@ -13,9 +13,9 @@
 
 use std::collections::HashMap;
 
-use crate::board::{AgentRow, folder_name};
+use crate::board::{AgentRow, folder_name, real_path};
 use crate::schema::Snapshot;
-use crate::store::MachineId;
+use crate::store::{LOCAL_ID, MachineId};
 
 /// One checkout of a repository that has agents in it: the main one or a linked worktree.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,6 +71,17 @@ pub(crate) struct Directory {
     machine: MachineId,
 }
 
+/// A folder as the machine's file system names it, for this computer; any other machine's come back as given, since
+/// only that machine could resolve them. herdr reports a checkout by one path and a session log's cwd may use a link
+/// to it (`/var` is `/private/var` on macOS): both go through this before they are compared.
+fn named(machine: &MachineId, path: &str) -> String {
+    if machine == LOCAL_ID {
+        real_path(path)
+    } else {
+        path.to_owned()
+    }
+}
+
 impl Directory {
     pub(crate) fn of(machine: &MachineId, snapshot: &Snapshot) -> Self {
         let mut dir = Directory {
@@ -101,10 +112,11 @@ impl Directory {
                     // The main checkout is matched by the repository root too: a chat started in a
                     // subfolder of it belongs to it.
                     if !wt.repo_root.is_empty() && !wt.is_linked_worktree {
-                        dir.folders.push((wt.repo_root.clone(), place.clone()));
+                        dir.folders
+                            .push((named(machine, &wt.repo_root), place.clone()));
                     }
                     if let Some(c) = &place.checkout {
-                        dir.folders.push((c.path.clone(), place.clone()));
+                        dir.folders.push((named(machine, &c.path), place.clone()));
                     }
                     place
                 }
@@ -134,7 +146,8 @@ impl Directory {
     /// named after the folder.
     pub(crate) fn place_of_folder(&self, cwd: Option<&str>) -> Place {
         if let Some(cwd) = cwd.filter(|c| !c.is_empty())
-            && let Some((_, place)) = self.folders.iter().find(|(root, _)| within(cwd, root))
+            && let cwd = named(&self.machine, cwd)
+            && let Some((_, place)) = self.folders.iter().find(|(root, _)| within(&cwd, root))
         {
             // The deepest root wins, so a folder inside a linked worktree belongs to that worktree and
             // not to the main checkout whose root contains it.

@@ -992,3 +992,67 @@ fn an_unreadable_worktree_field_costs_the_grouping_not_the_snapshot() {
     );
     assert_eq!(names(&plain(&[online("local", snap)])), ["notes"]);
 }
+
+// ---- folders reached by a link ------------------------------------------------------------------
+
+/// A repository folder and a link to it, in a real temp folder: herdr names the checkout by one path, a session's log
+/// by the other (macOS: `/var` is a link to `/private/var`).
+fn linked_repo() -> (tempfile::TempDir, String, String) {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let real = dir.path().join("real");
+    std::fs::create_dir_all(real.join("src")).expect("folders");
+    let link = dir.path().join("link");
+    std::os::unix::fs::symlink(&real, &link).expect("symlink");
+    let real = std::fs::canonicalize(&real).expect("canonical");
+    let link = dir.path().join("link");
+    (
+        dir,
+        real.to_str().expect("text").to_owned(),
+        link.to_str().expect("text").to_owned(),
+    )
+}
+
+fn session_in(machine: &str, cwd: &str) -> SessionRow {
+    SessionRow {
+        cwd: cwd.into(),
+        ..session(machine, "abc234", AgentStatus::Idle, None)
+    }
+}
+
+#[test]
+fn a_chat_started_through_a_link_to_the_checkout_belongs_to_its_project() {
+    let (_dir, real, link) = linked_repo();
+    let snap = world(
+        vec![repo_workspace(
+            "w1",
+            "api",
+            ("git:api", "payments-api", &real),
+            &real,
+            false,
+        )],
+        vec![agent_in("p1", "w1", "idle", &real)],
+    );
+    let machines = [online("local", snap)];
+    let board = with_sessions(&machines, &[session_in("local", &format!("{link}/src"))]);
+    assert_eq!(names(&board), ["payments-api"], "{:?}", names(&board));
+    assert_eq!(project(&board, "payments-api").rows.len(), 2);
+}
+
+#[test]
+fn a_remote_machines_folders_are_compared_as_given() {
+    // The same shape on another machine: this computer's file system cannot say which names are one folder.
+    let (_dir, real, link) = linked_repo();
+    let snap = world(
+        vec![repo_workspace(
+            "w1",
+            "api",
+            ("git:api", "payments-api", &real),
+            &real,
+            false,
+        )],
+        vec![agent_in("p1", "w1", "idle", &real)],
+    );
+    let machines = [online("m1", snap)];
+    let board = with_sessions(&machines, &[session_in("m1", &format!("{link}/src"))]);
+    assert_eq!(board.projects.len(), 2, "{:?}", names(&board));
+}

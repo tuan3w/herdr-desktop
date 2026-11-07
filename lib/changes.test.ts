@@ -5,6 +5,7 @@ import type { ChangeView, DiffView } from "herdr-desktop/native";
 import { project, row } from "#lib/board-rows.fixture";
 import {
   agentsIn,
+  checkoutNameOf,
   branchText,
   checkoutsOf,
   fileLabel,
@@ -209,6 +210,8 @@ test("the notes are one message: what it is, then each note as place, quoted cod
   expect(notesMessage([long]).startsWith("Notes on your changes (1):")).toBe(true);
 });
 
+const same = (_machine: string, path: string) => path;
+
 test("the agents of a checkout are the online ones working in it or under it", () => {
   const rows = [
     row("m1/p1", { name: "here", cwd: "/work/app" }),
@@ -218,7 +221,24 @@ test("the agents of a checkout are the online ones working in it or under it", (
     row("m1/p5", { name: "away", cwd: "/work/app", offline: true }),
     row("m1/p6", { name: "by checkout", checkout: "/work/app" }),
   ];
-  expect(agentsIn(rows, "m1", "/work/app").map((r) => r.name)).toEqual(["here", "deeper", "by checkout"]);
+  expect(agentsIn(rows, "m1", "/work/app", same).map((r) => r.name)).toEqual(["here", "deeper", "by checkout"]);
+});
+
+test("an agent in a link to the checkout is in the checkout, trailing slash or not", () => {
+  // git reports `/private/var/x`; the agent's shell says `/var/x`. Only the machine's own file system knows they match.
+  const real = (_machine: string, path: string) => path.replace(/^\/var\//, "/private/var/");
+  const rows = [
+    row("m1/p1", { name: "linked", cwd: "/var/x" }),
+    row("m1/p2", { name: "linked below", cwd: "/var/x/src/" }),
+    row("m1/p3", { name: "linked sibling", cwd: "/var/x-2" }),
+    row("m1/p4", { name: "linked checkout", checkout: "/var/x" }),
+  ];
+  expect(agentsIn(rows, "m1", "/private/var/x/", real).map((r) => r.name)).toEqual([
+    "linked",
+    "linked below",
+    "linked checkout",
+  ]);
+  expect(agentsIn(rows, "m1", "/private/var/x", same)).toEqual([]);
 });
 
 test("a project's checkouts are its worktrees, else the folders its agents work in", () => {
@@ -238,4 +258,20 @@ test("a project's checkouts are its worktrees, else the folders its agents work 
     { path: "/x/one", name: "one" },
     { path: "/x/two", name: "two" },
   ]);
+});
+
+test("a checkout behind a link is named by its project and worktree", () => {
+  const real = (_machine: string, path: string) => path.replace(/^\/var\//, "/private/var/");
+  const projects = [
+    project("app", [], {
+      machine: "local",
+      checkouts: [
+        { path: "/private/var/x", name: "app", linked: false },
+        { path: "/private/var/x-fix", name: "x-fix", linked: true },
+      ],
+    }),
+  ];
+  expect(checkoutNameOf(projects, "local", "/var/x-fix/", real)).toBe("app \u00b7 x-fix");
+  expect(checkoutNameOf(projects, "local", "/var/x", real)).toBe("app");
+  expect(checkoutNameOf(projects, "local", "/elsewhere/tool", real)).toBe("tool");
 });

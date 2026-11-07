@@ -1,3 +1,4 @@
+import { Git } from "herdr-desktop/native";
 import { announce } from "nsh";
 
 import type { BoardProject, BoardRow, ChangeView, DiffView, GroupView, StatusView } from "herdr-desktop/native";
@@ -6,7 +7,7 @@ import {
   changesKey,
   context,
   focused,
-  folderProject,
+  projectOfFolder,
   HOME,
   inside,
   openPanel,
@@ -267,10 +268,23 @@ export function notesMessage(notes: readonly Note[], repo?: string): string {
 
 // ---- which checkout, which agent ----
 
-/** The agents of `machine` working in `root` (a checkout): rows whose folder is it or inside it, online ones. */
-export function agentsIn(rows: readonly BoardRow[], machine: string, root: string): BoardRow[] {
+/**
+ * The agents of `machine` working in `root` (a checkout): rows whose folder is it or inside it, online ones. Both sides
+ * go through `canonical` first (`Git.canonicalPath`): git names a checkout by its real path and an agent's folder may be
+ * a link to it (`/var/x` for `/private/var/x`), which raw strings never match. No case folding: the canonical text is the identity.
+ */
+export function agentsIn(
+  rows: readonly BoardRow[],
+  machine: string,
+  root: string,
+  canonical: (machine: string, path: string) => string,
+): BoardRow[] {
+  const base = canonical(machine, root).replace(/\/+$/, "");
   return rows.filter(
-    (r) => r.machine === machine && !r.offline && ((r.cwd ?? "") !== "" ? inside(r.cwd!, root) : r.checkout === root),
+    (r) =>
+      r.machine === machine &&
+      !r.offline &&
+      ((r.cwd ?? "") !== "" ? inside(canonical(machine, r.cwd!), base) : canonical(machine, r.checkout ?? "") === base),
   );
 }
 
@@ -313,11 +327,25 @@ export async function reviewChanges(): Promise<void> {
   await openChanges(at.machine, at.cwd);
 }
 
-/** The name of a checkout for a tab and a heading: the project's, with the folder's own name for a worktree. */
-export function checkoutName(machine: string, cwd: string): string {
+/**
+ * The name of a checkout of `projects` for a tab and a heading: the project's, with the folder's own name for a
+ * worktree. Folders go through `canonical` (`Git.canonicalPath`): a project lists its checkouts by git's real path and
+ * `cwd` may be a link to one.
+ */
+export function checkoutNameOf(
+  projects: readonly BoardProject[],
+  machine: string,
+  cwd: string,
+  canonical: (machine: string, path: string) => string,
+): string {
   const folder = splitPath(cwd).name || cwd;
-  const key = folderProject(machine, cwd);
-  const project = key ? board().projects.find((p) => p.key === key) : undefined;
-  const checkout = project?.checkouts.find((c) => c.path === cwd);
+  const key = projectOfFolder(projects, machine, cwd, canonical);
+  const project = key ? projects.find((p) => p.key === key) : undefined;
+  const here = canonical(machine, cwd).replace(/\/+$/, "");
+  const checkout = project?.checkouts.find((c) => canonical(machine, c.path).replace(/\/+$/, "") === here);
   return checkout?.linked ? `${project!.name} \u00b7 ${checkout.name}` : (project?.name ?? folder);
 }
+
+/** The name of a checkout for a tab and a heading, by the live board. */
+export const checkoutName = (machine: string, cwd: string): string =>
+  checkoutNameOf(board().projects, machine, cwd, Git.canonicalPath);

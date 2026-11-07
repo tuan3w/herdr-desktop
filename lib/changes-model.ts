@@ -182,7 +182,7 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
   const items = computed(() => listItems(files(), query(), marks(), folded()));
   const selected = computed(() => files().find((f) => f.path === selectedPath()));
   const reviewedCount = computed(() => files().filter((f) => isReviewed(marks(), f)).length);
-  const agents = computed(() => (revision(), agentsIn(allRows(board()), machine, root())));
+  const agents = computed(() => (revision(), agentsIn(allRows(board()), machine, root(), Git.canonicalPath)));
   const repoName = computed(() => checkoutName(machine, root()));
   const message = computed(() => notesMessage(notes(), repoName()));
   const branch = computed(() => (status() && !status()!.problem ? branchText(status()!) : ""));
@@ -241,14 +241,18 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
   }
 
   // While in front and the window is on screen (focused or not: the person watches agents work beside another window):
-  // read now, then again after `POLL_MS` (longer when a read is slow). A hidden tab and a window in the background
-  // (minimised, another desktop) read nothing; coming back reads at once.
+  // read now, then again after `POLL_MS` (longer when a read is slow). A hidden tab reads nothing, and a window in the
+  // background (minimised, another desktop) polls nothing; coming back reads at once. A tab with nothing to show yet
+  // still reads once in the background: macOS reports `background` for a window that opens covered (or that a test host
+  // never presents), and the tab stayed on its loading skeleton for good.
   effect(() => {
-    if (!active() || lifecycle() === "background") return;
+    if (!active()) return;
+    const background = lifecycle() === "background";
+    if (background && untracked(status) !== null) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const tick = () => {
       void refresh().finally(() => {
-        timer = setTimeout(tick, Math.max(POLL_MS, lastMs * SLOW_FACTOR));
+        if (!background) timer = setTimeout(tick, Math.max(POLL_MS, lastMs * SLOW_FACTOR));
       });
     };
     untracked(tick);

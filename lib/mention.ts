@@ -70,6 +70,40 @@ export function changedPaths(machine: string, root: string): string[] {
 }
 
 /**
+ * `path` relative to `root` when it lies below it, else `null`. Both go through `canonical` (`Git.canonicalPath`): git
+ * and the file system name a checkout by its real path while an agent, a tab or a dropped file may hold a link to it
+ * (`/var/x` for `/private/var/x`). Only the folder part of `path` is resolved, so a link to a file inside the project
+ * stays a file of the project. A remote machine's paths stay as given. No case folding.
+ */
+export function relativeIn(
+  machine: string,
+  root: string,
+  path: string,
+  canonical: (machine: string, path: string) => string,
+): string | null {
+  const base = canonical(machine, root).replace(/\/+$/, "");
+  const bare = path.replace(/\/+$/, "");
+  const cut = bare.lastIndexOf("/");
+  const real = cut > 0 ? `${canonical(machine, bare.slice(0, cut)).replace(/\/+$/, "")}${bare.slice(cut)}` : bare;
+  return real.startsWith(`${base}/`) && real.length > base.length + 1 ? real.slice(base.length + 1) : null;
+}
+
+/** The files git named (relative to its root `gitRoot`) that lie below `root`, relative to `root`. */
+export function changedUnder(
+  machine: string,
+  root: string,
+  gitRoot: string,
+  files: readonly string[],
+  canonical: (machine: string, path: string) => string,
+): string[] {
+  const top = canonical(machine, gitRoot).replace(/\/+$/, "");
+  return files.flatMap((f) => {
+    const rel = relativeIn(machine, root, `${top}/${f}`, canonical);
+    return rel === null ? [] : [rel];
+  });
+}
+
+/**
  * Reads the files git says changed under `root` unless the last read is younger than `CHANGED_FRESH_MS`; none when it is
  * not a checkout or git cannot say. It never makes the `@` list wait: the list shows what was known and asks again when
  * this finishes (`changedTick`).
@@ -83,11 +117,13 @@ export async function readChanged(machine: string, root: string, now: number = D
   try {
     const status = await Git.status(machine, root);
     if (!status.problem) {
-      const base = root.replace(/\/+$/, "");
-      paths = status.files
-        .map((f) => `${status.root.replace(/\/+$/, "")}/${f.path}`)
-        .filter((abs) => abs.startsWith(`${base}/`))
-        .map((abs) => abs.slice(base.length + 1));
+      paths = changedUnder(
+        machine,
+        root,
+        status.root,
+        status.files.map((f) => f.path),
+        Git.canonicalPath,
+      );
     }
   } catch {
     // Git is a convenience here: a list without the changed files is still a list.

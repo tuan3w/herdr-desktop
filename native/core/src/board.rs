@@ -335,6 +335,18 @@ pub struct BoardExtras<'a> {
     pub pins: &'a BTreeSet<String>,
 }
 
+/// `path` with its links resolved, as given when it cannot be (missing, empty, not text). Only for a folder on this
+/// computer: on macOS `/var` is a link to `/private/var`, so one folder has two names.
+pub fn real_path(path: &str) -> String {
+    if path.is_empty() {
+        return String::new();
+    }
+    std::fs::canonicalize(path)
+        .ok()
+        .and_then(|p| p.into_os_string().into_string().ok())
+        .unwrap_or_else(|| path.to_owned())
+}
+
 impl BoardExtras<'static> {
     /// Nothing besides herdr's own snapshots.
     pub const NONE: BoardExtras<'static> = BoardExtras {

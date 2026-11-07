@@ -1,4 +1,4 @@
-import { Compose, Files, Herdr } from "herdr-desktop/native";
+import { Compose, Files, Git, Herdr } from "herdr-desktop/native";
 import { announce, cleanup, computed, effect, keymap, signal, untracked } from "nsh";
 
 import type { ActionResult, DroppedView, MentionsView, PeekView, PictureView, SessionView } from "herdr-desktop/native";
@@ -36,7 +36,7 @@ import {
 } from "#lib/composer-refs";
 import { sessionKey } from "#lib/dock";
 import { sending } from "#lib/files";
-import { changedTick, noteMentioned, readChanged, searchMentions, warmMentions } from "#lib/mention";
+import { changedTick, noteMentioned, readChanged, relativeIn, searchMentions, warmMentions } from "#lib/mention";
 import { agentLabel } from "#lib/new-session";
 import { noteSent, slashMemory } from "#lib/pane-memory";
 import type { SessionPort } from "#lib/session";
@@ -171,6 +171,8 @@ export function createComposer(props: {
 
   const view = props.view;
   const off = () => composerOff(view());
+  /** `path` relative to the project when it is inside it, however the project or the path is linked. */
+  const inProject = (path: string) => relativeIn(props.machine, cwd(), path, Git.canonicalPath);
   const local = () => Herdr.machines().find((m) => m.id === props.machine)?.local ?? true;
   const cwd = () => view().cwd;
   const original = () => picturesOriginal();
@@ -532,9 +534,8 @@ export function createComposer(props: {
   // ---- a message that comes back: refused by the agent, or taken back from the queue ----
   const restore = (text: string, files: string[], pictures: { path: string; name: string; number: number }[]) => {
     value.update((now) => restoreText(now, text));
-    const base = `${cwd().replace(/\/+$/, "")}/`;
     for (const path of files) {
-      const rel = path.startsWith(base) ? path.slice(base.length) : null;
+      const rel = inProject(path);
       const folder = rel !== null && value().includes(`${rel}/`);
       const ref = rel === null ? null : mentionRefOf(rel, folder);
       if (ref && spansOf(value(), ref).length > 0) addRef(ref);
@@ -639,10 +640,9 @@ export function createComposer(props: {
   };
 
   const attachLocal = (path: string) => {
-    const base = `${cwd().replace(/\/+$/, "")}/`;
-    if (local() && path.startsWith(base)) {
+    const rel = local() ? inProject(path) : null;
+    if (rel !== null) {
       // A file of the project is mentioned: its words and its chip say where it is.
-      const rel = path.slice(base.length);
       if (!activeRefs(value(), known()).some((r) => r.kind === "mention" && r.rel === rel)) mentionIn(rel, false);
       return;
     }
@@ -696,9 +696,8 @@ export function createComposer(props: {
 
   const attachFromProject = (paths: string[]) => {
     for (const p of paths) {
-      const base = `${cwd().replace(/\/+$/, "")}/`;
-      if (p.startsWith(base)) {
-        const rel = p.slice(base.length);
+      const rel = inProject(p);
+      if (rel !== null) {
         if (!activeRefs(value(), known()).some((r) => r.kind === "mention" && r.rel === rel)) mentionIn(rel, false);
       } else attached.update((all) => (all.includes(p) ? all : [...all, p]));
     }
@@ -748,8 +747,7 @@ export function createComposer(props: {
     try {
       for (const p of pictures()) {
         const saved = await Compose.saveToProject(props.machine, cwd(), p.path, p.name);
-        const base = `${cwd().replace(/\/+$/, "")}/`;
-        const rel = saved.path.startsWith(base) ? saved.path.slice(base.length) : saved.path;
+        const rel = inProject(saved.path) ?? saved.path;
         const ref = mentionRefOf(rel, false);
         ref.path = saved.path;
         addRef(ref);
@@ -781,13 +779,12 @@ export function createComposer(props: {
 
   const mentionPath = (path: string) => {
     if (off() !== null) return;
-    const base = `${cwd().replace(/\/+$/, "")}/`;
-    if (!path.startsWith(base)) {
+    const rel = inProject(path);
+    if (rel === null) {
       attached.update((all) => (all.includes(path) ? all : [...all, path]));
       announce(`${path.split("/").pop()} attached`);
       return;
     }
-    const rel = path.slice(base.length).replace(/\/+$/, "");
     if (!activeRefs(value(), known()).some((r) => r.kind === "mention" && r.rel === rel)) mentionIn(rel, false);
     field?.focus();
   };

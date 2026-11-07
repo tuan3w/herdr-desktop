@@ -1,5 +1,6 @@
 import { expect, test } from "nsh/test";
 
+import type { BoardProject } from "herdr-desktop/native";
 import type { DockAreaLayout } from "nsh/base";
 
 import {
@@ -18,6 +19,7 @@ import {
   panelsOf,
   paneKey,
   parsePaneKey,
+  projectOfFolder,
   parseSessionKey,
   readDock,
   readLayout,
@@ -254,4 +256,28 @@ test("the tab a layout comes back to is the one asked for, else the board of the
   expect(restoreFocus(layout, "pane:local/gone", false)).toBe(B);
   expect(restoreFocus(split([BOARD, A]), "pane:local/gone", true)).toBe(BOARD);
   expect(restoreFocus(emptyLayout(), A, false)).toBe("");
+});
+
+// macOS: git names a checkout by its real path (`/private/var/...`), a tab or an agent may hold the link (`/var/...`).
+const real = (_machine: string, path: string) => (path.startsWith("/var/") ? `/private${path}` : path);
+const project = (key: string, checkouts: string[], cwds: string[] = [], machine = "local") =>
+  ({
+    key,
+    machine,
+    checkouts: checkouts.map((path) => ({ path, name: path, linked: false })),
+    rows: cwds.map((cwd) => ({ cwd })),
+  }) as unknown as BoardProject;
+
+test("a folder reached by a link finds the project whose checkout is its real path, and the other way round", () => {
+  const projects = [project("local/a", ["/private/var/x/"]), project("local/b", ["/var/y"])];
+  expect(projectOfFolder(projects, "local", "/var/x/src", real)).toBe("local/a");
+  expect(projectOfFolder(projects, "local", "/private/var/y", real)).toBe("local/b");
+  // An agent's own folder is a checkout too.
+  expect(projectOfFolder([project("local/c", [], ["/var/z"])], "local", "/private/var/z", real)).toBe("local/c");
+});
+
+test("a folder in no project, or only in another machine's, finds none", () => {
+  const projects = [project("m1/a", ["/var/x"], [], "m1")];
+  expect(projectOfFolder(projects, "local", "/var/x", real)).toBeNull();
+  expect(projectOfFolder([project("local/a", ["/var/x"])], "local", "/var/xy", real)).toBeNull();
 });

@@ -1,5 +1,7 @@
+import { Git } from "herdr-desktop/native";
 import { announce, effect, signal, Storage } from "nsh";
 
+import type { BoardProject } from "herdr-desktop/native";
 import type { DockAreaLayout, DockAreaRef, DockNode, Placement } from "nsh/base";
 
 import { board, projectOf, rowOf } from "#lib/herdr";
@@ -510,21 +512,35 @@ export const inside = (path: string, root: string): boolean => {
 };
 
 /**
- * The project a folder on a machine belongs to: the one with a checkout that holds it (the deepest wins), else one whose
- * agent works in it. `null` when the board knows none.
+ * The project of `projects` a folder on a machine belongs to: the one with a checkout that holds it (the deepest wins),
+ * else one whose agent works in it. `null` when none does.
  */
-export function folderProject(machine: string, cwd: string): string | null {
+export function projectOfFolder(
+  projects: readonly BoardProject[],
+  machine: string,
+  cwd: string,
+  canonical: (machine: string, path: string) => string,
+): string | null {
+  const here = canonical(machine, cwd);
   let best: { key: string; depth: number } | null = null;
-  for (const project of board().projects) {
+  for (const project of projects) {
     if (project.machine !== machine) continue;
     const folders = [...project.checkouts.map((c) => c.path), ...project.rows.flatMap((r) => (r.cwd ? [r.cwd] : []))];
-    for (const folder of folders) {
-      if ((inside(cwd, folder) || inside(folder, cwd)) && (best === null || folder.length > best.depth))
+    for (const raw of folders) {
+      const folder = canonical(machine, raw);
+      if ((inside(here, folder) || inside(folder, here)) && (best === null || folder.length > best.depth))
         best = { key: project.key, depth: folder.length };
     }
   }
   return best?.key ?? null;
 }
+
+/**
+ * The project a folder on a machine belongs to, by the live board. Folders go through `Git.canonicalPath` first: git
+ * names a checkout by its real path and a tab or an agent may hold a link to it. A remote machine's stay as given.
+ */
+export const folderProject = (machine: string, cwd: string): string | null =>
+  projectOfFolder(board().projects, machine, cwd, Git.canonicalPath);
 
 /** The context a panel belongs to: the home for the board, the project of its agent's row or of its checkout, `null` when that is not known (a shell pane, an agent the board has not listed yet). */
 export function homeOf(key: string): string | null {

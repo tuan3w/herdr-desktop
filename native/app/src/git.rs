@@ -8,6 +8,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use herdr_core::board::real_path;
 use herdr_core::git::{self, ChangeKind, DiffOptions, GitErrorKind};
 use nsh_core::prelude::*;
 
@@ -381,6 +382,18 @@ impl Git {
         .await
     }
 
+    /// `path` as the file system names it (links resolved), for a folder on this computer; any other machine's
+    /// path comes back as it was given, since only that machine can resolve it. Git reports a checkout by its real
+    /// path while an agent's folder may be a link to it (`/var` is `/private/var` on macOS), so the two are compared
+    /// after this. A path that does not exist is returned as given.
+    pub fn canonical_path(machine: String, path: String) -> Result<String, String> {
+        Ok(if engine()?.is_local_machine(&machine)? {
+            real_path(&path)
+        } else {
+            path
+        })
+    }
+
     /// Test seam: builds a synthetic repository in the data directory and returns its path. `kind` is `project` (every
     /// kind of change: edits in two places, a deletion, a staged move, new files, a binary one), `clean`, `many` (520
     /// changed files), `big` (a 5,000-line change), `conflict` or `plain` (a folder that is not a repository). Throws
@@ -686,5 +699,33 @@ fn build_repo(dir: &Path, kind: &str) -> Result<(), String> {
             sh(dir, &["commit", "-q", "-m", "Clean"])
         }
         other => Err(format!("`{other}` is not a test repository")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_link_to_a_folder_names_the_folder_git_reports() {
+        // macOS's `/var` is a link to `/private/var`; git names a checkout by its real path, an agent may not.
+        let dir = tempfile::tempdir().expect("temp dir");
+        let real = dir.path().join("real");
+        std::fs::create_dir_all(real.join("sub")).expect("folders");
+        let link = dir.path().join("link");
+        std::os::unix::fs::symlink(&real, &link).expect("symlink");
+        let expected = std::fs::canonicalize(&real).expect("canonical");
+        let expected = expected.to_str().expect("text");
+        assert_eq!(real_path(link.to_str().expect("text")), expected);
+        assert_eq!(
+            real_path(link.join("sub").to_str().expect("text")),
+            format!("{expected}/sub")
+        );
+    }
+
+    #[test]
+    fn a_folder_that_does_not_exist_is_returned_as_it_was_given() {
+        assert_eq!(real_path("/no/such/folder/here"), "/no/such/folder/here");
+        assert_eq!(real_path(""), "");
     }
 }
