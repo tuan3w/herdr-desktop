@@ -471,6 +471,8 @@ pub struct BoardData {
     pub idle: Vec<BoardRow>,
     /// Idle agents beyond the five listed.
     pub more_idle: usize,
+    /// The idle rows beyond the five, in the same order (`more_idle` is its length): what `N more idle` opens.
+    pub idle_rest: Vec<BoardRow>,
     /// The numbers behind the status line, the window title and notifications.
     pub counts: BoardCounts,
     /// `2 need you · 3 to review · 3 working · heard just now`; `nothing running`; `1 not connected`.
@@ -502,6 +504,7 @@ impl BoardData {
             working: rows(&b.working),
             idle: rows(&b.idle),
             more_idle: b.more_idle,
+            idle_rest: rows(&b.idle_rest),
             counts: BoardCounts {
                 needs_you: c.needs_you,
                 to_review: c.to_review,
@@ -529,6 +532,10 @@ pub struct PaneMeta {
     pub cwd: Option<String>,
     /// What it is doing (`unknown` for a plain terminal).
     pub status: AgentState,
+    /// The pane's workspace (empty when herdr no longer has the pane).
+    pub workspace_id: String,
+    /// The pane's tab (empty when herdr no longer has the pane).
+    pub tab_id: String,
     /// The workspace's name.
     pub workspace_label: String,
     /// The tab's name.
@@ -549,6 +556,8 @@ impl From<PaneSummary> for PaneMeta {
             agent: s.agent,
             cwd: s.cwd,
             status: s.status.into(),
+            workspace_id: s.workspace_id,
+            tab_id: s.tab_id,
             workspace_label: s.workspace_label,
             tab_label: s.tab_label,
             machine_name: s.machine_name,

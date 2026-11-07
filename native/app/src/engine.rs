@@ -333,6 +333,10 @@ pub struct PaneSummary {
     pub cwd: Option<String>,
     /// What it is doing (`Unknown` for a plain terminal).
     pub status: AgentStatus,
+    /// The pane's workspace.
+    pub workspace_id: String,
+    /// The pane's tab.
+    pub tab_id: String,
     /// The workspace's name.
     pub workspace_label: String,
     /// The tab's name.
@@ -610,6 +614,8 @@ impl Fleet {
             agent: String::new(),
             cwd: pane.and_then(|p| p.cwd.clone()),
             status: AgentStatus::Unknown,
+            workspace_id: workspace_id.to_owned(),
+            tab_id: tab_id.to_owned(),
             workspace_label: label(workspace_id),
             tab_label,
             machine_name: info.name,

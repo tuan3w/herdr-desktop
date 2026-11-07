@@ -195,7 +195,7 @@ export function Field(props: TextProps) {
  * than the live one. Escape clears what was typed while the box has the focus (and does nothing, so the screen's own Escape
  * works, when it is empty).
  */
-export function SearchField(props: { value: string; onChange: (v: string) => void; placeholder: string; onSubmit?: () => void }) {
+export function SearchField(props: { value: string; onChange: (v: string) => void; placeholder: string; onSubmit?: () => void; /** The field's ref, for a shortcut that takes the focus to it (a view cannot take the focus from code, an input can). */ inputRef?: (ref: InputRef) => void }) {
   let field: InputRef | undefined;
   const focused = signal(false);
   const clear = () => {
@@ -211,6 +211,7 @@ export function SearchField(props: { value: string; onChange: (v: string) => voi
       <Input
         ref={(node: InputRef) => {
           field = node;
+          props.inputRef?.(node);
         }}
         value={props.value}
         onChange={({ value }) => props.onChange(value)}

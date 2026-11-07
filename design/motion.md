@@ -53,7 +53,7 @@ Exits are about 25% faster than enters: leaving should feel quieter than arrivin
 
 1. Animate only `transform`, `opacity` and colors. Never `width`, `height`, `top`, `left`, `margin` or `padding`.
 2. `transitionProperty` is always named (`"colors"`). Never `"all"`: it also eases layout properties you did not mean to touch.
-3. Every new motion goes through a helper in `lib/motion.ts`, or through `createMotion`, which lands on the end state without moving under reduced motion. Helpers return `undefined` or do nothing under `reduceMotion()`. A screen never reads `reduceMotion()` itself.
+3. Every new motion goes through a helper in `lib/motion.ts`, or through `createMotion`, which lands on the end state without moving under reduced motion. Helpers return `undefined` or do nothing under `reducedMotion()` (`lib/motion.ts`: the system's request, or Settings > Reduce motion). A screen never reads nsh's `reduceMotion()` itself. Limit: nsh applies only the system setting to `motion-reduce:` classes, its own `Dialog` fade and a `createMotion` `enter` (the `CheckRow` tick), so the app's setting cannot stop those.
 4. Drive a scale or fade with `createMotion` (`style={motion.style}`) and `Animated.timing(motion.scale, ...)`. Do not use a `transform` in `Button`'s `activeStyle`: the host rendered the new fill and ignored the transform (tried at 0.96 and 0.7).
 5. Entrances start from at least 0.95 scale (check mark is the exception: a 12pt glyph) and never from 0 for a surface.
 6. Use `EASE_OUT` for entrances and presses. Do not use `ease-in`: it starts slow, so a 200ms entrance feels like 300ms.
@@ -79,7 +79,7 @@ const press = props.small || props.still ? undefined : pressFeedback();
 ## Adding motion
 
 1. Is it pointer-triggered and rare enough to be noticed? If it is keyboard-driven or repeated, stop.
-2. Add the value and helper to `lib/motion.ts`, a no-op under `reduceMotion()`.
+2. Add the value and helper to `lib/motion.ts`, a no-op under `reducedMotion()`.
 3. Add a row to the tables above.
 4. Test the reduced-motion path: `open("./App.tsx", { ...DESKTOP, reducedMotion: true })`.
 5. Look at it: `nsh test` plus `app.screenshot(path)`; `--trace` shows the transition and animation ops headless.

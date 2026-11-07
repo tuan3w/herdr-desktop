@@ -12,6 +12,7 @@ export { FieldRow, INPUT_CLASS, Field, Labeled, type Option, SearchField } from 
 export { SelectField } from "./select";
 export { Clipped, Kbd, Tipped } from "./hint";
 export { Skeleton, Spinner } from "./loading";
+export { NumberField, type NumberFieldProps } from "./number-field";
 export { Progress } from "./progress";
 export { RadioGroup, RadioItem } from "./radio-group";
 export { ActionMenu, type MenuAction, type MenuEntry, type MenuGroup, RowMenu } from "./menu";

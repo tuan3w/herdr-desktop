@@ -1,5 +1,14 @@
 import { Animated, createMotion, effect, type Easing, reduceMotion } from "nsh";
 import type { ViewStyle } from "nsh/types";
+import { reduceMotionOverride } from "./settings";
+
+/**
+ * Less motion is wanted: the system asks for it, or the person set Settings > Reduce motion. Every motion in the app
+ * reads this, never `reduceMotion()`. Limit: nsh applies the system setting itself to `motion-reduce:` classes, to its
+ * own `Dialog` fade and to a `createMotion` `enter`; the app's setting cannot reach those, so a dialog still fades and
+ * the check mark of a `CheckRow` still pops in when only the app's setting is on.
+ */
+export const reducedMotion = (): boolean => reduceMotion() || reduceMotionOverride();
 
 /** Milliseconds. Exits run ~25% faster than enters. */
 export const DURATION = { press: 120, hover: 150, pop: 160, enter: 220, exit: 160 } as const;
@@ -14,13 +23,13 @@ const PRESS: ViewStyle = { transitionProperty: "colors", transitionDuration: DUR
 const HOVER: ViewStyle = { transitionProperty: "colors", transitionDuration: DURATION.hover, transitionTimingFunction: "ease-out" };
 
 /** `style` of a `Btn`: its press and hover color changes ease. None when the user asks for less motion. */
-export const pressTransition = (): ViewStyle | undefined => (reduceMotion() ? undefined : PRESS);
+export const pressTransition = (): ViewStyle | undefined => (reducedMotion() ? undefined : PRESS);
 /** `style` of a hover-only row, tab or trigger: color changes ease. */
-export const hoverTransition = (): ViewStyle | undefined => (reduceMotion() ? undefined : HOVER);
+export const hoverTransition = (): ViewStyle | undefined => (reducedMotion() ? undefined : HOVER);
 
 const MOVE: ViewStyle = { transitionProperty: "transform", transitionDuration: DURATION.pop, transitionTimingFunction: "ease-out" };
 /** `style` of a part that slides (the switch thumb): `transform` eases. None under reduced motion. */
-export const moveTransition = (): ViewStyle | undefined => (reduceMotion() ? undefined : MOVE);
+export const moveTransition = (): ViewStyle | undefined => (reducedMotion() ? undefined : MOVE);
 
 /**
  * Depress feedback for one pressable. Spread `style` onto the `Button`, call `down` from `onPressDown` and `up`
@@ -31,7 +40,7 @@ export const moveTransition = (): ViewStyle | undefined => (reduceMotion() ? und
 export function pressFeedback() {
   const motion = createMotion();
   const to = (scale: number) => {
-    if (reduceMotion()) return;
+    if (reducedMotion()) return;
     Animated.timing(motion.scale, { toValue: scale, duration: DURATION.press, easing: EASE_OUT }).start();
   };
   return { style: motion.style, down: () => to(PRESS_SCALE), up: () => to(1) };
@@ -44,7 +53,7 @@ export function pressFeedback() {
 export function enterScale(open: () => boolean) {
   const motion = createMotion();
   effect(() => {
-    if (open()) void motion.play({ keyframes: { scale: [ENTER_SCALE, 1] }, duration: DURATION.enter, easing: EASE_OUT });
+    if (open() && !reducedMotion()) void motion.play({ keyframes: { scale: [ENTER_SCALE, 1] }, duration: DURATION.enter, easing: EASE_OUT });
   });
   return motion.style;
 }

@@ -1,7 +1,7 @@
-import { announce, cleanup, effect, keymap, Overlay, reduceMotion, setAccessibilityFocus, signal, Text, View } from "nsh";
+import { announce, cleanup, effect, keymap, Overlay, setAccessibilityFocus, signal, Text, View } from "nsh";
 import type { ViewRef } from "nsh/types";
 import { Toast, ToastStack } from "nsh/base";
-import { DURATION } from "../../lib/motion";
+import { DURATION, reducedMotion } from "../../lib/motion";
 import { keyLabel } from "../../lib/shortcuts";
 import { FOCUS_RING } from "./core";
 import { dialogDepth, topDialog } from "./dialog-stack";
@@ -62,7 +62,7 @@ const KEEP = 30;
 const TIMEOUT = { undo: 10000, plain: 3500, lasting: 30000 } as const;
 const APP_ROOT = "app";
 
-const store = createToasts<Data>({ limit: VISIBLE, keep: KEEP, timeout: TIMEOUT.plain, exitMs: () => (reduceMotion() ? 0 : DURATION.exit) });
+const store = createToasts<Data>({ limit: VISIBLE, keep: KEEP, timeout: TIMEOUT.plain, exitMs: () => (reducedMotion() ? 0 : DURATION.exit) });
 const shown = signal<ToastRecord<Data>[]>([]);
 const region = signal(false);
 const nodes = new Map<string, ViewRef>();

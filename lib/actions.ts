@@ -1,0 +1,433 @@
+import { announce, openUrl, signal } from "nsh";
+import type { Accessor } from "nsh";
+import type { MenuItem } from "nsh/desktop";
+import { Herdr } from "herdr-desktop/native";
+import type { BoardData, BoardRow, PaneMeta } from "herdr-desktop/native";
+import { confirmDestructive, notify, rail, undoLast } from "../components/kit";
+import { closeTab, focused, focusedPane, groupOf, groups, lastPane, layout, moveFocused, openPane, openPanel, removePanel, selectNth, showBoard } from "./dock";
+import { allRows, board, meta } from "./herdr";
+import { focusComposer, searchInPane, showLinks, toggleCapture } from "./pane-input";
+import { perfOpen } from "./perf";
+import { sidebarCollapsed, themeId } from "./settings";
+import { type GlobalShortcut, GLOBAL, keysOf, type ShortcutGroup } from "./shortcuts";
+import { THEMES } from "./theme/themes";
+
+/**
+ * Everything the person can do from the keyboard, the palette or the menu, once. `globalActions` has one handler per
+ * entry of `GLOBAL` (a shortcut without one does not compile), `actions()` lists them and the extras for the palette,
+ * `appMenu()` builds the application menu from the same handlers, and `runAction(id)` runs any of them by id.
+ */
+
+/** Which dialogs are open. They live here so a key, a menu item and a palette entry open the same one. */
+export const palette = signal(false);
+export const shortcutsOpen = signal(false);
+export const settingsOpen = signal(false);
+export const machinesOpen = signal(false);
+export const newAgentOpen = signal(false);
+
+/** A name being asked for: a new workspace or tab, or a rename. `components/name-dialog.tsx` shows it. */
+export interface NameRequest {
+  title: string;
+  initial?: string;
+  confirm: string;
+  onSubmit: (name: string) => void;
+}
+export const naming = signal<NameRequest | null>(null);
+
+/** The sidebar's search field takes the focus here: a view cannot take it from code, an input can. */
+export const sidebarSearch: { focus?: () => void } = {};
+
+export const ACCESSIBILITY_GUIDE = "https://github.com/tuan3w/herdr-desktop/blob/main/docs/ACCESSIBILITY.md";
+
+// ---- what the agents need ----
+
+/**
+ * The agents to visit with Next and Previous: those that need you, longest waiting first, then finished ones not yet
+ * reviewed, newest first. An agent on a machine that is not connected is not in it, as it is not in the counts.
+ */
+export function attentionOrder(data: BoardData): BoardRow[] {
+  return [...data.needsYou, ...data.toReview].filter((r) => !r.offline);
+}
+
+/** The agent after (`1`) or before (`-1`) `current` in `order`, wrapping; from outside the list: the first, or the last going back. */
+export function stepAttention(order: readonly BoardRow[], current: { machine: string; pane: string } | null, step: 1 | -1): BoardRow | undefined {
+  if (order.length === 0) return undefined;
+  const at = current ? order.findIndex((r) => r.machine === current.machine && r.paneId === current.pane) : -1;
+  if (at < 0) return step === 1 ? order[0] : order[order.length - 1];
+  return order[(at + step + order.length) % order.length];
+}
+
+function goAttention(step: 1 | -1): void {
+  const row = stepAttention(attentionOrder(board()), focusedPane(), step);
+  if (!row) {
+    announce("Nothing needs you");
+    return;
+  }
+  // Opening an agent that waits for an answer puts the cursor in the reply box: the person came to answer.
+  void openPane(row.machine, row.paneId, { reply: row.status === "blocked" });
+  announce(`${row.name}, ${row.status === "blocked" ? "needs you" : "finished"}, ${row.machineName}`);
+}
+
+// ---- where a pane lives ----
+
+/** Where panes made here live in herdr: a shell pane is not an agent, so the board has no row for it. */
+const made = new Map<string, { workspaceId: string; tabId: string }>();
+
+const metas = new Map<string, Accessor<PaneMeta | null>>();
+function paneMeta(machine: string, pane: string): PaneMeta | null {
+  const key = `${machine}/${pane}`;
+  let one = metas.get(key);
+  if (!one) {
+    one = meta(machine, pane);
+    metas.set(key, one);
+  }
+  return one();
+}
+
+/** The focused pane with what the commands on it need; `null` on the board. */
+interface Here {
+  machine: string;
+  pane: string;
+  name: string;
+  workspaceId?: string;
+  tabId?: string;
+  workspaceLabel: string;
+  tabLabel: string;
+}
+
+function here(): Here | null {
+  const at = focusedPane();
+  if (!at) return null;
+  const row = allRows(board()).find((r) => r.machine === at.machine && r.paneId === at.pane);
+  const where = row ?? made.get(`${at.machine}/${at.pane}`);
+  const m = paneMeta(at.machine, at.pane);
+  return {
+    ...at,
+    name: m?.name ?? row?.name ?? at.pane,
+    workspaceId: where?.workspaceId,
+    tabId: where?.tabId,
+    workspaceLabel: m?.workspaceLabel ?? "",
+    tabLabel: m?.tabLabel ?? "",
+  };
+}
+
+/** The machine a new workspace goes to: the one the person is working on, else this computer. */
+function targetMachine(): string {
+  return focusedPane()?.machine ?? Herdr.machines().find((m) => m.enabled)?.id ?? "local";
+}
+
+const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
+async function openMade(machine: string, created: { workspaceId: string; tabId: string; paneId: string }): Promise<void> {
+  made.set(`${machine}/${created.paneId}`, { workspaceId: created.workspaceId, tabId: created.tabId });
+  await openPane(machine, created.paneId);
+}
+
+function fail(what: string, e: unknown): void {
+  notify(`${what}: ${message(e)}`, { type: "error" });
+}
+
+function newWorkspace(): void {
+  const machine = targetMachine();
+  naming.set({
+    title: "New workspace",
+    confirm: "Create",
+    onSubmit: (name) => {
+      Herdr.createWorkspace(machine, name, null).then(
+        (created) => openMade(machine, created),
+        (e) => fail("Could not create the workspace", e),
+      );
+    },
+  });
+}
+
+function newTab(): void {
+  const at = here();
+  if (!at?.workspaceId) return;
+  const { machine, workspaceId } = at;
+  naming.set({
+    title: "New tab",
+    confirm: "Create",
+    onSubmit: (name) => {
+      Herdr.createTab(machine, workspaceId!, name, null).then(
+        (created) => openMade(machine, created),
+        (e) => fail("Could not create the tab", e),
+      );
+    },
+  });
+}
+
+function rename(kind: "workspace" | "tab" | "pane"): void {
+  const at = here();
+  if (!at) return;
+  const { machine } = at;
+  const initial = kind === "workspace" ? at.workspaceLabel : kind === "tab" ? at.tabLabel : at.name;
+  naming.set({
+    title: `Rename ${kind}`,
+    initial,
+    confirm: "Rename",
+    onSubmit: (name) => {
+      const done =
+        kind === "workspace" ? Herdr.renameWorkspace(machine, at.workspaceId!, name) : kind === "tab" ? Herdr.renameTab(machine, at.tabId!, name) : Herdr.renamePane(machine, at.pane, name);
+      done.then(
+        () => announce(`Renamed ${kind}`),
+        (e) => fail(`Could not rename the ${kind}`, e),
+      );
+    },
+  });
+}
+
+async function splitHerdrPane(direction: "right" | "down"): Promise<void> {
+  const at = here();
+  if (!at) return;
+  try {
+    const pane = await Herdr.splitPane(at.machine, at.pane, direction);
+    if (at.workspaceId) made.set(`${at.machine}/${pane}`, { workspaceId: at.workspaceId, tabId: at.tabId ?? "" });
+    await openPane(at.machine, pane);
+  } catch (e) {
+    fail("Could not split the pane", e);
+  }
+}
+
+/** What closing in herdr takes with it, said before it happens: these cannot be taken back. */
+async function closeInHerdr(kind: "pane" | "tab" | "workspace"): Promise<void> {
+  const at = here();
+  if (!at) return;
+  const label = kind === "pane" ? at.name : kind === "tab" ? at.tabLabel : at.workspaceLabel;
+  const taken = kind === "pane" ? "what runs in it" : kind === "tab" ? "every pane in it and what runs there" : "every tab and pane in it and what runs there";
+  const ok = await confirmDestructive({
+    title: `Close ${kind} “${label}”?`,
+    description: `This stops ${taken}, on ${paneMeta(at.machine, at.pane)?.machineName ?? at.machine}. It cannot be undone.`,
+    action: `Close ${kind}`,
+  });
+  if (!ok) return;
+  try {
+    if (kind === "pane") await Herdr.closePane(at.machine, at.pane);
+    else if (kind === "tab") await Herdr.closeTab(at.machine, at.tabId!);
+    else await Herdr.closeWorkspace(at.machine, at.workspaceId!);
+    // The tab was the view of what is gone; the other panes of a closed tab or workspace show `Agent gone` until closed.
+    removePanel(focused());
+    notify(`Closed ${kind} ${label}`);
+  } catch (e) {
+    fail(`Could not close the ${kind}`, e);
+  }
+}
+
+// ---- global actions ----
+
+function toggleSidebar(): void {
+  const before = rail();
+  sidebarCollapsed.update((c) => !c);
+  // A compact window forces the rail, so the setting then changes nothing anyone sees or hears.
+  if (rail() !== before) announce(rail() ? "Sidebar collapsed" : "Sidebar expanded");
+}
+
+function focusSidebar(): void {
+  // Narrow window: the rail is forced and has no field to take the focus.
+  if (rail() && sidebarCollapsed()) sidebarCollapsed.set(false);
+  if (rail()) {
+    announce("The window is too narrow for the sidebar: widen it");
+    return;
+  }
+  // The field exists once the expanded sidebar has rendered.
+  setTimeout(() => sidebarSearch.focus?.(), 0);
+}
+
+async function focusPaneArea(): Promise<void> {
+  if (!focusedPane()) {
+    const last = lastPane();
+    if (!last) {
+      announce("No pane is open");
+      return;
+    }
+    await openPanel(last);
+  }
+  focusComposer();
+}
+
+function needPane(then: () => void): () => void {
+  return () => {
+    if (focusedPane()) then();
+    else announce("Open a pane first");
+  };
+}
+
+/** One handler per global shortcut; `App.tsx` binds every key of `GLOBAL` to these. */
+export const globalActions: Record<GlobalShortcut, () => void> = {
+  palette: () => palette.set(true),
+  undo: () => undoLast(),
+  nextAttention: () => goAttention(1),
+  prevAttention: () => goAttention(-1),
+  board: () => void showBoard(),
+  focusPane: () => void focusPaneArea(),
+  focusSidebar: focusSidebar,
+  sidebar: toggleSidebar,
+  tab1: () => selectNth(1),
+  tab2: () => selectNth(2),
+  tab3: () => selectNth(3),
+  tab4: () => selectNth(4),
+  tab5: () => selectNth(5),
+  tab6: () => selectNth(6),
+  tab7: () => selectNth(7),
+  tab8: () => selectNth(8),
+  tab9: () => selectNth(9),
+  closeTab: () => closeTab(focused()),
+  splitRight: () => void moveFocused("right"),
+  splitDown: () => void moveFocused("bottom"),
+  capture: needPane(toggleCapture),
+  search: needPane(searchInPane),
+  newAgent: () => newAgentOpen.set(true),
+  settings: () => settingsOpen.set(true),
+  shortcuts: () => shortcutsOpen.update((open) => !open),
+  devPanel: () => perfOpen.update((open) => !open),
+};
+
+/** Commands that have no shortcut of their own, by palette id. */
+const extra: Record<string, () => void> = {
+  newWorkspace,
+  newTab,
+  renameWorkspace: () => rename("workspace"),
+  renameTab: () => rename("tab"),
+  renamePane: () => rename("pane"),
+  splitHerdrRight: () => void splitHerdrPane("right"),
+  splitHerdrDown: () => void splitHerdrPane("down"),
+  closePane: () => void closeInHerdr("pane"),
+  closeHerdrTab: () => void closeInHerdr("tab"),
+  closeWorkspace: () => void closeInHerdr("workspace"),
+  machines: () => machinesOpen.set(true),
+  links: needPane(showLinks),
+  moveRight: () => void moveFocused("right"),
+  moveDown: () => void moveFocused("bottom"),
+  moveLeft: () => void moveFocused("left"),
+  moveUp: () => void moveFocused("top"),
+  moveOther: () => void moveFocused("other"),
+  accessibilityGuide: () => void openUrl(ACCESSIBILITY_GUIDE),
+};
+
+/** Runs a command by the id `actions()` gave it (a palette choice, a menu item). A theme is `theme:<id>`, a tab `tab:<key>`. */
+export function runAction(id: string): void {
+  if (id.startsWith("theme:")) {
+    themeId.set(id.slice("theme:".length));
+    return;
+  }
+  if (id.startsWith("tab:")) {
+    void openPanel(id.slice("tab:".length));
+    return;
+  }
+  const run = (globalActions as Record<string, (() => void) | undefined>)[id] ?? extra[id];
+  run?.();
+}
+
+// ---- the list ----
+
+export interface Action {
+  id: string;
+  label: string;
+  group: string;
+  shortcut?: string;
+  disabled?: boolean;
+  checked?: boolean;
+  keywords?: string[];
+}
+
+function shortcutOf(id: GlobalShortcut): string {
+  return keysOf(GLOBAL[id])[0];
+}
+
+/**
+ * The palette's list now: disabled where it cannot apply (a pane command on the board), so the person learns it exists
+ * and why not from its dimmed row, and tabs only as far as the focused group has them.
+ */
+export function actions(): Action[] {
+  const at = here();
+  const pane = at !== null;
+  const group = groupOf(layout(), focused());
+  const sideBySide = groups(layout()).length > 1;
+  const canMove = sideBySide || (group !== undefined && group.panels.length > 1);
+  const list: Action[] = [];
+  const global = (id: GlobalShortcut, extraWords: string[] = [], disabled = false) =>
+    list.push({ id, label: GLOBAL[id].label, group: groupName(GLOBAL[id].group), shortcut: shortcutOf(id), disabled, keywords: extraWords });
+
+  global("nextAttention", ["attention", "blocked", "waiting"]);
+  global("prevAttention", ["attention", "blocked", "waiting"]);
+  global("board", ["home", "agents"]);
+  global("newAgent", ["start", "session"]);
+  global("settings", ["preferences", "options"]);
+  global("shortcuts", ["keys", "keyboard", "help"]);
+  global("sidebar", ["hide", "show"]);
+  global("focusSidebar", ["search agents"]);
+  global("focusPane", ["composer", "reply"], !pane && !lastPane());
+  global("capture", ["type", "keyboard", "terminal"], !pane);
+  global("search", ["find"], !pane);
+  global("closeTab", ["view"], focused() === "board");
+  global("devPanel", ["performance", "frame"]);
+  global("undo");
+  list.push({ id: "links", label: "Links in this pane…", group: "Pane", disabled: !pane, keywords: ["url", "open", "path"] });
+
+  list.push({ id: "newWorkspace", label: "New workspace…", group: "herdr" });
+  list.push({ id: "newTab", label: "New tab in this workspace…", group: "herdr", disabled: !at?.workspaceId });
+  list.push({ id: "renameWorkspace", label: "Rename workspace…", group: "herdr", disabled: !at?.workspaceId });
+  list.push({ id: "renameTab", label: "Rename tab…", group: "herdr", disabled: !at?.tabId });
+  list.push({ id: "renamePane", label: "Rename pane…", group: "herdr", disabled: !pane });
+  list.push({ id: "splitHerdrRight", label: "Split pane right in herdr", group: "herdr", disabled: !pane, keywords: ["new terminal"] });
+  list.push({ id: "splitHerdrDown", label: "Split pane down in herdr", group: "herdr", disabled: !pane, keywords: ["new terminal"] });
+  list.push({ id: "closePane", label: "Close pane in herdr…", group: "herdr", disabled: !pane, keywords: ["stop", "kill"] });
+  list.push({ id: "closeHerdrTab", label: "Close tab in herdr…", group: "herdr", disabled: !at?.tabId, keywords: ["stop", "kill"] });
+  list.push({ id: "closeWorkspace", label: "Close workspace in herdr…", group: "herdr", disabled: !at?.workspaceId, keywords: ["stop", "kill"] });
+  list.push({ id: "machines", label: "Machines…", group: "App", keywords: ["ssh", "connect", "computer"] });
+
+  list.push({ id: "moveRight", label: "Move tab to split right", group: "Tabs", disabled: !canMove });
+  list.push({ id: "moveDown", label: "Move tab to split down", group: "Tabs", disabled: !canMove });
+  list.push({ id: "moveLeft", label: "Move tab to split left", group: "Tabs", disabled: !canMove });
+  list.push({ id: "moveUp", label: "Move tab to split up", group: "Tabs", disabled: !canMove });
+  list.push({ id: "moveOther", label: "Move tab to other group", group: "Tabs", disabled: !sideBySide });
+  if (group) {
+    group.panels.slice(0, 9).forEach((key, i) => list.push({ id: `tab:${key}`, label: `Open tab ${i + 1}: ${tabName(key)}`, group: "Tabs", checked: key === focused() }));
+  }
+
+  for (const theme of THEMES) list.push({ id: `theme:${theme.id}`, label: `Theme: ${theme.name}`, group: "Look", checked: themeId() === theme.id });
+  list.push({ id: "accessibilityGuide", label: "Accessibility guide", group: "App" });
+  return list;
+}
+
+/** The palette's heading for a shortcut group of `lib/shortcuts.ts`. */
+function groupName(group: ShortcutGroup): string {
+  return group === "attention" || group === "navigate" ? "Go" : group === "tabs" ? "Tabs" : group === "typing" ? "Pane" : "App";
+}
+
+/** A tab's name for the palette: the pane's name, else `Board`. */
+function tabName(key: string): string {
+  if (key === "board") return "Board";
+  const at = key.startsWith("pane:") ? key.slice(5).split("/") : [];
+  return at.length === 2 ? (paneMeta(at[0], at[1])?.name ?? at[1]) : key;
+}
+
+// ---- the application menu ----
+
+/** The application menu, built from the same handlers; its shortcuts mirror `GLOBAL` (a binding of the keymap wins over a menu item of the same key). */
+export function appMenu(): MenuItem[] {
+  const item = (label: string, id: GlobalShortcut): MenuItem => ({ label, shortcut: shortcutOf(id), onSelect: globalActions[id] });
+  const plain = (label: string, id: string): MenuItem => ({ label, onSelect: () => runAction(id) });
+  return [
+    {
+      label: "File",
+      submenu: [item("New agent session", "newAgent"), plain("New workspace…", "newWorkspace"), plain("Machines…", "machines"), item("Settings", "settings"), { type: "separator" }, { role: "quit" }],
+    },
+    {
+      label: "Edit",
+      submenu: [{ role: "undo" }, { role: "redo" }, { type: "separator" }, { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "selectAll" }],
+    },
+    {
+      label: "View",
+      submenu: [item("Board", "board"), item("Sidebar", "sidebar"), item("Command palette", "palette"), { type: "separator" }, { role: "zoom" }, { role: "toggleFullScreen" }],
+    },
+    {
+      label: "Go",
+      submenu: [item("Next agent that needs you", "nextAttention"), item("Previous agent that needs you", "prevAttention"), item("Open pane area", "focusPane"), item("Focus the sidebar", "focusSidebar")],
+    },
+    {
+      label: "Help",
+      submenu: [item("Keyboard shortcuts", "shortcuts"), plain("Accessibility guide", "accessibilityGuide")],
+    },
+  ];
+}

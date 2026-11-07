@@ -152,6 +152,8 @@ pub enum PaneScreenEvent {
 pub struct PaneScreenApi {
     links: Rc<dyn Fn() -> Vec<PaneLink>>,
     to_end: Rc<dyn Fn()>,
+    rows: Rc<dyn Fn() -> Vec<String>>,
+    to_row: Rc<dyn Fn(u32)>,
 }
 
 #[methods]
@@ -160,6 +162,19 @@ impl PaneScreenApi {
     /// a press needs a pointer.
     pub fn links(&self) -> Vec<PaneLink> {
         (self.links)()
+    }
+
+    /// The plain text of every row the view shows, top to bottom: the same rows, with the same
+    /// indices, as `row` of `links()`. What search reads.
+    pub fn rows(&self) -> Vec<String> {
+        (self.rows)()
+    }
+
+    /// Scrolls so `row` (an index into `rows()`) is at the top of the view and stops following new
+    /// output; the next scroll event puts the view back at the end if `row` was within the last
+    /// screenful.
+    pub fn scroll_to_row(&self, row: u32) {
+        (self.to_row)(row);
     }
 
     /// Scrolls to the end of the pane and follows it again.
@@ -393,6 +408,14 @@ pub fn PaneScreen(props: PaneScreenProps, cx: Scope<PaneScreenEvent>) -> impl In
             })
         }),
         to_end: Rc::new(move || jump_to_end(mirror, cx, list_ref)),
+        rows: Rc::new(move || {
+            shown.with_untracked(|s| s.0.rows.iter().map(|r| r.text()).collect())
+        }),
+        to_row: Rc::new(move |row| {
+            list_ref.scroll_to_index(row, Percentage(0.0), Points(0.0), false);
+            // A row near the end leaves the view at the end, which scroll events report themselves.
+            set_at_end(mirror, cx, false);
+        }),
     });
 
     let make_list = move || {

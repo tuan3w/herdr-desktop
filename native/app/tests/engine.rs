@@ -366,6 +366,10 @@ fn a_pane_header_knows_its_names_its_state_and_its_question() {
             "This computer"
         )
     );
+    assert_eq!(
+        (meta.workspace_id.as_str(), meta.tab_id.as_str()),
+        ("w1", "w1:t1")
+    );
     assert_eq!(meta.status, AgentStatus::Blocked);
     assert_eq!(meta.feed, herdr_desktop_native::feed::FeedState::Live);
     wait_for("the question to be read", || {
@@ -378,6 +382,11 @@ fn a_pane_header_knows_its_names_its_state_and_its_question() {
         .pane_summary("local", "w2:p4")
         .expect("a plain terminal");
     assert_eq!((shell.name.as_str(), shell.agent.as_str()), ("bash", ""));
+    assert_eq!(
+        (shell.workspace_id.as_str(), shell.tab_id.as_str()),
+        ("w2", "w2:t1"),
+        "a plain shell is not on the board but can be duplicated"
+    );
     let gone = rig
         .engine
         .pane_summary("local", "w9:p9")

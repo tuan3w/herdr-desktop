@@ -72,6 +72,8 @@ Three tiers, chosen by window width through `components/kit/responsive.ts` only.
 
 A settings screen is a list of rows under headings, one `SettingsSection` after another, each row a `SettingRow` (`design/components.md`). UI preferences live in `lib/settings.ts` (`themeId`, `sidebarCollapsed`, saved by `loadSettings` and an effect); domain data persists in Rust, not there.
 
+- Every row is wired: an option that no screen reads is not added (`largeTargets`, `quickPhrases` have rows because their screens read them). Pickers whose saved value may be off the list (`paneFontSize`, `minContrast`) add the current value to their items instead of showing blank. `Settings` (`components/settings.tsx`) is a `Modal`; its Machines row opens `Machines` over it.
+- Reduce motion is `reduceMotionOverride`; every motion reads `reducedMotion()` (`design/motion.md`).
 - A setting applies at once and persists at once (`herdr.settings.v1`, separate from the data so clearing data keeps the theme). There is no Save button.
 - Add an option: a signal in `lib/settings.ts` (with `Saved` and `loadSettings`) and a `SettingRow` in the section it belongs to. Group by what the user is thinking about, not by file.
 - A choice of 2 to 4: `Segmented`. On or off: `Switch`. Many with a preview: a picker like the theme grid. A fixed list: `SelectField`.
@@ -103,3 +105,18 @@ What the audit found and the rules that came out of it. Test names use `label:` 
 - **`announce` is for what happens away from the focus**: a field error (`Labeled` does it), a toast (`notify`), a dialog opening (`Modal`), result counts after a filter or search, a screen or record opening, an item added. Never on the first render, never for what the control's own state already says.
 - **Platform limits** (nsh): no listbox, option or tabpanel roles and no heading levels; `Tabs`, `RadioGroup` and `Dialog` cannot be named; `Button` takes no hint or state beyond `selected`; focus is not returned to the opener of a popup or dialog by us. Verified headless, not with a screen reader.
 - Contrast: `ring` on page, card and popover, `input` (the edge of a control) on card and page, and `muted-foreground` on popover are tested in all four themes (`lib/theme/theme.test.ts`).
+
+## Workspace and tabs
+
+The window is the sidebar | the tab area (`components/workspace.tsx`, nsh `DockArea`). The state and every command that changes it are in `lib/dock.ts`; the palette, the menu and the keys all call `lib/actions.ts`, so one action has one behaviour.
+
+- **Panels.** `board` is the home tab: it cannot be closed, and `mod+1` brings it back. An agent or terminal is `pane:<machine>/<paneId>`. A tab is a view: closing it (`mod+w`) never closes the pane in herdr; closing the pane is a separate palette command behind `confirmDestructive`.
+- **Opening** displays the tab if it exists, else adds it to the focused group. The focused tab is the one last opened, selected by a key, selected by a click on a tab that was not displayed, or moved: `focused` in `lib/dock.ts`. The area reports no click on a tab that is already displayed, so such a click leaves `focused` where it was; `mod+2` or a tab key moves it.
+- **Splits.** `mod+\` and `mod+shift+\` move the focused tab into a new group beside its group (a tab alone in its group cannot leave it: nothing would stay behind, and the app says so). A drag has a keyboard form for each result: `Move tab to split right`, `down`, `left`, `up`, `Move tab to other group` in the palette. Dragging is the pointer's, never the only way.
+- **Saved layout.** `herdr.dock.v1`, written 500 ms after the last edit (`SAVE_DELAY_MS`), read once at start (`readLayout` drops what cannot be opened and always restores the board). A tab whose pane herdr no longer has shows `Agent gone` with a `Close` button; a machine that is only offline keeps its tab with the last screen, dimmed.
+- **Tab bar.** A tab shows the agent's status shape, its name and a cross. The cross is hidden from screen readers (a button inside a tab is a control inside a control): they close with `mod+w` or the palette.
+- **Compact width.** Below 600 pt the area shows one group at a time with every tab in one bar; the layout is the same, only its presentation changes.
+
+## Sidebar content
+
+Machines first (the shape and words of each link, `Fix` for one that needs attention), a search field (`fold`: case and accents ignored, every word must match), then the board's sections as a virtualized `List` (`lib/sidebar.ts` builds the lines). `Needs you` is always open and absent when empty; the other sections fold and stay folded across runs (`herdr.sidebar.v1`). A search lists every match, also among the idle agents behind `N more idle`. `Space` on a focused row picks it for a bulk action, `Shift+Space` picks the range from the last pick, and the checkbox at the row's left does the same for the pointer. The top rows say how many need you and announce a change of that number politely.

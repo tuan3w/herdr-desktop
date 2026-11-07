@@ -1,0 +1,75 @@
+import { mount, signal, Text, View } from "nsh";
+import { Herdr } from "herdr-desktop/native";
+import { revision, startHerdr } from "../lib/herdr";
+import { pressTransition } from "../lib/motion";
+import { announceOutput, loadSettings, minContrast, paneFit, paneFontSize, quickPhrases, reduceMotionOverride, themeId } from "../lib/settings";
+import { Machines } from "./machines";
+import { NameDialog } from "./name-dialog";
+import { Settings } from "./settings";
+import { StartAgent } from "./start-agent";
+import { Btn, ThemeRoot } from "./kit";
+
+/**
+ * The entry of `machines.test.tsx`, `settings.test.tsx`, `start-agent.test.tsx` and `name-dialog.test.tsx`: the dialogs of
+ * this area over the `mixed` fixture's scripted herdr, one button to open each, and readouts of what they did. Not part of the app.
+ */
+startHerdr("", "mixed");
+void loadSettings();
+
+function Lab() {
+  const machines = signal(false);
+  const settings = signal(false);
+  const start = signal(false);
+  const name = signal<{ open: boolean; initial?: string; confirm: string; title: string }>({ open: false, confirm: "Create", title: "New workspace" });
+  const started = signal("nothing started");
+  const named = signal("no name");
+  const requests = signal("no requests");
+  const count = () => (revision(), Herdr.machines().length);
+
+  // A machine removed elsewhere (another window, another run) while its form is open.
+  const forget = () => {
+    const remote = Herdr.machines().find((m) => !m.local);
+    if (remote) Herdr.removeMachine(remote.id);
+  };
+
+  const show = () => {
+    const calls = ["workspace.create", "tab.create", "agent.start"].flatMap((method) => Herdr.testRequests(method).map((r) => `${method} ${JSON.stringify(r.params)}`));
+    requests.set(calls.length ? calls.join(" | ") : "no requests");
+  };
+
+  return (
+    <ThemeRoot>
+      <View class="flex-1 gap-2 bg-background p-4">
+        <View class="flex-row flex-wrap gap-2">
+          <Btn label="Open machines" onPress={() => machines.set(true)} />
+          <Btn label="Open settings" onPress={() => settings.set(true)} />
+          <Btn label="Open start agent" onPress={() => start.set(true)} />
+          <Btn label="Rename workspace" onPress={() => name.set({ open: true, initial: "payments", confirm: "Rename", title: "Rename workspace" })} />
+          <Btn label="New workspace" onPress={() => name.set({ open: true, confirm: "Create", title: "New workspace" })} />
+          <Btn label="Show requests" onPress={show} />
+          <Btn label="Forget the remote machine" onPress={forget} />
+        </View>
+        <Text>{`machines=${count()}`}</Text>
+        <Text>{started()}</Text>
+        <Text>{named()}</Text>
+        <Text>{requests()}</Text>
+        <Text>{`fit=${paneFit()} font=${paneFontSize()} contrast=${minContrast()} theme=${themeId()}`}</Text>
+        <Text>{`quick=${quickPhrases()} announce=${announceOutput()} motion=${reduceMotionOverride()}`}</Text>
+        <Text>{`press=${pressTransition() === undefined ? "still" : "eased"}`}</Text>
+      </View>
+      <Machines open={machines()} onClose={() => machines.set(false)} />
+      <Settings open={settings()} onClose={() => settings.set(false)} />
+      <StartAgent open={start()} onClose={() => start.set(false)} onStarted={(machine, pane) => started.set(`started ${machine} ${pane}`)} />
+      <NameDialog
+        open={name().open}
+        title={name().title}
+        initial={name().initial}
+        confirm={name().confirm}
+        onClose={() => name.set({ ...name(), open: false })}
+        onSubmit={(value) => named.set(`named ${value}`)}
+      />
+    </ThemeRoot>
+  );
+}
+
+mount(Lab);

@@ -97,6 +97,7 @@ The sidebar is the app's own component, built from kit parts; the kit holds its 
 - Selected is a fill, never a tick or a weight. `bg-sidebar-primary` is the theme's signal color and appears only on counts that need the user.
 - Focus is an inset ring (`FOCUS_RING_SIDEBAR`): the rows are 2pt apart, and an outline drawn outside a row is painted over by the fill of the row after it.
 - Never hide a function in the rail: every item keeps its `accessibilityLabel` (with its count) and a tooltip with its shortcut. `IconButton onSidebar` and `Kbd tone="sidebar"` recolor for this surface.
+- A row that must show `expanded`, take `onFocus`/`onBlur` (the keys bound while it has the focus) or carry `accessibilityState` is a `View role="button"` with `onPress` and the same ring and fill classes: nsh's `Button` takes none of those. The rest stay `Button`. `SearchField` hands its input ref out (`inputRef`) so `mod+0` can take the focus to it: a view cannot take the focus from code, an input can.
 
 ## Raw Button rows
 

@@ -1,0 +1,15 @@
+{
+  "snapshot": {
+    "version": "0.9.5",
+    "protocol": 22,
+    "focused_workspace_id": null,
+    "workspaces": [],
+    "tabs": [],
+    "panes": [],
+    "layouts": [],
+    "agents": []
+  },
+  "answers": {
+    "workspace.create": { "type": "ok" }
+  }
+}

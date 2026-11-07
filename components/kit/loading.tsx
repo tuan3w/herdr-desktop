@@ -1,4 +1,5 @@
-import { createMotion, cleanup, reduceMotion, View } from "nsh";
+import { createMotion, cleanup, View } from "nsh";
+import { reducedMotion } from "../../lib/motion";
 import { Icon, type IconTone } from "./icon";
 
 /**
@@ -7,7 +8,7 @@ import { Icon, type IconTone } from "./icon";
  */
 export function Spinner(props: { size?: 12 | 14 | 16 | 20; tone?: IconTone }) {
   const spin = createMotion();
-  if (!reduceMotion()) {
+  if (!reducedMotion()) {
     void spin.play({ keyframes: { rotate: [0, 360] }, duration: 800, easing: "linear", iterations: "infinite" });
     cleanup(() => spin.stop());
   }
@@ -24,7 +25,7 @@ export function Spinner(props: { size?: 12 | 14 | 16 | 20; tone?: IconTone }) {
  */
 export function Skeleton(props: { class?: string }) {
   const pulse = createMotion();
-  if (!reduceMotion()) {
+  if (!reducedMotion()) {
     void pulse.play({ keyframes: { opacity: [1, 0.5, 1] }, duration: 1400, easing: "easeInOut", iterations: "infinite" });
     cleanup(() => pulse.stop());
   }

@@ -324,6 +324,9 @@ fn only_the_newest_idle_agents_show_and_the_rest_are_counted() {
         ids(&board.idle),
         ["w1:p8", "w1:p7", "w1:p6", "w1:p5", "w1:p4"]
     );
+    // The hidden rows follow in the same order, so "N more idle" opens exactly what was folded.
+    assert_eq!(ids(&board.idle_rest), ["w1:p3", "w1:p2", "w1:p1"]);
+    assert_eq!(board.idle_rest.len(), board.more_idle);
 }
 
 #[test]

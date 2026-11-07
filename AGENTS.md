@@ -61,7 +61,7 @@ Run `nsh` and `cargo` with the repo root as the working directory, or rustup doe
 App.tsx, App.test.tsx   shell, keymap, routes; the end-to-end tests
 components/*.tsx        one file per screen or part, kebab-case (`pane-tab.tsx`, `answer-dock.tsx`)
 components/kit/         the UI kit (from ship-desk, on nsh 0.4.0). Import from "./kit" only
-lib/                    TSX state and rules, no components: theme/, settings, shortcuts, motion, perf, save, text
+lib/                    TSX state and rules, no screens (the kit's feedback helpers are allowed): theme/, settings, shortcuts, motion, perf, save, text
 native/core/            crate herdr-core: pure Rust, no nsh. wire, link, ssh, store, board, prompt, screen, testing
 native/app/             crate herdr-desktop-native: #[native_module("herdr-desktop/native")]; Herdr module, PaneScreen
 design/*.md, DESIGN.md  the design system
@@ -98,7 +98,7 @@ scripts/                gen-theme, perf, cpu, check-docs, atspi_audit, sync-sche
 - **File names are kebab-case** for every `.ts`/`.tsx` file (`dev-panel.tsx`, `pane-tab.tsx`, `answer-dock.tsx`); the exported component keeps its PascalCase name (`DevPanel`). Tests sit beside what they test (`palette.test.tsx`), test entries end in `-lab`, `-probe` or `.fixture`. Rust files are `snake_case.rs` (the language's rule).
 - UI is built from the kit. A screen never pastes a kit component's class string. Colour is a semantic token class, never hex or `rgb()`: themes switch at runtime. Terminal colours are the one exception and come from `term-*` tokens.
 - Global shortcuts live in `lib/shortcuts.ts` once, always with `mod` (Ctrl on Linux and Windows), never `alt` (AltGr is Ctrl+Alt; Telex and VNI type with plain letters). Do not bind `mod+q` or `F11` (nsh reserves them). `lib/shortcuts.test.ts` enforces it and `App.test.tsx` presses every global shortcut as macOS, Windows and Linux.
-- `lib/` imports no components. Domain persistence is Rust; TSX holds UI-only state.
+- `lib/` imports no screens. It may import `components/kit` for feedback (`notify`, `confirmDestructive`, `undoLast`) and the kit imports only `lib/motion`, `lib/perf`, `lib/shortcuts`, `lib/settings`, `lib/text`: keep that one-way. Domain persistence is Rust; TSX holds UI-only state.
 - Comments say why, never what. Docs change in the same change as code: `make docs` fails otherwise.
 - No tiny one-expression wrappers unless used three or more times. Never `ReturnType<typeof fn>`. Top-level `import type`.
 - Rust: `cargo clippy -- -D warnings`, no `unwrap` on I/O, no allocation per row on a hot path that a reused buffer avoids.

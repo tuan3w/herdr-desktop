@@ -157,6 +157,9 @@ pub struct Board {
     pub idle: Vec<AgentRow>,
     /// Idle agents beyond the ones shown.
     pub more_idle: usize,
+    /// The idle rows beyond [`IDLE_SHOWN`], same order: what the `N more idle` line opens in place.
+    /// `more_idle` is always its length.
+    pub idle_rest: Vec<AgentRow>,
     pub counts: Counts,
 }
 
@@ -229,15 +232,15 @@ impl Board {
         unknown.sort_by(|a, b| a.offline.cmp(&b.offline).then_with(|| by_place(a, b)));
         // Unknown has no state to date: it follows the idle rows, by place.
         idle.extend(unknown);
-        let more_idle = idle.len().saturating_sub(IDLE_SHOWN);
-        idle.truncate(IDLE_SHOWN);
+        let idle_rest = idle.split_off(idle.len().min(IDLE_SHOWN));
 
         Board {
             needs_you,
             to_review,
             working,
             idle,
-            more_idle,
+            more_idle: idle_rest.len(),
+            idle_rest,
             counts,
         }
     }

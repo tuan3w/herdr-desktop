@@ -103,3 +103,12 @@ const confirmed = await confirmDestructive({
   action: "Close pane",
 });
 ```
+
+## Machine form, start form, name dialog
+
+- The machine form (`components/machine-form.tsx`) has no password or key field: `ssh` signs in with its own config, keys and agent. It says so, and says to run `ssh <destination>` once in a terminal for a new host. A secret never appears in a field, a log or a fixture.
+- A destination reaches `ssh` and a remote shell, so `lib/machine-rules.ts` mirrors the whitelist of `native/core/src/ssh/validate.rs` (`destinationError`, `sessionError`, `portError`). It shows on blur and on submit; Rust checks again and its message (`fieldOfRejection`) shows under its field, or as a line of its own. Typed text survives a failed save and a failed test; an edit retires the old test result.
+- `Test connection` needs a destination (an empty one would test this computer), shows `Connected · herdr <version> · N workspaces` or the classified failure, and announces it politely; a result that arrives after the form closed is dropped.
+- `StartAgent` takes an absolute folder (`folderError`: the machine's home is not known here, so `~` is not offered) and the agent from `AGENT_KINDS`, which a test keeps equal to herdr's schema. A start that fails keeps the dialog and the typed folder.
+- `NameDialog` trims; the confirm button is off while the name is empty or unchanged; Enter on an empty name says why; `onSubmit` runs, then `onClose`.
+

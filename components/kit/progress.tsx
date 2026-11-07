@@ -1,4 +1,5 @@
-import { cleanup, createMotion, reduceMotion, View } from "nsh";
+import { cleanup, createMotion, View } from "nsh";
+import { reducedMotion } from "../../lib/motion";
 
 /** How far along, 0 to 1, clamped; undefined when the extent is unknown (`value` null, or a range with no width). */
 export function progressRatio(value: number | null | undefined, min: number, max: number): number | undefined {
@@ -15,7 +16,7 @@ export function progressText(ratio: number | undefined, valueText?: string): str
 /** The bar of work whose extent is unknown: it breathes (opacity only) while mounted, still under reduced motion. */
 function Working() {
   const pulse = createMotion();
-  if (!reduceMotion()) {
+  if (!reducedMotion()) {
     void pulse.play({ keyframes: { opacity: [1, 0.4, 1] }, duration: 1400, easing: "easeInOut", iterations: "infinite" });
     cleanup(() => pulse.stop());
   }
