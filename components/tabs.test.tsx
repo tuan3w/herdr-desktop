@@ -44,3 +44,14 @@ test("pressing the cross of a tab closes that view and leaves the others", async
   expect(app.count("role:tab")).toBe(1);
   expect(app.shows(tab(SECOND, "1 of 1"))).toBe(true);
 });
+
+test("a tab's menu copies its title and the folder its agent works in", async () => {
+  const app = await ready();
+  await openTerminals(app, FIRST);
+  await app.rightClick(tab(FIRST, "1 of 1"));
+  await app.chooseMenuItem("Copy title");
+  await app.waitUntil(() => app.clipboard() === `${FIRST} (view)`);
+  await app.rightClick(tab(FIRST, "1 of 1"));
+  await app.chooseMenuItem("Copy path");
+  await app.waitUntil(() => (app.clipboard() ?? "").startsWith("/"));
+});

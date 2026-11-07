@@ -3,7 +3,7 @@ import { signal, View } from "nsh";
 import type { DockTab } from "nsh/base";
 
 import { StatusGlyph } from "#components/status-glyph";
-import { Clipped, Icon, Tipped } from "#kit";
+import { Clipped, copyMenu, copyText, Icon, Tipped } from "#kit";
 import { checkoutName } from "#lib/changes";
 import { BOARD, closeTab, groupOf, layout, parseChangesKey, parsePaneKey, parseSessionKey, rowKeyOf } from "#lib/dock";
 import { meta, rowOf } from "#lib/herdr";
@@ -42,12 +42,18 @@ export function TabFace(props: { tab: DockTab }) {
             ? "Agent gone"
             : `${info()?.name ?? at?.pane ?? ""} (view)`;
   const status = () => (chat ? (row()?.status ?? "unknown") : gone() ? "unknown" : (info()?.status ?? "unknown"));
+  /** The folder the tab's agent works in (a Changes tab's checkout), when known. */
+  const folder = () => changes?.cwd ?? (chat ? row()?.cwd : info()?.cwd);
   const count = () => groupOf(layout(), props.tab.panel)?.panels.length ?? props.tab.index + 1;
   const label = () => tabLabel(title(), plain ? "" : statusText(status(), row()?.reviewed), props.tab.index, count());
   return (
     <View
       style={appear(props.tab.panel)}
       accessibilityLabel={label()}
+      onContextMenu={copyMenu(() => [
+        { label: "Copy title", onSelect: () => void copyText(title(), "Title") },
+        ...(folder() ? [{ label: "Copy path", onSelect: () => void copyText(folder()!, "Path") }] : []),
+      ])}
       onMouseEnter={() => hovered.set(true)}
       onMouseLeave={() => hovered.set(false)}
       class="relative h-9 w-full flex-row items-center gap-2 pl-3 pr-1"

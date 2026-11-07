@@ -162,3 +162,16 @@ test("a wide window can collapse the sidebar to the rail and bring it back", asy
   await app.press("label:Expand sidebar");
   expect(app.shows("label:Search projects")).toBe(true);
 });
+
+test("a right click on an agent or a project copies its name or folder", async () => {
+  const app = await ready();
+  await app.rightClick(row("payments review"));
+  await app.chooseMenuItem("Copy name");
+  await app.waitUntil(() => app.clipboard() === "payments review");
+  await app.rightClick(row("payments review"));
+  await app.chooseMenuItem("Copy folder");
+  await app.waitUntil(() => (app.clipboard() ?? "").startsWith("/"));
+  await app.rightClick(PAYMENTS);
+  await app.chooseMenuItem("Copy name");
+  await app.waitUntil(() => app.clipboard() === "payments");
+});

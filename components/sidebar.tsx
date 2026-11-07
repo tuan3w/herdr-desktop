@@ -15,6 +15,8 @@ import {
   Btn,
   Clipped,
   compact,
+  copyMenu,
+  copyText,
   FOCUS_RING_SIDEBAR,
   Icon,
   type IconName,
@@ -193,6 +195,14 @@ function changesEntries(project: BoardProject) {
   }));
 }
 
+/** `Copy name` and, when the folder is known, `Copy folder`: the explicit copies of a row's context menu and a project's options. */
+function copyEntries(nameWhat: string, name: string, pathWhat: string, path: string | null | undefined) {
+  return [
+    { label: "Copy name", onSelect: () => void copyText(name, nameWhat) },
+    ...(path ? [{ label: "Copy folder", onSelect: () => void copyText(path, pathWhat) }] : []),
+  ];
+}
+
 /** What a project's menu offers: show its tabs, pin it, start a chat in it, review what its agents changed. */
 function projectEntries(project: BoardProject) {
   return [
@@ -216,6 +226,7 @@ function projectEntries(project: BoardProject) {
       disabled: project.offline,
     },
     ...changesEntries(project),
+    ...copyEntries("Project name", project.name, "Folder", projectFolder(project)),
   ];
 }
 
@@ -242,6 +253,7 @@ function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> 
         <View
           role="button"
           onPress={() => openProject(p().key)}
+          onContextMenu={copyMenu(() => copyEntries("Project name", p().name, "Folder", projectFolder(p())))}
           accessibilityLabel={projectLabel(p())}
           accessibilityState={{ selected: context() === p().key }}
           style={hoverTransition()}
@@ -312,6 +324,7 @@ function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
       <View
         role="button"
         onPress={() => void openAgent(row())}
+        onContextMenu={copyMenu(() => copyEntries("Name", row().name, "Folder", row().cwd))}
         accessibilityState={{ selected: isOpen(row()) }}
         accessibilityLabel={rowLabel(row(), nameOf(props.item().project))}
         onFocus={keys.onFocus}
