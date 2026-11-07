@@ -21,9 +21,29 @@ Feature-by-feature status against the phone app is in [docs/PARITY.md](docs/PARI
 
 Illustrations from scripted data, not a gallery: they date. `make shots` takes current ones into `.scratch/shots/` (not committed).
 
+## Install
+
+One command, Linux x86_64 or macOS Apple silicon (Intel Macs have no build: nsh 0.4.0 has no Intel runtime):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/tuan3w/herdr-desktop/main/scripts/install.sh | sh
+```
+
+It takes the newest release (pre-releases included), refuses to install when the download does not match `SHA256SUMS`, and replaces the previous install. It never uses `sudo`.
+
+- **Linux:** installs to `~/.local/opt/herdr-desktop`, links `~/.local/bin/herdr-desktop` and adds the menu entry and icon. Needs GTK 4.14+ (`libgtk-4-1`) and WebKitGTK 6.0 (`libwebkitgtk-6.0-4`) at run time.
+- **macOS:** installs `~/Applications/Herdr Desktop.app`, verifies its signature and clears the quarantine flag, so it opens first time. The app is signed with the project's own certificate, not notarized by Apple.
+
+```sh
+curl -fsSL .../scripts/install.sh | sh -s -- --version 0.1.0-alpha.2   # a specific release
+curl -fsSL .../scripts/install.sh | sh -s -- --uninstall               # remove it (your data stays)
+```
+
+`PREFIX=DIR` (Linux) and `APP_DIR=DIR` (macOS) choose another place. Prefer to read it first: [scripts/install.sh](scripts/install.sh). The archives and `SHA256SUMS` are on the [Releases page](https://github.com/tuan3w/herdr-desktop/releases).
+
 ## Status
 
-Alpha: `0.1.0-alpha.1` is the first test release (Linux x86_64 and macOS Apple silicon, from the Releases page; [CHANGELOG.md](CHANGELOG.md) says what works and what does not). `docs/PARITY.md` is the ledger of what is done.
+Alpha: `0.1.0-alpha.2` is the current test release ([CHANGELOG.md](CHANGELOG.md) says what works and what does not). `docs/PARITY.md` is the ledger of what is done.
 
 ## Build
 

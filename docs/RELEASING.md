@@ -41,6 +41,8 @@ Never move or delete a published tag; fix forward with the next version.
 
 ## Installing a release
 
+One command: `curl -fsSL https://raw.githubusercontent.com/tuan3w/herdr-desktop/main/scripts/install.sh | sh` (`scripts/install.sh`: downloads the newest release or `--version X`, verifies `SHA256SUMS`, installs, `--uninstall` removes). By hand:
+
 Linux:
 
 ```sh
