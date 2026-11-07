@@ -2,22 +2,25 @@ import { PaneKeys } from "herdr-desktop/native";
 import { expect, test } from "nsh/test";
 
 import { captureKeystrokes, matchRows } from "#lib/pane-input";
-import { GLOBAL, keysOf } from "#lib/shortcuts";
+import { capturedBy, GLOBAL, keysOf } from "#lib/shortcuts";
 
 /** Which keys capture mode takes for the pane and which it leaves to the app. */
-test("on Windows and Linux Ctrl is the app's key, so the app's shortcuts stay the app's and the rest of Ctrl is the pane's", () => {
+test("on Windows and Linux every plain Ctrl letter is the pane's while typing into it, and only what a terminal cannot send stays the app's", () => {
   const keys = captureKeystrokes(false);
-  // The palette, next attention, new agent, find, close tab, sidebar and undo are Ctrl+K, J, N, F, W, B, Z there.
-  for (const letter of ["k", "j", "n", "f", "w", "b", "z"]) expect(keys).not.toContain(`ctrl+${letter}`);
-  // Paste stays paste, and the app's own `capture` key is not forwarded.
+  // The palette, new agent, next attention, find, close tab, sidebar, undo and the switcher are Ctrl+K, N, J, F, W, B, Z, E
+  // outside the mode: inside it a terminal's own Ctrl+K (kill to the end), N, J, F, W, B, E, P all reach the pane.
+  for (const letter of ["k", "n", "j", "f", "w", "b", "z", "e", "p", "c", "d", "a", "r", "l", "u"])
+    expect(keys).toContain(`ctrl+${letter}`);
+  // Paste stays paste: the pasted text goes as text.
   expect(keys).not.toContain("ctrl+v");
-  for (const taken of ["ctrl+c", "ctrl+d", "ctrl+a", "ctrl+e", "ctrl+r", "ctrl+l", "ctrl+u"])
-    expect(keys).toContain(taken);
+  // Ctrl+[ is Escape's byte, and the other three punctuation keys have a control byte too.
+  for (const key of ["ctrl+[", "ctrl+]", "ctrl+\\", "ctrl+/"]) expect(keys).toContain(key);
 });
 
 test("on Apple platforms every Ctrl+letter is the pane's, because the app's keys are on Command", () => {
   const keys = captureKeystrokes(true);
   for (const letter of ["k", "j", "n", "f", "w", "v", "z"]) expect(keys).toContain(`ctrl+${letter}`);
+  expect(keys).toContain("ctrl+[");
 });
 
 test("Escape, Tab, the arrows and the editing keys are the pane's, and every key bound has a name in herdr", () => {
@@ -45,11 +48,12 @@ test("Escape, Tab, the arrows and the editing keys are the pane's, and every key
   }
 });
 
-test("no key the app binds globally is taken from it, on any platform", () => {
+test("no key the app keeps while typing into a pane is taken from it, on any platform", () => {
   for (const onApple of [false, true]) {
     const keys = captureKeystrokes(onApple);
     for (const shortcut of Object.values(GLOBAL)) {
       for (const stroke of keysOf(shortcut, onApple)) {
+        if (capturedBy(stroke, onApple) === "pane") continue;
         // `mod` is Ctrl on the other platforms, so a clash is the same chord spelled with Ctrl.
         expect(keys).not.toContain(onApple ? stroke : stroke.replace(/^mod\b/, "ctrl"));
       }

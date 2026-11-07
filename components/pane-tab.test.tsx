@@ -130,7 +130,7 @@ test("typing into the pane: text goes as text, keys as herdr's key names, Escape
   expect(app.shows("Mirror: type with Mirror mode or the composer")).toBe(true);
 
   await app.press("label:Mirror mode, type into the pane");
-  expect(app.shows("Typing into Refactor ledger · Ctrl+Shift+K to leave")).toBe(true);
+  expect(app.shows("Typing into Refactor ledger · Ctrl+Shift+K leaves · Ctrl+Shift+P palette")).toBe(true);
   expect(app.shows("Capture: on")).toBe(true);
 
   await app.type("label:Keys go to Refactor ledger", "ls");
@@ -149,26 +149,26 @@ test("typing into the pane: text goes as text, keys as herdr's key names, Escape
   expect(textsSent()[2]).toBe("echo hi");
 });
 
-test("an app shortcut stays the app's while typing into the pane, and the capture key leaves with a notice", async () => {
+test("while typing into the pane its own Ctrl keys are the pane's, only what a terminal cannot send stays the app's, and the capture key leaves", async () => {
   const app = await lab(WORKING);
   await ready(app, "Refactor ledger");
   await app.press("label:Mirror mode, type into the pane");
 
-  // Ctrl+K is the palette on this platform: it is not the pane's.
-  await app.keyboard.press("ctrl+k");
-  await app.keyboard.press("ctrl+d");
-  await app.waitUntil(() => keysSent().length === 1);
-  expect(keysSent()).toEqual(["ctrl+d"]);
+  // Ctrl+K is the palette outside the mode and kill-to-the-end in a shell: here it is the pane's, with Ctrl+W, E and the
+  // punctuation a terminal reads as control bytes.
+  for (const key of ["ctrl+k", "ctrl+w", "ctrl+e", "ctrl+[", "ctrl+/", "ctrl+d"]) await app.keyboard.press(key);
+  await app.waitUntil(() => keysSent().length === 6);
+  expect(keysSent()).toEqual(["ctrl+k", "ctrl+w", "ctrl+e", "ctrl+[", "ctrl+/", "ctrl+d"]);
 
   await app.keyboard.press("ctrl+shift+k");
   expect(app.shows("Capture: off")).toBe(true);
-  expect(app.shows("Typing into Refactor ledger · Ctrl+Shift+K to leave")).toBe(false);
+  expect(app.shows("Typing into Refactor ledger · Ctrl+Shift+K leaves · Ctrl+Shift+P palette")).toBe(false);
   expect(app.shows("Mirror: type with Mirror mode or the composer")).toBe(true);
 
   // Out of the mode nothing is forwarded.
   await app.keyboard.press("enter");
   await app.keyboard.press("escape");
-  expect(keysSent()).toEqual(["ctrl+d"]);
+  expect(keysSent()).toHaveLength(6);
 
   await app.keyboard.press("ctrl+shift+k");
   expect(app.shows("Capture: on")).toBe(true);
@@ -198,7 +198,7 @@ test("a tab that is not in front is not typed into, and the global functions fin
   await app.press("Make pane inactive");
   expect(app.shows("Pane in front: no")).toBe(true);
   expect(app.shows("Capture: off")).toBe(true);
-  expect(app.shows("Typing into Refactor ledger · Ctrl+Shift+K to leave")).toBe(false);
+  expect(app.shows("Typing into Refactor ledger · Ctrl+Shift+K leaves · Ctrl+Shift+P palette")).toBe(false);
 });
 
 test("typing /co in an agent's box lists its commands: the keys move and pick, and the command takes its arguments after it", async () => {

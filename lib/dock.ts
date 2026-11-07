@@ -205,9 +205,18 @@ let pin: { key: string; at: number } | undefined;
 /** How long after a command the area's own "displayed tab changed" reports are not the person's choice. */
 const PIN_MS = 150;
 
-function focus(key: string): void {
+/** Who is told where the person arrived (`lib/nav.ts`): the panel, and whether a command (not a click) brought them. */
+let arrival: ((key: string, deliberate: boolean) => void) | undefined;
+
+/** Registers the one listener of arrivals; `lib/nav.ts` keeps the history and the visits from them. */
+export function onArrival(listener: ((key: string, deliberate: boolean) => void) | undefined): void {
+  arrival = listener;
+}
+
+function focus(key: string, deliberate: boolean): void {
   focused.set(key);
   if (key !== BOARD) lastPane.set(key);
+  arrival?.(key, deliberate);
 }
 
 /**
@@ -217,13 +226,13 @@ function focus(key: string): void {
  */
 export function activated(key: string): void {
   if (pin && pin.key !== key && Date.now() - pin.at < PIN_MS) return;
-  focus(key);
+  focus(key, false);
 }
 
 /** A command made `key` the working panel. */
 function chosen(key: string): void {
   pin = { key, at: Date.now() };
-  focus(key);
+  focus(key, true);
 }
 
 /**

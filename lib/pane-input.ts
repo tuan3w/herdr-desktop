@@ -1,7 +1,7 @@
 import { PaneKeys } from "herdr-desktop/native";
 import { keymap, signal } from "nsh";
 
-import { apple, GLOBAL, keysOf } from "#lib/shortcuts";
+import { apple, capturedBy, GLOBAL, keysOf } from "#lib/shortcuts";
 import { fold } from "#lib/text";
 
 /**
@@ -88,22 +88,27 @@ const LETTERS = "abcdefghijklmnopqrstuvwxyz".split("");
 /**
  * The keystrokes capture mode binds, as `keymap` spells them: the keys that are not text (everything else arrives as
  * typed text through the capture field), as herdr names them (`PaneKeys.herdrKey`). Left out:
- * - an app shortcut: on Windows and Linux `mod` is Ctrl, so `ctrl+k` is the palette and stays the app's, everywhere,
- *   capture mode included (that is also how `mod+shift+k` leaves it); on Apple platforms `mod` is Command and every
- *   `ctrl+letter` is the pane's;
+ * - what a terminal cannot send, which stays the app's (`capturedBy`: every chord with Shift, `ctrl+tab`, `mod+,`,
+ *   `mod+<digit>`, function keys such as Help). That is how `mod+shift+k` leaves the mode and `mod+shift+p` opens the
+ *   palette while it is on. Every plain Ctrl chord a terminal can send (Ctrl+K, N, W, F, J, B, E, P, `[`, `]`, `\\`, `/`)
+ *   is the pane's here, the app's shortcut for it waits until the mode is left; on Apple platforms `mod` is Command and
+ *   every Ctrl chord was always the pane's;
  * - `ctrl+v` where Ctrl is `mod`: that is paste, which sends the pasted text (bracketed by the shell) instead;
  * - what the host keeps for itself (`bindable`).
  */
 export function captureKeystrokes(onApple: boolean = apple()): string[] {
   const taken = new Set(
     Object.values(GLOBAL).flatMap((shortcut) =>
-      keysOf(shortcut, onApple).map((k) => (onApple ? k : k.replace(/^mod\b/, "ctrl"))),
+      keysOf(shortcut, onApple)
+        .filter((k) => capturedBy(k, onApple) === "app")
+        .map((k) => (onApple ? k : k.replace(/^mod\b/, "ctrl"))),
     ),
   );
   const candidates = [
     ...NAMED,
     ...Array.from({ length: 12 }, (_, i) => `f${i + 1}`),
     ...LETTERS.map((l) => `ctrl+${l}`),
+    ...["[", "]", "\\", "/"].map((p) => `ctrl+${p}`),
     ...LETTERS.map((l) => `alt+${l}`),
   ];
   return candidates.filter(

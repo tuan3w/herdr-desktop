@@ -20,6 +20,7 @@ import {
   settle,
   shown,
   sidebarRow,
+  WEB,
 } from "./app-seam";
 import { sentKeys } from "./components/board-seam";
 
@@ -108,6 +109,12 @@ async function tabNth(app: App, press: Press, n: number) {
   expect(panel === "board" ? onBoard(app) : shown(app, nameOf(panel))).toBe(true);
 }
 
+/** The Switcher's filter field. The headless harness does not move the keyboard into a dialog that opens over a focused tab, so a test that presses Escape or Enter there focuses the field first, as the person's first keystroke does. */
+const FILTER = "label:Filter recent agents and projects";
+
+/** The Switcher's place in its list (`2 of 5`), `undefined` while it is closed. */
+const position = (app: App): string | undefined => app.texts().find((t) => /^\d+ of \d+$/.test(t));
+
 const CHECKS: Record<GlobalShortcut, Check> = {
   palette: async (app, press) => {
     await press();
@@ -186,6 +193,78 @@ const CHECKS: Record<GlobalShortcut, Check> = {
     await settle(app);
     expect(await front(app)).toBe(DONE);
   },
+  switcher: async (app, press) => {
+    await openAgents(app, FIRST, SECOND);
+    await press();
+    expect(app.shows("Switch to…")).toBe(true);
+    // The first row is where you are, the highlight starts on the way back.
+    await app.clock!.runFor(50);
+    expect(position(app)).toMatch(/^2 of /);
+    await press();
+    expect(position(app)).toMatch(/^3 of /);
+    await app.clear(FILTER);
+    await app.keyboard.press("escape");
+    await settle(app);
+    expect(app.shows("Switch to…")).toBe(false);
+    expect(await front(app)).toBe(SECOND);
+  },
+  switcherBack: async (app, press) => {
+    await press();
+    expect(app.shows("Switch to…")).toBe(true);
+    await app.clock!.runFor(50);
+    // Going up from nothing starts at the bottom of the list.
+    const [at, of] = position(app)!.split(" of ");
+    expect(at).toBe(of);
+    await app.clear(FILTER);
+    await app.keyboard.press("escape");
+    await settle(app);
+    expect(app.shows("Switch to…")).toBe(false);
+  },
+  previousAgent: async (app, press) => {
+    await openAgents(app, FIRST, SECOND);
+    await press();
+    await settle(app);
+    expect(await front(app)).toBe(FIRST);
+    await press();
+    await settle(app);
+    expect(await front(app)).toBe(SECOND);
+  },
+  previousProject: async (app, press) => {
+    await openAgents(app, FIRST, WEB);
+    await press();
+    await settle(app);
+    expect(await front(app)).toBe(FIRST);
+    await press();
+    await settle(app);
+    expect(await front(app)).toBe(WEB);
+  },
+  back: async (app, press) => {
+    await openAgents(app, FIRST, SECOND);
+    await press();
+    await settle(app);
+    expect(await front(app)).toBe(FIRST);
+  },
+  forward: async (app, press) => {
+    await openAgents(app, FIRST, SECOND);
+    await press("back");
+    await settle(app);
+    await press();
+    await settle(app);
+    expect(await front(app)).toBe(SECOND);
+  },
+  prevProject: async (app, press) => {
+    await openAgents(app, FIRST);
+    await press();
+    await settle(app);
+    // Two projects: going back from the first wraps to the last, which is `web`.
+    expect([FIRST, SECOND, DONE, "Refactor ledger", "upgrade deps"]).not.toContain(await front(app));
+  },
+  nextProject: async (app, press) => {
+    await openAgents(app, WEB);
+    await press();
+    await settle(app);
+    expect([WEB, "notes", "scripts"]).not.toContain(await front(app));
+  },
   tab1: (app, press) => tabNth(app, press, 1),
   tab2: (app, press) => tabNth(app, press, 2),
   tab3: (app, press) => tabNth(app, press, 3),
@@ -261,6 +340,14 @@ const ORDER: GlobalShortcut[] = [
   "focusPane",
   "nextAttention",
   "prevAttention",
+  "switcher",
+  "switcherBack",
+  "previousAgent",
+  "previousProject",
+  "back",
+  "forward",
+  "prevProject",
+  "nextProject",
   "capture",
   "copyCode",
   "copyReply",

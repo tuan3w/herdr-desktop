@@ -4,6 +4,9 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+- **Switch between agents and projects from the keyboard.** `Ctrl+Tab` goes to the agent you were in before this one and `Ctrl+Shift+Tab` to the previous project; tap again to come back. `Ctrl+E` opens the Switcher, a short list of the agents and projects you visited last with the one to go back to highlighted (`Ctrl+E` again moves down, `Enter` opens, `Escape` leaves everything as it was); its rows stay where they are while it is open. `Ctrl+[` and `Ctrl+]` go back and forward through the places you went to, `Ctrl+Shift+[` and `Ctrl+Shift+]` step through the projects. What you visited is remembered between runs (agent and project ids and times only, never what a pane showed).
+- **Typing into a pane no longer steals Ctrl keys.** While you type into a pane (`Ctrl+Shift+K`), Ctrl+K, N, W, F, J, B, E, P and `[ ] \ /` reach the pane as a shell expects (kill to the end of the line, delete a word, escape, ...); the app keeps only the chords a terminal cannot send. The palette is `Ctrl+Shift+P` (also outside the mode, beside `Ctrl+K`), and the bar says so.
+
 ## [0.1.0-alpha.2] - 2026-11-07
 
 Second alpha: the chat reads code properly, macOS builds are signed with our own certificate, and the source is formatted and linted.

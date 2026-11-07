@@ -89,6 +89,17 @@ export const SCENARIOS: Record<string, Scenario> = {
     },
   },
   triage: { fixture: "projects", steps: (app) => pressFirst(app, "text:Answer one by one") },
+  // Two agents of `payments` and then the next project were opened by keys (the rail of a narrow window has no names to
+  // press), then `mod+e`: the places visited, the one to go back to highlighted.
+  switcher: {
+    fixture: "mixed",
+    steps: async (app) => {
+      for (const keys of ["ctrl+j", "ctrl+j", "ctrl+shift+]", "ctrl+e"]) {
+        await app.keyboard.press(keys);
+        await app.wait(600);
+      }
+    },
+  },
   palette: {
     fixture: "mixed",
     steps: async (app) => {

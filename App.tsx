@@ -23,6 +23,7 @@ import { Shortcuts } from "#components/shortcuts";
 import { Sidebar } from "#components/sidebar";
 import { StartAgent } from "#components/start-agent";
 import { StatusBar } from "#components/status-bar";
+import { Switcher } from "#components/switcher";
 import { WebPage } from "#components/web-page";
 import { Workspace } from "#components/workspace";
 import { notify, PopupRoot, rail, Skeleton, snug, ThemeRoot, ToastHost } from "#kit";
@@ -45,6 +46,7 @@ import { board, startHerdr } from "#lib/herdr";
 import { warmCode } from "#lib/highlight";
 import { RAIL_WIDTH, SIDEBAR_WIDTH } from "#lib/layout";
 import { hoverTransition, motionReady } from "#lib/motion";
+import { startNav, switcherOpen } from "#lib/nav";
 import { openTarget } from "#lib/open-agent";
 import { saveFailures } from "#lib/save";
 import { loadSettings, settingsReady } from "#lib/settings";
@@ -59,6 +61,7 @@ startHerdr(fixture ? "" : (process.dataDir ?? ""), fixture);
 void loadSettings();
 warmCode();
 void loadDock();
+startNav();
 void loadSidebar();
 for (const warning of Herdr.warnings()) notify(warning, { lasting: true });
 
@@ -160,6 +163,7 @@ function App() {
           </ResizablePanel>
         </ResizablePanelGroup>
         <Palette open={palette()} onClose={() => palette.set(false)} items={actions()} onRun={runAction} />
+        <Switcher open={switcherOpen()} onClose={() => switcherOpen.set(false)} />
         <Shortcuts open={shortcutsOpen()} onClose={() => shortcutsOpen.set(false)} />
         <Settings open={settingsOpen()} onClose={() => settingsOpen.set(false)} />
         <Machines open={machinesOpen()} onClose={() => machinesOpen.set(false)} />

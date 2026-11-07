@@ -24,6 +24,8 @@ export function seeded(name: "mixed" | "storm" | "empty" | "projects", extra: No
 export const FIRST = "payments review";
 export const SECOND = "auth";
 export const DONE = "Fix login flow";
+/** An agent of the other project (`web`; the five above are `payments`). */
+export const WEB = "Styling pass";
 
 /** The `mixed` fixture's agents by pane id, for reading a saved layout. */
 const NAME: Record<string, string> = {
@@ -32,6 +34,9 @@ const NAME: Record<string, string> = {
   "w1:p3": DONE,
   "w1:p4": "Refactor ledger",
   "w1:p5": "upgrade deps",
+  "w2:p1": "Styling pass",
+  "w2:p2": "notes",
+  "w2:p3": "scripts",
 };
 export const nameOf = (panel: string): string => NAME[panel.slice(panel.indexOf("/") + 1).replace(/^pane:/, "")];
 

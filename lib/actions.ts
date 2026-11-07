@@ -26,6 +26,7 @@ import {
 } from "#lib/dock";
 import { browseFiles } from "#lib/files";
 import { allRows, board, meta, reviewable } from "#lib/herdr";
+import { back, forward, previousAgent, previousProject, stepProject, switcherKey } from "#lib/nav";
 import { canShowChat, openAgent, showChat, showTerminal } from "#lib/open-agent";
 import {
   chatInFront,
@@ -327,6 +328,14 @@ function needPane(then: () => void): () => void {
 /** One handler per global shortcut; `App.tsx` binds every key of `GLOBAL` to these. */
 export const globalActions: Record<GlobalShortcut, () => void> = {
   palette: () => palette.set(true),
+  switcher: () => switcherKey(1),
+  switcherBack: () => switcherKey(-1),
+  previousAgent,
+  previousProject,
+  back: () => void back(),
+  forward: () => void forward(),
+  prevProject: () => stepProject(-1),
+  nextProject: () => stepProject(1),
   undo: () => undoLast(),
   nextAttention: () => goAttention(1),
   prevAttention: () => goAttention(-1),
@@ -436,6 +445,13 @@ export function actions(): Action[] {
   global("nextAttention", ["attention", "blocked", "waiting"]);
   global("prevAttention", ["attention", "blocked", "waiting"]);
   global("board", ["home", "agents"]);
+  global("switcher", ["recent", "switch", "agents", "projects", "mru"]);
+  global("previousAgent", ["toggle", "last", "alt tab", "swap"]);
+  global("previousProject", ["toggle", "last", "swap"]);
+  global("prevProject", ["switch"]);
+  global("nextProject", ["switch"]);
+  global("back", ["history", "previous"]);
+  global("forward", ["history", "next"]);
   global("newAgent", ["start", "session"]);
   global("settings", ["preferences", "options"]);
   global("shortcuts", ["keys", "keyboard", "help"]);
@@ -628,6 +644,14 @@ export function appMenu(): MenuItem[] {
       submenu: [
         item("Next agent that needs you", "nextAttention"),
         item("Previous agent that needs you", "prevAttention"),
+        { type: "separator" },
+        item("Switch between recent agents and projects", "switcher"),
+        item("Previous agent", "previousAgent"),
+        item("Previous project", "previousProject"),
+        item("Next project", "nextProject"),
+        item("Back", "back"),
+        item("Forward", "forward"),
+        { type: "separator" },
         item("Open pane area", "focusPane"),
         item("Focus the sidebar", "focusSidebar"),
       ],
