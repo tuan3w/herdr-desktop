@@ -36,6 +36,7 @@ import {
 import { sessionKey } from "#lib/dock";
 import { sending } from "#lib/files";
 import { changedTick, noteMentioned, readChanged, searchMentions, warmMentions } from "#lib/mention";
+import { agentLabel } from "#lib/new-session";
 import { noteSent, slashMemory } from "#lib/pane-memory";
 import type { SessionPort } from "#lib/session";
 import { MAX_FILES, restoreText } from "#lib/session-compose";
@@ -786,7 +787,7 @@ export function createComposer(props: {
   const insert = (text: string) => place(value() + text, (value() + text).length);
 
   const notices = computed(() => {
-    if (blind()) return `${view().agent} cannot see images.`;
+    if (blind()) return `${agentLabel(view().agent)} cannot see images.`;
     return null;
   });
 

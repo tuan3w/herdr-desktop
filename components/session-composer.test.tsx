@@ -198,11 +198,11 @@ test("an agent that cannot see pictures says so on them and offers to save them 
   const app = await chat("blind");
   await app.paste(BOX, { files: [`${tree(app)}/assets/shot-1.png`] });
   await app.waitFor(label("^Image 1 of 1, PNG, "));
-  await app.waitFor("claude cannot see images.");
+  await app.waitFor("Claude Code cannot see images.");
   await app.press("Save to the project and mention the path");
   await app.waitUntil(() => box(app).includes("@.herdr-desktop/attachments/"));
   expect(box(app)).not.toContain("[Image #1]");
-  expect(app.shows("claude cannot see images.")).toBe(false);
+  expect(app.shows("Claude Code cannot see images.")).toBe(false);
 });
 
 test("Up in an empty box brings back the last message, Down goes forward again, and Escape never clears the box", async () => {

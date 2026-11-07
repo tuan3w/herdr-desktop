@@ -370,6 +370,13 @@ export const SCENARIOS: Record<string, Scenario> = {
     params: { mode: "scripted", scene: "chat", quiet: true },
     steps: (app) => app.wait(900),
   },
+  // A pane whose last rows change twice a second (`components/copy-lab.tsx`): the copy probe selects rows above them.
+  "copy-stream": {
+    fixture: "mixed",
+    entry: "../components/copy-lab.tsx",
+    params: { pane: "w1:p4" },
+    steps: (app) => app.wait(1200),
+  },
   "chat-tools": {
     fixture: "empty",
     entry: "../components/session-lab.tsx",
@@ -574,3 +581,68 @@ export const TAB_SCENARIOS: Record<string, Scenario> = {
   "tabs-twenty": { ...tabs(20) },
 };
 Object.assign(SCENARIOS, TAB_SCENARIOS);
+
+// The chat's message box in the session lab (`components/session-lab.tsx`, scripted port over a synthetic project): empty and
+// focused, the `@` list over the caret, pictures and a file as chips, the `/` list, a long paste and many lines, and an agent
+// that cannot see the pictures. The pictures are the fixture project's own.
+const COMPOSER_BOX = "label:Message";
+const SHOT = (n: number) => `fixtures/files/project/assets/shot-${n}.png`;
+const composer = (scene: string, steps: (app: App) => Promise<void>): Scenario => ({
+  fixture: "empty",
+  entry: "../components/session-lab.tsx",
+  params: { mode: "scripted", scene, quiet: true },
+  steps: async (app) => {
+    await app.wait(900);
+    await steps(app);
+    await app.wait(500);
+  },
+});
+export const COMPOSER_SCENARIOS: Record<string, Scenario> = {
+  composer: {
+    ...composer("blank", async (app) => {
+      await app.type(COMPOSER_BOX, "");
+    }),
+  },
+  "composer-mention": {
+    ...composer("blank", async (app) => {
+      await app.type(COMPOSER_BOX, "compare the tests with @s");
+      await app.wait(900);
+      await app.keyboard.press("down");
+      await app.wait(500);
+    }),
+  },
+  "composer-images": {
+    ...composer("blank", async (app) => {
+      await app.type(COMPOSER_BOX, "why does this fail, see @notes");
+      await app.wait(700);
+      await app.keyboard.press("tab");
+      await app.paste(COMPOSER_BOX, { files: [SHOT(1)] });
+      await app.paste(COMPOSER_BOX, { files: [SHOT(2)] });
+      await app.paste(COMPOSER_BOX, { files: [SHOT(3)] });
+      await app.wait(900);
+    }),
+  },
+  "composer-slash": {
+    ...composer("commands", async (app) => {
+      await app.type(COMPOSER_BOX, "/re");
+      await app.wait(700);
+    }),
+  },
+  "composer-long": {
+    ...composer("blank", async (app) => {
+      await app.paste(COMPOSER_BOX, {
+        text: `${"2026-11-07 12:00:01 INFO request handled in 12 ms\n".repeat(400)}done`,
+      });
+      await app.type(COMPOSER_BOX, " what stands out in this log?");
+      await app.wait(600);
+    }),
+  },
+  "composer-error": {
+    ...composer("blind", async (app) => {
+      await app.paste(COMPOSER_BOX, { files: [SHOT(1)] });
+      await app.paste(COMPOSER_BOX, { files: [SHOT(2)] });
+      await app.wait(900);
+    }),
+  },
+};
+Object.assign(SCENARIOS, COMPOSER_SCENARIOS);

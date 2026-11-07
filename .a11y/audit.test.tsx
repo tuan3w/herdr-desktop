@@ -19,6 +19,6 @@ for (const [name, scenario] of Object.entries(SCENARIOS)) {
     await app.wait(14000);
     await app.screenshot(`.scratch/a11y/${name}.png`);
     await scenario.cleanup?.(app);
-    await app.wait(16000);
+    await app.wait(8000);
   });
 }
