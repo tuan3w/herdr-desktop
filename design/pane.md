@@ -28,7 +28,7 @@ Ported from herdr-mobile (`slash_catalog`, `slash_usage`, `command_model`, `quic
 
 ## Links, find, options
 
-- A link pressed in the mirror, or chosen in `LinksDialog` (palette entry `Links in this pane…`, Enter on a row), goes through `openLink`: a web address opens in the browser (`http` and `https` only), a **file path is copied** (with `:line:col`), because the file viewer is not built and a path on another machine is not one this computer can open.
+- A link pressed in the mirror, or chosen in `LinksDialog` (palette entry `Links in this pane…`, Enter on a row), goes through `openLink` and `routeLink`: a file path opens in the file viewer (a folder in the browser), found in the pane's folder and the two above it on the pane's machine; a web address opens in the browser (`http` and `https` only); a page on a remote machine's own `localhost` opens in `WebPage` through a tunnel; anything else is copied. `design/files.md` has the rest. Files dropped on the tab are offered to the machine's folder (`SendFiles`), and `Browse files` in the header opens the pane's folder.
 - `PaneFind` (`mod+f`) reads the mirror's rows (`PaneScreenRef.rows`) at every query and step, so output that arrived meanwhile is found. Enter next, Shift+Enter previous, Escape closes; it starts at the last match and says `2 of 5` politely. `matchRows` ignores case, diacritics and invisible characters.
 - `Pane options`: layout (`Fit width`, `Actual size`, `Wrap lines`: the setting `paneFit`, the person's choice, not the pane's), find, links, `Duplicate` (an agent starts again in the same folder in a new tab of the workspace, a shell gets a new tab in its folder; the host's `onOpenPane` shows it), `Copy title`, `Copy pane id`.
 

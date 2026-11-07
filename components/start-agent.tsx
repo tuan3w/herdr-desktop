@@ -1,13 +1,13 @@
 import { announce, computed, effect, signal, Text, untracked, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
 import { AGENT_KINDS, folderError } from "../lib/agent-kinds";
-import { board, revision } from "../lib/herdr";
+import { allRows, board, revision } from "../lib/herdr";
 import { Autocomplete, Btn, FieldRow, Icon, Modal, SelectField } from "./kit";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 /**
- * `New agent session`: pick the machine, the folder and the agent, and herdr opens a workspace there with the agent
+ * `Start a terminal agent`: pick the machine, the folder and the agent, and herdr opens a workspace there with the agent
  * running in it. Nothing is started without a connected machine, and a start that fails keeps what was typed and
  * says what happened (when the agent did not start, the shell it opened stays: the message says so). The machine,
  * folder and agent are remembered between openings, because starting several agents in one folder is the usual case.
@@ -32,7 +32,7 @@ export function StartAgent(props: { open: boolean; onClose: () => void; onStarte
   const ready = () => choices().find((c) => c.value === machine() && !c.disabled) !== undefined;
   /** Folders agents already run in on the chosen machine: what the person most likely wants again. */
   const known = computed(() => {
-    const rows = [board().needsYou, board().toReview, board().working, board().idle].flat();
+    const rows = allRows(board());
     return [...new Set(rows.filter((r) => r.machine === machine() && r.cwd).map((r) => r.cwd as string))];
   });
 
@@ -76,7 +76,7 @@ export function StartAgent(props: { open: boolean; onClose: () => void; onStarte
     <Modal
       open={props.open}
       onClose={() => props.onClose()}
-      title="New agent session"
+      title="Start a terminal agent"
       description="Starts the agent in a new herdr workspace in that folder."
       disablePointerDismissal
       actions={

@@ -1,6 +1,6 @@
 # herdr-desktop design
 
-herdr-desktop is a quiet, dense, keyboard-first desktop tool for someone who supervises coding agents all day. It looks like a page, not a dashboard: a white surface, a sidebar one shade off it, text in two greys, hairlines instead of boxes, and colour spent only where it means something (the main button, one "needs you" signal, status text). The loudest thing on any screen is what needs the person; everything else is quiet and nothing moves at rest. If a screen has more borders, capsules, weights or colours than the same screen would in Notion, remove them. Four themes (Harbor, Container, Chart, Graphite), each light and dark, change only where that colour goes. Every action the user cannot trivially reverse says what happened and offers a way back.
+herdr-desktop is a quiet, dense, keyboard-first desktop tool for someone who supervises coding agents all day. It looks like a page, not a dashboard: a white surface, a sidebar one shade off it, text in two greys, hairlines instead of boxes, and colour spent only where it means something (the main button, one "needs you" signal, status text). The home is organised by project (a repository with its worktrees, or a folder) with state shown on every row and project header, never as the grouping; the loudest thing on any screen is what needs the person, everything else is quiet and nothing moves at rest. If a screen has more borders, capsules, weights or colours than the same screen would in Notion, remove them. Four themes (Harbor, Container, Chart, Graphite), each light and dark, change only where that colour goes. Every action the user cannot trivially reverse says what happened and offers a way back.
 
 Read the file that matches your change before writing UI:
 
@@ -9,7 +9,8 @@ Read the file that matches your change before writing UI:
 | a colour, a surface, a status, the sidebar surface, terminal colours | [design/colors.md](design/colors.md) |
 | a theme, or how themes switch | [design/themes.md](design/themes.md) |
 | text size, weight, fonts, numbers, copy | [design/typography.md](design/typography.md) |
-| a button, icon, pill, badge, tab, switch, menu, spinner, sidebar | [design/components.md](design/components.md) |
+| a button, icon, pill, badge, tab, switch, menu, spinner, sidebar, rail | [design/components.md](design/components.md) |
+| the home (project cards, Needs you), answering, triage, bulk actions, the status bar | [design/board.md](design/board.md) |
 | a tooltip, popover, preview card or any popup: when it opens, closes, follows | [design/overlays.md](design/overlays.md) |
 | a menu, a context menu, a select | [design/menus.md](design/menus.md) |
 | a combobox, an autocomplete, a pick list | [design/combobox.md](design/combobox.md) |
@@ -17,8 +18,11 @@ Read the file that matches your change before writing UI:
 | a checkbox, radio, tabs, collapsible, accordion, progress, avatar, accessibility of a control | [design/controls.md](design/controls.md) |
 | a dialog, a toast, undo | [design/dialogs.md](design/dialogs.md) |
 | a table, a list of many records, sorting | [design/data.md](design/data.md) |
+| files, a viewer, a picture, a diagram, a page from a machine, sending a file | [design/files.md](design/files.md) |
+| the chat's permission dock, a question form, New session, Past sessions, session details | [design/chat-parts.md](design/chat-parts.md) |
 | feedback, undo, delete, shortcuts, settings, window size | [design/patterns.md](design/patterns.md) |
 | anything that moves | [design/motion.md](design/motion.md) |
+| the chat tab: the conversation, work groups, tool rows, the message box, queue, attachments | [design/chat.md](design/chat.md) |
 
 Tokens come from `lib/theme/` (`theme.json` is the default theme's generated copy), motion values from `lib/motion.ts`, the UI kit from `components/kit/` (import everything from `./kit`, never from a file inside it). Those are the source of truth; these docs describe them. `docs/ACCESSIBILITY.md` is the checklist every screen answers to.
 
@@ -26,7 +30,7 @@ Tokens come from `lib/theme/` (`theme.json` is the default theme's generated cop
 
 Check every new screen against these before anything else.
 
-1. **No boxes.** A list is plain rows (`h-9`, `rounded-md`, `hover:bg-accent`), not cards. No border under every row; a hairline only under a header or between major sections.
+1. **No boxes.** A list is plain rows (`h-9`, `rounded-md`, `hover:bg-accent`), not cards. No border under every row; a hairline only under a header or between major sections. The one exception is the home, whose unit is the project: a project is a hairline card holding its agents as plain rows, and the `Needs you` inbox is one more (`design/board.md`).
 2. **Two greys, two weights.** Text is `foreground` or `muted-foreground`. Body is regular, row titles and labels `font-medium`, only a page title is `font-bold`. Nothing is uppercase.
 3. **Colour is rare.** Grey everywhere; `primary` for the main button and checked boxes; `signal` for what needs the user; status colours as text. A tinted background is a `Pill` and nothing else.
 4. **Words, not capsules.** Ages, counts and machine names are plain muted text joined by ` · `. A count is a grey number; only one that needs the user is a capsule.
@@ -47,7 +51,7 @@ Check every new screen against these before anything else.
 6. **Nothing is lost silently.** Reversible edits go through `notify(..., { undo })`. Irreversible ones (close a pane, remove a machine) go through `confirmDestructive`. Nothing is ever approved silently: a risky answer is two-step, never a timed hold. See `design/patterns.md`.
 7. **Motion goes through `lib/motion.ts`.** See `design/motion.md` for what animates and what never does; `reduceMotion()` switches it off.
 8. **One primary per area.** An area is a page header, a dialog, or an add-row. Repeated rows have no filled button: their actions are `outline` or `ghost` and appear on hover.
-9. **The layout answers to the window.** Three widths are tested: 1280, 960 (rail sidebar) and 760 (one pane at a time), and `fontScale()` 2.0. Use `compact()`, `rail()`, `narrow()`; never read the window size in a screen.
+9. **The layout answers to the window.** Three widths are tested: 1280, 960 (the full sidebar at its narrow width, `snug()`) and 760 (the rail of project tiles, one pane at a time), and `fontScale()` 2.0. Use `compact()`, `rail()`, `narrow()`, `snug()`; never read the window size in a screen.
 10. **Anything the user can choose is in Settings.** A new option is a signal in `lib/settings.ts` (with `Saved` and `loadSettings`, as its header comment says) and an entry in Settings.
 11. **When it does not fit, say so or make room.** One row has one control height. Cut text is a `Clipped` (hover shows it all); text that must be read is never cut. A `Modal` taller than the window scrolls its content between a fixed title and fixed actions. A long pick list is a virtualized `List`.
 12. **Shortcuts are `lib/shortcuts.ts`.** Global ones carry `mod`, never `alt`; hints and tooltips name keys through `keyLabel`.

@@ -8,26 +8,50 @@ import { save } from "./save";
  * state; the palette, the menu and the keys call the functions here. The pure part (key names, reading a saved layout,
  * walking groups) is tested without a window in `dock.test.ts`.
  *
- * Panel keys: `board` (the home tab, never closable) and `pane:<machine>/<paneId>` (one agent or terminal pane). A
- * pane tab is a view: closing it never closes the pane in herdr.
+ * Panel keys: `board` (the home tab, never closable), `pane:<machine>/<paneId>` (a terminal pane mirrored) and
+ * `session:<machine>/<id>` (a chat: an agent session of a keeper, or, with the id `pane:<paneId>`, the chat read from
+ * the log of the agent in that terminal pane). A tab is a view: closing it never closes the pane or the session.
  */
 export const BOARD = "board";
 export const STORAGE_KEY = "herdr.dock.v1";
 /** Quiet time before the layout is written: it is reported on every edit, a tab selection and a resize included. */
 export const SAVE_DELAY_MS = 500;
 const PANE = "pane:";
+const SESSION = "session:";
 
 export const paneKey = (machine: string, pane: string): string => `${PANE}${machine}/${pane}`;
+export const sessionKey = (machine: string, id: string): string => `${SESSION}${machine}/${id}`;
 
-/** The machine and pane a panel key names, `null` for the board and for anything else. Pane ids hold `:` but never start a machine id. */
-export function parsePaneKey(key: string): { machine: string; pane: string } | null {
-  if (!key.startsWith(PANE)) return null;
-  const slash = key.indexOf("/", PANE.length);
-  if (slash <= PANE.length || slash === key.length - 1) return null;
-  return { machine: key.slice(PANE.length, slash), pane: key.slice(slash + 1) };
+/** Splits `<prefix><machine>/<rest>`; pane and session ids hold `:` (and `pane:`) but a machine id never holds `/`. */
+function split(prefix: string, key: string): { machine: string; rest: string } | null {
+  if (!key.startsWith(prefix)) return null;
+  const slash = key.indexOf("/", prefix.length);
+  if (slash <= prefix.length || slash === key.length - 1) return null;
+  return { machine: key.slice(prefix.length, slash), rest: key.slice(slash + 1) };
 }
 
-const validKey = (key: unknown): key is string => typeof key === "string" && (key === BOARD || parsePaneKey(key) !== null);
+/** The machine and pane a panel key names, `null` for the board and for anything else. */
+export function parsePaneKey(key: string): { machine: string; pane: string } | null {
+  const at = split(PANE, key);
+  return at && { machine: at.machine, pane: at.rest };
+}
+
+/** The machine and session id a chat tab's key names, `null` for anything else. An id `pane:<paneId>` is a terminal agent's chat. */
+export function parseSessionKey(key: string): { machine: string; id: string } | null {
+  const at = split(SESSION, key);
+  return at && { machine: at.machine, id: at.rest };
+}
+
+/** The key of the board row a tab is about (`BoardRow.key`), `null` for the board: a pane, a terminal agent's chat and a keeper session each map to their one row. */
+export function rowKeyOf(panel: string): string | null {
+  const pane = parsePaneKey(panel);
+  if (pane) return `${pane.machine}/${pane.pane}`;
+  const chat = parseSessionKey(panel);
+  if (!chat) return null;
+  return chat.id.startsWith(PANE) ? `${chat.machine}/${chat.id.slice(PANE.length)}` : `${chat.machine}/session:${chat.id}`;
+}
+
+const validKey = (key: unknown): key is string => typeof key === "string" && (key === BOARD || parsePaneKey(key) !== null || parseSessionKey(key) !== null);
 
 export function defaultLayout(): DockAreaLayout {
   return { center: { type: "split", axis: "horizontal", children: [{ type: "tabs", panels: [BOARD] }] } };
@@ -139,7 +163,7 @@ export const dockReady = signal(false);
  * displayed, so a click on a displayed tab of another group does not move it: select it or use `focusPane`.
  */
 export const focused = signal<string>(BOARD);
-/** The pane tab used last: where `focusPane` goes from the board. */
+/** The agent tab (pane or chat) used last: where `focusPane` goes from the board. */
 export const lastPane = signal<string | null>(null);
 
 let area: DockAreaRef | undefined;
@@ -175,7 +199,7 @@ const PIN_MS = 150;
 
 function focus(key: string): void {
   focused.set(key);
-  if (parsePaneKey(key)) lastPane.set(key);
+  if (key !== BOARD) lastPane.set(key);
 }
 
 /**
@@ -194,8 +218,16 @@ function chosen(key: string): void {
   focus(key);
 }
 
-/** The focused panel's pane, `null` while the board is focused. */
-export const focusedPane = (): { machine: string; pane: string } | null => parsePaneKey(focused());
+/**
+ * The pane the focused tab is about: a terminal tab's own, or the pane a chat read from its terminal comes from (the pane
+ * commands, rename and close in herdr, work from either view). `null` on the board and in a keeper's chat, which has no pane.
+ */
+export function focusedPane(): { machine: string; pane: string } | null {
+  const key = focused();
+  const chat = parseSessionKey(key);
+  if (chat) return chat.id.startsWith(PANE) ? { machine: chat.machine, pane: chat.id.slice(PANE.length) } : null;
+  return parsePaneKey(key);
+}
 
 // ---- commands ----
 
@@ -212,6 +244,9 @@ export async function openPanel(key: string): Promise<void> {
   }
   chosen(key);
 }
+
+/** Opens a chat's tab (`id` is a keeper session's, or `pane:<paneId>` for a terminal agent read from its log); the tab attaches itself. */
+export const openSession = (machine: string, id: string): Promise<void> => openPanel(sessionKey(machine, id));
 
 /** Opens a pane's tab; `reply` (the board's `Reply…`) also puts the keyboard in its message box. */
 export async function openPane(machine: string, pane: string, options?: { reply?: boolean }): Promise<void> {

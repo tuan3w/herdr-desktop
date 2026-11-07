@@ -37,6 +37,14 @@ function Lab() {
     requests.set(calls.length ? calls.join(" | ") : "no requests");
   };
 
+  // What ssh would print for three destinations, so machines added afterwards fail the way real ones do: a changed host
+  // key and an untrusted one need the person (no retries), a refused connection is retried.
+  const scriptSsh = () => {
+    Herdr.testSshFault("changed.example", "@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @@@\nHost key verification failed.");
+    Herdr.testSshFault("unknown.example", "Host key verification failed.");
+    Herdr.testSshFault("refused.example", "ssh: connect to host refused.example port 22: Connection refused");
+  };
+
   return (
     <ThemeRoot>
       <View class="flex-1 gap-2 bg-background p-4">
@@ -48,6 +56,7 @@ function Lab() {
           <Btn label="New workspace" onPress={() => name.set({ open: true, confirm: "Create", title: "New workspace" })} />
           <Btn label="Show requests" onPress={show} />
           <Btn label="Forget the remote machine" onPress={forget} />
+          <Btn label="Script ssh failures" onPress={scriptSsh} />
         </View>
         <Text>{`machines=${count()}`}</Text>
         <Text>{started()}</Text>
@@ -55,6 +64,7 @@ function Lab() {
         <Text>{requests()}</Text>
         <Text>{`fit=${paneFit()} font=${paneFontSize()} contrast=${minContrast()} theme=${themeId()}`}</Text>
         <Text>{`quick=${quickPhrases()} announce=${announceOutput()} motion=${reduceMotionOverride()}`}</Text>
+        <Text>{`notify=${(revision(), Herdr.setting("notify.needsYou") === true)}/${(revision(), Herdr.setting("notify.alsoDone") === true)}`}</Text>
         <Text>{`press=${pressTransition() === undefined ? "still" : "eased"}`}</Text>
       </View>
       <Machines open={machines()} onClose={() => machines.set(false)} />

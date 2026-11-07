@@ -1,4 +1,4 @@
-import { announce, effect, host, keymap, lifecycle, mount, View } from "nsh";
+import { announce, effect, host, keymap, lifecycle, mount, View, windowSize } from "nsh";
 import { ResizablePanel, ResizablePanelGroup } from "nsh/base";
 import { isAvailable, Menu, Window } from "nsh/desktop";
 import { Herdr } from "herdr-desktop/native";
@@ -10,17 +10,23 @@ import "./fonts/IBMPlexMono-Regular.ttf";
 import "./fonts/IBMPlexMono-Medium.ttf";
 import { BulkBar } from "./components/bulk-bar";
 import { DevPanel } from "./components/dev-panel";
+import { Files } from "./components/files";
 import { Machines } from "./components/machines";
 import { NameDialog } from "./components/name-dialog";
+import { NewSession } from "./components/new-session";
 import { Palette } from "./components/palette";
+import { SendFiles } from "./components/send-files";
 import { Settings } from "./components/settings";
 import { Shortcuts } from "./components/shortcuts";
 import { Sidebar } from "./components/sidebar";
 import { StartAgent } from "./components/start-agent";
+import { StatusBar } from "./components/status-bar";
+import { WebPage } from "./components/web-page";
 import { Workspace } from "./components/workspace";
-import { notify, PopupRoot, RAIL_WIDTH, rail, Skeleton, ThemeRoot, ToastHost } from "./components/kit";
-import { actions, appMenu, globalActions, machinesOpen, naming, newAgentOpen, palette, runAction, settingsOpen, shortcutsOpen } from "./lib/actions";
-import { dockReady, loadDock, openPane } from "./lib/dock";
+import { notify, PopupRoot, RAIL_WIDTH, rail, Skeleton, snug, ThemeRoot, ToastHost } from "./components/kit";
+import { actions, appMenu, globalActions, machinesOpen, naming, newAgentOpen, newSessionOpen, newSessionProject, palette, runAction, settingsOpen, shortcutsOpen } from "./lib/actions";
+import { dockReady, loadDock, openPane, openSession, showBoard } from "./lib/dock";
+import { openTarget } from "./lib/open-agent";
 import { board, startHerdr } from "./lib/herdr";
 import { hoverTransition } from "./lib/motion";
 import { saveFailures } from "./lib/save";
@@ -37,6 +43,14 @@ void loadSettings();
 void loadDock();
 void loadSidebar();
 for (const warning of Herdr.warnings()) notify(warning, { lasting: true });
+
+// A click on a desktop notification brings the window forward and shows what it was about: that agent's tab, or the
+// board for a summary. (The window manager may refuse to raise a window; the tab opens anyway.)
+Herdr.onNotificationOpen(({ machine, pane }) => {
+  if (isAvailable) Window.orderFront();
+  if (machine && pane) void openTarget(machine, pane);
+  else void showBoard();
+});
 
 /** First frame while the saved layout loads: the shape of the window, so nothing jumps when it arrives. */
 function LoadingScreen() {
@@ -56,6 +70,9 @@ function App() {
 
   // The title is the one count the person sees from another window: how many agents need them.
   if (isAvailable) {
+    // nsh opens a window phone-sized (390 x 844) and the sidebar alone takes a third of that: open at desktop size. A window
+    // that is already wider (a test or a screenshot that sized it) is left alone.
+    if (windowSize().width < 600) Window.setFrame({ size: { width: 1280, height: 800 } });
     effect(() => Window.setTitle(board().title));
     effect(() => Menu.setApplicationMenu(appMenu()));
   }
@@ -64,6 +81,9 @@ function App() {
 
   let loading = false;
   const ready = () => dockReady() && settingsReady() && sidebarReady();
+  // In a snug window (under 1100) the full sidebar is its narrow width and its edge is fixed; the person's own width is kept for wide windows.
+  const fixedWidth = () => rail() || snug();
+  const sideWidth = () => (rail() ? RAIL_WIDTH : snug() ? SIDEBAR_WIDTH.narrow : sidebarWidth());
   effect(() => {
     if (!ready()) {
       loading = true;
@@ -86,17 +106,19 @@ function App() {
     <ThemeRoot>
       <PopupRoot class="flex-1 bg-background">
         <ResizablePanelGroup
-          disabled={rail()}
-          handleClass={`bg-sidebar-border ${rail() ? "" : "group-hover:w-[3px] group-hover:bg-sidebar-ring group-active:w-[3px] group-active:bg-sidebar-ring"}`}
+          disabled={fixedWidth()}
+          handleClass={`bg-sidebar-border ${fixedWidth() ? "" : "group-hover:w-[3px] group-hover:bg-sidebar-ring group-active:w-[3px] group-active:bg-sidebar-ring"}`}
           handleStyle={hoverTransition()}
           handleAccessibilityLabel="Resize the sidebar"
         >
           <ResizablePanel
             fixed
-            size={rail() ? RAIL_WIDTH : sidebarWidth()}
-            minSize={rail() ? RAIL_WIDTH : SIDEBAR_WIDTH.min}
-            maxSize={rail() ? RAIL_WIDTH : SIDEBAR_WIDTH.max}
-            onResize={({ size }) => sidebarWidth.set(Math.round(size))}
+            size={sideWidth()}
+            minSize={fixedWidth() ? sideWidth() : SIDEBAR_WIDTH.min}
+            maxSize={fixedWidth() ? sideWidth() : SIDEBAR_WIDTH.max}
+            onResize={({ size }) => {
+              if (!fixedWidth()) sidebarWidth.set(Math.round(size));
+            }}
           >
             <Sidebar />
           </ResizablePanel>
@@ -105,6 +127,7 @@ function App() {
               <View class="size-full">
                 <Workspace />
                 <BulkBar />
+                <StatusBar />
               </View>
             </If>
           </ResizablePanel>
@@ -113,7 +136,11 @@ function App() {
         <Shortcuts open={shortcutsOpen()} onClose={() => shortcutsOpen.set(false)} />
         <Settings open={settingsOpen()} onClose={() => settingsOpen.set(false)} />
         <Machines open={machinesOpen()} onClose={() => machinesOpen.set(false)} />
+        <Files />
+        <WebPage />
+        <SendFiles />
         <StartAgent open={newAgentOpen()} onClose={() => newAgentOpen.set(false)} onStarted={(machine, pane) => void openPane(machine, pane)} />
+        <NewSession open={newSessionOpen()} onClose={() => newSessionOpen.set(false)} onStarted={(machine, id) => void openSession(machine, id)} project={newSessionProject()} />
         <NameDialog
           open={naming() !== null}
           title={naming()?.title ?? ""}

@@ -1,18 +1,21 @@
 import { cleanup, View } from "nsh";
 import { DockArea, type DockTab } from "nsh/base";
 import { machinesOpen } from "../lib/actions";
-import { attach, activated, BOARD, closeTab, focused, layout, openPane, parsePaneKey, removePanel, setLayout } from "../lib/dock";
-import { meta } from "../lib/herdr";
+import { attach, activated, BOARD, closeTab, focused, layout, openPane, parsePaneKey, parseSessionKey, removePanel, rowKeyOf, setLayout } from "../lib/dock";
+import { meta, rowOf } from "../lib/herdr";
 import { hoverTransition } from "../lib/motion";
+import { openAgent } from "../lib/open-agent";
 import { keyLabel } from "../lib/shortcuts";
 import { Board } from "./board";
 import { Btn, Clipped, Empty, FOCUS_RING_INSET, Icon, IconButton } from "./kit";
 import { PaneTab } from "./pane-tab";
+import { SessionTab } from "./session-tab";
 import { StatusGlyph } from "./status-glyph";
 
 /**
  * The tab area: splits of tab groups the person arranges. The board is the home tab (never closable); each opened agent
- * or terminal is a `pane:<machine>/<paneId>` tab. A tab is a view: closing it leaves the pane running. Dragging a tab
+ * is a chat tab (`session:<machine>/<id>`: a keeper session, or the chat read from a terminal agent's log) or a terminal
+ * tab (`pane:<machine>/<paneId>`). A tab is a view: closing it leaves the pane or the session running. Dragging a tab
  * is for the pointer; every drag has a keyboard command (`Move tab to split right`, `Move tab to other group`, ...) in
  * the palette, and `mod+\` and `mod+shift+\` split. The layout is `lib/dock.ts`'s and is saved there.
  */
@@ -24,6 +27,13 @@ function AgentGone(props: { panel: string }) {
       <Btn label="Close" name="Close this tab" variant="outline" onPress={() => removePanel(props.panel)} />
     </Empty>
   );
+}
+
+/** A chat tab: it attaches (or reads the log) itself and says inline when it cannot, so it is never an `Agent gone` placeholder. */
+function SessionPanel(props: { id: string }) {
+  const at = parseSessionKey(props.id);
+  if (!at) return <AgentGone panel={props.id} />;
+  return <SessionTab machine={at.machine} id={at.id} active={focused() === props.id} />;
 }
 
 function PanePanel(props: { id: string }) {
@@ -38,15 +48,24 @@ function PanePanel(props: { id: string }) {
   );
 }
 
-/** A tab's face: the shape of the agent's state, its name, and the cross that closes the view. */
+/**
+ * A tab's face: the shape of the agent's state, its name, and the cross that closes the view. A terminal tab reads its
+ * pane's header facts; a chat tab reads its row of the board (a chat that is not on the board, one that ended, says `Chat`).
+ */
 function TabFace(props: { tab: DockTab }) {
   const at = parsePaneKey(props.tab.panel);
   const info = at ? meta(at.machine, at.pane) : () => null;
+  const chat = parseSessionKey(props.tab.panel) !== null;
+  const row = () => {
+    const key = chat ? rowKeyOf(props.tab.panel) : null;
+    return key === null ? undefined : rowOf(key);
+  };
   const gone = () => at !== null && (info() === null || info()!.feedState === "gone");
-  const name = () => (props.tab.panel === BOARD ? "Board" : gone() ? "Agent gone" : (info()?.name ?? at?.pane ?? ""));
+  const name = () => (props.tab.panel === BOARD ? "Board" : chat ? (row()?.name ?? "Chat") : gone() ? "Agent gone" : (info()?.name ?? at?.pane ?? ""));
+  const status = () => (chat ? (row()?.status ?? "unknown") : gone() ? "unknown" : (info()?.status ?? "unknown"));
   return (
     <View class="max-w-56 flex-row items-center gap-2">
-      <If when={props.tab.panel === BOARD} else={<StatusGlyph status={gone() ? "unknown" : (info()?.status ?? "unknown")} size={12} />}>
+      <If when={props.tab.panel === BOARD} else={<StatusGlyph status={status()} size={12} />}>
         <Icon name="list" size={14} tone="muted-foreground" />
       </If>
       <Clipped class={`text-sm ${props.tab.active ? "text-foreground" : "text-muted-foreground"}`}>{name()}</Clipped>
@@ -72,7 +91,7 @@ export function Workspace() {
         if (active) activated(panel);
       }}
       panels={[{ id: BOARD, closable: false }]}
-      renderPanel={({ id }) => (id === BOARD ? <Board onOpenPane={(machine, pane, options) => void openPane(machine, pane, options)} onAddMachine={() => machinesOpen.set(true)} /> : <PanePanel id={id} />)}
+      renderPanel={({ id }) => (id === BOARD ? <Board onOpen={(row, options) => void openAgent(row, options)} onAddMachine={() => machinesOpen.set(true)} /> : id.startsWith("session:") ? <SessionPanel id={id} /> : <PanePanel id={id} />)}
       renderTab={(tab) => <TabFace tab={tab} />}
       renderDragPreview={(tab) => (
         <View class="rounded-md border border-border bg-popover px-3 py-1.5 shadow-md">

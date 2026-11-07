@@ -1,6 +1,7 @@
 import { Overlay, Text, View } from "nsh";
 import { Button } from "nsh/base";
 import { hoverTransition } from "../lib/motion";
+import "../lib/native-metrics";
 import { type Health, perfCollapsed, perfOpen, perfReadings, type Reading } from "../lib/perf";
 import { keyLabel } from "../lib/shortcuts";
 import { FOCUS_RING, Icon, IconButton, NUM } from "./kit";
@@ -16,8 +17,8 @@ const worst = (readings: Reading[]): Health =>
  * The developer panel: `lib/perf.ts` metrics, a line each, refreshed twice a second while it shows. The header folds it
  * to one line (a summary), the cross or the shortcut closes it. Only the panel itself takes presses; screen readers skip
  * the readings, which are for the person running the app. Labels are English on purpose.
- * CPU, GPU and memory are not here: JS cannot read them. `--fps` is nsh's own monitor (top right) and costs CPU itself:
- * for CPU run `bun scripts/cpu.mjs`.
+ * The live pane path and the process (memory, threads, descriptors) come from Rust (`lib/native-metrics.ts`). CPU and GPU are
+ * not here: `--fps` is nsh's own monitor (top right) and costs CPU itself: for CPU run `bun scripts/cpu.mjs`.
  */
 export function DevPanel() {
   const summary = () => perfReadings().filter((r) => r.brief);
@@ -54,7 +55,7 @@ export function DevPanel() {
                   </View>
                 )}
               </Each>
-              <Text class="pt-1 text-xs text-muted-foreground">CPU: bun scripts/cpu.mjs. GPU, memory: run with --fps</Text>
+              <Text class="pt-1 text-xs text-muted-foreground">CPU: bun scripts/cpu.mjs. GPU: run with --fps</Text>
             </View>
           </If>
         </View>

@@ -19,7 +19,7 @@ export { ActionMenu, type MenuAction, type MenuEntry, type MenuGroup, RowMenu } 
 export { Icon, type IconName, type IconTone } from "./icon";
 export { confirmDestructive, Modal } from "./modal";
 export { closeToast, focusToasts, notify, notifyPromise, type NotifyOptions, ToastHost, undoLast, updateToast } from "./notify";
-export { COMPACT_WIDTH, compact, NARROW_WIDTH, narrow, RAIL_WIDTH, rail } from "./responsive";
+export { COMPACT_WIDTH, compact, NARROW_WIDTH, narrow, RAIL_WIDTH, rail, SNUG_WIDTH, snug } from "./responsive";
 export { Segmented, type SegmentOption } from "./segmented";
 export { SettingRow, SettingsSection } from "./settings";
 export { Switch } from "./switch";

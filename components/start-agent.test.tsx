@@ -16,7 +16,8 @@ test("an agent starts in the folder asked, as the kind chosen, and the caller he
   const asked = app.texts().find((t) => t.startsWith("workspace.create")) ?? "";
   const [create, start] = asked.split(" | ");
   expect(create).toContain('"cwd":"/home/dev/payments-api"');
-  expect(start).toContain('agent.start {"kind":"claude"');
+  expect(start).toContain('agent.start');
+  expect(start).toContain('"kind":"claude"');
   // the agent goes into the pane the new workspace made
   expect(start).toContain('"pane_id":"w9:p1"');
   await app.waitFor("Start agent", { state: "gone" });

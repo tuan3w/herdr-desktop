@@ -50,7 +50,9 @@ test("the answer the person saw is the one that is sent", async () => {
   await app.waitFor("Question: Do you want to proceed?");
   await app.press("Answer first option");
   await app.waitFor("answer sent");
-  expect(app.shows('sent {"keys":["1","enter"],"pane_id":"w1:p1"}')).toBe(true);
+  // Compared as data: the order of an object's keys on the wire is not what the person asked for.
+  const sent = app.texts().find((t) => t.startsWith("sent "))!;
+  expect(JSON.parse(sent.slice("sent ".length))).toEqual({ keys: ["1", "enter"], pane_id: "w1:p1" });
 });
 
 test("finished agents leave 'to review' once reviewed, and a machine that cannot be reached is refused with a reason", async () => {

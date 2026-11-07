@@ -5,7 +5,7 @@ import { scripted, sentKeys } from "./board-seam";
 
 /** Picking agents and acting on them, against `mixed.json`: working `Refactor ledger` (w1:p4) and `upgrade deps` (w1:p5), waiting `payments review` (w1:p1). */
 const DESKTOP = { width: 1280, height: 800, platform: "linux", clock: {} } as const;
-/** Opens the board and lets the list finish measuring its cells before any press (see `board.test.tsx`). */
+/** Opens the home and lets it finish laying out before any press (see `board.test.tsx`). */
 async function lab() {
   const app = await open("./board-lab.tsx", { ...DESKTOP, host: { params: { fixture: "mixed" } } });
   await app.waitFor("heard just now", { timeout: 5000 }).catch(() => undefined);
@@ -19,11 +19,11 @@ const inBar = "label:Selected agents >> ";
 const picked = (app: App) => Number(app.texts().find((t) => /^\d+ selected$/.test(t))?.split(" ")[0] ?? 0);
 
 /**
- * Picks the named agents one by one. A press made while the virtual list is still being measured can land on a row
+ * Picks the named agents one by one. A press made while the cards are still laid out can land on a row
  * that moves under it, so each pick waits for the bar's count and presses again when it did not register.
  */
 async function pick(app: App, ...names: string[]) {
-  await app.waitFor("Working");
+  await app.waitFor("Refactor ledger");
   let expected = 0;
   for (const name of names) {
     expected += 1;
@@ -37,7 +37,7 @@ async function pick(app: App, ...names: string[]) {
 
 test("the bar shows only while something is picked, with how many, and clearing hides it", async () => {
   const app = await lab();
-  await app.waitFor("Working");
+  await app.waitFor("Refactor ledger");
   expect(has(app, "Stop")).toBe(false);
   await pick(app, "Refactor ledger", "upgrade deps");
   expect(has(app, "2 selected")).toBe(true);

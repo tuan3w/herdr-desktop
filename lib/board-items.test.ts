@@ -1,76 +1,43 @@
 import { expect, test } from "nsh/test";
-import type { BoardData, BoardRow } from "herdr-desktop/native";
-import { boardItems } from "./board-items";
+import { homeLines, STRIP_SHOWN, strip, WIDE_ROWS } from "./board-items";
+import { boardData, project, row } from "./board-rows.fixture";
 
-const row = (pane: string, over: Partial<BoardRow> = {}): BoardRow => ({
-  key: `local/${pane}`,
-  machine: "local",
-  machineName: "This computer",
-  paneId: pane,
-  workspaceId: "w1",
-  tabId: "w1:t1",
-  agent: "claude",
-  name: pane,
-  status: "working",
-  offline: false,
-  reviewed: false,
-  reviewKey: `local|${pane}|1`,
-  preview: [],
-  ...over,
+const agents = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => row(`local/${prefix}${i}`, { status: "working" }));
+const shape = (lines: ReturnType<typeof homeLines>) => lines.map((l) => l.projects.map((p) => p.name).join("+"));
+
+test("the strip answers the agent that has waited longest, and says how many more wait", () => {
+  const waiting = [1, 2, 3, 4, 5].map((n) => row(`local/w${n}`, { status: "blocked" }));
+  const gone = row("far/g1", { status: "blocked", offline: true });
+  const board = boardData([project("api", waiting), project("far", [gone])]);
+  const s = strip(board);
+  expect(s.rows.map((r) => r.paneId)).toEqual(["w1"]);
+  expect(s.rows).toHaveLength(STRIP_SHOWN);
+  expect(s.more).toBe(4);
+  expect(strip(boardData([project("quiet", agents("a", 2))])).rows).toEqual([]);
 });
 
-const data = (over: Partial<BoardData> = {}): BoardData => ({
-  needsYou: [],
-  toReview: [],
-  working: [],
-  idle: [],
-  idleRest: [],
-  moreIdle: 0,
-  counts: { needsYou: 0, toReview: 0, working: 0, idle: 0, offline: 0, machinesNotConnected: 0 },
-  statusLine: "",
-  title: "Herdr Desktop",
-  revision: 1,
-  ...over,
+test("a narrow home is one card per line, a wide one two, in the board's order", () => {
+  const projects = ["a", "b", "c"].map((n) => project(n, agents(n, 1)));
+  expect(shape(homeLines(projects, 1, [], []))).toEqual(["a", "b", "c"]);
+  expect(shape(homeLines(projects, 2, [], []))).toEqual(["a+b", "c"]);
 });
 
-const shape = (items: ReturnType<typeof boardItems>) => items.map((i) => (i.kind === "header" ? `# ${i.title}` : i.kind === "more" ? `+ ${i.text}` : `${i.kind} ${i.key}`));
-
-test("sections come in the order of urgency, empty ones have no header, and a reachable waiting agent is a card", () => {
-  const items = boardItems(
-    data({
-      needsYou: [row("a", { status: "blocked" }), row("b", { status: "blocked", offline: true })],
-      working: [row("c")],
-      toReview: [row("d", { status: "done" })],
-    }),
-    [],
-    false,
-  );
-  expect(shape(items)).toEqual(["# Needs you", "card local/a", "row local/b", "# To review", "row local/d", "# Working", "row local/c"]);
+test("a project listing many agents takes the whole line; folded, it is a small card again", () => {
+  const big = project("big", agents("x", WIDE_ROWS));
+  const projects = [project("a", agents("a", 1)), big, project("c", agents("c", 1)), project("d", agents("d", 1))];
+  expect(shape(homeLines(projects, 2, [], []))).toEqual(["a", "big", "c+d"]);
+  expect(shape(homeLines(projects, 2, [], [big.key]))).toEqual(["a+big", "c+d"]);
 });
 
-test("a folded section keeps its header and hides its rows, and what needs you can never be folded", () => {
-  const items = boardItems(data({ needsYou: [row("a", { status: "blocked" })], working: [row("c")] }), ["working", "needsYou"], false);
-  expect(shape(items)).toEqual(["# Needs you", "card local/a", "# Working"]);
+test("a card does not move when a project before it changes state, only when it grows past the wide limit", () => {
+  const before = [project("a", agents("a", 2)), project("b", agents("b", 2)), project("c", agents("c", 1))];
+  const after = [project("a", [row("local/a0", { status: "blocked" }), row("local/a1", { status: "done" })]), before[1], before[2]];
+  expect(shape(homeLines(after, 2, [], []))).toEqual(shape(homeLines(before, 2, [], [])));
 });
 
-test("offline agents that wait are said, not counted: the header notes them", () => {
-  const items = boardItems(data({ needsYou: [row("a", { status: "blocked", offline: true }), row("b", { status: "blocked", offline: true })] }), [], false);
-  expect(items[0]).toMatchObject({ kind: "header", note: "2 offline" });
-});
-
-test("idle shows five, the rest hide behind one line naming the first two, and opening lists them all in place", () => {
-  const idle = ["i1", "i2", "i3", "i4", "i5"].map((p) => row(p, { status: "idle", name: p }));
-  const rest = ["r1", "r2", "r3"].map((p) => row(p, { status: "idle", name: `agent ${p}` }));
-  const closed = boardItems(data({ idle, idleRest: rest, moreIdle: 3, counts: { needsYou: 0, toReview: 0, working: 0, idle: 8, offline: 0, machinesNotConnected: 0 } }), [], false);
-  expect(shape(closed).slice(-2)).toEqual(["row local/i5", "+ 3 more idle: agent r1, agent r2…"]);
-  expect(closed[0]).toMatchObject({ kind: "header", title: "Idle", note: "8" });
-
-  const open = boardItems(data({ idle, idleRest: rest, moreIdle: 3 }), [], true);
-  expect(shape(open).slice(-4)).toEqual(["row local/r1", "row local/r2", "row local/r3", "+ Show less"]);
-  expect(open.filter((i) => i.kind === "row")).toHaveLength(8);
-});
-
-test("a folded idle section hides the line that opens it as well", () => {
-  const items = boardItems(data({ idle: [row("i1", { status: "idle" })], idleRest: [row("r1", { status: "idle" })], moreIdle: 1 }), ["idle"], false);
-  expect(shape(items)).toEqual(["# Idle"]);
+test("idle agents beyond the first few do not make a card wide while they fold, only once they are listed", () => {
+  const quiet = project("q", Array.from({ length: 10 }, (_, i) => row(`local/i${i}`, { status: "idle" })));
+  const projects = [quiet, project("r", agents("r", 1))];
+  expect(shape(homeLines(projects, 2, [], []))).toEqual(["q+r"]);
+  expect(shape(homeLines(projects, 2, [quiet.key], []))).toEqual(["q", "r"]);
 });

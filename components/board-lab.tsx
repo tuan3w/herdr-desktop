@@ -1,4 +1,5 @@
 import { host, mount, signal, Text, View } from "nsh";
+import { newSessionProject } from "../lib/actions";
 import { startHerdr } from "../lib/herdr";
 import { loadSidebar } from "../lib/sidebar";
 import { Board } from "./board";
@@ -21,8 +22,9 @@ function Lab() {
       <View class="flex-1 bg-background">
         <Text class="px-4 pt-2 text-xs text-muted-foreground">{opened()}</Text>
         <Text class="px-4 text-xs text-muted-foreground">{machine()}</Text>
+        <Text class="px-4 text-xs text-muted-foreground">{`new session in ${newSessionProject()?.folder ?? "nowhere"}`}</Text>
         <Board
-          onOpenPane={(m, pane, options) => opened.set(`opened ${m}/${pane}${options?.reply ? " to reply" : ""}`)}
+          onOpen={(row, options) => opened.set(`opened ${row.machine}/${row.paneId}${options?.reply ? " to reply" : ""}`)}
           onAddMachine={() => machine.set("add machine asked")}
         />
         <BulkBar />

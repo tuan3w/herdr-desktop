@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
 import type { DockAreaLayout } from "nsh/base";
-import { BOARD, defaultLayout, groupOf, groups, otherGroup, panelsOf, paneKey, parsePaneKey, readLayout } from "./dock";
+import { BOARD, defaultLayout, groupOf, groups, otherGroup, panelsOf, paneKey, parsePaneKey, parseSessionKey, readLayout, rowKeyOf, sessionKey } from "./dock";
 
 const A = paneKey("local", "w1:p1");
 const B = paneKey("m1", "w2:p3");
@@ -90,4 +90,24 @@ test("groups are read through nested splits left to right, top to bottom", () =>
     },
   };
   expect(panelsOf(layout)).toEqual([BOARD, A, B]);
+});
+
+test("a chat tab reads back to its machine and session, and every kind of tab names the one board row it is about", () => {
+  const keeper = sessionKey("local", "abc234");
+  const observed = sessionKey("local", "pane:w1:p1");
+  expect(parseSessionKey(keeper)).toEqual({ machine: "local", id: "abc234" });
+  expect(parseSessionKey(observed)).toEqual({ machine: "local", id: "pane:w1:p1" });
+  expect(parseSessionKey(A)).toBeNull();
+  expect(parsePaneKey(keeper)).toBeNull();
+  expect(rowKeyOf(A)).toBe("local/w1:p1");
+  // The terminal and the chat read from it are two views of one agent: one row.
+  expect(rowKeyOf(observed)).toBe("local/w1:p1");
+  expect(rowKeyOf(keeper)).toBe("local/session:abc234");
+  expect(rowKeyOf(BOARD)).toBeNull();
+});
+
+test("saved chat tabs reopen with the layout, next to the terminals", () => {
+  const chat = sessionKey("local", "pane:w1:p1");
+  const layout = readLayout(JSON.stringify(split([BOARD, A, chat])));
+  expect(panelsOf(layout)).toEqual([BOARD, A, chat]);
 });

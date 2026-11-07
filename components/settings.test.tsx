@@ -82,3 +82,21 @@ test("About names the app's version from nsh.json, and Machines opens the machin
   // Settings is still open under it
   expect(a.shows("label:Reduce motion")).toBe(true);
 });
+
+test("notifications are off until switched on, the choice is stored by the engine, and the second switch needs the first", async () => {
+  const a = await inSettings({ ...DESKTOP, height: 1400 });
+  expect(a.texts()).toContain("notify=false/false");
+  expect(a.shows("Notifications")).toBe(true);
+  expect(a.enabled("label:Notify me when an agent needs me")).toBe(true);
+  expect(a.enabled("label:Also when an agent finishes")).toBe(false);
+
+  await a.press("label:Notify me when an agent needs me");
+  await a.waitUntil(() => a.texts().includes("notify=true/false"));
+  expect(a.enabled("label:Also when an agent finishes")).toBe(true);
+  await a.press("label:Also when an agent finishes");
+  await a.waitUntil(() => a.texts().includes("notify=true/true"));
+
+  await a.press("label:Notify me when an agent needs me");
+  await a.waitUntil(() => a.texts().includes("notify=false/true"));
+  expect(a.enabled("label:Also when an agent finishes")).toBe(false);
+});

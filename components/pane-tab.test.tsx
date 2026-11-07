@@ -273,7 +273,7 @@ test("quick phrases sit above the empty box and fill it without sending, and a p
     await app.submit(BOX);
     await app.waitUntil(() => inputs().length === i + 1);
   }
-  expect(app.shows("label:Quick phrase: ship it now")).toBe(true);
+  await app.waitFor("label:Quick phrase: ship it now");
 });
 
 test("a message sent once is not offered back, and nothing typed into a shell is learned", async () => {
@@ -351,7 +351,7 @@ test("Duplicating a shell makes a new tab in its folder without starting an agen
 
 const SCREEN = ["building…", "docs at https://example.com/docs and a log in ./logs/build.txt:42", "see https://example.com/second too", "done"];
 
-test("the links of the pane are listed for the keyboard: a web address opens, a path is copied", async () => {
+test("the links of the pane are listed for the keyboard: a web address opens, a path is looked for in the pane's folder", async () => {
   const app = await lab(WORKING);
   await ready(app, "Refactor ledger");
   Herdr.testSetScreen(WORKING, SCREEN);
@@ -371,7 +371,9 @@ test("the links of the pane are listed for the keyboard: a web address opens, a 
 
   await app.press("Show links");
   await app.press("label:./logs/build.txt:42");
-  expect(app.clipboard()).toBe("./logs/build.txt:42");
+  // The path is a file of the pane's machine, not text to copy: the viewer looks for it (this folder is not on this computer).
+  await app.waitUntil(() => said(app, "isn't in /home/dev/payments-api"));
+  expect(app.clipboard()).toBeNull();
 });
 
 test("Find lists the matches of the pane, steps through them and says how many there are", async () => {

@@ -28,6 +28,8 @@ export const quickPhrases = signal(true);
 export const largeTargets = signal(false);
 /** Reduce motion regardless of the system setting. */
 export const reduceMotionOverride = signal(false);
+/** Ask GitHub for a newer release when Settings opens (`lib/updates.ts`). On by default: the request is all that leaves the computer. */
+export const checkUpdates = signal(true);
 export const settingsReady = signal(false);
 
 interface Saved {
@@ -40,6 +42,7 @@ interface Saved {
   quickPhrases: boolean;
   largeTargets: boolean;
   reduceMotionOverride: boolean;
+  checkUpdates: boolean;
 }
 
 export async function loadSettings(): Promise<void> {
@@ -56,6 +59,7 @@ export async function loadSettings(): Promise<void> {
       if (typeof saved.quickPhrases === "boolean") quickPhrases.set(saved.quickPhrases);
       if (typeof saved.largeTargets === "boolean") largeTargets.set(saved.largeTargets);
       if (typeof saved.reduceMotionOverride === "boolean") reduceMotionOverride.set(saved.reduceMotionOverride);
+      if (typeof saved.checkUpdates === "boolean") checkUpdates.set(saved.checkUpdates);
     }
   } catch (e) {
     console.error("herdr-desktop: cannot read settings", e);
@@ -75,6 +79,7 @@ effect(() => {
     quickPhrases: quickPhrases(),
     largeTargets: largeTargets(),
     reduceMotionOverride: reduceMotionOverride(),
+    checkUpdates: checkUpdates(),
   };
   save(KEY, JSON.stringify(saved));
 });

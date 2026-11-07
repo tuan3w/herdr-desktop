@@ -1,14 +1,20 @@
-import { colorScheme, computed, signal, Text, View } from "nsh";
+import { colorScheme, computed, effect, openUrl, signal, Text, untracked, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
+import type { NotificationSupport } from "herdr-desktop/native";
 import app from "../nsh.json";
 import { revision } from "../lib/herdr";
 import type { PaneFit } from "../lib/settings";
-import { announceOutput, largeTargets, minContrast, paneFit, paneFontSize, quickPhrases, reduceMotionOverride, themeId } from "../lib/settings";
+import { announceOutput, checkUpdates, largeTargets, minContrast, paneFit, paneFontSize, quickPhrases, reduceMotionOverride, settingsReady, themeId } from "../lib/settings";
 import { swatches } from "../lib/theme/build";
 import type { ThemeSpec } from "../lib/theme/build";
+import { availableUpdate, checkForUpdate } from "../lib/updates";
 import { THEMES } from "../lib/theme/themes";
 import { Machines } from "./machines";
-import { Btn, Modal, RadioGroup, RadioItem, Segmented, type SegmentOption, SelectField, SettingRow, SettingsSection, Switch } from "./kit";
+import { Btn, Modal, notify, RadioGroup, RadioItem, Segmented, type SegmentOption, SelectField, SettingRow, SettingsSection, Switch } from "./kit";
+
+/** The engine's settings keys of the two notification switches (`native/app/src/engine/alerts.rs`). */
+const NOTIFY_NEEDS_YOU = "notify.needsYou";
+const NOTIFY_ALSO_DONE = "notify.alsoDone";
 
 const FIT_OPTIONS: SegmentOption<PaneFit>[] = [
   { value: "width", label: "Fit width" },
@@ -72,8 +78,9 @@ function ThemePicker() {
 }
 
 /**
- * Every preference of the app, applied and saved the moment it changes (`lib/settings.ts`): Look, Agents, Accessibility,
- * the Machines list, and About. Notifications and updates are not here yet because their features are not.
+ * Every preference of the app, applied and saved the moment it changes (`lib/settings.ts`, and the engine's settings file for the
+ * notification switches): Look, Agents, Notifications, Accessibility, the Machines list, and About (version, herdr's version, and
+ * the update check).
  */
 export function Settings(props: { open: boolean; onClose: () => void }) {
   const machines = signal(false);
@@ -84,6 +91,26 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
   });
   const contrasts = computed(() => (CONTRASTS.includes(minContrast()) ? CONTRASTS : [...CONTRASTS, minContrast()].sort((a, b) => a - b)));
   const fontSizes = computed(() => (FONT_SIZES.some((s) => s.value === String(paneFontSize())) ? FONT_SIZES : [...FONT_SIZES, { value: String(paneFontSize()), title: `${paneFontSize()} pt` }]));
+  // Whether the desktop has a notification service: asked when Settings opens with notifications on, and when they go on.
+  const service = signal<NotificationSupport | undefined>(undefined);
+  const notifications = computed(() => {
+    revision();
+    return { needsYou: Herdr.setting(NOTIFY_NEEDS_YOU) === true, alsoDone: Herdr.setting(NOTIFY_ALSO_DONE) === true };
+  });
+  effect(() => {
+    if (props.open && notifications().needsYou) untracked(() => void Herdr.notificationSupport().then((s) => service.set(s)));
+  });
+  const setNotify = (key: string, on: boolean) => {
+    try {
+      Herdr.setSetting(key, on);
+    } catch (e) {
+      notify(`Could not save the setting: ${e instanceof Error ? e.message : String(e)}`, { lasting: true });
+    }
+  };
+  // Asked when the window opens, not at launch: nothing leaves the computer unless the person looks at Settings.
+  effect(() => {
+    if (props.open && settingsReady() && checkUpdates()) untracked(() => void checkForUpdate(app.version));
+  });
 
   return (
     <>
@@ -122,6 +149,35 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
               control={<Switch label="Quick phrases" checked={quickPhrases()} onChange={(v) => quickPhrases.set(v)} />}
             />
           </SettingsSection>
+          <SettingsSection title="Notifications">
+            <SettingRow
+              label="Notify me when an agent needs me"
+              description="Shows the question and the command in a desktop notification while this window is not in front. Off until you switch it on; nothing leaves this computer."
+              control={<Switch label="Notify me when an agent needs me" checked={notifications().needsYou} onChange={(on) => setNotify(NOTIFY_NEEDS_YOU, on)} />}
+            />
+            <SettingRow
+              label="Also when an agent finishes"
+              description="A quieter notification when an agent is done and you have not looked yet."
+              control={
+                <Switch
+                  label="Also when an agent finishes"
+                  checked={notifications().alsoDone}
+                  disabled={!notifications().needsYou}
+                  onChange={(on) => setNotify(NOTIFY_ALSO_DONE, on)}
+                />
+              }
+            />
+            <If when={notifications().needsYou && service() !== undefined && !service()?.available}>
+              <SettingRow label="No notification service" description={`${service()?.detail ?? ""} Notifications will not appear until one is running.`} />
+            </If>
+            <If when={notifications().needsYou && service()?.available === true && !service()?.buttons}>
+              <SettingRow label="No answer buttons" description="Your desktop's notifications cannot show buttons: a click opens the agent instead." />
+            </If>
+            <SettingRow
+              label="Answering from a notification"
+              description="A button is offered only for a plain answer, never for a risky one or “don't ask again”. It sends only if the agent still shows the same question; otherwise nothing is sent and the notification says so."
+            />
+          </SettingsSection>
           <SettingsSection title="Accessibility">
             <SettingRow
               label="Announce agent output"
@@ -155,6 +211,18 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
             />
             <If when={versions().newer.length > 0}>
               <SettingRow label="Newer herdr" description={`${versions().newer.join(", ")} runs a newer herdr than this app was written for. It is used as it is.`} />
+            </If>
+            <SettingRow
+              label="Check for updates"
+              description="When Settings opens, asks api.github.com for the newest release of Herdr Desktop. Nothing else is sent and nothing is installed."
+              control={<Switch label="Check for updates" checked={checkUpdates()} onChange={(v) => checkUpdates.set(v)} />}
+            />
+            <If when={checkUpdates() && availableUpdate() !== null}>
+              <SettingRow
+                label="Update available"
+                description={`Version ${availableUpdate()?.version} is out. This is ${app.version}.`}
+                control={<Btn small label="Open release page" onPress={() => void openUrl(availableUpdate()?.url ?? "")} />}
+              />
             </If>
           </SettingsSection>
         </View>

@@ -1,7 +1,7 @@
 import { computed, signal } from "nsh";
 import type { Accessor } from "nsh";
 import { Herdr } from "herdr-desktop/native";
-import type { BoardData, BoardRow, PaneMeta } from "herdr-desktop/native";
+import type { BoardData, BoardProject, BoardRow, PaneMeta } from "herdr-desktop/native";
 import { notify } from "../components/kit";
 
 /**
@@ -12,12 +12,8 @@ import { notify } from "../components/kit";
 
 /** What the board shows before the engine runs: nothing, so a screen can render without a guard. */
 const EMPTY: BoardData = {
+  projects: [],
   needsYou: [],
-  toReview: [],
-  working: [],
-  idle: [],
-  idleRest: [],
-  moreIdle: 0,
   counts: { needsYou: 0, toReview: 0, working: 0, idle: 0, offline: 0, machinesNotConnected: 0 },
   statusLine: "nothing running",
   title: "Herdr Desktop",
@@ -40,6 +36,18 @@ export const board: Accessor<BoardData> = computed(() => {
   tick();
   return Herdr.board();
 });
+
+/** The board's projects and rows by key, built once per revision for the screens that look one up. */
+const index = computed(() => {
+  const data = board();
+  return { projects: new Map(data.projects.map((p) => [p.key, p])), rows: new Map(allRows(data).map((r) => [r.key, r])) };
+});
+
+/** The project with this key (`BoardRow.project`), `undefined` when the board has none. */
+export const projectOf = (key: string): BoardProject | undefined => index().projects.get(key);
+
+/** The row with this key (`BoardRow.key`), `undefined` when the board has none. */
+export const rowOf = (key: string): BoardRow | undefined => index().rows.get(key);
 
 /**
  * Starts the engine for this window and listens to it. `dataDir` is `process.dataDir`; an empty one uses a fresh
@@ -69,9 +77,9 @@ export function meta(machine: string, pane: string): Accessor<PaneMeta | null> {
   });
 }
 
-/** Every row of the board in the order a person reads it: needs you, to review, working, idle. */
+/** Every row of the board, project by project in the order the projects are listed. */
 export function allRows(data: BoardData): BoardRow[] {
-  return [...data.needsYou, ...data.toReview, ...data.working, ...data.idle, ...data.idleRest];
+  return data.projects.flatMap((p) => p.rows);
 }
 
 /** Finished agents of `rows` that can be marked: not reviewed yet and on a machine that is connected. */

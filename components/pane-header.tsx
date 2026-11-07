@@ -9,15 +9,19 @@ import { StatusGlyph } from "./status-glyph";
 
 /**
  * The top of a pane tab: what the agent is and what it is doing (a shape and words, never colour alone), its machine
- * and folder, `Stop` while it works, find, and `Pane options`: the layout of the mirror (kept in Settings: the choice
- * is the person's, not this pane's), links, duplicate, and the two copies.
+ * and folder, `Stop` while it works, `Show chat` (an agent whose log can be read as a conversation; the chat's own
+ * `Show terminal` comes back), find, `Browse files` (its folder on its machine), and `Pane options`: the layout of
+ * the mirror (kept in Settings: the choice is the person's, not this pane's), links, duplicate, and the two copies.
  */
 export function PaneHeader(props: {
   info: PaneMeta;
+  /** Set for an agent that can be read as a chat (`canShowChat`): adds `Show chat`. */
+  onShowChat?: () => void;
   pane: string;
   onStop: () => void;
   onFind: () => void;
   onLinks: () => void;
+  onBrowse: () => void;
   onDuplicate: () => void;
   onCopyTitle: () => void;
   onCopyPaneId: () => void;
@@ -61,6 +65,10 @@ export function PaneHeader(props: {
       <If when={props.info.status === "working"}>
         <Btn small variant="danger" label="Stop" name="Stop the agent" onPress={props.onStop} />
       </If>
+      <If when={props.onShowChat}>
+        <Btn small variant="ghost" label="Show chat" onPress={() => props.onShowChat?.()} />
+      </If>
+      <IconButton icon="folder" label="Browse files" onPress={props.onBrowse} />
       <IconButton icon="search" label="Find in the pane" shortcut={keyLabel("search")} onPress={props.onFind} />
       <ActionMenu label="Pane options" entries={options()} />
     </View>

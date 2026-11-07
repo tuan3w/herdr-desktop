@@ -4,8 +4,10 @@ import type { MenuItem } from "nsh/desktop";
 import { Herdr } from "herdr-desktop/native";
 import type { BoardData, BoardRow, PaneMeta } from "herdr-desktop/native";
 import { confirmDestructive, notify, rail, undoLast } from "../components/kit";
-import { closeTab, focused, focusedPane, groupOf, groups, lastPane, layout, moveFocused, openPane, openPanel, removePanel, selectNth, showBoard } from "./dock";
-import { allRows, board, meta } from "./herdr";
+import { closeTab, focused, focusedPane, groupOf, groups, lastPane, layout, moveFocused, openPane, openPanel, parsePaneKey, parseSessionKey, removePanel, rowKeyOf, selectNth, showBoard } from "./dock";
+import { allRows, board, meta, reviewable } from "./herdr";
+import { browseFiles } from "./files";
+import { canShowChat, openAgent, showChat, showTerminal } from "./open-agent";
 import { focusComposer, searchInPane, showLinks, toggleCapture } from "./pane-input";
 import { perfOpen } from "./perf";
 import { sidebarCollapsed, themeId } from "./settings";
@@ -23,7 +25,17 @@ export const palette = signal(false);
 export const shortcutsOpen = signal(false);
 export const settingsOpen = signal(false);
 export const machinesOpen = signal(false);
+/** `Start a terminal agent…`: the form that starts an agent in a new herdr tab or workspace. */
 export const newAgentOpen = signal(false);
+/** `New agent session`: the form that starts a chat with an agent, and the project it was asked from (its machine and folder). */
+export const newSessionOpen = signal(false);
+export const newSessionProject = signal<{ machine: string; folder: string } | undefined>(undefined);
+
+/** Opens `New agent session`, filled with a project's machine and folder when it was asked from one. */
+export function newSession(project?: { machine: string; folder: string }): void {
+  newSessionProject.set(project);
+  newSessionOpen.set(true);
+}
 
 /** A name being asked for: a new workspace or tab, or a rename. `components/name-dialog.tsx` shows it. */
 export interface NameRequest {
@@ -42,29 +54,31 @@ export const ACCESSIBILITY_GUIDE = "https://github.com/tuan3w/herdr-desktop/blob
 // ---- what the agents need ----
 
 /**
- * The agents to visit with Next and Previous: those that need you, longest waiting first, then finished ones not yet
- * reviewed, newest first. An agent on a machine that is not connected is not in it, as it is not in the counts.
+ * The agents to visit with Next and Previous: those that need you (a chat waiting on a permission or a question
+ * included), longest waiting first, then finished ones not yet reviewed, newest first. An agent on a machine that is not
+ * connected is not in it, as it is not in the counts.
  */
 export function attentionOrder(data: BoardData): BoardRow[] {
-  return [...data.needsYou, ...data.toReview].filter((r) => !r.offline);
+  const finished = reviewable(allRows(data)).sort((a, b) => (a.sinceSecs ?? Number.POSITIVE_INFINITY) - (b.sinceSecs ?? Number.POSITIVE_INFINITY));
+  return [...data.needsYou.filter((r) => !r.offline), ...finished];
 }
 
-/** The agent after (`1`) or before (`-1`) `current` in `order`, wrapping; from outside the list: the first, or the last going back. */
-export function stepAttention(order: readonly BoardRow[], current: { machine: string; pane: string } | null, step: 1 | -1): BoardRow | undefined {
+/** The agent after (`1`) or before (`-1`) the one with row key `current` in `order`, wrapping; from outside the list: the first, or the last going back. */
+export function stepAttention(order: readonly BoardRow[], current: string | null, step: 1 | -1): BoardRow | undefined {
   if (order.length === 0) return undefined;
-  const at = current ? order.findIndex((r) => r.machine === current.machine && r.paneId === current.pane) : -1;
+  const at = current ? order.findIndex((r) => r.key === current) : -1;
   if (at < 0) return step === 1 ? order[0] : order[order.length - 1];
   return order[(at + step + order.length) % order.length];
 }
 
 function goAttention(step: 1 | -1): void {
-  const row = stepAttention(attentionOrder(board()), focusedPane(), step);
+  const row = stepAttention(attentionOrder(board()), rowKeyOf(focused()), step);
   if (!row) {
     announce("Nothing needs you");
     return;
   }
   // Opening an agent that waits for an answer puts the cursor in the reply box: the person came to answer.
-  void openPane(row.machine, row.paneId, { reply: row.status === "blocked" });
+  void openAgent(row, { reply: row.status === "blocked" });
   announce(`${row.name}, ${row.status === "blocked" ? "needs you" : "finished"}, ${row.machineName}`);
 }
 
@@ -125,6 +139,12 @@ async function openMade(machine: string, created: { workspaceId: string; tabId: 
 
 function fail(what: string, e: unknown): void {
   notify(`${what}: ${message(e)}`, { type: "error" });
+}
+
+/** The file browser at the focused pane's folder on its machine; from the board, at this computer's home. */
+function browsePaneFiles(): void {
+  const at = focusedPane();
+  browseFiles(at?.machine ?? "local", (at && paneMeta(at.machine, at.pane)?.cwd) || "~");
 }
 
 function newWorkspace(): void {
@@ -233,8 +253,17 @@ function focusSidebar(): void {
   setTimeout(() => sidebarSearch.focus?.(), 0);
 }
 
+/** `Show chat` / `Show terminal` on the focused tab: the other view of the same terminal agent. */
+async function toggleView(which: "chat" | "terminal"): Promise<void> {
+  const pane = parsePaneKey(focused());
+  const chat = parseSessionKey(focused());
+  if (which === "chat" && pane) await showChat(pane.machine, pane.pane);
+  else if (which === "terminal" && chat?.id.startsWith("pane:")) await showTerminal(chat.machine, chat.id.slice("pane:".length));
+  else announce(which === "chat" ? "Open a terminal agent first" : "Open a chat read from a terminal first");
+}
+
 async function focusPaneArea(): Promise<void> {
-  if (!focusedPane()) {
+  if (focused() === "board") {
     const last = lastPane();
     if (!last) {
       announce("No pane is open");
@@ -276,7 +305,7 @@ export const globalActions: Record<GlobalShortcut, () => void> = {
   splitDown: () => void moveFocused("bottom"),
   capture: needPane(toggleCapture),
   search: needPane(searchInPane),
-  newAgent: () => newAgentOpen.set(true),
+  newAgent: () => newSession(),
   settings: () => settingsOpen.set(true),
   shortcuts: () => shortcutsOpen.update((open) => !open),
   devPanel: () => perfOpen.update((open) => !open),
@@ -295,7 +324,11 @@ const extra: Record<string, () => void> = {
   closeHerdrTab: () => void closeInHerdr("tab"),
   closeWorkspace: () => void closeInHerdr("workspace"),
   machines: () => machinesOpen.set(true),
+  startTerminalAgent: () => newAgentOpen.set(true),
+  showChat: () => void toggleView("chat"),
+  showTerminal: () => void toggleView("terminal"),
   links: needPane(showLinks),
+  browseFiles: browsePaneFiles,
   moveRight: () => void moveFocused("right"),
   moveDown: () => void moveFocused("bottom"),
   moveLeft: () => void moveFocused("left"),
@@ -362,8 +395,15 @@ export function actions(): Action[] {
   global("closeTab", ["view"], focused() === "board");
   global("devPanel", ["performance", "frame"]);
   global("undo");
+  const terminal = parsePaneKey(focused());
+  const showableChat = terminal !== null && canShowChat(terminal.machine, terminal.pane);
+  const terminalChat = parseSessionKey(focused())?.id.startsWith("pane:") === true;
+  list.push({ id: "showChat", label: "Show chat", group: "Pane", disabled: !showableChat, keywords: ["conversation", "transcript"] });
+  list.push({ id: "showTerminal", label: "Show terminal", group: "Pane", disabled: !terminalChat, keywords: ["mirror", "pane"] });
   list.push({ id: "links", label: "Links in this pane…", group: "Pane", disabled: !pane, keywords: ["url", "open", "path"] });
+  list.push({ id: "browseFiles", label: pane ? "Browse files in this pane's folder…" : "Browse files on this computer…", group: pane ? "Pane" : "App", keywords: ["folder", "open", "view", "photos", "images"] });
 
+  list.push({ id: "startTerminalAgent", label: "Start a terminal agent…", group: "herdr", keywords: ["new agent", "claude", "codex", "omp"] });
   list.push({ id: "newWorkspace", label: "New workspace…", group: "herdr" });
   list.push({ id: "newTab", label: "New tab in this workspace…", group: "herdr", disabled: !at?.workspaceId });
   list.push({ id: "renameWorkspace", label: "Rename workspace…", group: "herdr", disabled: !at?.workspaceId });
@@ -395,11 +435,13 @@ function groupName(group: ShortcutGroup): string {
   return group === "attention" || group === "navigate" ? "Go" : group === "tabs" ? "Tabs" : group === "typing" ? "Pane" : "App";
 }
 
-/** A tab's name for the palette: the pane's name, else `Board`. */
+/** A tab's name for the palette: the agent's name, else `Board`. */
 function tabName(key: string): string {
   if (key === "board") return "Board";
-  const at = key.startsWith("pane:") ? key.slice(5).split("/") : [];
-  return at.length === 2 ? (paneMeta(at[0], at[1])?.name ?? at[1]) : key;
+  const pane = parsePaneKey(key);
+  if (pane) return paneMeta(pane.machine, pane.pane)?.name ?? pane.pane;
+  const rowKey = rowKeyOf(key);
+  return allRows(board()).find((r) => r.key === rowKey)?.name ?? "Chat";
 }
 
 // ---- the application menu ----
@@ -411,7 +453,7 @@ export function appMenu(): MenuItem[] {
   return [
     {
       label: "File",
-      submenu: [item("New agent session", "newAgent"), plain("New workspace…", "newWorkspace"), plain("Machines…", "machines"), item("Settings", "settings"), { type: "separator" }, { role: "quit" }],
+      submenu: [item("New agent session", "newAgent"), plain("Start a terminal agent…", "startTerminalAgent"), plain("New workspace…", "newWorkspace"), plain("Machines…", "machines"), item("Settings", "settings"), { type: "separator" }, { role: "quit" }],
     },
     {
       label: "Edit",

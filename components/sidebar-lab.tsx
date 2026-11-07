@@ -1,5 +1,5 @@
 import { host, mount, Text, View } from "nsh";
-import { machinesOpen, newAgentOpen, settingsOpen } from "../lib/actions";
+import { machinesOpen, newSessionOpen, newSessionProject, settingsOpen } from "../lib/actions";
 import { startHerdr } from "../lib/herdr";
 import { selected } from "../lib/selection";
 import { loadSidebar } from "../lib/sidebar";
@@ -20,7 +20,8 @@ function Lab() {
         </View>
         <View class="flex-1 gap-1 p-4">
           <Text>{`machines dialog ${machinesOpen() ? "open" : "closed"}`}</Text>
-          <Text>{`new agent dialog ${newAgentOpen() ? "open" : "closed"}`}</Text>
+          <Text>{`new session dialog ${newSessionOpen() ? "open" : "closed"}`}</Text>
+          <Text>{`new session folder ${newSessionProject()?.folder ?? "none"}`}</Text>
           <Text>{`settings dialog ${settingsOpen() ? "open" : "closed"}`}</Text>
           <Text>{`picked ${selected().length}`}</Text>
         </View>

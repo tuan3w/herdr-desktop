@@ -4,21 +4,25 @@ import { fold } from "./text";
 import { apple, GLOBAL, keysOf } from "./shortcuts";
 
 /**
- * What the app's global shortcuts and the palette ask of "the pane in front". A `PaneTab` registers itself while it is
- * `active` (the focused tab of its group); the functions below act on the newest registration, so two tabs showing at
- * once never both answer a key. With no pane in front they do nothing.
+ * What the app's global shortcuts and the palette ask of "the tab in front". A `PaneTab` registers itself while it is
+ * `active` (the focused tab of its group), and so does a chat tab, which has a message box and nothing else of these;
+ * the functions below act on the newest registration, so two tabs showing at once never both answer a key. With no tab in
+ * front, or one without the part asked for, they do nothing.
  */
 export interface PaneInput {
-  /** Starts or stops typing into the pane (capture mode). */
-  toggleCapture(): void;
-  capturing(): boolean;
-  /** Opens the list of every link in the pane. */
-  showLinks(): void;
   /** Puts the keyboard in the message box. */
   focusComposer(): void;
-  /** Opens the find bar over the pane's text. */
-  searchInPane(): void;
+  /** Starts or stops typing into the pane (capture mode): a terminal only. */
+  toggleCapture?(): void;
+  capturing?(): boolean;
+  /** Opens the list of every link in the pane: a terminal only. */
+  showLinks?(): void;
+  /** Opens the find bar over the pane's text: a terminal only. */
+  searchInPane?(): void;
 }
+
+/** What a terminal tab registers: every part. */
+export type TerminalInput = Required<PaneInput>;
 
 const registered = signal<readonly PaneInput[]>([]);
 
@@ -31,19 +35,19 @@ export function registerPane(pane: PaneInput): () => void {
 const front = (): PaneInput | undefined => registered().at(-1);
 
 /** `mod+shift+k`: type into the pane in front, or stop. */
-export const toggleCapture = (): void => front()?.toggleCapture();
+export const toggleCapture = (): void => front()?.toggleCapture?.();
 
 /** Whether the pane in front is being typed into. Reactive. */
-export const captureActive = (): boolean => front()?.capturing() ?? false;
+export const captureActive = (): boolean => front()?.capturing?.() ?? false;
 
 /** The palette entry `Links in this pane…`. */
-export const showLinks = (): void => front()?.showLinks();
+export const showLinks = (): void => front()?.showLinks?.();
 
 /** `Reply…` from the board: the pane was just opened, the keyboard goes to its message box. */
 export const focusComposer = (): void => front()?.focusComposer();
 
 /** `mod+f`. */
-export const searchInPane = (): void => front()?.searchInPane();
+export const searchInPane = (): void => front()?.searchInPane?.();
 
 /** Whether a pane is in front: the palette offers pane entries only then. Reactive. */
 export const paneInFront = (): boolean => front() !== undefined;

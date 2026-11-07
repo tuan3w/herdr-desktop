@@ -1,14 +1,15 @@
 import { expect, test } from "nsh/test";
 import type { App } from "nsh/test";
 import { Herdr } from "herdr-desktop/native";
-import { DONE, FIRST, nameOf, onBoard, openAgents, ready, saved, seeded, SECOND, settle, shown, sidebarRow } from "./app-seam";
+import { DONE, FIRST, front, nameOf, onBoard, openAgents, openTerminals, ready, saved, seeded, SECOND, settle, shown, sidebarRow } from "./app-seam";
 import { sentKeys } from "./components/board-seam";
 import { type GlobalShortcut, GLOBAL, keysOf } from "./lib/shortcuts";
 
 /**
  * The whole app against the scripted herdr's `mixed` fixture: 2 agents that need you (`payments review`, `auth`), 1 to
- * review (`Fix login flow`), 2 working, 3 idle. Opening a pane puts its tab in the area; which tab is displayed is read
- * from the mirror's name (`Terminal, <agent> on This computer`).
+ * review (`Fix login flow`), 2 working, 3 idle, in two projects. Opening an agent puts its tab in the area: the chat of an
+ * agent that has one (all of these do), else its terminal. A terminal's mirror is named `Terminal, <agent> on This
+ * computer`; which tab is displayed is otherwise read from the saved layout.
  */
 
 test("the app opens on the board, with every agent in the sidebar and the count where you look first", async () => {
@@ -19,11 +20,12 @@ test("the app opens on the board, with every agent in the sidebar and the count 
   expect(app.count("role:tab")).toBe(1);
 });
 
-test("opening an agent from the sidebar adds its tab and shows it; closing the tab leaves the agent running", async () => {
+test("opening an agent from the sidebar adds its chat tab and shows it; closing the tab leaves the agent running", async () => {
   const app = await ready();
   await openAgents(app, FIRST);
   expect(app.count("role:tab")).toBe(2);
-  expect(shown(app, FIRST)).toBe(true);
+  expect(await front(app)).toBe(FIRST);
+  expect(shown(app, FIRST)).toBe(false);
   await app.keyboard.press("mod+w");
   await settle(app);
   expect(app.count("role:tab")).toBe(1);
@@ -36,7 +38,7 @@ test("the same agent opened twice is one tab", async () => {
   const app = await ready();
   await openAgents(app, FIRST, SECOND, FIRST);
   expect(app.count("role:tab")).toBe(3);
-  expect(shown(app, FIRST)).toBe(true);
+  expect(await front(app)).toBe(FIRST);
 });
 
 test("the board cannot be closed: its tab stays, and mod+w on it does nothing", async () => {
@@ -52,7 +54,7 @@ test("Next and Previous walk the agents that need you, longest waiting first, th
   const step = async (keys: string, name: string) => {
     await app.keyboard.press(keys);
     await settle(app);
-    expect(shown(app, name)).toBe(true);
+    expect(await front(app)).toBe(name);
   };
   await step("mod+j", FIRST);
   await step("mod+j", SECOND);
@@ -76,7 +78,7 @@ type Check = (app: App, press: Press) => Promise<void>;
 
 /** The tab group that has the agents' tabs, and which of its panels the key `n` should show. */
 async function tabNth(app: App, press: Press, n: number) {
-  await openAgents(app, FIRST, SECOND, DONE);
+  await openTerminals(app, FIRST, SECOND, DONE);
   const [group] = await saved(app);
   const before = group.active;
   await press();
@@ -122,22 +124,22 @@ const CHECKS: Record<GlobalShortcut, Check> = {
     expect(app.shows("label:Close dev panel")).toBe(false);
   },
   sidebar: async (app, press) => {
-    expect(app.shows("label:Search agents")).toBe(true);
+    expect(app.shows("label:Search projects")).toBe(true);
     await press();
-    expect(app.shows("label:Search agents")).toBe(false);
+    expect(app.shows("label:Search projects")).toBe(false);
     await press();
-    expect(app.shows("label:Search agents")).toBe(true);
+    expect(app.shows("label:Search projects")).toBe(true);
   },
   focusSidebar: async (app, press) => {
     await press();
     await app.clock!.runFor(50);
     // The keyboard is in the search field now: letters land there.
     for (const letter of "au") await app.keyboard.press(letter);
-    expect(app.value("label:Search agents")).toBe("au");
-    await app.clear("label:Search agents");
+    expect(app.value("label:Search projects")).toBe("au");
+    await app.clear("label:Search projects");
   },
   board: async (app, press) => {
-    await openAgents(app, FIRST);
+    await openTerminals(app, FIRST);
     expect(onBoard(app)).toBe(false);
     await press();
     await settle(app);
@@ -159,12 +161,12 @@ const CHECKS: Record<GlobalShortcut, Check> = {
     await press("board");
     await press();
     await settle(app);
-    expect(shown(app, FIRST)).toBe(true);
+    expect(await front(app)).toBe(FIRST);
   },
   prevAttention: async (app, press) => {
     await press();
     await settle(app);
-    expect(shown(app, DONE)).toBe(true);
+    expect(await front(app)).toBe(DONE);
   },
   tab1: (app, press) => tabNth(app, press, 1),
   tab2: (app, press) => tabNth(app, press, 2),
@@ -176,7 +178,7 @@ const CHECKS: Record<GlobalShortcut, Check> = {
   tab8: (app, press) => tabNth(app, press, 8),
   tab9: (app, press) => tabNth(app, press, 9),
   capture: async (app, press) => {
-    await openAgents(app, FIRST);
+    await openTerminals(app, FIRST);
     await press();
     expect(app.shows("label:/^Typing into /")).toBe(true);
     await press();
@@ -270,11 +272,15 @@ test("walking the app with the keyboard: next agent, type to it, take over its k
   const app = await ready();
   await app.keyboard.press("mod+j");
   await settle(app);
-  expect(shown(app, FIRST)).toBe(true);
-  // The agent waits for an answer, so the keyboard is already in its message box.
+  expect(await front(app)).toBe(FIRST);
+  // The agent waits for an answer, so the keyboard is already in its message box, in the chat that opened.
   for (const letter of "hi") await app.keyboard.press(letter);
-  expect(app.value(`label:Message ${FIRST}`)).toBe("hi");
-  await app.clear(`label:Message ${FIRST}`);
+  expect(app.value("label:Message")).toBe("hi");
+  await app.clear("label:Message");
+  // The terminal is one press away, and has what a terminal has: capture mode and the chips.
+  await app.press("Show terminal");
+  await settle(app);
+  expect(shown(app, FIRST)).toBe(true);
 
   await app.keyboard.press("mod+shift+k");
   expect(app.shows("label:/^Typing into /")).toBe(true);

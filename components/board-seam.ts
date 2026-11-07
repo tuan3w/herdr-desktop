@@ -1,18 +1,21 @@
 import { Herdr } from "herdr-desktop/native";
 import mixed from "../fixtures/herdr/mixed.json";
+import projects from "../fixtures/herdr/projects.json";
 import storm from "../fixtures/herdr/storm.json";
 
 /** The command line of the fixtures' Claude Code permission screen; a test swaps it for another to change the question. */
 const COMMAND = /touch \/tmp\/hm-capture-claude\/[^\s\u001b]+/;
 
-type Name = "mixed" | "storm";
+type Name = "mixed" | "storm" | "projects";
 
 /**
  * Test seam for the board's tests: moves the scripted herdr on from what `fixtures/herdr/<name>.json` shows, the way a
  * real agent does (asks something else, finishes, starts), and tells the app with an event. Only for `*.test.tsx`.
  */
 export function scripted(name: Name) {
-  const fixture = name === "mixed" ? mixed : storm;
+  const fixture = { mixed, storm, projects }[name];
+  /** An idle agent of the fixture that `addIdle` copies (in the second workspace of `mixed`, in a project of its own in `projects`). */
+  const template = name === "projects" ? "w5:p1" : "w2:p3";
   /** How many state episodes each pane moved on from the fixture's. */
   const episodes: Record<string, number> = {};
   const status: Record<string, string> = {};
@@ -30,10 +33,10 @@ export function scripted(name: Name) {
     for (const p of snapshot.panes) p.agent_status = status[p.pane_id] ?? p.agent_status;
     snapshot.agents = snapshot.agents.filter((a) => !gone.has(a.pane_id));
     snapshot.panes = snapshot.panes.filter((p) => !gone.has(p.pane_id));
-    const idle = snapshot.agents.find((a) => a.pane_id === "w2:p3")!;
-    const idlePane = snapshot.panes.find((p) => p.pane_id === "w2:p3")!;
+    const idle = snapshot.agents.find((a) => a.pane_id === template)!;
+    const idlePane = snapshot.panes.find((p) => p.pane_id === template)!;
     for (let n = 1; n <= extra; n++) {
-      const pane_id = `w2:p${100 + n}`;
+      const pane_id = `${template.split(":")[0]}:p${100 + n}`;
       snapshot.agents.push({ ...idle, pane_id, terminal_id: `t${pane_id}`, state_change_seq: n });
       snapshot.panes.push({ ...idlePane, pane_id, terminal_id: `t${pane_id}`, label: `extra idle ${n}` } as typeof idlePane);
     }
@@ -47,7 +50,7 @@ export function scripted(name: Name) {
     /** `count` more idle agents on top of the fixture's (named `extra idle 1`, ...). */
     addIdle(count: number) {
       extra = count;
-      publish("w2:p3");
+      publish(template);
     },
     /** The agent in `pane` asks about `command` instead (a new episode: its question has a new digest). */
     ask(pane: string, command: string) {

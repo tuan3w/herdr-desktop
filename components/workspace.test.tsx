@@ -2,7 +2,7 @@ import { expect, test } from "nsh/test";
 import type { App } from "nsh/test";
 import { Herdr } from "herdr-desktop/native";
 import mixed from "../fixtures/herdr/mixed.json";
-import { DONE, ENTRY, FIRST, nameOf, onBoard, openAgents, ready, saved, seeded, SECOND, settle, shown, sidebarRow } from "../app-seam";
+import { DONE, ENTRY, FIRST, nameOf, onBoard, openAgents, openTerminals, ready, saved, seeded, SECOND, settle, shown, sidebarRow } from "../app-seam";
 
 ENTRY.path = "../App.tsx";
 
@@ -116,7 +116,7 @@ test("closing a pane in herdr, once confirmed, closes the pane and removes its t
 
 test("a pane that herdr drops while its tab is open leaves a tab that says so and can be closed", async () => {
   const app = await ready();
-  await openAgents(app, DONE);
+  await openTerminals(app, DONE);
   const snapshot = JSON.parse(JSON.stringify(mixed.snapshot)) as typeof mixed.snapshot;
   snapshot.panes = snapshot.panes.filter((p) => p.pane_id !== "w1:p3");
   snapshot.agents = snapshot.agents.filter((a) => a.pane_id !== "w1:p3");
@@ -151,8 +151,13 @@ test("renaming the pane in front from the palette asks for a name, starting from
 test("pane commands are dimmed on the board, where there is no pane to act on", async () => {
   const app = await ready();
   await app.keyboard.press("mod+k");
+  // The palette lists as many commands as fit: a search brings the one asked for into view.
+  await app.type("label:Search commands", "pane");
   expect(app.enabled("label:Rename pane…")).toBe(false);
   expect(app.enabled("label:Close pane in herdr…")).toBe(false);
+  expect(app.enabled("label:Show terminal")).toBe(false);
+  await app.clear("label:Search commands");
+  await app.type("label:Search commands", "workspace");
   expect(app.enabled("label:New workspace…")).toBe(true);
 });
 
@@ -163,4 +168,53 @@ test("a new workspace from the palette asks for a name and is created in herdr u
   await app.press("text:Create");
   await app.waitUntil(() => Herdr.testRequests("workspace.create").length === 1);
   expect(JSON.stringify(Herdr.testRequests("workspace.create")[0].params)).toContain("scratch");
+});
+
+test("an agent with a chat opens as a chat; Show terminal swaps the tab for its terminal in place and Show chat swaps it back", async () => {
+  const app = await ready();
+  await openAgents(app, FIRST);
+  expect(app.count("role:tab")).toBe(2);
+  expect(shown(app, FIRST)).toBe(false);
+  expect(app.texts().includes("Show terminal")).toBe(true);
+
+  await app.press("Show terminal");
+  await settle(app);
+  expect(shown(app, FIRST)).toBe(true);
+  expect(app.count("role:tab")).toBe(2);
+  expect(app.texts().includes("Show terminal")).toBe(false);
+
+  await palette(app, "Show chat");
+  expect(shown(app, FIRST)).toBe(false);
+  expect(app.texts().includes("Show terminal")).toBe(true);
+  expect(app.count("role:tab")).toBe(2);
+  const [group] = await saved(app);
+  expect(group.panels.map((p) => (p === "board" ? p : nameOf(p)))).toEqual(["board", FIRST]);
+});
+
+test("a terminal agent that was shown as a terminal opens as one again until Show chat", async () => {
+  const app = await ready();
+  await openTerminals(app, FIRST);
+  await app.keyboard.press("mod+w");
+  await settle(app);
+  expect(app.count("role:tab")).toBe(1);
+  await openAgents(app, FIRST);
+  expect(shown(app, FIRST)).toBe(true);
+});
+
+test("a terminal agent whose log can be read has Show chat in its header and it swaps the tab for the chat; one that cannot has no such button", async () => {
+  const app = await ready();
+  await openTerminals(app, FIRST);
+  expect(shown(app, FIRST)).toBe(true);
+  expect(app.texts().includes("Show chat")).toBe(true);
+  await app.press("Show chat");
+  await settle(app);
+  expect(shown(app, FIRST)).toBe(false);
+  expect(app.texts().includes("Show terminal")).toBe(true);
+  expect(app.count("role:tab")).toBe(2);
+
+  // pi has no log this app can read as a conversation: its terminal is the only view.
+  await app.press(sidebarRow("notes"));
+  await settle(app);
+  expect(shown(app, "notes")).toBe(true);
+  expect(app.texts().includes("Show chat")).toBe(false);
 });

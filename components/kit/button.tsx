@@ -1,4 +1,5 @@
 import { Text, View } from "nsh";
+import type { ViewRef } from "nsh";
 import { Button } from "nsh/base";
 import { hoverTransition, pressFeedback, pressTransition } from "../../lib/motion";
 import { FOCUS_RING, FOCUS_RING_SIDEBAR } from "./core";
@@ -44,11 +45,14 @@ export function Btn(props: {
   loading?: boolean;
   /** The accessible name when the label alone is ambiguous (the same "Xong" on every row): it must contain `label`. */
   name?: string;
+  /** Hands out the button's node, so a screen can move the keyboard focus to it (`setAccessibilityFocus`). */
+  buttonRef?: (node: ViewRef) => void;
 }) {
   const variant = () => props.variant ?? "outline";
   const press = props.small || props.still ? undefined : pressFeedback();
   return (
     <Button
+      ref={props.buttonRef}
       onPress={props.onPress}
       onPressDown={press?.down}
       onPressUp={press?.up}

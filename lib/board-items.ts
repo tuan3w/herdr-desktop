@@ -1,45 +1,61 @@
-import type { BoardData, BoardRow } from "herdr-desktop/native";
-import type { SectionId } from "./sidebar";
+import type { BoardData, BoardProject, BoardRow } from "herdr-desktop/native";
+import { shownRows } from "./sidebar";
 
-/** One line of the board's list. The list is virtualized and recycles its cells, so a line is plain data. */
-export type BoardItem =
-  | { kind: "header"; key: string; section: SectionId; title: string; foldable: boolean; folded: boolean; note: string }
-  | { kind: "card"; key: string; row: BoardRow }
-  | { kind: "row"; key: string; row: BoardRow }
-  | { kind: "more"; key: string; text: string; open: boolean };
+/**
+ * What the home lays out, as plain data: the `Needs you` strip, then the projects as cards in lines of one or two.
+ * The projects come in the board's order (pinned, then by name) and are never regrouped by state: a card that starts
+ * needing you gets a louder header, it does not move.
+ */
 
-const TITLES: Record<SectionId, string> = { needsYou: "Needs you", toReview: "To review", working: "Working", idle: "Idle" };
+/** Agents the strip answers in place; the rest wait behind `Answer one by one`. */
+export const STRIP_SHOWN = 1;
+/** A project with this many listed agents takes the whole width instead of half of it. */
+export const WIDE_ROWS = 6;
+/** The home is two columns from this width (points of the home itself, not of the window). */
+export const TWO_COLUMNS_FROM = 760;
 
-/** The first two names behind `22 more idle`, so the person knows whether what they look for is there. */
-function moreText(rest: readonly BoardRow[]): string {
-  const names = rest.slice(0, 2).map((r) => r.name).join(", ");
-  return `${rest.length} more idle${names ? `: ${names}${rest.length > 2 ? "…" : ""}` : ""}`;
+/** The agents waiting for an answer that the strip shows, longest waiting first, and how many more wait. */
+export interface Strip {
+  rows: BoardRow[];
+  more: number;
+}
+
+/** The strip's agents: those that need you and can be answered (a machine that is not connected cannot). */
+export function strip(data: BoardData): Strip {
+  const waiting = data.needsYou.filter((r) => !r.offline);
+  return { rows: waiting.slice(0, STRIP_SHOWN), more: Math.max(0, waiting.length - STRIP_SHOWN) };
+}
+
+/** One line of cards. */
+export interface HomeLine {
+  key: string;
+  projects: BoardProject[];
+  /** A card that takes the line alone because it lists many agents (or the home is one column). */
+  alone: boolean;
 }
 
 /**
- * The lines of the board, top to bottom: `Needs you` (never folds; every agent that can be answered is a card, the ones
- * out of reach are dimmed rows), `To review`, `Working`, `Idle` (the five newest, the rest behind one line that opens
- * them in place). Empty sections have no header.
+ * The projects in lines: one per line in a narrow home; two per line in a wide one, except that a project listing many
+ * agents (`WIDE_ROWS`) takes a line to itself. A card's place depends only on the cards before it, so nothing before
+ * the one that changed moves.
  */
-export function boardItems(data: BoardData, foldedSections: readonly SectionId[], showRestOfIdle: boolean): BoardItem[] {
-  const out: BoardItem[] = [];
-  const add = (section: SectionId, rows: readonly BoardRow[], note: string, kind: (r: BoardRow) => "card" | "row") => {
-    if (rows.length === 0) return;
-    const foldable = section !== "needsYou";
-    const isFolded = foldable && foldedSections.includes(section);
-    out.push({ kind: "header", key: `h:${section}`, section, title: TITLES[section], foldable, folded: isFolded, note });
-    if (isFolded) return;
-    for (const row of rows) out.push({ kind: kind(row), key: row.key, row });
+export function homeLines(projects: readonly BoardProject[], columns: 1 | 2, opened: readonly string[], folds: readonly string[]): HomeLine[] {
+  const lines: HomeLine[] = [];
+  let pending: BoardProject[] = [];
+  const flush = () => {
+    if (pending.length > 0) lines.push({ key: pending.map((p) => p.key).join("+"), projects: pending, alone: false });
+    pending = [];
   };
-  const offlineWaiting = data.needsYou.filter((r) => r.offline).length;
-  add("needsYou", data.needsYou, offlineWaiting > 0 ? `${offlineWaiting} offline` : "", (r) => (r.offline ? "row" : "card"));
-  add("toReview", data.toReview, "", () => "row");
-  add("working", data.working, "", () => "row");
-  const idleFolded = foldedSections.includes("idle");
-  add("idle", showRestOfIdle ? [...data.idle, ...data.idleRest] : data.idle, `${data.counts.idle}`, () => "row");
-  if (!idleFolded && data.idleRest.length > 0) {
-    out.push({ kind: "more", key: "more:idle", text: showRestOfIdle ? "Show less" : moreText(data.idleRest), open: showRestOfIdle });
+  for (const project of projects) {
+    const listed = folds.includes(project.key) ? 0 : shownRows(project.rows, opened.includes(project.key)).shown.length;
+    if (columns === 1 || listed >= WIDE_ROWS) {
+      flush();
+      lines.push({ key: project.key, projects: [project], alone: true });
+      continue;
+    }
+    pending.push(project);
+    if (pending.length === 2) flush();
   }
-  return out;
+  flush();
+  return lines;
 }
-

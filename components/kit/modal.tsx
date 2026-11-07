@@ -12,7 +12,8 @@ const BODY_PAD = 32;
 /**
  * A modal form or detail, as Base UI's Dialog behaves: scrim, popup that scales in from 0.97, title, optional
  * description, content, and a footer of `actions` aligned right. Open it for rare, user-invoked tasks only. `wide`
- * (760pt, not 560) is for text the user writes, such as a prompt.
+ * (760pt, not 560) is for text the user writes, such as a prompt; `huge` (1000pt) is for a file browser or a viewer, where
+ * the content is the point.
  *
  * `open` is the owner's. Escape and a press on the scrim only ask: `onClose(change)` hears the `reason`
  * (`escape-key`, `outside-press`) and the owner closes by setting `open` false, or refuses by leaving it true (the
@@ -33,6 +34,7 @@ export function Modal(props: {
   children?: JSX.Element;
   actions?: JSX.Element;
   wide?: boolean;
+  huge?: boolean;
   disablePointerDismissal?: boolean;
   onOpenChangeComplete?: (open: boolean) => void;
 }) {
@@ -80,7 +82,7 @@ export function Modal(props: {
           onPress={() => ask("outside-press")}
           class="absolute inset-0 bg-black/40"
         />
-        <View style={pop} class={`max-h-[94%] max-w-[94%] rounded-lg border border-border bg-card shadow-lg ${props.wide ? "w-[760px]" : "w-[560px]"}`}>
+        <View style={pop} class={`max-h-[94%] max-w-[94%] rounded-lg border border-border bg-card shadow-lg ${props.huge ? "w-[1000px]" : props.wide ? "w-[760px]" : "w-[560px]"}`}>
           <View class="min-h-0 shrink">
             <View class={`shrink-0 gap-1 border-b px-6 pb-4 pt-6 ${edge()}`}>
               <Text role="header" class="text-lg font-semibold text-card-foreground">

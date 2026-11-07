@@ -1,32 +1,47 @@
-import { announce, computed, effect, keymap, List, signal, Text, View } from "nsh";
+import { announce, computed, effect, keymap, List, Scroll, signal, Text, View } from "nsh";
 import type { JSX } from "nsh";
 import { Button } from "nsh/base";
 import { Herdr } from "herdr-desktop/native";
-import type { BoardRow, MachineStatus } from "herdr-desktop/native";
-import { machinesOpen, newAgentOpen, settingsOpen, sidebarSearch } from "../lib/actions";
-import { focused, openPane, paneKey, showBoard, BOARD } from "../lib/dock";
-import { board, revision } from "../lib/herdr";
+import type { BoardProject, BoardRow, MachineStatus } from "herdr-desktop/native";
+import { machinesOpen, newSession, settingsOpen, sidebarSearch } from "../lib/actions";
+import { BOARD, focused, rowKeyOf, showBoard } from "../lib/dock";
+import { board, projectOf, revision, rowOf, started } from "../lib/herdr";
 import { linkGlyph, linkText } from "../lib/machine-state";
 import { ofKind } from "../lib/list-item";
 import { hoverTransition } from "../lib/motion";
+import { openAgent } from "../lib/open-agent";
 import { isSelected, rangeTo, toggle } from "../lib/selection";
 import { sidebarCollapsed } from "../lib/settings";
 import { keyLabel } from "../lib/shortcuts";
-import { ageText, folded, idleOpen, rowLabel, type SidebarItem, sidebarItems, toggleFold } from "../lib/sidebar";
-import { Badge, Btn, Clipped, compact, FOCUS_RING_SIDEBAR, Icon, type IconName, IconButton, Kbd, rail, SearchField, Tipped } from "./kit";
+import { ageText, foldedProjects, moreOpen, projectFolder, projectLabel, projectState, rowLabel, type SidebarItem, sidebarItems, toggleMore, toggleProject } from "../lib/sidebar";
+import { ActionMenu, Badge, Btn, Clipped, compact, FOCUS_RING_SIDEBAR, Icon, type IconName, IconButton, Kbd, NUM, Popover, PopoverTitle, rail, SearchField, snug, Tipped, usePopover } from "./kit";
 import { PickBox } from "./pick-box";
+import { Monogram, StateChips } from "./project-parts";
 import { StatusGlyph } from "./status-glyph";
 
-/** Hover and the open pane are a quiet fill, nothing else. The focus ring is inset: see `FOCUS_RING_SIDEBAR`. */
+/** Hover and the open tab are a quiet fill, nothing else. The focus ring is inset: see `FOCUS_RING_SIDEBAR`. */
 const ROW = `rounded-md hover:bg-sidebar-accent/60 selected:bg-sidebar-accent ${FOCUS_RING_SIDEBAR}`;
 
 const query = signal("");
 
-const items = computed(() => sidebarItems(board(), query(), folded(), idleOpen()));
+/** Every machine's link. Empty until the engine runs: this computed is built when the module loads, before `Herdr.configure`. */
+const statuses = computed<MachineStatus[]>(() => {
+  if (!started()) return [];
+  revision();
+  return Herdr.machineStatuses();
+});
+
+const items = computed(() => sidebarItems(board(), statuses(), query(), foldedProjects(), moreOpen()));
 const rowKeys = computed(() => items().flatMap((i) => (i.kind === "row" ? [i.row.key] : [])));
 
-/** The panel an agent's row opens: the row is lit while its tab is the one being worked in. */
-const isOpen = (row: BoardRow) => focused() === paneKey(row.machine, row.paneId);
+/** The agent whose tab is the one being worked in: its row is lit, and in the rail so is its project's tile. */
+const openRow = computed(() => {
+  const key = rowKeyOf(focused());
+  return key === null ? undefined : rowOf(key);
+});
+
+const isOpen = (row: BoardRow) => openRow()?.key === row.key;
+const nameOf = (projectKey: string) => projectOf(projectKey)?.name ?? "";
 
 /** One line of the top group: icon, label, then `children` (a count, a keycap) at the far end; in the rail the icon alone. */
 function NavRow(props: { icon: IconName; label: string; name?: string; shortcut?: string; selected?: boolean; onPress: () => void; mark?: JSX.Element; children?: JSX.Element }) {
@@ -52,36 +67,94 @@ function NavRow(props: { icon: IconName; label: string; name?: string; shortcut?
   );
 }
 
-function MachineRow(props: { status: MachineStatus }) {
-  const s = () => props.status;
+/** A machine that is not online, in the rail: its state is a glyph, because a problem must not hide behind the tiles. */
+function MachineGlyph(props: { status: MachineStatus }) {
+  const label = () => `${props.status.name}, ${linkText(props.status)}`;
+  return (
+    <Tipped label={label()} class="items-center">
+      <Button onPress={() => machinesOpen.set(true)} accessibilityLabel={label()} style={hoverTransition()} class={`h-7 w-10 items-center justify-center ${ROW}`}>
+        <StatusGlyph status={linkGlyph(props.status.state)} />
+      </Button>
+    </Tipped>
+  );
+}
+
+/**
+ * A machine, as the quiet header of its projects: its name, how many of its agents need you, and, when it is not
+ * connected, why and what happens next (with `Fix` when it needs the person). Shown when there is more than one machine
+ * or one has a problem.
+ */
+function Host(props: { item: () => Extract<SidebarItem, { kind: "host" }> }) {
+  const s = () => props.item().status;
   const line = () => linkText(s());
   const label = () => `${s().name}, ${line()}`;
   return (
-    <If
-      when={!rail()}
-      else={
-        <Tipped label={label()} class="items-center">
-          <Button onPress={() => machinesOpen.set(true)} accessibilityLabel={label()} style={hoverTransition()} class={`h-7 w-10 items-center justify-center ${ROW}`}>
-            <StatusGlyph status={linkGlyph(s().state)} />
-          </Button>
-        </Tipped>
-      }
-    >
-      <View class="gap-0.5">
-        <Button onPress={() => machinesOpen.set(true)} accessibilityLabel={label()} style={hoverTransition()} class={`min-h-9 flex-row items-center gap-2.5 px-2 py-1 ${ROW}`}>
-          <StatusGlyph status={linkGlyph(s().state)} />
-          <View class="min-w-0 flex-1">
-            <Clipped class="text-sm text-sidebar-foreground">{s().name}</Clipped>
-            <Clipped lines={2} class="text-xs text-muted-foreground">{line()}</Clipped>
-          </View>
-        </Button>
-        <If when={s().state === "attention"}>
-          <View class="items-start px-2 pb-1">
-            <Btn small variant="outline" label="Fix" name={`Fix ${s().name}`} onPress={() => machinesOpen.set(true)} />
-          </View>
+    <View class="mt-2 gap-0.5">
+      <Button onPress={() => machinesOpen.set(true)} accessibilityLabel={label()} style={hoverTransition()} class={`min-h-7 flex-row items-center gap-2 px-2 py-0.5 ${ROW}`}>
+        <StatusGlyph status={linkGlyph(s().state)} size={12} />
+        <Clipped class="min-w-0 flex-1 text-xs font-medium text-muted-foreground">{s().name}</Clipped>
+        <Badge onSidebar tone="signal" count={s().needsYou} />
+      </Button>
+      <If when={s().state !== "online"}>
+        <Clipped lines={2} class="px-2 text-xs text-muted-foreground">
+          {line()}
+        </Clipped>
+      </If>
+      <If when={s().state === "attention"}>
+        <View class="items-start px-2 pb-1">
+          <Btn small variant="outline" label="Fix" name={`Fix ${s().name}`} onPress={() => machinesOpen.set(true)} />
+        </View>
+      </If>
+    </View>
+  );
+}
+
+/** What a project's menu offers: pin it, start a chat in it, fold it. */
+function projectEntries(project: BoardProject) {
+  return [
+    { label: project.pinned ? "Unpin" : "Pin to the top", onSelect: () => Herdr.pinProject(project.key, !project.pinned) },
+    { label: "New agent session here…", onSelect: () => newSession({ machine: project.machine, folder: projectFolder(project) }), disabled: project.offline },
+  ];
+}
+
+/**
+ * A project: fold button, name, its state as shape and number chips, and (on hover or focus, over the chips) its menu.
+ * The row reads its item and holds no state, because the list recycles cells.
+ */
+function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> }) {
+  const p = () => props.item().project;
+  return (
+    <View class={`group mt-1 ${p().offline ? "opacity-60" : ""}`}>
+      <View
+        role="button"
+        onPress={() => toggleProject(p().key)}
+        accessibilityLabel={projectLabel(p())}
+        accessibilityState={{ expanded: !props.item().folded }}
+        style={hoverTransition()}
+        class={`min-h-8 flex-row items-center gap-1.5 px-1.5 py-1 ${ROW}`}
+      >
+        <Icon name={props.item().folded ? "chevron-right" : "chevron-down"} size={12} tone="muted-foreground" />
+        <Clipped class="min-w-0 flex-1 text-sm font-medium text-sidebar-foreground">{p().name}</Clipped>
+        <If when={p().pinned}>
+          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" class="size-1.5 rounded-full bg-sidebar-foreground" />
         </If>
+        <StateChips project={p()} onSidebar />
       </View>
-    </If>
+      <View class="absolute bottom-0 right-0 top-0 justify-center bg-sidebar pl-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+        <ActionMenu label={`Options for ${p().name}`} entries={projectEntries(p())} />
+      </View>
+    </View>
+  );
+}
+
+/** A checkout of a project that has several: the worktree a group of agents works in. */
+function Checkout(props: { item: () => Extract<SidebarItem, { kind: "checkout" }> }) {
+  const c = () => props.item().checkout;
+  return (
+    <View class="flex-row items-center gap-1.5 pl-5 pr-2 pt-1" accessibilityLabel={c().linked ? `${c().name}, worktree` : `${c().name}, main checkout`}>
+      <Clipped class="min-w-0 shrink text-xs text-muted-foreground">{c().name}</Clipped>
+      <Text class="text-xs text-muted-foreground">{c().linked ? "worktree" : "main"}</Text>
+    </View>
   );
 }
 
@@ -102,86 +175,38 @@ function useRowKeys(row: () => BoardRow) {
   return { onFocus: () => focus.set(true), onBlur: () => focus.set(false) };
 }
 
-function AgentRow(props: { row: () => BoardRow }) {
-  const row = props.row;
+/** An agent in two lines: its state as a shape, its name and how long, and under it what it is (the agent, chat or terminal). */
+function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
+  const row = () => props.item().row;
   const keys = useRowKeys(row);
-  const sub = () => [row().agent, row().machineName, ageText(row().sinceSecs), row().offline ? "offline" : ""].filter(Boolean).join(" · ");
-  const open = () => void openPane(row().machine, row().paneId);
+  const sub = () => [row().agent, row().session ? "chat" : "terminal", row().offline ? "offline" : ""].filter(Boolean).join(" · ");
   return (
-    <If
-      when={!rail()}
-      else={
-        <Tipped label={rowLabel(row())} class="items-center">
-          <Button onPress={open} selected={isOpen(row())} accessibilityLabel={rowLabel(row())} style={hoverTransition()} class={`h-9 w-10 items-center justify-center ${ROW} ${row().offline ? "opacity-60" : ""}`}>
-            <StatusGlyph status={row().status} />
-          </Button>
-        </Tipped>
-      }
-    >
-      <View class="group flex-row items-center">
-        <View class={`pl-1 ${isSelected(row().key) ? "" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}>
-          <PickBox rowKey={row().key} name={row().name} order={rowKeys} />
-        </View>
-        <View
-          role="button"
-          onPress={open}
-          accessibilityState={{ selected: isOpen(row()) }}
-          accessibilityLabel={rowLabel(row())}
-          onFocus={keys.onFocus}
-          onBlur={keys.onBlur}
-          style={hoverTransition()}
-          class={`min-h-10 min-w-0 flex-1 flex-row items-center gap-2.5 px-2 py-1 ${ROW} ${row().offline ? "opacity-60" : ""}`}
-        >
-          <StatusGlyph status={row().status} />
-          <View class="min-w-0 flex-1">
-            <Clipped class="text-sm text-sidebar-foreground">{row().name}</Clipped>
-            <Clipped class="text-xs text-muted-foreground">{sub()}</Clipped>
+    <View class={`group flex-row items-center ${props.item().nested ? "pl-3" : ""}`}>
+      <View class={`pl-1 ${isSelected(row().key) ? "" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}>
+        <PickBox rowKey={row().key} name={row().name} order={rowKeys} />
+      </View>
+      <View
+        role="button"
+        onPress={() => void openAgent(row())}
+        accessibilityState={{ selected: isOpen(row()) }}
+        accessibilityLabel={rowLabel(row(), nameOf(props.item().project))}
+        onFocus={keys.onFocus}
+        onBlur={keys.onBlur}
+        style={hoverTransition()}
+        class={`min-h-10 min-w-0 flex-1 flex-row items-center gap-2.5 px-2 py-1 ${ROW} ${row().offline ? "opacity-60" : ""}`}
+      >
+        <StatusGlyph status={row().status} />
+        <View class="min-w-0 flex-1">
+          <View class="flex-row items-center gap-2">
+            <Clipped class="min-w-0 flex-1 text-sm text-sidebar-foreground">{row().name}</Clipped>
+            <Text style={NUM} class="text-xs text-muted-foreground">
+              {ageText(row().sinceSecs)}
+            </Text>
           </View>
+          <Clipped class="text-xs text-muted-foreground">{sub()}</Clipped>
         </View>
       </View>
-    </If>
-  );
-}
-
-function Header(props: { item: () => Extract<SidebarItem, { kind: "header" }> }) {
-  const it = props.item;
-  const name = () => `${it().title}, ${it().count}`;
-  return (
-    <If
-      when={!rail()}
-      else={
-        <View class="mx-2 my-1 h-px bg-sidebar-border" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
-      }
-    >
-      <If
-        when={it().foldable}
-        else={
-          <View class="h-7 flex-row items-center justify-between px-2">
-            <Text role="header" accessibilityLabel={name()} class="text-xs font-medium text-sidebar-foreground">
-              {it().title}
-            </Text>
-            <Badge onSidebar tone="signal" count={it().count} />
-          </View>
-        }
-      >
-        <View
-          role="button"
-          onPress={() => toggleFold(it().section)}
-          accessibilityLabel={name()}
-          accessibilityState={{ expanded: !it().folded }}
-          style={hoverTransition()}
-          class={`h-7 flex-row items-center justify-between px-2 ${ROW}`}
-        >
-          <View class="flex-row items-center gap-1.5">
-            <Icon name={it().folded ? "chevron-right" : "chevron-down"} size={12} tone="muted-foreground" />
-            <Text role="header" class="text-xs font-medium text-muted-foreground">
-              {it().title}
-            </Text>
-          </View>
-          <Badge onSidebar count={it().count} />
-        </View>
-      </If>
-    </If>
+    </View>
   );
 }
 
@@ -189,29 +214,142 @@ function More(props: { item: () => Extract<SidebarItem, { kind: "more" }> }) {
   const it = props.item;
   const text = () => (it().open ? "Show fewer idle" : `${it().count} more idle`);
   return (
-    <If when={!rail()}>
-      <View role="button" onPress={() => idleOpen.update((o) => !o)} accessibilityLabel={text()} accessibilityState={{ expanded: it().open }} style={hoverTransition()} class={`h-7 justify-center px-2 ${ROW}`}>
-        <Text class="text-xs text-muted-foreground">{text()}</Text>
-      </View>
-    </If>
+    <View
+      role="button"
+      onPress={() => toggleMore(it().project)}
+      accessibilityLabel={`${text()} in ${nameOf(it().project)}`}
+      accessibilityState={{ expanded: it().open }}
+      style={hoverTransition()}
+      class={`h-7 justify-center pl-8 pr-2 ${ROW}`}
+    >
+      <Text class="text-xs text-muted-foreground">{text()}</Text>
+    </View>
   );
 }
 
-/** The agents, grouped as the board groups them. Rows are recycled, so each reads its item and holds nothing of its own. */
-function AgentList() {
+/** The tree: machines, projects, checkouts, agents. Rows are recycled, so each reads its item and holds nothing of its own. */
+function Tree() {
   return (
-    <List each={items()} keyExtractor={(i: SidebarItem) => i.key} estimatedItemSize={44} class="min-h-0 flex-1" contentClass="gap-0.5" accessibilityLabel="Agents">
+    <List each={items()} keyExtractor={(i: SidebarItem) => i.key} estimatedItemSize={44} class="min-h-0 flex-1" contentClass="gap-0.5" accessibilityLabel="Projects and agents">
       {(item) => {
+        const host = ofKind(item, "host");
+        const project = ofKind(item, "project");
+        const checkout = ofKind(item, "checkout");
         const row = ofKind(item, "row");
-        const header = ofKind(item, "header");
         const more = ofKind(item, "more");
         return (
-          <If when={item().kind === "row"} else={<If when={item().kind === "header"} else={<More item={more} />}><Header item={header} /></If>}>
-            <AgentRow row={() => row().row} />
+          <If
+            when={item().kind === "host"}
+            else={
+              <If
+                when={item().kind === "project"}
+                else={
+                  <If when={item().kind === "checkout"} else={<If when={item().kind === "row"} else={<More item={more} />}><Agent item={row} /></If>}>
+                    <Checkout item={checkout} />
+                  </If>
+                }
+              >
+                <Project item={project} />
+              </If>
+            }
+          >
+            <Host item={host} />
           </If>
         );
       }}
     </List>
+  );
+}
+
+/** The agents of a project, in the popover a rail tile opens: a press opens the agent and closes the popover. */
+function RailAgent(props: { row: BoardRow; project: BoardProject }) {
+  const popover = usePopover();
+  return (
+    <View
+      role="button"
+      accessibilityLabel={rowLabel(props.row, props.project.name)}
+      onPress={() => {
+        void openAgent(props.row);
+        popover.close();
+      }}
+      {...popover.focus}
+      style={hoverTransition()}
+      class={`min-h-9 flex-row items-center gap-2.5 rounded-md px-2 py-1 hover:bg-accent ${FOCUS_RING_SIDEBAR} ${props.row.offline ? "opacity-60" : ""}`}
+    >
+      <StatusGlyph status={props.row.status} />
+      <Clipped class="min-w-0 flex-1 text-sm text-foreground">{props.row.name}</Clipped>
+      <Text style={NUM} class="text-xs text-muted-foreground">
+        {ageText(props.row.sinceSecs)}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * A project in the rail: a tile with its first letters and, in a corner, what it is doing: the signal count with the
+ * filled disc when something needs you, else the quiet half ring while something works. Pinned projects carry a small
+ * dot, the project being worked in is lit. A press opens a popover with the project's agents (the sidebar cannot widen
+ * in a narrow window); its name and state are the tooltip and the accessible name.
+ */
+function RailTile(props: { project: BoardProject }) {
+  const p = () => props.project;
+  const lit = () => openRow()?.project === p().key;
+  const label = () => projectLabel(p());
+  return (
+    <Popover
+      side="right"
+      align="start"
+      class="items-center"
+      popupClass="w-72"
+      trigger={(t) => (
+        <Tipped label={label()} class="items-center">
+          <View
+            role="button"
+            accessibilityLabel={label()}
+            accessibilityState={{ expanded: t.expanded(), selected: lit() }}
+            onPress={t.onPress}
+            onFocus={t.onFocus}
+            onBlur={t.onBlur}
+            style={hoverTransition()}
+            class={`size-10 items-center justify-center rounded-lg hover:bg-sidebar-accent/60 ${lit() ? "bg-sidebar-accent" : ""} ${p().offline ? "opacity-60" : ""} ${FOCUS_RING_SIDEBAR}`}
+          >
+            <Monogram name={p().name} size={32} />
+            <If when={p().needsYou > 0}>
+              <View class="absolute -right-0.5 -top-0.5 flex-row items-center gap-0.5 rounded-full bg-sidebar-primary px-1 py-px">
+                <Text style={NUM} class="text-xs font-semibold text-sidebar-primary-foreground">
+                  {`${p().needsYou}`}
+                </Text>
+              </View>
+            </If>
+            <If when={p().needsYou === 0 && p().working > 0}>
+              <View class="absolute -right-0.5 -top-0.5 rounded-full bg-sidebar p-0.5">
+                <StatusGlyph status="working" size={12} />
+              </View>
+            </If>
+            <If when={p().pinned}>
+              <View class="absolute bottom-0.5 right-0.5 size-1.5 rounded-full bg-sidebar-foreground" />
+            </If>
+          </View>
+        </Tipped>
+      )}
+    >
+      <PopoverTitle>{p().name}</PopoverTitle>
+      <Text class="text-xs text-muted-foreground">{[p().machineName, projectState(p())].filter(Boolean).join(" · ")}</Text>
+      <Each of={p().rows} key={(r: BoardRow) => r.key}>
+        {(row) => <RailAgent row={row()} project={p()} />}
+      </Each>
+    </Popover>
+  );
+}
+
+/** The rail: one tile per project in the board's order, in a column that scrolls when there are many. */
+function Rail() {
+  return (
+    <Scroll class="min-h-0 flex-1" contentClass="items-center gap-1.5 py-1" accessibilityLabel="Projects">
+      <Each of={board().projects} key={(p: BoardProject) => p.key}>
+        {(project) => <RailTile project={project()} />}
+      </Each>
+    </Scroll>
   );
 }
 
@@ -238,11 +376,6 @@ function announceNeedsYou() {
 /** Fills its panel: the width is the user's (`App.tsx`), the edge line is the panel group's handle. */
 export function Sidebar() {
   announceNeedsYou();
-  // Made here, not at the top of the file: the engine is configured after this module loads, and a computed runs at once.
-  const statuses = computed<MachineStatus[]>(() => {
-    revision();
-    return Herdr.machineStatuses();
-  });
   const needs = () => board().counts.needsYou;
   const empty = () => items().length === 0;
   return (
@@ -264,8 +397,10 @@ export function Sidebar() {
       </View>
       <View class="gap-0.5">
         <View class="pb-2">
-          <NavRow icon="plus" label="New agent session" shortcut={keyLabel("newAgent")} onPress={() => newAgentOpen.set(true)}>
-            <Kbd keys={keyLabel("newAgent")} tone="sidebar" />
+          <NavRow icon="plus" label="New agent session" shortcut={keyLabel("newAgent")} onPress={() => newSession()}>
+            <If when={!snug()}>
+              <Kbd keys={keyLabel("newAgent")} tone="sidebar" />
+            </If>
           </NavRow>
         </View>
         <NavRow
@@ -286,17 +421,21 @@ export function Sidebar() {
           <Badge onSidebar count={needs()} tone="signal" />
         </NavRow>
       </View>
-      <View class="gap-0.5">
-        <Each of={statuses()} key={(m: MachineStatus) => m.id}>
-          {(m) => <MachineRow status={m()} />}
-        </Each>
-      </View>
-      <If when={!rail()}>
-        <SearchField value={query()} onChange={(v) => query.set(v)} placeholder="Search agents" inputRef={(ref) => (sidebarSearch.focus = () => ref.focus())} />
+      <If when={rail()}>
+        <View class="gap-0.5">
+          <Each of={statuses().filter((m) => m.state !== "online")} key={(m: MachineStatus) => m.id}>
+            {(m) => <MachineGlyph status={m()} />}
+          </Each>
+        </View>
       </If>
-      <AgentList />
+      <If when={!rail()}>
+        <SearchField value={query()} onChange={(v) => query.set(v)} placeholder="Search projects" inputRef={(ref) => (sidebarSearch.focus = () => ref.focus())} />
+      </If>
+      <If when={rail()} else={<Tree />}>
+        <Rail />
+      </If>
       <If when={!rail() && empty()}>
-        <Text class="px-2 text-xs text-muted-foreground">{query().trim() ? "No agent matches" : board().statusLine}</Text>
+        <Text class="px-2 text-xs text-muted-foreground">{query().trim() ? "No project or agent matches" : board().statusLine}</Text>
       </If>
       <NavRow icon="sliders" label="Settings" shortcut={keyLabel("settings")} onPress={() => settingsOpen.set(true)} />
     </View>

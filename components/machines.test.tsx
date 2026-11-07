@@ -167,3 +167,37 @@ test("the form says that ssh signs in, and has no password or key field", async 
   expect(app.count("label:/password|key/i")).toBe(0);
   expect(app.texts().some((t) => t.includes("ssh") && t.includes("once in a terminal"))).toBe(true);
 });
+
+test("a host key that changed needs the person: it says what to do, stops retrying and offers Retry", async () => {
+  const app = await inMachines();
+  await app.press("Script ssh failures");
+  await addMachine(app, "Vault", "changed.example");
+  await app.waitUntil(() => app.texts().some((t) => t.startsWith("Needs attention: The host key of changed.example has changed")));
+  expect(app.texts().some((t) => t.includes("ssh-keygen -R changed.example"))).toBe(true);
+  // No countdown: nothing will happen until the person fixes the key and presses Retry.
+  expect(app.texts().some((t) => t.includes("reconnecting in"))).toBe(false);
+  expect(app.shows("label:Retry Vault")).toBe(true);
+  await app.press("label:Retry Vault");
+  await app.waitUntil(() => app.texts().some((t) => t.startsWith("Needs attention:")));
+  expect(app.texts().some((t) => t.includes("reconnecting in"))).toBe(false);
+});
+
+test("a host that is not trusted yet says to run ssh once in a terminal, and is not retried", async () => {
+  const app = await inMachines();
+  await app.press("Script ssh failures");
+  await addMachine(app, "Newbox", "unknown.example");
+  await app.waitUntil(() => app.texts().some((t) => t.startsWith("Needs attention:")));
+  expect(app.texts().some((t) => t.includes("run `ssh unknown.example` once in a terminal to trust the host"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("reconnecting in"))).toBe(false);
+});
+
+test("a refused connection is retried: the row says why and counts down to the next attempt", async () => {
+  const app = await inMachines();
+  await app.press("Script ssh failures");
+  await addMachine(app, "Flaky", "refused.example");
+  await app.waitUntil(() => app.texts().some((t) => t.startsWith("Not connected: ssh: connect to host refused.example port 22: Connection refused")));
+  expect(app.texts().some((t) => /reconnecting in \d+ s$/.test(t))).toBe(true);
+  expect(app.texts().some((t) => t.startsWith("Needs attention"))).toBe(false);
+  // A fault in one machine leaves this computer alone.
+  expect(app.shows("Connected · herdr 0.9.5")).toBe(true);
+});
