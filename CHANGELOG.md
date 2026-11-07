@@ -84,60 +84,168 @@ Type `@` to pick a file or folder of the project, and paste or drop pictures.
 
 ## [0.1.0-alpha.2] - 2026-11-07
 
-Second alpha: the chat reads code properly, macOS builds are signed with our own certificate, and the source is formatted and linted.
+Second alpha. Chat reads code properly, and the macOS app is signed with the
+project's own certificate.
 
-- **macOS: one signature for every release.** The app is signed with the project's own certificate instead of a new ad hoc signature per build, so the keychain and permissions macOS remembers survive updates. It is still not notarized: the first launch needs `xattr -dr com.apple.quarantine "Herdr Desktop.app"` or `Open Anyway`.
-- **Code reads like code.** Fenced code in an agent's answer, a command and its output, an edit and the permission dock's command are drawn by one renderer: highlighted in 25 languages (more through TextMate grammars), the language in the corner, `Copy code` on hover or focus, a fold past 16 lines (`Show all N lines`), wrap and line-number switches, and edits as diffs with the changed words marked and a `+`/`−` column. An answer still being written shows its open block as it stands. `Ctrl+Shift+C` copies the code of the last answer (or of the block under the pointer), `Ctrl+Shift+Y` the whole answer; Settings > Look has wrap, line numbers, tabs and spaces, and side-by-side diffs. The file viewer draws code the same way and finds text with `Ctrl+F`.
+![Home: projects, and what needs you](https://github.com/tuan3w/herdr-desktop/releases/download/v0.1.0-alpha.2/0.1.0-alpha.2-home.png)
+
+### Code reads like code in chat
+
+Code in an agent's answer, a command and its output, an edit and the
+permission prompt's command are drawn the same way: highlighted, with the
+language in the corner, and edits as diffs.
+
+> [!TIP]
+> Try it: in a chat, point at a code block and press `Copy code`.
+> `Ctrl+Shift+C` copies the code of the last answer, `Ctrl+Shift+Y` the whole
+> answer.
+
+- 25 languages are highlighted. Code longer than 16 lines folds
+  (`Show all N lines`); wrap and line numbers are switches on the block.
+- An edit shows as a diff with the changed words marked and a `+`/`−` column.
+- An answer still being written shows its open code block as it stands.
+- Settings > Look has wrap, line numbers, tabs and spaces, and side-by-side
+  diffs. The file viewer draws code the same way and finds text with `Ctrl+F`.
+
+![A chat with highlighted code, light](https://github.com/tuan3w/herdr-desktop/releases/download/v0.1.0-alpha.2/0.1.0-alpha.2-chat.png)
+
+![A chat with highlighted code, dark](https://github.com/tuan3w/herdr-desktop/releases/download/v0.1.0-alpha.2/0.1.0-alpha.2-chat-dark.png)
+
+### One signature for every macOS release
+
+The macOS app carries the same certificate in every build, so the keychain
+and the permissions macOS remembers survive an update. It is not notarized by
+Apple: the first launch needs the `xattr` line in the install steps, or
+`Open Anyway` in System Settings > Privacy & Security.
+
+### Install with one command
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/tuan3w/herdr-desktop/main/scripts/install.sh | sh
+```
+
+It checks `SHA256SUMS` and never uses `sudo`. By hand on macOS:
+
+```sh
+unzip Herdr-Desktop-0.1.0-alpha.2-macos-arm64.zip
+xattr -dr com.apple.quarantine "Herdr Desktop.app"
+```
+
+Linux needs GTK 4.14+, WebKitGTK 6.0 and glibc 2.39+ (Ubuntu 24.04 or later).
+You also need `herdr` on the machines you watch.
+
+**Not checked**
+
+- It is an alpha. The author's own herdr (0.9.5) on Linux is the only real
+  setup it has been tried against.
+- macOS has never been run on a real Mac by the author: it builds, its tests
+  pass headlessly and the package is signed, but how it looks and feels is
+  not checked. Apple silicon only (no Intel build); notifications are plain,
+  with no answer buttons, and a click does not open the agent.
+- Linux: screen reader announcements are polite only, and there is no tray
+  icon.
+- Remote machines need `ssh` keys and `python3`; password logins are not
+  supported (run `ssh <machine>` once in a terminal to trust the host).
+- Two tests are known to fail now and then in CI (a keyboard walk on macOS, a
+  Markdown diagram on Linux). They do not affect the app.
 
 ## [0.1.0-alpha.1] - 2026-11-07
 
-The first alpha of Herdr Desktop: the desktop counterpart of the Herdr phone app, for the people who run coding agents under [herdr](https://herdr.dev) and want one window for all of them. It is for trying, not for relying on: read "Known issues" first. Linux (x86_64) and macOS (Apple silicon) packages are built from the same commit by the same checks, but the author has only ever run it on Linux; **the macOS build is brand new and has never been run on a Mac by the author**, so tell us what breaks there.
+### One window for every agent
 
-### What works
+The first alpha of Herdr Desktop, the desktop companion of the Herdr phone
+app, for people who run coding agents under [herdr](https://herdr.dev). The
+board groups agents by project and shows what needs you first.
 
-- **One window for every agent.** The board groups agents by project, with what needs you (`Needs you`, `To review`) shown first and one count shared by the status line, the window title and the triage list. `Answer one by one` walks the agents that are waiting, longest first.
-- **A calm home.** An agent that needs you is said once: loudly in the `Needs you` inbox, and as a small quiet shape and the words `waiting for you` everywhere else, with one orange dot per project. Twenty waiting agents are one answer in place and a sentence (`19 more waiting · docs 4 · infra 4`), not twenty alarms. Text, rows and spacing are larger (15-pt text, 56-pt agent rows, a 300-pt sidebar), and cards, messages, tabs and counts move briefly when something arrives or changes (not when you switch tabs, and never with reduced motion).
-- **Answer safely.** A permission prompt from a terminal agent becomes buttons that show the exact command. A risky answer takes two presses (the first arms it for four seconds and says why), a button pressed just as the question changed is ignored, and nothing is sent when the pane no longer shows the question you saw.
-- **Watch and steer a pane.** A live mirror of the terminal (fit to the width, actual size, or wrapped lines), a composer, a key row, an opt-in typing mode with a visible way out, links in the output, slash commands, and quick phrases learned on your computer.
-- **Agent chats.** Agents that speak ACP (for example `omp acp`) open as native chat tabs: a transcript where a drag selects across paragraphs, lists, code blocks and tables (`Copy message` takes a whole answer), a permission dock with the same safety rules as terminal prompts, questions the agent asks, a queue for messages sent while it works, a sign-in card for agents that ask, and replay after you close and reopen the app. Chats of Claude Code, Codex and omp running in a terminal pane are read from their own logs and can be shown as a chat (`Show chat`).
-- **Many machines.** This computer plus any machine you can reach with `ssh`: your `~/.ssh/config`, agent and jump hosts are used, a changed host key stops that machine, and a machine that is out never affects another.
-- **Files and pages.** Browse and view files on a machine (code, Markdown, images), send a file to it, and open a page a machine serves (`localhost:5173`) through a tunnel.
-- **Notifications** (off by default) when an agent needs you while the window is away, with at most three at a time and then a summary.
-- **Work from the keyboard.** A command palette (`Ctrl+K`, `Cmd+K` on a Mac), jump to the next agent that needs you (`Ctrl+J`), tabs and splits you can arrange, and a list of every shortcut (`F1`).
-- **Made to be heard and seen.** Every control has a name for screen readers, states are shapes and text rather than colour alone, the four themes pass contrast checks in light and dark, and reduced motion and large text are honoured.
-- **A developer panel** (`Ctrl+Shift+D`) with how long it takes from a pane changing to its text being on screen, and the app's memory, threads and open files.
-- **Updates.** Settings > About asks GitHub once, when Settings opens, whether a newer release exists and offers `Open release page`. It reads only `api.github.com` (the latest release of this project), sends nothing about you, installs nothing, and has a switch to turn it off.
+> [!TIP]
+> Try it: press `Ctrl+J` (`Cmd+J` on a Mac) to jump to the next agent that
+> needs you, or `Answer one by one` to walk the waiting ones, longest first.
 
-### Known issues
+- `Needs you` and `To review` come first. One count feeds the status line,
+  the window title and the triage list, so they never disagree.
+- An agent that needs you is said once: loudly in the `Needs you` inbox, and as
+  a small shape and the words `waiting for you` everywhere else. Twenty
+  waiting agents are one answer in place and a sentence
+  (`19 more waiting · docs 4 · infra 4`), not twenty alarms.
+- Text, rows and spacing are larger (15-pt text, 56-pt rows, a 300-pt
+  sidebar). Cards, messages and counts move briefly when something changes,
+  never with reduced motion.
 
-- **It is an alpha.** The author's own herdr (0.9.5) on Linux is the only real setup it has been checked against; the rest ran against a scripted stand-in for herdr. Expect rough edges and report them.
-- **macOS has never been run by the author.** What is checked: it builds, its Rust and TypeScript tests pass headlessly, and the package is signed and structured as a Mac app. What is not: how it looks and behaves in a real window, keyboard shortcuts with `Cmd`, window sizing and position, the web pages (`WKWebView`), VoiceOver, and whether herdr keeps its socket at `~/.config/herdr/herdr.sock` on a Mac (set `HERDR_SOCKET_PATH` if it does not).
-- **macOS: notifications are plain.** They show a title and the question, with no answer buttons. A click does not open the agent (macOS opens Script Editor), and one is not withdrawn when the agent stops needing you. macOS lists them under Script Editor in System Settings > Notifications: allow them there.
-- **macOS: Apple silicon only, not notarized.** There is no Intel build (the toolkit has none), and the app is signed ad hoc without an Apple developer account, so macOS refuses to open it until you say so (see "Install on macOS").
-- **Linux: screen reader limits.** Announcements are polite only (the toolkit cannot send an assertive one), and there is no tray icon. The accessibility audit runs on Linux only; there is no equivalent check on macOS yet.
-- **Linux: a preloaded allocator.** A shell profile that sets `LD_PRELOAD` to jemalloc 5.3.1 made GTK 4.22 crash the whole app whenever a window's widgets changed (a chat tab replaced by a terminal, a tab closed). The app now starts itself again without that preload and says so on stderr (`HERDR_DESKTOP_KEEP_PRELOAD=1` keeps it). Other preloaded allocators were not tried.
-- **Remote machines need `python3` and `ssh` keys.** A machine without `python3` cannot be reached through the fast path; password logins are not supported (run `ssh <machine>` once in a terminal to trust the host and log in); the update check does not offer newer alphas or pre-releases.
-- **Code in chat is not coloured yet.** The syntax highlighter is built but not wired into chat messages; code blocks show as plain monospace text.
-- **Focus and screen readers are only partly checked.** Where keyboard focus lands after closing a dialog or tab, and how it reads in Orca or VoiceOver, was checked through the accessibility tree in tests, not by listening.
-- **Untested corner:** sending a file to a machine by dropping it on a pane has no automated test. `docs/PARITY.md` lists every feature of the phone app and where it stands.
+### Answer a question safely
 
-### Install on Linux (x86_64)
+A permission prompt from a terminal agent becomes buttons that show the exact
+command.
 
-Needs GTK 4.14 or newer, Pango, WebKitGTK 6.0 (`libgtk-4-1`, `libwebkitgtk-6.0-4`) and glibc 2.39 or newer (Ubuntu 24.04 or later), plus `herdr` on the machines you watch.
+- A risky answer takes two presses: the first arms it for four seconds and
+  says why.
+- A button pressed just as the question changed is ignored, and nothing is
+  sent when the pane no longer shows the question you saw.
+
+### Watch a pane, chat with an agent
+
+> [!TIP]
+> Try it: open an agent in the sidebar. An agent that speaks ACP (for example
+> `omp acp`) opens as a chat; the chat of Claude Code, Codex or omp running in
+> a terminal opens with `Show chat`.
+
+- A terminal pane is a live mirror with a message box, a key row, an opt-in
+  typing mode with a visible way out, links in the output, slash commands and
+  quick phrases learned on your computer.
+- A chat is a transcript where a drag selects across paragraphs, lists, code
+  blocks and tables (`Copy message` takes a whole answer), a permission dock
+  with the same safety rules, questions the agent asks, a queue for messages
+  sent while it works, and replay after you close and reopen the app.
+
+### Many machines, files and pages
+
+- This computer plus any machine you can reach with `ssh`: your
+  `~/.ssh/config`, agent and jump hosts are used. A changed host key stops
+  that machine, and a machine that is out never affects another.
+- Browse and view files on a machine (code, Markdown, images), send a file to
+  it, and open a page it serves (`localhost:5173`) through a tunnel.
+- Notifications are off by default; when on, an agent that needs you while the
+  window is away makes at most three, then a summary.
+- `Ctrl+K` is the command palette, `F1` lists every shortcut, and
+  `Ctrl+Shift+D` opens a developer panel with the time from a pane changing
+  to its text being on screen.
+- Every control has a name for screen readers, states are shapes and text
+  rather than colour, the four themes pass contrast checks, and reduced motion
+  and large text are honoured.
+- Settings > About asks GitHub once, when Settings opens, whether a newer
+  release exists and offers `Open release page`. It sends nothing about you
+  and has a switch to turn it off.
+
+### Install
 
 ```sh
-tar -xzf Herdr-Desktop-0.1.0-alpha.1-linux-x86_64.tar.gz       # unpacks "Herdr Desktop/"
-sha256sum -c SHA256SUMS --ignore-missing                       # optional
-git clone https://github.com/tuan3w/herdr-desktop && PACKAGE="$PWD/Herdr-Desktop-0.1.0-alpha.1-linux-x86_64.tar.gz" herdr-desktop/local/install.sh
+tar -xzf Herdr-Desktop-0.1.0-alpha.1-linux-x86_64.tar.gz   # Linux: "Herdr Desktop/"
+unzip Herdr-Desktop-0.1.0-alpha.1-macos-arm64.zip          # macOS
+xattr -dr com.apple.quarantine "Herdr Desktop.app"         # macOS, then drag to Applications
 ```
 
-That installs it for your user (`~/.local/opt/herdr-desktop`, a launcher entry and an icon) and runs as `herdr-desktop`. `local/install.sh --uninstall` removes it; your data stays. Or run `Herdr Desktop/HerdrDesktop` from the unpacked folder.
+On Linux, `local/install.sh` installs it for your user. Linux needs GTK 4.14+,
+WebKitGTK 6.0 and glibc 2.39+ (Ubuntu 24.04 or later). macOS blocks a
+downloaded copy the first time (the app is signed ad hoc, not by Apple): run
+the `xattr` line, or use `Open Anyway` in System Settings > Privacy & Security
+(on macOS 14: right-click, `Open`). You also need `herdr` on the machines you
+watch and `ssh` keys for remote ones.
 
-### Install on macOS (Apple silicon, macOS 14 or newer)
+**Not checked**
 
-```sh
-unzip Herdr-Desktop-0.1.0-alpha.1-macos-arm64.zip     # or double-click it in Finder
-xattr -dr com.apple.quarantine "Herdr Desktop.app"    # then drag the app to Applications
-```
-
-The app is signed ad hoc, not by Apple, so macOS blocks a downloaded copy the first time. Either run the `xattr` line above before opening it, or open it once and use System Settings > Privacy & Security > `Open Anyway` (on macOS 14, right-click the app and choose `Open`). Requirements for what it watches are the same as on Linux: `herdr` on the machines, `ssh` keys for remote ones.
+- It is an alpha. The author's own herdr (0.9.5) on Linux is the only real
+  setup it was checked against; the rest ran against a scripted stand-in.
+- macOS has never been run by the author. Not checked there: how it looks in
+  a real window, `Cmd` shortcuts, window sizing, the web pages (`WKWebView`),
+  VoiceOver, and whether herdr keeps its socket at `~/.config/herdr/herdr.sock`
+  on a Mac (set `HERDR_SOCKET_PATH` if not). Notifications are plain and show
+  under Script Editor in System Settings > Notifications. Apple silicon only.
+- Linux: announcements for screen readers are polite only, and there is no
+  tray icon. A shell profile that preloads jemalloc 5.3.1 crashed GTK 4.22
+  whenever a window's widgets changed; the app now restarts itself without
+  the preload (`HERDR_DESKTOP_KEEP_PRELOAD=1` keeps it).
+- Code in chat is not coloured yet: blocks show as plain monospace text.
+- Remote machines need `python3` and `ssh` keys; the update check does not
+  offer newer alphas.
+- Where keyboard focus lands after closing a dialog or tab, and how it reads
+  in Orca or VoiceOver, was checked through the accessibility tree in tests,
+  not by listening. Dropping a file on a pane has no automated test.

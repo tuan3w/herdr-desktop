@@ -23,27 +23,27 @@ Illustrations from scripted data, not a gallery: they date. `make shots` takes c
 
 ## Install
 
-One command, Linux x86_64 or macOS Apple silicon (Intel Macs have no build: nsh 0.4.0 has no Intel runtime):
+**macOS, Apple silicon** (Intel Macs have no build: nsh 0.4.0 has no Intel runtime). One command:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/tuan3w/herdr-desktop/main/scripts/install.sh | sh
 ```
 
-It takes the newest release (pre-releases included), refuses to install when the download does not match `SHA256SUMS`, and replaces the previous install. It never uses `sudo`.
-
-- **Linux:** installs to `~/.local/opt/herdr-desktop`, links `~/.local/bin/herdr-desktop` and adds the menu entry and icon. Needs GTK 4.14+ (`libgtk-4-1`) and WebKitGTK 6.0 (`libwebkitgtk-6.0-4`) at run time.
-- **macOS:** installs `~/Applications/Herdr Desktop.app`, verifies its signature and clears the quarantine flag, so it opens first time. The app is signed with the project's own certificate, not notarized by Apple.
+It takes the newest release (pre-releases included), refuses to install when the download does not match `SHA256SUMS`, replaces the previous install, verifies the signature and clears the quarantine flag, so the app opens first time (it is signed with the project's own certificate, not notarized by Apple). It installs `~/Applications/Herdr Desktop.app` and never uses `sudo`.
 
 ```sh
-curl -fsSL .../scripts/install.sh | sh -s -- --version 0.1.0-alpha.2   # a specific release
+curl -fsSL .../scripts/install.sh | sh -s -- --version 0.1.0-alpha.3   # a specific release
+curl -fsSL .../scripts/install.sh | sh -s -- --edge                    # the newest build of main (may break)
 curl -fsSL .../scripts/install.sh | sh -s -- --uninstall               # remove it (your data stays)
 ```
 
-`PREFIX=DIR` (Linux) and `APP_DIR=DIR` (macOS) choose another place. Prefer to read it first: [scripts/install.sh](scripts/install.sh). The archives and `SHA256SUMS` are on the [Releases page](https://github.com/tuan3w/herdr-desktop/releases).
+`APP_DIR=DIR` chooses another place. Prefer to read it first: [scripts/install.sh](scripts/install.sh). The archives, `SHA256SUMS` and the notes of each release are on the [Releases page](https://github.com/tuan3w/herdr-desktop/releases); `edge` there is the build of the latest `main`, replaced after every push that builds.
+
+**Linux is paused.** New releases hold the macOS zip only: the owner is focusing on macOS, so no Linux package is built or tested on every change. On Linux the installer says `no Linux build in this release`; build from source (below). Linux x86_64 archives exist for `0.1.0-alpha.1` to `alpha.3` and the installer still installs them with `--version`. The Linux code, `make` targets and CI jobs are kept working and run by hand: [docs/RELEASING.md](docs/RELEASING.md), "Linux (paused)".
 
 ## Status
 
-Alpha: `0.1.0-alpha.2` is the current test release ([CHANGELOG.md](CHANGELOG.md) says what works and what does not). `docs/PARITY.md` is the ledger of what is done.
+Alpha: `0.1.0-alpha.3` is the current test release ([CHANGELOG.md](CHANGELOG.md) says what works and what does not). macOS (Apple silicon) is the platform of the releases and of CI: every push to `main` builds and signs the app and lints the code; the slow tests run nightly. Nobody has run it on a real Mac yet, and Linux builds are paused. `docs/PARITY.md` is the ledger of what is done.
 
 ## Build
 
