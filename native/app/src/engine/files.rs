@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use herdr_core::files::{Files, LocalFiles, RemoteFiles, Tunnel};
+use herdr_core::git::{Git, LocalGit, RemoteGit, UndoStore};
 use herdr_core::ssh::SshTarget;
 use herdr_core::store::Machine;
 
@@ -42,6 +43,22 @@ impl Fleet {
         }
         let (client, target) = self.remote_of(&machine)?;
         Ok(Arc::new(RemoteFiles::new(client, target)))
+    }
+
+    /// The git of machine `id`: this computer's through `std::process::Command`, another machine's through its
+    /// shared ssh connection.
+    pub fn git_of(&self, id: &str) -> Result<Git, String> {
+        let machine = self.machine_of(id)?;
+        if machine.is_local() {
+            return Ok(Git::new(Arc::new(LocalGit::new())));
+        }
+        let (client, target) = self.remote_of(&machine)?;
+        Ok(Git::new(Arc::new(RemoteGit::new(client, target))))
+    }
+
+    /// Where a reverted change waits for `Undo` (ten minutes): inside the data directory, which only this user can read.
+    pub fn changes_undo(&self) -> UndoStore {
+        UndoStore::new(self.store.dir().join("changes-undo"))
     }
 
     /// Whether machine `id` is the computer the app runs on.

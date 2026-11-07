@@ -11,6 +11,7 @@
 //! * [`metrics`] is what the dev panel shows about the live pane path.
 //! * [`files`] is the `Files` and `Pages` modules: the file browser, viewers, `Send a file` and tunnels to a machine's pages.
 //! * [`notify`] tells the person, while the window is away, that an agent needs them (desktop notifications).
+//! * [`git`] is the `Git` module: the files an agent changed in a checkout, their patches, revert and undo.
 //! * [`fixture`] is the scripted herdr the tests run against.
 //! * `preload_guard` (Linux, glibc) starts the process again without an `LD_PRELOAD` allocator that breaks GTK 4.22 (before `main`).
 
@@ -22,6 +23,7 @@ pub mod engine;
 pub mod feed;
 pub mod files;
 pub mod fixture;
+pub mod git;
 pub mod highlight;
 pub mod keys;
 pub mod metrics;
@@ -43,6 +45,7 @@ fn native(registry: &mut Registry) {
         .module::<highlight::api::Code>()
         .module::<files::Files>()
         .module::<files::Pages>()
+        .module::<git::Git>()
         .module::<keys::PaneKeys>()
         .register::<highlight::view::CodeDiff>()
         .register::<highlight::view::CodeView>()
