@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
 
-import { HIT, RAIL_WIDTH, ROW, SIDEBAR_WIDTH, SPACE, TAILWIND, TYPE } from "#lib/layout";
+import { HIT, RADIUS, RAIL_WIDTH, ROW, SIDEBAR_WIDTH, SPACE, TAILWIND, TYPE } from "#lib/layout";
 
 import config from "../nsh.json";
 
@@ -13,18 +13,40 @@ test("the type scale grows with every step and keeps readable line heights", () 
   const steps = Object.values(TYPE);
   for (let i = 1; i < steps.length; i++) expect(steps[i][0]).toBeGreaterThan(steps[i - 1][0]);
   for (const [, leading] of steps) expect(leading).toBeGreaterThanOrEqual(1.2);
-  // A desktop with room: body 15 or 14, meta 12 or 13.
-  expect(TYPE.sm[0]).toBeGreaterThanOrEqual(14);
+  // Chrome is dense desktop UI (13 body, 12 meta, never below 12); reading text is 14 or more with more leading.
   expect(TYPE.xs[0]).toBeGreaterThanOrEqual(12);
+  expect(TYPE.sm[0]).toBeGreaterThanOrEqual(13);
+  expect(TYPE.sm[0]).toBeLessThanOrEqual(14);
+  expect(TYPE.base[0]).toBeGreaterThanOrEqual(14);
+  expect(TYPE.base[1]).toBeGreaterThan(TYPE.sm[1]);
 });
 
-test("every row of the app is a comfortable pointer target and the spacing steps are a 4-pt scale", () => {
-  for (const row of Object.values(ROW)) expect(row.height).toBeGreaterThanOrEqual(HIT.pointer);
+test("every row of the app is a pointer target on the 4-pt grid and the spacing steps are a 4-pt scale with one 2-pt step", () => {
+  for (const row of Object.values(ROW)) {
+    expect(row.height).toBeGreaterThanOrEqual(HIT.pointer);
+    expect(row.height % 4).toBe(0);
+  }
   expect(ROW.agent.height).toBeGreaterThanOrEqual(HIT.large);
-  for (const points of Object.values(SPACE)) expect(points % 4).toBe(0);
+  expect(ROW.agentCompact.height).toBeLessThan(ROW.agent.height);
+  // The compact tier is what lets a dozen agents show at 1280 x 800.
+  expect(ROW.agentCompact.height * 12).toBeLessThanOrEqual(400);
+  const off = Object.values(SPACE).filter((points) => points % 4 !== 0);
+  expect(off).toEqual([2]);
 });
 
-test("the sidebar is wide enough for a 15-pt title and its bounds nest", () => {
+test("nested radii exist for every pair the kit draws: outer minus padding", () => {
+  const has = (points: number) => Object.values(RADIUS).includes(points as never);
+  // [outer, padding]: a segmented track, a card of rows, a dialog of rows, the message box.
+  for (const [outer, padding] of [
+    [RADIUS.md, SPACE[0.5]],
+    [RADIUS.lg, SPACE[1]],
+    [RADIUS.xl, SPACE[2]],
+    [RADIUS["2xl"], SPACE[3]],
+  ])
+    expect(has(outer - padding)).toBe(true);
+});
+
+test("the sidebar is wide enough for a 13-pt title and its bounds nest", () => {
   expect(SIDEBAR_WIDTH.min).toBeLessThanOrEqual(SIDEBAR_WIDTH.narrow);
   expect(SIDEBAR_WIDTH.narrow).toBeLessThanOrEqual(SIDEBAR_WIDTH.default);
   expect(SIDEBAR_WIDTH.default).toBeLessThanOrEqual(SIDEBAR_WIDTH.max);

@@ -21,6 +21,10 @@ Every color is a semantic token (`lib/theme/build.ts` makes them; see `themes.md
 | `sidebar`, `sidebar-foreground`, `sidebar-accent`, `sidebar-accent-foreground`, `sidebar-primary`, `sidebar-primary-foreground`, `sidebar-border`, `sidebar-ring` | everything on the sidebar surface |
 | `secondary`, `secondary-foreground` | defined, no screen uses them: use `muted` |
 
+## One neutral
+
+Every grey surface, border and text of a theme comes from one hue (`paper.hue` for surfaces, `ink.hue` for text and borders; in Harbor both are 90), at chroma 0.01 or less (emil-color: neutrals agree with one hue). The sidebar, the tab strip and the status bar are all `bg-sidebar`, so they are the same colour by construction; a screen that looks blue-grey next to a warm one uses a token it should not (a `term-*`, `code-*` or a hex) or is drawn in another theme. Never write a grey of your own.
+
 ## Which background
 
 ```mermaid

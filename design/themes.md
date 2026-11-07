@@ -11,6 +11,8 @@ All four share one quiet structure: a white page (charcoal in dark), a sidebar o
 | `chart` | Chart | pale chart (240) | navy (258) | chart magenta (350) | 0.375rem |
 | `graphite` | Graphite | near-neutral (260) | graphite (262) | acid lime (125) | 0.375rem |
 
+One theme, one neutral: `build.ts` derives every surface from `paper` and every text and border from `ink`, and Harbor sets both to hue 90, so a second grey in a Harbor window is a bug in a screen (a surface that is not a token), not in the theme. A theme whose `paper` and `ink` hues differ by more than a few degrees (Container: 250 and 255 is fine) makes borders and surfaces disagree.
+
 Color is spent in three places only: **primary** (the one main button, checked boxes, the progress bar, focus), **signal** ("needs you": the count capsule of `Needs you` on the sidebar and the board, dots on a row) and **status text** (failed, unreachable, state tags). Everything else is grey. That restraint is what makes the screen read as calm; a theme that tints the sidebar, the rows or the headings has stopped being a theme and become decoration.
 
 ## Add a theme

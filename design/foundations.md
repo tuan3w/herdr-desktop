@@ -2,57 +2,50 @@
 
 The numbers every screen is built from. They live in two places and nowhere else: `lib/layout.ts` (code) and the `"tailwind"` block of `nsh.json` (the class engine's copy of the type, radius and shadow scales); `lib/layout.test.ts` fails when the two disagree. A screen never writes a size, a radius or a width of its own: it uses a scale class or imports a constant from `lib/layout.ts`.
 
-The look is quiet (`DESIGN.md`) and it has room: the app runs on a desktop, so spacing is generous and a row is never smaller than it needs to be to be hit with a pointer.
+A desktop is 1280 pt or more, with a pointer and a keyboard, open all day (`AGENTS.md`, "Desktop is not a wide phone"). So the numbers are dense (a dozen agents visible and room to read one) and every row still clears a pointer. Sizes are logical px: 1 unit is 1 CSS px, and `fontScale()` scales text only.
 
 ## Spacing
 
-A 4-pt base. Only these steps exist; a half step (`gap-1.5`, `px-2.5`, `py-0.5`) is a bug.
+A 4-pt base. These steps exist; any other half step (`gap-1.5`, `px-2.5`, `py-0.5`) is a bug.
 
 | Class step | Points | Used for |
 |---|---|---|
-| `1` | 4 | between a title and its meta line, icon to text inside a tight control |
+| `0.5` | 2 | only the padding of a recessed segmented track (`p-0.5`): the raised segment sits 2 pt inside it, so its radius is the track's minus 2 |
+| `1` | 4 | between a title and its meta line, icon to text inside a tight control, row padding of a two-line row |
 | `2` | 8 | inside a control (`gap-2`), card padding, gap between small controls |
 | `3` | 12 | row padding left and right, gap between a glyph and its text |
-| `4` | 16 | dialog and panel padding, the inbox's padding |
+| `4` | 16 | dialog and panel padding |
 | `6` | 24 | the page's edge, the gap between sections and between cards (`GAP.section`) |
 | `8` | 32 | the end of a page (`pb-8`), a big empty state |
 | `12` | 48 | rare: a fill-the-pane empty state |
 
-`SPACE` in `lib/layout.ts` states the scale for code; `GAP` and `PAD` are the class strings a page spends it with: `GAP.row` (12) inside a row, `GAP.rows` (4) between the rows of a card, `GAP.section` (24) between sections and cards; `PAD.page` (24 at the sides, 24 on top) is a page's edge.
+Why one 2-pt step: nested radii are outer minus padding (emil-surfaces), and a track that pads 4 would put the segment 4 pt in, which reads as a gap, not a raised chip. `lib/layout.test.ts` allows exactly one value off the 4-pt scale.
+
+`SPACE` states the scale for code; `GAP` and `PAD` are the class strings a page spends it with: `GAP.row` (12) inside a row, `GAP.rows` (4) between the rows of a card, `GAP.section` (24) between sections and cards; `PAD.page` (24) is a page's edge.
 
 ## Type
 
-Inter for text, IBM Plex Mono for identifiers (`design/typography.md`). The scale is `TYPE` (points and line height):
-
-| Class | Points / line | Used for |
-|---|---|---|
-| `text-xs` | 13 / 1.35 | meta lines, ages, tags, counts, captions |
-| `text-sm` | 15 / 1.4 | body, row titles, labels, buttons (the unit of the app) |
-| `text-base` | 17 / 1.4 | a card's name, a section heading in Settings, an empty state's title, the inbox heading |
-| `text-lg` | 20 / 1.35 | a dialog's title |
-| `text-xl` | 22 / 1.3 | not used yet (kept so the scale has no hole) |
-| `text-2xl` | 26 / 1.25 | the title of an open record |
-| `text-3xl` | 32 / 1.2 | a page title (`PageHeader`) |
-
-Two sizes cover almost everything: a row has a 15-pt title in `foreground` and a 13-pt meta line in `muted-foreground`. Weight is `font-medium` for titles and `font-semibold` for headings.
+Inter for text, IBM Plex Mono for identifiers (`design/typography.md` has the table). Two tiers: chrome (sidebar, rows, controls, buttons, meta) is `text-sm` 13 and `text-xs` 12; reading (chat prose, Markdown) is `text-base` 14 with more leading. `lg` and up are headings. A row is a 13-pt title in `foreground` and a 12-pt meta line in `muted-foreground`.
 
 ## Rows and hit targets
 
-`ROW` holds the height (for virtual lists) and the classes of each row kind. The agent row is the unit: a glyph, a title and a meta line with 8 pt above and below, so 52 to 56 pt, never under 48.
+`ROW` holds the height (for virtual lists) and the classes of each row kind. Heights are on the 4-pt grid, at least `HIT.pointer`, and are `min-h` so `fontScale()` 2.0 grows a row instead of cutting it.
 
-| Row | Height | Classes (`ROW.<kind>.class`) |
-|---|---|---|
-| `agent` | 56 | `min-h-12 px-3 py-2` (sidebar, home, popover of a rail tile) |
-| `project` | 44 | `min-h-11 px-3 py-2` (a project header in the sidebar and a card's header button) |
-| `nav` | 40 | `min-h-10 px-3` (`New agent session`, `Board`, `Settings`) |
-| `more` | 36 | `min-h-9 px-3` (`3 more idle`) |
-| `tab` | 44 | `h-11 px-4` (the dock's tabs) |
+| Row | Height | Classes (`ROW.<kind>.class`) | Why this height |
+|---|---|---|---|
+| `agentCompact` | 32 | `min-h-8 px-3` | a glyph and a title: 12 agents fit in 384 pt of the sidebar |
+| `agent` | 44 | `min-h-11 px-3 py-1` | two lines (13 + 12 pt text, about 35 pt) and 4 pt either side; also the `HIT.large` size |
+| `project` | 28 | `min-h-7 px-3` | a header labels the rows under it and must not be as tall as one |
+| `nav` | 32 | `min-h-8 px-3` | the height of a small control: one line of chrome |
+| `more` | 28 | `min-h-7 px-3` | a quiet row (`3 more idle`) |
+| `table` | 36 | `min-h-9 px-3` | the board's table: a little more air for scanning across columns |
+| `tab` | 32 | `relative h-8 min-w-40 max-w-56 flex-1` | the dock's tabs: one chrome line |
 
-Controls (kit): `Btn` 36 (`min-h-9`), small `Btn` 32, `IconButton` 32, a field, a select, a menu item and a combobox row 36, a segmented control and a tab of `Tabs` 32. Every pointer target is at least `HIT.pointer` (28 pt); with Settings > Large hit targets (`largeTargets`) the answer chips grow to `HIT.large` (44 pt). A control that must grow with text (`Btn`) has a `min-h`, never a fixed `h`, so `fontScale()` 2.0 makes it taller instead of cutting it.
+Controls (kit; the targets the kit follows): `Btn` 32 (`min-h-8`), small `Btn` 28, `IconButton` 28, a field, a select, a menu item and a combobox row 32, a segmented control about 28 and a tab of `Tabs` 28; a switch about 30 x 18. Every pointer target is at least `HIT.pointer` (28 pt); with Settings > Large hit targets (`largeTargets`) the answer chips grow to `HIT.large` (44 pt). Why 28: a pointer is precise (emil says 44 for touch, and the large setting gives it); a 28 floor lets a dozen rows show.
 
 ## Radius
 
-`RADIUS`: `sm` 4 (tags, a keycap, a checkbox), `md` 8 (controls, rows, a hover fill), `lg` 12 (a dialog), `xl` 16 (a card, the inbox), `2xl` 24 (the chat's message box). A child inside a padded parent takes the parent's radius minus the padding: a card (16) with 8 pt of padding holds rows of 8.
+`RADIUS`: `sm` 4 (tags, a keycap, a checkbox), `base` 6 (a segment inside a track), `md` 8 (controls, rows, a hover fill, a track), `lg` 12 (a card), `xl` 16 (a dialog, the inbox), `2xl` 24 (the chat's message box). Rule: a child inside a padded parent takes the parent's radius minus the padding (emil-surfaces; beyond 24 pt of gap the layers read as separate and the rule stops). Every pair the kit needs exists and `lib/layout.test.ts` checks them: track 8 - pad 2 = segment 6; card 12 - pad 4 = row 8; dialog 16 - pad 8 = row 8; message box 24 - pad 12 = field 12.
 
 ## Surfaces and elevation
 
@@ -63,21 +56,25 @@ Five layers, from the page up. Colour comes from the tokens of `design/colors.md
 | page | `background` | none |
 | sidebar | `sidebar` (one shade off the page) | none; a hairline `sidebar-border` at its edge |
 | card, the inbox | `card` | a `border-border` hairline, no shadow |
-| popover, menu, tooltip | `popover` | `shadow-md` (`SHADOW.md`) and a hairline ring inside the shadow |
-| dialog | `card` | `shadow-lg` (`SHADOW.lg`) over the scrim (`bg-black/40`) |
+| popover, menu, popup, toast | `popover` | `EDGE.md` (`SHADOW.md`) |
+| tooltip | `foreground` pill | none: the fill is the edge |
+| dialog, palette | `card`, `popover` | `EDGE.lg` (`SHADOW.lg`) over the scrim (`bg-black/40`) |
 
-`SHADOW.sm` exists for a surface that must float over the page; the quiet look uses none. Each shadow stacks three layers (a 1-pt ring, a tight one, a wide soft one) so it reads as physical. In the dark appearance a shadow cannot be seen: the hairline border carries the depth.
+`SHADOW.sm` is for a small raised thing (the chosen segment, a floating chip). Each shadow stacks two layers, a 1-pt ring at 0.10 (the edge) and one soft layer: `sm` 0 1 3 at 0.06, `md` 0 4 20 at 0.08, `lg` 0 8 32 at 0.14. No tight middle layer: its 0.05 line along the bottom corners read as a thick edge beside the ring.
+
+**Edges.** One edge per surface (`EDGE` in the kit). A floating surface takes its edge from the shadow's ring in light and from `border-border` in dark: `border border-transparent shadow-md dark:border-border dark:shadow-none`. The transparent border keeps the geometry equal in both appearances. A flat surface (card, row, table, panel, input) keeps a hairline and no shadow. Why: the surfaces first wore `border border-border` AND a shadow whose first layer is a 1-pt ring, so the edge was drawn twice (about 2 pt) beside a soft shadow, and the owner called it too strong and thick. Never add a border to a surface that has `EDGE`, and never a shadow to one that has a border only.
 
 ## Widths
 
-| What | Value | Where |
+| What | Value | Why |
 |---|---|---|
-| sidebar | 300 default, 248 to 480 draggable (`SIDEBAR_WIDTH`) | wide windows (1100 and up) |
-| snug sidebar | 264, fixed (`SIDEBAR_WIDTH.narrow`) | 900 to 1100 |
+| sidebar | 264 default, 220 to 420 draggable (`SIDEBAR_WIDTH`) | 264 holds a 13-pt title of about 30 characters beside a glyph and a count; 420 is where more width only takes room from the conversation |
+| snug sidebar | 240, fixed (`SIDEBAR_WIDTH.narrow`) at 900 to 1100 | the conversation keeps its measure |
 | rail | 64 (`RAIL_WIDTH`), 44-pt tiles | under 900, or collapsed |
-| home | a grid that stops at 1200 (`COLUMN.home`), two columns from 800 (`TWO_COLUMNS_FROM`) | `Board` |
-| chat | 768 (`COLUMN.chat`, `CHAT_COLUMN`: `max-w-3xl`, 24 pt of padding) | the conversation, its message box and docks |
-| settings, dialogs | 560, 760 (`wide`), 1000 (`huge`) | `Modal` |
+| home | grows with the window to 1440 (`COLUMN.home`), two columns of cards from 800 (`TWO_COLUMNS_FROM`) | the title is the one elastic column, so it is uncapped on every laptop; past 1440 the eye travels too far from a title to its state |
+| chat | 768 (`COLUMN.chat`, `CHAT_COLUMN`: `max-w-3xl`, 24 pt of padding, so the text is 720) | the owner's readable measure; about 95 characters of 14-pt prose, above the 75 of emil-typography, accepted because a message is short and code and tables need the width. Extra window width goes to the inspector, not margins |
+| settings page | 640 (`COLUMN.page`) | a label, its description and its control read as one line |
+| dialogs | 560, 760 (`wide`), 1000 (`huge`) | `Modal` |
 
 The three tested window widths are 1280, 960 and 760 (`DESIGN.md`); at `fontScale()` 2.0 no text has a fixed-height box (a row has `min-h`, a line is `Clipped` only where hovering shows it all).
 
