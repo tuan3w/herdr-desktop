@@ -20,8 +20,8 @@ mod forward;
 const CONTROL_SUFFIX: usize = 17;
 /// `%C` expands to a 40 character hash.
 const CONTROL_HASH: usize = 40;
-/// `sun_path` holds 108 bytes including the terminating NUL.
-const SUN_PATH_MAX: usize = 107;
+/// `sun_path` holds 108 bytes on Linux and 104 on macOS, each with the terminating NUL.
+const SUN_PATH_MAX: usize = if cfg!(target_os = "macos") { 103 } else { 107 };
 /// The longest control directory that still fits `<dir>/<hash>` plus ssh's setup suffix.
 const CONTROL_DIR_MAX: usize = SUN_PATH_MAX - CONTROL_SUFFIX - 1 - CONTROL_HASH;
 
@@ -231,17 +231,21 @@ pub(crate) fn spawn_error(e: std::io::Error) -> WireError {
 /// Where to keep control sockets for an app whose data lives in `data_dir`: a private (0700)
 /// directory short enough for a unix socket path.
 ///
-/// Preference: `<data_dir>/ssh`, then `$XDG_RUNTIME_DIR/herdr-desktop`, then
-/// `<temp>/herdr-desktop-<uid>`. A typical data directory is too long (a socket path may be about
-/// 100 bytes, ssh adds a 40 character hash and a 17 character suffix), which is why this is not
-/// always the first.
+/// Preference: `<data_dir>/ssh`, then `$XDG_RUNTIME_DIR/herdr-desktop`, then `<temp>/herdr-desktop-<uid>`,
+/// then `/tmp/herdr-desktop-<uid>`. A typical data directory is too long (a socket path may be about 100
+/// bytes, ssh adds a 40 character hash and a 17 character suffix), which is why this is not always the
+/// first. On a Mac the data directory is `~/Library/Application Support/...` and `temp_dir()` is
+/// `/var/folders/xx/<28 characters>/T`: both too long for its 104 byte limit, and there is no
+/// `XDG_RUNTIME_DIR`, so the short `/tmp` one is what is used there.
 pub fn control_dir_for(data_dir: &Path) -> std::io::Result<PathBuf> {
     let uid = rustix::process::getuid().as_raw();
-    let mut candidates = vec![data_dir.join("ssh")];
-    if let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR").filter(|v| !v.is_empty()) {
-        candidates.push(PathBuf::from(runtime).join("herdr-desktop"));
-    }
-    candidates.push(std::env::temp_dir().join(format!("herdr-desktop-{uid}")));
+    let runtime = std::env::var_os("XDG_RUNTIME_DIR").filter(|v| !v.is_empty());
+    let candidates = control_candidates(
+        data_dir,
+        runtime.map(PathBuf::from),
+        &std::env::temp_dir(),
+        uid,
+    );
     let mut last_error = None;
     for dir in candidates {
         if dir.as_os_str().len() > CONTROL_DIR_MAX {
@@ -255,6 +259,22 @@ pub fn control_dir_for(data_dir: &Path) -> std::io::Result<PathBuf> {
     Err(last_error.unwrap_or_else(|| {
         std::io::Error::other("no short enough directory for ssh control sockets")
     }))
+}
+
+/// The directories [`control_dir_for`] tries, in order.
+fn control_candidates(
+    data_dir: &Path,
+    runtime_dir: Option<PathBuf>,
+    temp_dir: &Path,
+    uid: u32,
+) -> Vec<PathBuf> {
+    let mut candidates = vec![data_dir.join("ssh")];
+    if let Some(runtime) = runtime_dir {
+        candidates.push(runtime.join("herdr-desktop"));
+    }
+    candidates.push(temp_dir.join(format!("herdr-desktop-{uid}")));
+    candidates.push(PathBuf::from(format!("/tmp/herdr-desktop-{uid}")));
+    candidates
 }
 
 /// Creates `dir` with mode 0700, or checks an existing one is ours and tightens it.
@@ -282,5 +302,26 @@ pub(crate) struct KillOnDrop(pub std::sync::Arc<Proc>);
 impl Drop for KillOnDrop {
     fn drop(&mut self) {
         self.0.kill();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_mac_with_long_directories_everywhere_still_gets_a_control_directory_that_fits() {
+        // macOS: `~/Library/Application Support/<id>` and `/var/folders/xx/<28>/T`, no XDG_RUNTIME_DIR.
+        let data =
+            Path::new("/Users/someone/Library/Application Support/dev.herdrmobile.herdr_desktop");
+        let temp = Path::new("/var/folders/zz/abcdefghijklmnopqrstuvwxyz01/T");
+        let candidates = control_candidates(data, None, temp, 501);
+        // Its socket paths may be 103 bytes (104 with the NUL): 45 for the directory.
+        let limit = 103 - CONTROL_SUFFIX - 1 - CONTROL_HASH;
+        let fitting: Vec<_> = candidates
+            .iter()
+            .filter(|d| d.as_os_str().len() <= limit)
+            .collect();
+        assert_eq!(fitting, [&PathBuf::from("/tmp/herdr-desktop-501")]);
     }
 }
