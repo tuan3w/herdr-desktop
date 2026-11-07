@@ -31,8 +31,8 @@ const NAMED: [&str; 13] = [
 /// The herdr key name of `keystroke` (nsh's `keymap` spelling: modifiers and a key joined by `+`, in
 /// any case), or `None` when it is not a key herdr takes: text (a letter, digit or punctuation with no
 /// `ctrl` or `alt`, or with only `shift`) goes through `pane.send_text`; `mod`, `cmd`, `meta`,
-/// `super` and `win` chords are the app's own shortcuts, never the pane's; punctuation chords
-/// (`ctrl+/`) have no herdr name here.
+/// `super` and `win` chords are the app's own shortcuts, never the pane's; of the punctuation chords only
+/// `ctrl+[`, `ctrl+]`, `ctrl+\` and `ctrl+/` are keys (the others have no control byte to send).
 ///
 /// Modifiers come out in the order `ctrl`, `alt`, `shift`.
 pub fn herdr_key(keystroke: &str) -> Option<String> {
@@ -56,6 +56,9 @@ pub fn herdr_key(keystroke: &str) -> Option<String> {
         key if is_function_key(key) => key,
         // A letter or digit is a key only as part of a chord; alone (or shifted) it is typed text.
         key if chord && key.len() == 1 && key.as_bytes()[0].is_ascii_alphanumeric() => key,
+        // The four punctuation keys a terminal reads as control bytes (`ctrl+[` is Escape's own byte, `ctrl+/` is 0x1f):
+        // herdr takes the character itself (checked against a live pane: `^[`, `^\`, `^]`, `^_`). Not with `alt` or `shift`.
+        "[" | "]" | "\\" | "/" if ctrl && !alt && !shift => key,
         _ => return None,
     };
     let mut out = String::new();
@@ -147,6 +150,13 @@ mod tests {
     }
 
     #[test]
+    fn the_punctuation_a_terminal_reads_as_control_bytes_is_a_key() {
+        for chord in ["ctrl+[", "ctrl+]", "ctrl+\\", "ctrl+/"] {
+            assert_sends(chord, chord);
+        }
+    }
+
+    #[test]
     fn typed_text_is_not_a_key() {
         for typed in [
             "a", "A", "z", "5", "space", "shift+a", "shift+5", "/", "shift+/", "plus",
@@ -176,8 +186,10 @@ mod tests {
             "",
             "+",
             "ctrl+",
-            "ctrl+/",
             "ctrl+plus",
+            "ctrl+shift+[",
+            "alt+/",
+            "ctrl+,",
             "f0",
             "f25",
             "f01",
