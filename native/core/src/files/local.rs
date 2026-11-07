@@ -9,7 +9,7 @@ use rustix::fs::{Access, access};
 
 use super::{
     Chunk, Entry, EntryKind, FileError, FileErrorKind, Files, LIST_MAX, Listing, READ_MAX, Stat,
-    part_name, validate_path,
+    Tree, TreeLimits, part_name, validate_path, walk,
 };
 
 /// The files of the computer the app runs on.
@@ -232,6 +232,14 @@ impl Files for LocalFiles {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
             Err(e) => Err(FileError::from_io(&e, path)),
         }
+    }
+
+    fn tree(&self, root: &str, limits: &TreeLimits) -> Result<Tree, FileError> {
+        walk::walk_index(&self.resolve(root)?, limits)
+    }
+
+    fn tree_ignored(&self, root: &str, limits: &TreeLimits) -> Result<Tree, FileError> {
+        walk::walk_ignored(&self.resolve(root)?, limits)
     }
 
     fn local_path(&self, path: &str) -> Option<PathBuf> {

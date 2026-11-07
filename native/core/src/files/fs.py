@@ -11,12 +11,18 @@ word as its own argument, so a path is never parsed by a shell.
   put PATH OFFSET              append stdin to the upload part file next to PATH (OFFSET 0 starts it)
   commit PATH REPLACE          move the part file to PATH; REPLACE is 1 to overwrite, else it must not exist
   discard PATH                 remove the part file
+  tree ROOT LIMIT              one JSON header line ({"n", "truncated"}), then n NUL-terminated relative paths:
+                               `git ls-files` in a checkout, else a walk without junk folders; at most LIMIT paths,
+                               8 MB of path text and 5 seconds, then it stops and says truncated
 """
 import errno
 import json
 import os
+import select
 import stat as st
+import subprocess
 import sys
+import time
 
 LIST_MAX = 5000
 READ_MAX = 8 * 1024 * 1024
@@ -237,6 +243,132 @@ def number(text):
     return value
 
 
+# What `tree` leaves out. Keep the two lists in step with `walk.rs` (`IGNORED_SKIP`, `HIDDEN_DIRS`): the Rust side
+# applies `keep_path` to whatever comes back, this only stops the walk of a folder that is not a checkout from
+# spending its time budget in them.
+TREE_BYTES = 8 * 1024 * 1024
+TREE_SECONDS = 5.0
+SKIP_DIRS = frozenset([".git", "node_modules", "target", "dist", ".venv", "__pycache__", "build"])
+HIDDEN_DIRS = frozenset([".github", ".gitlab", ".vscode", ".cargo", ".husky", ".devcontainer", ".circleci"])
+
+
+class Paths(object):
+    """Relative paths gathered under the byte, count and time limits; `full` says one of them was reached."""
+
+    def __init__(self, limit, deadline):
+        self.limit = limit
+        self.deadline = deadline
+        self.items = []
+        self.size = 0
+        self.full = False
+
+    def add(self, raw):
+        """Keeps one path (bytes); False once nothing more fits."""
+        if len(self.items) >= self.limit or self.size + len(raw) + 1 > TREE_BYTES or time.monotonic() > self.deadline:
+            self.full = True
+            return False
+        try:
+            raw.decode("utf-8")
+        except UnicodeDecodeError:
+            # A name that is not text cannot be shown or opened by name again.
+            return True
+        self.items.append(raw)
+        self.size += len(raw) + 1
+        return True
+
+
+def git_paths(real, paths):
+    """Tracked files plus untracked ones git does not ignore, or False when `real` is not a git checkout."""
+    try:
+        proc = subprocess.Popen(
+            ["git", "-C", real, "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError:
+        return False
+    fd = proc.stdout.fileno()
+    finished = False
+    rest = b""
+    try:
+        while not paths.full:
+            left = paths.deadline - time.monotonic()
+            if left <= 0 or not select.select([fd], [], [], left)[0]:
+                paths.full = True
+                break
+            chunk = os.read(fd, 65536)
+            if not chunk:
+                break
+            rest += chunk
+            parts = rest.split(b"\0")
+            rest = parts.pop()
+            for raw in parts:
+                if not paths.add(raw):
+                    break
+        finished = not paths.full
+    finally:
+        proc.stdout.close()
+        if proc.poll() is None and not finished:
+            proc.kill()
+        code = proc.wait()
+    return code == 0 or not finished
+
+
+def deleted_paths(real, deadline):
+    """Tracked files that are gone from the disk: `ls-files --cached` still lists them."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", real, "ls-files", "-z", "--deleted"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=max(0.1, deadline - time.monotonic()),
+        ).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return set()
+    return set(out.split(b"\0"))
+
+
+def walk_paths(real, paths):
+    """A checkout-less folder: every file except under the folders `SKIP_DIRS` and hidden ones name."""
+    prefix = len(os.fsencode(real).rstrip(b"/")) + 1
+    for folder, dirs, files in os.walk(os.fsencode(real)):
+        dirs[:] = sorted(
+            d
+            for d in dirs
+            if os.fsdecode(d) not in SKIP_DIRS and (not d.startswith(b".") or os.fsdecode(d) in HIDDEN_DIRS)
+        )
+        for name in sorted(files):
+            if not paths.add(os.path.join(folder, name)[prefix:]):
+                return
+
+
+def tree(root, limit):
+    real = resolve(root)
+    if not real.startswith("/"):
+        # `git -C` and `os.walk` must never read a path as an option.
+        fail("invalid", "%s is not an absolute path" % root)
+    try:
+        info = os.stat(real)
+    except OSError as e:
+        oserror(e, root)
+    if not st.S_ISDIR(info.st_mode):
+        fail("notdir", "%s is not a folder" % root)
+    paths = Paths(limit, time.monotonic() + TREE_SECONDS)
+    if not git_paths(real, paths):
+        paths = Paths(limit, time.monotonic() + TREE_SECONDS)
+        walk_paths(real, paths)
+    else:
+        gone = deleted_paths(real, paths.deadline)
+        paths.items = [p for p in paths.items if p not in gone]
+    out = sys.stdout.buffer
+    header = {"n": len(paths.items), "truncated": paths.full}
+    out.write((json.dumps(header) + "\n").encode("ascii"))
+    out.write(b"".join(p + b"\0" for p in paths.items))
+    out.flush()
+
+
 def main(argv):
     if not argv:
         fail("invalid", "no command")
@@ -248,6 +380,7 @@ def main(argv):
         "put": (2, lambda a: put(a[0], number(a[1]))),
         "commit": (2, lambda a: commit(a[0], a[1] == "1")),
         "discard": (1, lambda a: discard(a[0])),
+        "tree": (2, lambda a: tree(a[0], number(a[1]))),
     }
     entry = table.get(command)
     if entry is None or len(args) != entry[0]:

@@ -5,8 +5,8 @@ use std::time::Duration;
 use serde::Deserialize;
 
 use super::{
-    Chunk, Entry, EntryKind, FileError, FileErrorKind, Files, Listing, READ_MAX, Stat,
-    validate_path,
+    Chunk, Entry, EntryKind, FileError, FileErrorKind, Files, Listing, READ_MAX, Stat, Tree,
+    TreeEntry, TreeLimits, keep_path, validate_path,
 };
 use crate::ssh::{Output, SshClient, SshTarget};
 
@@ -61,6 +61,12 @@ struct RawHeader {
     size: u64,
     m: Option<i64>,
     len: usize,
+}
+
+#[derive(Deserialize)]
+struct RawTree {
+    n: usize,
+    truncated: bool,
 }
 
 #[derive(Deserialize)]
@@ -226,5 +232,43 @@ impl Files for RemoteFiles {
     fn discard(&self, path: &str) -> Result<(), FileError> {
         validate_path(path)?;
         self.run(&["discard", path], &[], LIST_TIMEOUT).map(drop)
+    }
+
+    fn tree(&self, root: &str, limits: &TreeLimits) -> Result<Tree, FileError> {
+        validate_path(root)?;
+        let out = self.run(
+            &["tree", root, &limits.paths.to_string()],
+            &[],
+            LIST_TIMEOUT,
+        )?;
+        let split = out
+            .iter()
+            .position(|&b| b == b'\n')
+            .ok_or_else(|| protocol("a file list"))?;
+        let header: RawTree = self.json(&out[..split])?;
+        let mut tree = Tree {
+            entries: Vec::with_capacity(header.n.min(limits.paths)),
+            truncated: header.truncated,
+        };
+        let mut bytes = 0;
+        for raw in out[split + 1..].split(|&b| b == 0) {
+            // The helper lists what git lists: the same files a walk here skips (`.env`, `.cache/`) are dropped as
+            // they are on this computer, and a name that is not text cannot be shown.
+            let Ok(path) = std::str::from_utf8(raw) else {
+                continue;
+            };
+            if path.is_empty() || path.starts_with('/') || !keep_path(path) {
+                continue;
+            }
+            if !tree.room_for(path.len(), bytes, limits) {
+                break;
+            }
+            bytes += path.len();
+            tree.entries.push(TreeEntry {
+                path: path.to_owned(),
+                modified: 0,
+            });
+        }
+        Ok(tree)
     }
 }

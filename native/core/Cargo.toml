@@ -23,10 +23,16 @@ rustix = { version = "1", features = ["process", "fs"] }
 regex = "1"
 fancy-regex = "0.16"
 parking_lot = "0.12"
+# Quick open of files (src/files/quick.rs): the walk that reads .gitignore the way git does (MIT or Unlicense).
+ignore = "0.4"
 
 [dev-dependencies]
 tempfile = "3"
 
 [[bench]]
 name = "parse"
+harness = false
+
+[[bench]]
+name = "quick"
 harness = false

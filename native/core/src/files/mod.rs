@@ -10,22 +10,29 @@
 //! inside the generated command, so a crafted name is only ever a name.
 
 mod local;
+mod quick;
 mod remote;
 mod resolve;
 mod tunnel;
 mod upload;
 mod view;
+mod walk;
 
 use std::path::PathBuf;
 
 use thiserror::Error;
 
 pub use local::LocalFiles;
+pub use quick::{IGNORED_FROM, Quick, QuickHit, QuickSearch, REFRESH_AFTER};
 pub use remote::{FS_SCRIPT, RemoteFiles};
 pub use resolve::{candidates, parent, path_from_uri, uri_from_path};
 pub use tunnel::{Tunnel, TunnelError, free_port, localhost_port};
 pub use upload::{UploadError, upload};
 pub use view::{FileView, IMAGE_CAP, TEXT_CAP, ViewKind, open, view_kind};
+pub use walk::{
+    IGNORED_PATHS, IGNORED_SKIP, TREE_BYTES, TREE_PATHS, TREE_TIME, Tree, TreeEntry, TreeLimits,
+    keep_name, keep_path,
+};
 
 /// The longest path accepted (Linux's `PATH_MAX`).
 pub const PATH_MAX: usize = 4096;
@@ -228,6 +235,20 @@ pub trait Files: Send + Sync {
     fn commit(&self, path: &str, replace: bool) -> Result<(), FileError>;
     /// Removes the part file of `path` (after a failed or cancelled upload). A missing one is fine.
     fn discard(&self, path: &str) -> Result<(), FileError>;
+    /// Every file under `root` that is worth opening by name (see [`keep_name`]), relative to it, within `limits`:
+    /// what a git checkout does not ignore. A machine that cannot say answers [`FileErrorKind::Unsupported`].
+    fn tree(&self, _root: &str, _limits: &TreeLimits) -> Result<Tree, FileError> {
+        Err(FileError::new(
+            FileErrorKind::Unsupported,
+            "This machine cannot list a folder's files",
+        ))
+    }
+    /// The files under `root` that [`Files::tree`] leaves out because git ignores them (or they are hidden), found
+    /// by a second walk that does not enter [`IGNORED_SKIP`]. Only this computer answers: the default, and
+    /// another machine's answer, is nothing, because its file list is `git ls-files` and has no ignored files.
+    fn tree_ignored(&self, _root: &str, _limits: &TreeLimits) -> Result<Tree, FileError> {
+        Ok(Tree::default())
+    }
     /// The path on THIS computer when the files are on it, for what only a local path can do: the
     /// image viewer and `Reveal`/`Open`. `None` for another machine.
     fn local_path(&self, _path: &str) -> Option<PathBuf> {
