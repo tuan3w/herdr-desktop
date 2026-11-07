@@ -28,6 +28,9 @@ nucleo-matcher = "0.3"
 unicode-normalization = "0.1"
 # Quick open of files (src/files/quick.rs): the walk that reads .gitignore the way git does (MIT or Unlicense).
 ignore = "0.4"
+# Pictures for a message (src/compose): decode, orient, scale, encode again without metadata. The formats nsh itself
+# reads on Linux, so the build holds one copy of each codec.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 
 [dev-dependencies]
 tempfile = "3"

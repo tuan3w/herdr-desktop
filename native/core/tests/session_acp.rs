@@ -11,9 +11,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use herdr_core::files::LocalFiles;
 use herdr_core::session::{
-    AcpInfo, HubConfig, ItemKind, KeeperHost, PartKind, Refusal, Role, SendOutcome, SessionHandle,
-    SessionHub, SessionPhase, SessionSnapshot, ToolStatus, ToolView,
+    AcpInfo, HubConfig, ItemKind, KeeperHost, Outgoing, PartKind, Pasted, Refusal, Role,
+    SendOutcome, SessionHandle, SessionHub, SessionPhase, SessionSnapshot, ToolStatus, ToolView,
 };
 
 const T: Duration = Duration::from_secs(40);
@@ -148,7 +149,10 @@ fn wait_idle(handle: &SessionHandle) -> Arc<SessionSnapshot> {
 
 /// Sends `text` and waits for the turn to end.
 fn turn(session: &SessionHandle, text: &str, files: &[String]) -> Arc<SessionSnapshot> {
-    assert_eq!(session.send(text, files), Ok(SendOutcome::Sent));
+    let with = session
+        .prepare(&LocalFiles::new(), true, files, &[])
+        .expect("the files are readable");
+    assert_eq!(session.send(text, with), Ok(SendOutcome::Sent));
     eventually(&format!("the turn `{text}` to end"), || {
         let s = session.snapshot();
         let ended = s
@@ -713,6 +717,119 @@ fn a_prompt_carries_text_a_picture_and_a_link_and_the_message_lists_them() {
     assert_eq!(mine[0].data, None);
 }
 
+/// Sends `text` with `with` and waits for the turn to end.
+fn turn_with(session: &SessionHandle, text: &str, with: Outgoing) -> Arc<SessionSnapshot> {
+    assert_eq!(session.send(text, with), Ok(SendOutcome::Sent));
+    eventually(&format!("the turn `{text}` to end"), || {
+        let s = session.snapshot();
+        let ended = s
+            .items
+            .iter()
+            .any(|i| matches!(i.kind, ItemKind::Done { .. }));
+        (ended && s.phase == SessionPhase::Idle).then_some(s)
+    })
+}
+
+/// A prepared picture of this computer, as `compose::prepare` leaves one (the bytes need not be a real picture:
+/// building the prompt reads them, it does not decode them).
+fn pasted(rig: &Rig, number: u32) -> Pasted {
+    let path = rig.work.join(format!("pasted-{number}.png"));
+    std::fs::write(&path, b"pixels").expect("write");
+    Pasted {
+        path: path.display().to_string(),
+        name: format!("Pasted image {number}.png"),
+        number,
+    }
+}
+
+#[test]
+fn a_pasted_picture_reaches_an_agent_that_sees_as_an_image_after_its_placeholder() {
+    let rig = Rig::new();
+    let hub = rig.hub(&[]);
+    let session = open(&rig, &hub);
+    assert!(session.snapshot().accepts_pictures);
+    let with = session
+        .prepare(&LocalFiles::new(), true, &[], &[pasted(&rig, 1)])
+        .expect("prepared");
+    let s = turn_with(&session, "blocks", with);
+    assert_eq!(agent_text(&s), ["blocks:text,text,image:image/png"]);
+    // The person's own message lists the picture by name; the bytes stay out of the transcript.
+    let mine = s
+        .items
+        .iter()
+        .find_map(|i| match &i.kind {
+            ItemKind::Message {
+                role: Role::User,
+                parts,
+                ..
+            } => Some(parts.clone()),
+            _ => None,
+        })
+        .expect("the message");
+    assert_eq!(mine.len(), 1);
+    assert_eq!(mine[0].kind, PartKind::Image);
+    assert_eq!(mine[0].data, None);
+}
+
+#[test]
+fn an_agent_that_cannot_see_is_told_where_the_picture_is_and_a_remote_one_is_refused() {
+    let rig = Rig::new();
+    let hub = rig.hub(&[(
+        "FAKE_ACP_EXTRA_CAPS",
+        r#"{"promptCapabilities": {"image": false}}"#,
+    )]);
+    let session = open(&rig, &hub);
+    assert!(!session.snapshot().accepts_pictures);
+    // This computer's agent opens the file the link names.
+    let local = session
+        .prepare(&LocalFiles::new(), true, &[], &[pasted(&rig, 1)])
+        .expect("a link");
+    let s = turn_with(&session, "blocks", local);
+    assert_eq!(agent_text(&s), ["blocks:text,text,resource_link"]);
+    // Another machine's agent cannot: nothing is sent and the reason says what to do.
+    let Err(Refusal::Invalid(why)) =
+        session.prepare(&LocalFiles::new(), false, &[], &[pasted(&rig, 1)])
+    else {
+        panic!("a path of this computer means nothing to another machine");
+    };
+    assert!(why.contains("cannot see pictures"), "{why}");
+}
+
+#[test]
+fn a_mentioned_small_file_is_embedded_for_an_agent_that_takes_context_and_linked_for_one_that_does_not()
+ {
+    let rig = Rig::new();
+    let notes = rig.work.join("notes.md");
+    std::fs::write(&notes, "# notes\n").expect("write");
+    let files = [notes.display().to_string()];
+    let embedding = rig.hub(&[(
+        "FAKE_ACP_EXTRA_CAPS",
+        r#"{"promptCapabilities": {"embeddedContext": true}}"#,
+    )]);
+    let session = open(&rig, &embedding);
+    let with = session
+        .prepare(&LocalFiles::new(), true, &files, &[])
+        .expect("prepared");
+    let s = turn_with(&session, "blocks", with);
+    assert_eq!(agent_text(&s), ["blocks:text,resource"]);
+
+    let rig = Rig::new();
+    let notes = rig.work.join("notes.md");
+    std::fs::write(&notes, "# notes\n").expect("write");
+    let hub = rig.hub(&[]);
+    let session = open(&rig, &hub);
+    let with = session
+        .prepare(
+            &LocalFiles::new(),
+            true,
+            &[notes.display().to_string()],
+            &[],
+        )
+        .expect("prepared");
+    let s = turn_with(&session, "blocks", with);
+    assert_eq!(agent_text(&s), ["blocks:text,resource_link"]);
+}
+
 // ---- cancellation and requests the client does not serve ----------------------------------------
 
 #[test]
@@ -720,7 +837,10 @@ fn a_stopped_turn_that_the_agent_answers_with_an_error_ends_as_cancelled() {
     let rig = Rig::new();
     let hub = rig.hub(&[]);
     let session = open(&rig, &hub);
-    assert_eq!(session.send("cancelerr", &[]), Ok(SendOutcome::Sent));
+    assert_eq!(
+        session.send("cancelerr", Outgoing::default()),
+        Ok(SendOutcome::Sent)
+    );
     let running = eventually("the turn to run", || {
         let s = session.snapshot();
         (s.running && !agent_text(&s).is_empty()).then_some(s)

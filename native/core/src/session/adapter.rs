@@ -12,7 +12,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use super::vendored::acp::{self, Id, Message, SessionUpdate};
-use super::vendored::attach::{self, Attachment};
 use super::vendored::question::{self, Act, Form, Kind};
 use super::vendored::queue::{self, Queue};
 use super::vendored::risk as mode_risk;
@@ -21,6 +20,7 @@ use super::vendored::transcript::{self, Entry, Transcript};
 use super::vendored::{KEEPER_SCRIPT, ROUTES};
 
 use super::error::Refusal;
+use super::outgoing::{self, Outgoing, Pasted};
 use super::records::Route;
 use super::types::{
     AcpInfo, Ask, AuthMethodView, DiffView, FieldAnswer, FieldChoice, FieldKind, ImageRef, Item,
@@ -212,10 +212,12 @@ impl Driver {
                 Effect::RetryIn(d) => actions.push(Action::RetryIn(d)),
                 Effect::RestoreInput(text, files) => {
                     self.unsent_seq += 1;
+                    let (files, pictures) = outgoing::split(&files);
                     self.unsent = Some(Unsent {
                         seq: self.unsent_seq,
                         text,
-                        files: files.into_iter().map(|f| f.path).collect(),
+                        files,
+                        pictures,
                     });
                 }
                 Effect::RestoreQueued {
@@ -363,11 +365,7 @@ impl Driver {
         {
             return None;
         }
-        let mut q = self.queue.pop_waiting()?;
-        if let Err(why) = load_files(&mut q.files, self.session.accepts_pictures()) {
-            self.queue.hold_front(q, why);
-            return None;
-        }
+        let q = self.queue.pop_waiting()?;
         match self
             .session
             .send_queued(q.id, &q.text, &q.files, &mut self.transcript)
@@ -388,13 +386,13 @@ impl Driver {
     pub(super) fn send(
         &mut self,
         text: &str,
-        files: &[String],
+        with: Outgoing,
         now_ms: u64,
     ) -> Result<(Sent, Vec<Action>), Refusal> {
         if matches!(self.session.phase(), Phase::Ended(_)) {
             return Err(Refusal::Ended);
         }
-        let mut attachments = attachments(files, &self.cwd);
+        let attachments = with.files;
         if self.session.ready() && (self.working() || self.queue.has_waiting()) {
             if self.queue.is_full() {
                 return Err(Refusal::QueueFull(queue::MAX));
@@ -402,8 +400,6 @@ impl Driver {
             self.queue.push(text.to_owned(), attachments);
             return Ok((Sent::Queued, Vec::new()));
         }
-        load_files(&mut attachments, self.session.accepts_pictures())
-            .map_err(Refusal::CannotRead)?;
         let effects = self
             .session
             .send(text, &attachments, &mut self.transcript)
@@ -425,9 +421,10 @@ impl Driver {
     }
 
     /// Takes a queued message out (to edit it): its text and files.
-    pub(super) fn unqueue(&mut self, id: u64) -> Option<(String, Vec<String>)> {
+    pub(super) fn unqueue(&mut self, id: u64) -> Option<(String, Vec<String>, Vec<Pasted>)> {
         let q = self.queue.take(id)?;
-        Some((q.text, q.files.into_iter().map(|f| f.path).collect()))
+        let (files, pictures) = outgoing::split(&q.files);
+        Some((q.text, files, pictures))
     }
 
     /// Held messages go again (the person said so).
@@ -642,11 +639,15 @@ impl Driver {
                 .queue
                 .entries()
                 .iter()
-                .map(|q| QueuedMessage {
-                    id: q.id,
-                    text: q.text.clone(),
-                    files: q.files.iter().map(|f| f.path.clone()).collect(),
-                    held: q.held.clone(),
+                .map(|q| {
+                    let (files, pictures) = outgoing::split(&q.files);
+                    QueuedMessage {
+                        id: q.id,
+                        text: q.text.clone(),
+                        files,
+                        pictures,
+                        held: q.held.clone(),
+                    }
                 })
                 .collect(),
             commands: self
@@ -900,37 +901,6 @@ fn refusal(r: Refused) -> Refusal {
         Refused::Ended => Refusal::Ended,
         Refused::Invalid(why) => Refusal::Invalid(why),
     }
-}
-
-fn attachments(paths: &[String], cwd: &str) -> Vec<Attachment> {
-    let mut picture = 0;
-    paths
-        .iter()
-        .map(|p| {
-            let mut a = attach::attachment(p, cwd);
-            a.size = std::fs::metadata(p).map_or(0, |m| m.len());
-            if a.picture.is_some() {
-                picture += 1;
-                a.number = picture;
-            }
-            a
-        })
-        .collect()
-}
-
-/// Reads the files that go as pictures into the prompt. A picture that has grown past the limit since
-/// it was chosen goes as a link instead.
-fn load_files(files: &mut [Attachment], takes_pictures: bool) -> Result<(), String> {
-    for f in files {
-        if f.is_picture(takes_pictures) && f.data.is_none() {
-            match attach::read_picture(&f.path) {
-                Ok(Some(bytes)) => f.data = Some(attach::base64(&bytes)),
-                Ok(None) => f.link = true,
-                Err(e) => return Err(format!("Could not read {}: {e}", f.short())),
-            }
-        }
-    }
-    Ok(())
 }
 
 fn part_view(p: &acp::Part) -> Part {
@@ -1825,7 +1795,7 @@ mod tests {
      {
         for (stop, said) in [("cancelled", "cancelled"), ("max_tokens", "no result")] {
             let mut d = open();
-            d.send("go", &[], 0).expect("send");
+            d.send("go", Outgoing::default(), 0).expect("send");
             d.on_line(
                 &update_line(
                     json!({"sessionUpdate": "tool_call", "toolCallId": "t", "title": "Run it",

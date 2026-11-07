@@ -188,6 +188,9 @@ mod tests {
             data: None,
             link: false,
             number: n,
+            text: None,
+            text_mime: None,
+            pasted: false,
         }
     }
 

@@ -277,8 +277,10 @@ pub struct QueuedMessage {
     pub id: u64,
     /// What will be sent.
     pub text: String,
-    /// The files that go with it (paths).
+    /// The files that go with it (paths on the agent's machine).
     pub files: Vec<String>,
+    /// The pictures of this computer that go with it.
+    pub pictures: Vec<super::outgoing::Pasted>,
     /// Why it will not go by itself, when it will not (`the turn failed`).
     pub held: Option<String>,
 }
@@ -418,8 +420,10 @@ pub struct Unsent {
     pub seq: u64,
     /// The text to put back in the composer.
     pub text: String,
-    /// The files that went with it (paths).
+    /// The files that went with it (paths on the agent's machine).
     pub files: Vec<String>,
+    /// The pictures of this computer that went with it.
+    pub pictures: Vec<super::outgoing::Pasted>,
 }
 
 /// Where a session stands, in the five states the board and the sidebar tell apart.

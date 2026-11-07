@@ -44,6 +44,14 @@ pub struct Attachment {
     /// stays with the picture when another is taken off, so what the person wrote about
     /// `[Image #2]` stays true.
     pub number: u32,
+    /// The file's text, read when the message is built, for an agent that takes embedded context: the file goes
+    /// as a `resource` block holding it instead of a link (herdr-desktop).
+    pub text: Option<String>,
+    /// The type the embedded text is labelled with.
+    pub text_mime: Option<&'static str>,
+    /// A picture of THIS computer the person pasted or dropped (a prepared file of the app), not a path on the
+    /// agent's machine: it travels inside the message and comes back to the box as a picture, not a file.
+    pub pasted: bool,
 }
 
 impl Attachment {
@@ -135,6 +143,9 @@ pub fn attachment(abs: &str, cwd: &str) -> Attachment {
         data: None,
         link: false,
         number: 0,
+        text: None,
+        text_mime: None,
+        pasted: false,
     }
 }
 
@@ -276,10 +287,15 @@ pub fn blocks(text: &str, files: &[Attachment], agent_takes_pictures: bool) -> V
         if f.number > 0 {
             out.push(json!({"type": "text", "text": placeholder(f.number)}));
         }
-        out.push(match (&f.data, f.picture) {
-            (Some(data), Some(mime)) if f.is_picture(agent_takes_pictures) => {
+        out.push(match (&f.data, f.picture, &f.text) {
+            (Some(data), Some(mime), _) if f.is_picture(agent_takes_pictures) => {
                 json!({"type": "image", "data": data, "mimeType": mime})
             }
+            (_, _, Some(text)) => json!({"type": "resource", "resource": {
+                "uri": f.uri,
+                "mimeType": f.text_mime.unwrap_or("text/plain"),
+                "text": text,
+            }}),
             _ => json!({"type": "resource_link", "uri": f.uri, "name": f.name}),
         });
     }
@@ -318,6 +334,10 @@ pub fn echo(text: &str, files: &[Attachment]) -> String {
         text.to_string()
     };
     for f in files {
+        // A file the words already mention (`look at @src/a.rs`) is not listed twice.
+        if f.number == 0 && mentions(text, &f.name) {
+            continue;
+        }
         if !out.is_empty() {
             out.push('\n');
         }
@@ -331,6 +351,19 @@ pub fn echo(text: &str, files: &[Attachment]) -> String {
         }
     }
     out
+}
+
+/// Whether `text` holds `@name` as a word of its own: followed by a space, the end, or punctuation that is no part
+/// of a path (herdr-desktop: the message box keeps `@path` in the words).
+fn mentions(text: &str, name: &str) -> bool {
+    let name = name.trim_end_matches('/');
+    let needle = format!("@{name}");
+    text.match_indices(&needle).any(|(at, _)| {
+        let before = text[..at].chars().next_back();
+        let after = text[at + needle.len()..].chars().next();
+        before.is_none_or(char::is_whitespace)
+            && after.is_none_or(|c| c.is_whitespace() || c == '/' || matches!(c, ',' | '.' | ';' | ':' | ')' | '?' | '!'))
+    })
 }
 
 /// The text that stands for picture number `n` in a message.
@@ -481,6 +514,28 @@ mod tests {
         );
         assert_eq!(echo("look", std::slice::from_ref(&f)), "look\n@a.rs");
         assert_eq!(echo("", &[f]), "@a.rs");
+    }
+
+    #[test]
+    fn a_file_with_its_text_goes_as_an_embedded_resource_and_a_mention_is_listed_once() {
+        let mut f = attachment("/w/src/a.rs", "/w");
+        f.text = Some("fn a() {}\n".into());
+        f.text_mime = Some("text/plain");
+        assert_eq!(
+            blocks("look at @src/a.rs", std::slice::from_ref(&f), true),
+            json!([
+                {"type": "text", "text": "look at @src/a.rs"},
+                {"type": "resource", "resource": {"uri": "file:///w/src/a.rs", "mimeType": "text/plain", "text": "fn a() {}\n"}}
+            ])
+        );
+        assert_eq!(echo("look at @src/a.rs", std::slice::from_ref(&f)), "look at @src/a.rs");
+        assert_eq!(echo("look at @src/a.rs.", std::slice::from_ref(&f)), "look at @src/a.rs.", "a full stop ends the mention");
+        assert_eq!(
+            echo("look at @src/a.rsx", std::slice::from_ref(&f)),
+            "look at @src/a.rsx\n@src/a.rs",
+            "a longer name is another file"
+        );
+        assert_eq!(echo("see me@src/a.rs", &[f]), "see me@src/a.rs\n@src/a.rs", "an @ inside a word is no mention");
     }
 
     #[test]

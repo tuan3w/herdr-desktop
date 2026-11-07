@@ -1,6 +1,48 @@
 --- a/attach.rs
 +++ a/attach.rs
-@@ -286,6 +286,28 @@
+@@ -44,6 +44,14 @@
+     /// stays with the picture when another is taken off, so what the person wrote about
+     /// `[Image #2]` stays true.
+     pub number: u32,
++    /// The file's text, read when the message is built, for an agent that takes embedded context: the file goes
++    /// as a `resource` block holding it instead of a link (herdr-desktop).
++    pub text: Option<String>,
++    /// The type the embedded text is labelled with.
++    pub text_mime: Option<&'static str>,
++    /// A picture of THIS computer the person pasted or dropped (a prepared file of the app), not a path on the
++    /// agent's machine: it travels inside the message and comes back to the box as a picture, not a file.
++    pub pasted: bool,
+ }
+ 
+ impl Attachment {
+@@ -135,6 +143,9 @@
+         data: None,
+         link: false,
+         number: 0,
++        text: None,
++        text_mime: None,
++        pasted: false,
+     }
+ }
+ 
+@@ -276,16 +287,43 @@
+         if f.number > 0 {
+             out.push(json!({"type": "text", "text": placeholder(f.number)}));
+         }
+-        out.push(match (&f.data, f.picture) {
+-            (Some(data), Some(mime)) if f.is_picture(agent_takes_pictures) => {
++        out.push(match (&f.data, f.picture, &f.text) {
++            (Some(data), Some(mime), _) if f.is_picture(agent_takes_pictures) => {
+                 json!({"type": "image", "data": data, "mimeType": mime})
+             }
++            (_, _, Some(text)) => json!({"type": "resource", "resource": {
++                "uri": f.uri,
++                "mimeType": f.text_mime.unwrap_or("text/plain"),
++                "text": text,
++            }}),
+             _ => json!({"type": "resource_link", "uri": f.uri, "name": f.name}),
+         });
+     }
      Value::Array(out)
  }
  
@@ -29,6 +71,66 @@
  /// How the message is shown in the conversation: the text, then each file on its own line
  /// (`[Image #1] name` for a numbered picture, `@name` for a file).
  #[must_use]
+@@ -296,6 +334,10 @@
+         text.to_string()
+     };
+     for f in files {
++        // A file the words already mention (`look at @src/a.rs`) is not listed twice.
++        if f.number == 0 && mentions(text, &f.name) {
++            continue;
++        }
+         if !out.is_empty() {
+             out.push('\n');
+         }
+@@ -311,6 +353,19 @@
+     out
+ }
+ 
++/// Whether `text` holds `@name` as a word of its own: followed by a space, the end, or punctuation that is no part
++/// of a path (herdr-desktop: the message box keeps `@path` in the words).
++fn mentions(text: &str, name: &str) -> bool {
++    let name = name.trim_end_matches('/');
++    let needle = format!("@{name}");
++    text.match_indices(&needle).any(|(at, _)| {
++        let before = text[..at].chars().next_back();
++        let after = text[at + needle.len()..].chars().next();
++        before.is_none_or(char::is_whitespace)
++            && after.is_none_or(|c| c.is_whitespace() || c == '/' || matches!(c, ',' | '.' | ';' | ':' | ')' | '?' | '!'))
++    })
++}
++
+ /// The text that stands for picture number `n` in a message.
+ #[must_use]
+ pub fn placeholder(n: u32) -> String {
+@@ -462,6 +517,28 @@
+     }
+ 
+     #[test]
++    fn a_file_with_its_text_goes_as_an_embedded_resource_and_a_mention_is_listed_once() {
++        let mut f = attachment("/w/src/a.rs", "/w");
++        f.text = Some("fn a() {}\n".into());
++        f.text_mime = Some("text/plain");
++        assert_eq!(
++            blocks("look at @src/a.rs", std::slice::from_ref(&f), true),
++            json!([
++                {"type": "text", "text": "look at @src/a.rs"},
++                {"type": "resource", "resource": {"uri": "file:///w/src/a.rs", "mimeType": "text/plain", "text": "fn a() {}\n"}}
++            ])
++        );
++        assert_eq!(echo("look at @src/a.rs", std::slice::from_ref(&f)), "look at @src/a.rs");
++        assert_eq!(echo("look at @src/a.rs.", std::slice::from_ref(&f)), "look at @src/a.rs.", "a full stop ends the mention");
++        assert_eq!(
++            echo("look at @src/a.rsx", std::slice::from_ref(&f)),
++            "look at @src/a.rsx\n@src/a.rs",
++            "a longer name is another file"
++        );
++        assert_eq!(echo("see me@src/a.rs", &[f]), "see me@src/a.rs\n@src/a.rs", "an @ inside a word is no mention");
++    }
++
++    #[test]
+     fn a_picture_goes_as_a_picture_only_when_the_agent_takes_them_and_it_is_small() {
+         let mut p = attachment("/w/shot.PNG", "/w");
+         assert_eq!(p.picture, Some("image/png"), "by its name, any case");
 --- a/question.rs
 +++ a/question.rs
 @@ -11,10 +11,7 @@
@@ -424,6 +526,18 @@
      fn esc_keeps_an_answer_being_typed_and_declines_otherwise() {
          assert!(!esc_declines(true, "80"), "a typed answer survives a slip");
          assert!(esc_declines(true, ""));
+--- a/queue.rs
++++ a/queue.rs
+@@ -188,6 +188,9 @@
+             data: None,
+             link: false,
+             number: n,
++            text: None,
++            text_mime: None,
++            pasted: false,
+         }
+     }
+ 
 --- a/session.rs
 +++ a/session.rs
 @@ -35,6 +35,10 @@
@@ -774,7 +888,14 @@
          Ok(vec![self.call(
              Call::Prompt {
                  text: text.to_string(),
-@@ -609,12 +819,13 @@
+@@ -603,18 +813,20 @@
+                     .iter()
+                     .map(|f| Attachment {
+                         data: None,
++                        text: None,
+                         ..f.clone()
+                     })
+                     .collect(),
                  queued,
              },
              method::SESSION_PROMPT,
@@ -791,7 +912,7 @@
      ///
      /// # Errors
      /// [`Refused::NotReady`] before the session is open, [`Refused::Busy`] while a turn runs.
-@@ -633,6 +844,23 @@
+@@ -633,6 +845,23 @@
              return Err(Refused::Busy);
          }
          let sid = self.sid.clone().ok_or(Refused::NotReady)?;
@@ -815,7 +936,7 @@
          Ok(vec![self.call(
              Call::SetConfig {
                  config_id: config_id.to_string(),
-@@ -641,7 +869,7 @@
+@@ -641,7 +870,7 @@
                  choice: choice.to_string(),
              },
              method::SESSION_SET_CONFIG_OPTION,
@@ -824,7 +945,7 @@
          )])
      }
  
-@@ -650,6 +878,7 @@
+@@ -650,6 +879,7 @@
          let Some(sid) = &self.sid else {
              return Vec::new();
          };
@@ -832,7 +953,7 @@
          tr.note("Asked the agent to stop");
          // ACP: a client that cancels a turn answers every request still open as cancelled. Left
          // asking, they could be approved after the person said stop.
-@@ -671,6 +900,48 @@
+@@ -671,6 +901,48 @@
          effects
      }
  

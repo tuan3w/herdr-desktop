@@ -813,6 +813,7 @@ impl Session {
                     .iter()
                     .map(|f| Attachment {
                         data: None,
+                        text: None,
                         ..f.clone()
                     })
                     .collect(),

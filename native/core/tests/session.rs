@@ -18,7 +18,7 @@ use herdr_core::link::LinkState;
 use herdr_core::schema::{AgentStatus, Snapshot};
 use herdr_core::session::{
     Ask, FieldAnswer, HubConfig, ItemKind, KeeperError, KeeperHost, KeeperState, MAX_ATTACHED,
-    Refusal, Role, SendOutcome, SessionHandle, SessionHub, SessionPhase, SessionSnapshot,
+    Outgoing, Refusal, Role, SendOutcome, SessionHandle, SessionHub, SessionPhase, SessionSnapshot,
 };
 use herdr_core::ssh::{SshClient, SshTarget};
 use herdr_core::store::Reviewed;
@@ -288,7 +288,10 @@ fn a_prompt_streams_into_the_transcript_and_the_turn_is_summed_up() {
     assert_eq!(opened.agent, "omp");
     assert_eq!(opened.cwd, rig.cwd());
 
-    assert_eq!(session.send("plain", &[]), Ok(SendOutcome::Sent));
+    assert_eq!(
+        session.send("plain", Outgoing::default()),
+        Ok(SendOutcome::Sent)
+    );
     let done = eventually("the agent's answer and the end of the turn", || {
         let s = session.snapshot();
         let ended = s
@@ -308,7 +311,7 @@ fn a_permission_is_answered_only_by_the_person_and_only_for_what_they_saw() {
     let hub = rig.hub(rig.local());
     let session = hub.start(LOCAL, "omp", &rig.cwd()).expect("start");
     wait_idle(&session);
-    session.send("ask", &[]).expect("send");
+    session.send("ask", Outgoing::default()).expect("send");
 
     let blocked = eventually("the permission request", || {
         let s = session.snapshot();
@@ -392,7 +395,9 @@ fn withdrawing_a_request_cancels_it_and_refusing_stops_nothing_by_itself() {
     let hub = rig.hub(rig.local());
     let session = hub.start(LOCAL, "omp", &rig.cwd()).expect("start");
     wait_idle(&session);
-    session.send("perm:rm -rf /tmp/x", &[]).expect("send");
+    session
+        .send("perm:rm -rf /tmp/x", Outgoing::default())
+        .expect("send");
     let blocked = eventually("the request", || {
         let s = session.snapshot();
         s.needs_you().then_some(s)
@@ -426,11 +431,14 @@ fn a_message_sent_while_the_agent_works_waits_and_goes_when_the_turn_ends() {
     let hub = rig.hub(rig.local());
     let session = hub.start(LOCAL, "omp", &rig.cwd()).expect("start");
     wait_idle(&session);
-    session.send("slow", &[]).expect("send");
+    session.send("slow", Outgoing::default()).expect("send");
     eventually("the turn to start", || {
         session.snapshot().running.then_some(())
     });
-    assert_eq!(session.send("plain", &[]), Ok(SendOutcome::Queued));
+    assert_eq!(
+        session.send("plain", Outgoing::default()),
+        Ok(SendOutcome::Queued)
+    );
     let queued = session.snapshot().queue.clone();
     assert_eq!(queued.len(), 1);
     assert_eq!(queued[0].text, "plain");
@@ -450,11 +458,11 @@ fn a_queued_message_can_be_taken_back() {
     let hub = rig.hub(rig.local());
     let session = hub.start(LOCAL, "omp", &rig.cwd()).expect("start");
     wait_idle(&session);
-    session.send("quiet", &[]).expect("send");
+    session.send("quiet", Outgoing::default()).expect("send");
     eventually("the turn to start", || {
         session.snapshot().running.then_some(())
     });
-    session.send("draft", &[]).expect("queue");
+    session.send("draft", Outgoing::default()).expect("queue");
     let id = session.snapshot().queue[0].id;
     let back = session.unqueue(id).expect("call").expect("still waiting");
     assert_eq!(back.text, "draft");
@@ -472,7 +480,7 @@ fn closing_the_connection_leaves_the_agent_running_and_attaching_replays_the_con
     let session = hub.start(LOCAL, "omp", &rig.cwd()).expect("start");
     let id = session.id().to_owned();
     wait_idle(&session);
-    session.send("plain", &[]).expect("send");
+    session.send("plain", Outgoing::default()).expect("send");
     eventually("the answer", || {
         messages(&session.snapshot(), Role::Agent)
             .contains(&"Hello".to_owned())
@@ -493,7 +501,10 @@ fn closing_the_connection_leaves_the_agent_running_and_attaching_replays_the_con
     });
     assert_eq!(messages(&replayed, Role::User), ["plain"]);
     // And the session is usable again.
-    assert_eq!(again.send("plain", &[]), Ok(SendOutcome::Sent));
+    assert_eq!(
+        again.send("plain", Outgoing::default()),
+        Ok(SendOutcome::Sent)
+    );
 }
 
 #[test]
@@ -559,7 +570,7 @@ fn an_agent_that_exits_ends_the_session_and_says_so() {
     let hub = rig.hub(rig.local());
     let session = hub.start(LOCAL, "omp", &rig.cwd()).expect("start");
     wait_idle(&session);
-    session.send("exit:3", &[]).expect("send");
+    session.send("exit:3", Outgoing::default()).expect("send");
     let s = eventually("the end", || {
         let s = session.snapshot();
         matches!(s.phase, SessionPhase::Ended(_)).then_some(s)
@@ -569,7 +580,10 @@ fn an_agent_that_exits_ends_the_session_and_says_so() {
     eventually("the connection to close", || {
         (!session.is_open()).then_some(())
     });
-    assert_eq!(session.send("plain", &[]), Err(Refusal::Ended));
+    assert_eq!(
+        session.send("plain", Outgoing::default()),
+        Err(Refusal::Ended)
+    );
 }
 
 #[test]
@@ -582,7 +596,7 @@ fn what_the_machine_no_longer_keeps_is_said_at_the_top() {
     let id = session.id().to_owned();
     wait_idle(&session);
     for n in 0..6 {
-        session.send("plain", &[]).expect("send");
+        session.send("plain", Outgoing::default()).expect("send");
         eventually(&format!("turn {n} to end"), || {
             let s = session.snapshot();
             (!s.running
@@ -778,7 +792,7 @@ fn a_session_that_needs_the_person_is_counted_with_the_terminal_agents_that_do()
     let idle = board(&rows, LinkState::Online);
     assert_eq!((idle.counts.needs_you, idle.counts.idle), (0, 1));
 
-    session.send("ask", &[]).expect("send");
+    session.send("ask", Outgoing::default()).expect("send");
     let rows = eventually("the session to need you", || {
         let rows = hub.rows();
         (rows.first()?.status == AgentStatus::Blocked).then_some(rows)
@@ -825,7 +839,7 @@ fn a_remote_machine_gets_the_keeper_installed_once_asked_and_runs_sessions_throu
     // A whole conversation over `attach --z`: long replies travel deflated.
     let session = hub.start(LOCAL, "omp", &rig.cwd()).expect("start");
     wait_idle(&session);
-    session.send("long:200", &[]).expect("send");
+    session.send("long:200", Outgoing::default()).expect("send");
     let s = eventually("200 chunks", || {
         let s = session.snapshot();
         (s.phase == SessionPhase::Idle && messages(&s, Role::Agent).len() >= 200).then_some(s)
@@ -918,7 +932,7 @@ fn real_omp_answers_one_harmless_prompt() {
     session
         .send(
             "Reply with the single word pong. Do not use any tools.",
-            &[],
+            Outgoing::default(),
         )
         .expect("sent");
     let end = eventually("the turn to end", || {

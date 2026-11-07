@@ -20,6 +20,7 @@ use super::adapter::{Action, Begin, Driver, RecordInfo, Sent};
 use super::error::{KeeperError, Refusal, exit};
 use super::host::{Attach, KeeperHost};
 use super::lines::AttachLines;
+use super::outgoing::{self, Caps, Outgoing, Pasted};
 use super::types::{FieldAnswer, SessionPhase, SessionSnapshot};
 
 /// How long a caller waits for the session thread to take an action.
@@ -41,8 +42,10 @@ pub enum SendOutcome {
 pub struct Unqueued {
     /// What it said.
     pub text: String,
-    /// The files that went with it.
+    /// The files that went with it (paths on the agent's machine).
     pub files: Vec<String>,
+    /// The pictures of this computer that went with it.
+    pub pictures: Vec<Pasted>,
 }
 
 /// How a session is opened (see [`SessionHandle::open`]).
@@ -195,11 +198,29 @@ impl SessionHandle {
         rx.recv_timeout(CALL_TIMEOUT).map_err(|_| Refusal::Stopped)
     }
 
-    /// Sends a message, or queues it while the agent works. `files` are absolute paths on the agent's
-    /// machine; pictures are read here and travel inside the message.
-    pub fn send(&self, text: &str, files: &[String]) -> Result<SendOutcome, Refusal> {
-        let (text, files) = (text.to_owned(), files.to_vec());
-        self.call(move |d, now| match d.send(&text, &files, now) {
+    /// What a message carries besides its words, read and ready (`Outgoing`): `files` are absolute paths on the
+    /// agent's machine (files and folders), `pasted` pictures of this computer. Reads on the caller's thread, so
+    /// the session keeps answering its agent while a big file is fetched from another machine; what each becomes
+    /// follows what the agent said it takes. `fs` is the files of this session's machine and `local` says it is
+    /// this computer.
+    ///
+    /// # Errors
+    /// What [`outgoing::build`] refuses.
+    pub fn prepare(
+        &self,
+        fs: &dyn crate::files::Files,
+        local: bool,
+        files: &[String],
+        pasted: &[Pasted],
+    ) -> Result<Outgoing, Refusal> {
+        let snapshot = self.snapshot();
+        outgoing::build(fs, local, &snapshot.cwd, files, pasted, Caps::of(&snapshot))
+    }
+
+    /// Sends a message, or queues it while the agent works.
+    pub fn send(&self, text: &str, with: Outgoing) -> Result<SendOutcome, Refusal> {
+        let text = text.to_owned();
+        self.call(move |d, now| match d.send(&text, with, now) {
             Ok((sent, actions)) => (
                 Ok(match sent {
                     Sent::Now => SendOutcome::Sent,
@@ -215,7 +236,11 @@ impl SessionHandle {
     pub fn unqueue(&self, id: u64) -> Result<Option<Unqueued>, Refusal> {
         self.call(move |d, _| {
             (
-                d.unqueue(id).map(|(text, files)| Unqueued { text, files }),
+                d.unqueue(id).map(|(text, files, pictures)| Unqueued {
+                    text,
+                    files,
+                    pictures,
+                }),
                 Vec::new(),
             )
         })
