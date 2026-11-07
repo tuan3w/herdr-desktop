@@ -91,6 +91,16 @@ export const SCENARIOS: Record<string, Scenario> = {
   triage: { fixture: "projects", steps: (app) => pressFirst(app, "text:Answer one by one") },
   palette: { fixture: "mixed", steps: async (app) => { await app.keyboard.press("ctrl+k"); await app.wait(400); } },
   settings: { fixture: "mixed", steps: async (app) => { await app.keyboard.press("ctrl+,"); await app.wait(400); } },
+  // Settings scrolled to the code options of Look (Wrap code, Line numbers in code, Show tabs and spaces, Diffs side by side).
+  "settings-code": {
+    fixture: "mixed",
+    steps: async (app) => {
+      await app.keyboard.press("ctrl+,");
+      await app.wait(400);
+      await app.scroll("text:Minimum contrast", 330);
+      await app.wait(300);
+    },
+  },
   shortcuts: { fixture: "mixed", steps: async (app) => { await app.keyboard.press("F1"); await app.wait(400); } },
   "new-agent": { fixture: "mixed", steps: async (app) => { await app.keyboard.press("ctrl+n"); await app.wait(400); } },
   machines: {
@@ -264,6 +274,33 @@ export const SCENARIOS: Record<string, Scenario> = {
     params: { mode: "scripted", scene: "code-stream", quiet: true, autostream: 40, upTo: 6 },
     steps: (app) => app.wait(1200),
   },
+  // The top of that answer with the pointer over its first block (the tools show), after `Copy code`, and with line numbers and
+  // wrapping switched on from the tools.
+  ...Object.fromEntries(
+    (["hover", "copied", "options"] as const).map((name): [string, Scenario] => [
+      `chat-code-${name}`,
+      {
+        fixture: "empty",
+        entry: "../components/session-lab.tsx",
+        params: { mode: "scripted", scene: "code", quiet: true },
+        steps: async (app) => {
+          await app.wait(1000);
+          for (let i = 0; i < 6; i++) {
+            await app.keyboard.press("pageup");
+            await app.wait(150);
+          }
+          await app.wait(400);
+          if (name === "options") {
+            await app.press("label:Line numbers >> nth=0");
+            await app.press("label:Wrap lines >> nth=0");
+          }
+          await app.hover("label:/^Code, TypeScript/");
+          if (name === "copied") await app.press("label:Copy code >> nth=0");
+          await app.wait(500);
+        },
+      },
+    ]),
+  ),
   "chat-long": { fixture: "empty", entry: "../components/session-lab.tsx", params: { mode: "scripted", scene: "long", quiet: true }, steps: (app) => app.wait(1200) },
   // An agent that refuses the session until a sign-in: the card in place of the conversation, with a refusal under the buttons.
   "chat-signin": {

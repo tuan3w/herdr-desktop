@@ -6,6 +6,7 @@ import { touched } from "#lib/code-blocks";
 import { CODE_COLLAPSED_LINES, CODE_MAX_HEIGHT, codeLabel, lineCount } from "#lib/highlight";
 import { codeLineNumbers, codeWhitespace, codeWrap } from "#lib/settings";
 import { restartable } from "#lib/timer";
+import { hoverTransition } from "#lib/motion";
 import { FOCUS_RING, Icon, Tipped } from "#kit";
 
 /**
@@ -98,7 +99,7 @@ export function CodeBlock(props: {
 
   return (
     <View
-      class="group relative w-full overflow-hidden rounded-md"
+      class={`group relative w-full overflow-hidden rounded-md ${props.compact ? "py-1" : ""}`}
       style={{ backgroundColor: token("code-bg") }}
       onMouseEnter={() => touched.set(mine)}
       onMouseLeave={() => touched.release(mine)}
@@ -125,7 +126,7 @@ export function CodeBlock(props: {
       <If when={props.streaming}>{code(true)}</If>
       <If when={!props.streaming}>{code(false)}</If>
       <If when={foldable()}>
-        <Button onPress={toggle} accessibilityLabel={open() ? "Show fewer lines" : `Show all ${lines()} lines`} class={`min-h-8 flex-row items-center justify-center gap-1 hover:bg-accent ${FOCUS_RING}`}>
+        <Button onPress={toggle} accessibilityLabel={open() ? "Show fewer lines" : `Show all ${lines()} lines`} style={hoverTransition()} class={`min-h-8 flex-row items-center justify-center gap-1 hover:bg-accent ${FOCUS_RING}`}>
           <Text class="text-xs font-medium text-muted-foreground" style={{ userSelect: "none" }}>{open() ? "Show less" : `Show all ${lines()} lines`}</Text>
           <If when={!open()}>
             <Icon name="chevron-down" size={14} tone="muted-foreground" />
@@ -144,6 +145,7 @@ function Tool(props: { label: string; text: string; onPress: () => void; selecte
         onPress={props.onPress}
         accessibilityLabel={props.label}
         selected={props.selected}
+        style={hoverTransition()}
         class={`min-h-7 flex-row items-center gap-1 rounded-md px-2 hover:bg-accent selected:bg-accent ${FOCUS_RING}`}
       >
         <If when={props.icon}>{(name) => <Icon name={name()} size={14} tone="muted-foreground" />}</If>

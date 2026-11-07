@@ -4,6 +4,7 @@ import { CodeDiff } from "herdr-desktop/native";
 import type { CodeDiffRef } from "herdr-desktop/native";
 import { CODE_MAX_HEIGHT, diffLabel } from "#lib/highlight";
 import { codeWhitespace, codeWrap, diffSplit } from "#lib/settings";
+import { hoverTransition } from "#lib/motion";
 import { FOCUS_RING, Icon, Tipped } from "#kit";
 
 /**
@@ -104,6 +105,7 @@ function Tool(props: { label: string; onPress: () => void; text?: string; icon?:
         accessibilityLabel={props.label}
         selected={props.selected}
         disabled={props.disabled}
+        style={hoverTransition()}
         class={`min-h-7 flex-row items-center gap-1 rounded-md px-2 hover:bg-accent selected:bg-accent ${FOCUS_RING}`}
       >
         <If when={props.icon}>{(name) => <Icon name={name()} size={14} tone="muted-foreground" />}</If>
