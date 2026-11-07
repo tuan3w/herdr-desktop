@@ -52,7 +52,7 @@ test("ctrl+tab works with the keyboard in a message box, where a text field keep
 test("from the board, ctrl+tab goes to the agent visited last, and with nothing visited it says so and opens nothing", async () => {
   const fresh = await ready();
   await tap(fresh, "ctrl+tab");
-  expect(fresh.count("role:tab")).toBe(1);
+  expect(fresh.count("role:tab")).toBe(0);
 
   const app = await ready();
   await openAgents(app, FIRST, SECOND);
@@ -262,7 +262,7 @@ test("a project's name in the sidebar shows its workspace, and its chevron alone
   await app.press("label:Fold payments >> nth=0");
   expect(app.shows("label:Unfold payments")).toBe(true);
   // Folding changed nothing about what is shown.
-  expect(app.count("role:tab")).toBe(1);
+  expect(app.count("role:tab")).toBe(0);
   await app.press("label:/^payments, This computer/ >> nth=0");
   await settle(app);
   // The project has no tab open: its own card, without a fold control.

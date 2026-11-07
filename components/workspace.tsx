@@ -22,6 +22,7 @@ import {
   parseSessionKey,
   removePanel,
   setLayout,
+  stripsShown,
 } from "#lib/dock";
 import { meta } from "#lib/herdr";
 import { ROW } from "#lib/layout";
@@ -121,7 +122,7 @@ export function Workspace() {
         )}
         renderDropIndicator={() => <View class="size-full" />}
         groupClass="bg-background"
-        tabBarClass="flex-row flex-wrap border-b border-border bg-sidebar"
+        tabBarClass={stripsShown(layout()) ? "flex-row flex-wrap border-b border-border bg-sidebar" : "hidden"}
         tabClass={`${ROW.tab.class} overflow-hidden border-r border-t border-border hover:bg-sidebar-accent selected:bg-background ${FOCUS_RING_INSET}`}
         tabStyle={hoverTransition()}
         contentClass="min-h-0 flex-1"

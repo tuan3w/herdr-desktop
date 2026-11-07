@@ -111,6 +111,16 @@ export function groups(layout: DockAreaLayout): Group[] {
   return out;
 }
 
+/**
+ * Whether the tab strips are drawn. One group holding one panel is a window with nothing to switch to: the panel's own
+ * header names it and a strip would repeat that over empty width. With several groups every group keeps its strip, so
+ * a drop target and a way to move a tab stay visible even for a group of one.
+ */
+export function stripsShown(layout: DockAreaLayout): boolean {
+  const all = groups(layout);
+  return all.length !== 1 || all[0].panels.length > 1;
+}
+
 /** Every panel in reading order. */
 export const panelsOf = (layout: DockAreaLayout): string[] => groups(layout).flatMap((g) => g.panels);
 

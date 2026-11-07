@@ -63,7 +63,7 @@ test("a layout saved by the first version is split by project: each project keep
   expect(app.shows("label:Close this tab")).toBe(true);
   await app.press("label:Close this tab");
   await settle(app);
-  expect(app.count("role:tab")).toBe(1);
+  expect(app.count("role:tab")).toBe(0);
   expect(app.shows("Agent gone")).toBe(false);
   // The migrated tab is in its project, a fresh mirror of the same pane.
   await app.keyboard.press("mod+shift+]");
@@ -74,7 +74,7 @@ test("a layout saved by the first version is split by project: each project keep
 test("an unreadable saved layout opens the board alone", async () => {
   const app = await seeded("mixed", { storage: { "herdr.dock.v1": "{{ not json" } });
   await app.waitFor("label:Board, 2 need you");
-  expect(app.count("role:tab")).toBe(1);
+  expect(app.count("role:tab")).toBe(0);
   expect(onBoard(app)).toBe(true);
 });
 
@@ -125,7 +125,7 @@ test("closing a pane in herdr asks first, and says what it will stop", async () 
   expect(asked).toHaveLength(1);
   expect(asked[0]).toContain(FIRST);
   expect(Herdr.testRequests("pane.close")).toEqual([]);
-  expect(app.count("role:tab")).toBe(1);
+  expect(app.count("role:tab")).toBe(0);
 });
 
 test("closing a pane in herdr, once confirmed, closes the pane and removes its tab", async () => {
@@ -199,20 +199,20 @@ test("a new workspace from the palette asks for a name and is created in herdr u
 test("an agent with a chat opens as a chat; Show terminal swaps the tab for its terminal in place and Show chat swaps it back", async () => {
   const app = await ready();
   await openAgents(app, FIRST);
-  expect(app.count("role:tab")).toBe(1);
+  expect(app.count("role:tab")).toBe(0);
   expect(shown(app, FIRST)).toBe(false);
   expect(app.texts().includes("Show terminal")).toBe(true);
 
   await app.press("Show terminal");
   await settle(app);
   expect(shown(app, FIRST)).toBe(true);
-  expect(app.count("role:tab")).toBe(1);
+  expect(app.count("role:tab")).toBe(0);
   expect(app.texts().includes("Show terminal")).toBe(false);
 
   await palette(app, "Show chat");
   expect(shown(app, FIRST)).toBe(false);
   expect(app.texts().includes("Show terminal")).toBe(true);
-  expect(app.count("role:tab")).toBe(1);
+  expect(app.count("role:tab")).toBe(0);
   const [group] = await saved(app);
   expect(group.panels.map((p) => (p === "board" ? p : nameOf(p)))).toEqual([FIRST]);
 });
@@ -236,7 +236,7 @@ test("a terminal agent whose log can be read has Show chat in its header and it 
   await settle(app);
   expect(shown(app, FIRST)).toBe(false);
   expect(app.texts().includes("Show terminal")).toBe(true);
-  expect(app.count("role:tab")).toBe(1);
+  expect(app.count("role:tab")).toBe(0);
 
   // pi has no log this app can read as a conversation: its terminal is the only view.
   await app.press(sidebarRow("notes"));
