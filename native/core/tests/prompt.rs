@@ -12,6 +12,8 @@ mod common;
 mod corpus;
 #[path = "prompt/detector.rs"]
 mod detector;
+#[path = "prompt/effect.rs"]
+mod effect;
 #[path = "prompt/extra.rs"]
 mod extra;
 #[path = "prompt/mode.rs"]

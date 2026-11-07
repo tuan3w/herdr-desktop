@@ -1,6 +1,7 @@
 //! The values the `Sessions` module hands TSX: plain objects built from `herdr-core`'s session types.
 //! Doc comments become TypeScript doc comments, so they say what a screen needs to know.
 
+use herdr_core::prompt::{EffectKind, ToolEffect, tool_effect};
 use herdr_core::session::{
     self as core, Ask, FieldKind, ItemKind, KeeperInfo, KeeperState, ModeRisk, ObservedInfo,
     ObservedLink, PastSession, PastSessions, PlanStatus, Refusal, Role, Route, SessionPhase,
@@ -263,6 +264,32 @@ pub struct DiffItem {
     pub removed: usize,
 }
 
+/// What a finished command did outside this machine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PropEnum)]
+pub enum EffectKindName {
+    /// `git push`.
+    Push,
+    /// Files or remote data removed.
+    Delete,
+    /// A package installed.
+    Install,
+    /// Released or merged where other people see it.
+    Publish,
+    /// Somebody else's machines or cloud changed.
+    Infra,
+    /// Anything else that left the machine.
+    Other,
+}
+
+/// The consequence of a finished command, worth showing even when the call is folded.
+#[derive(Debug, Clone, PartialEq, Eq, JsObject)]
+pub struct EffectItem {
+    /// The class.
+    pub kind: EffectKindName,
+    /// One line built from the command, never an invented detail (`Pushed to origin/main`).
+    pub text: String,
+}
+
 /// A tool call: what the agent ran and what came of it.
 #[derive(Debug, Clone, PartialEq, Eq, JsObject)]
 pub struct ToolItem {
@@ -308,6 +335,25 @@ pub struct ToolItem {
     /// The signal that ended the command, when one did.
     #[prop(skip_none)]
     pub exit_signal: Option<String>,
+    /// What a completed command did outside this machine; absent for reads, local work, failed or unfinished calls.
+    #[prop(skip_none)]
+    pub effect: Option<EffectItem>,
+}
+
+impl From<ToolEffect> for EffectItem {
+    fn from(e: ToolEffect) -> Self {
+        Self {
+            kind: match e.kind {
+                EffectKind::Push => EffectKindName::Push,
+                EffectKind::Delete => EffectKindName::Delete,
+                EffectKind::Install => EffectKindName::Install,
+                EffectKind::Publish => EffectKindName::Publish,
+                EffectKind::Infra => EffectKindName::Infra,
+                EffectKind::Other => EffectKindName::Other,
+            },
+            text: e.text,
+        }
+    }
 }
 
 /// One row of the conversation.
@@ -444,6 +490,13 @@ impl From<&core::Item> for SessionItem {
                     cwd: t.cwd.clone(),
                     exit_code: t.exit_code,
                     exit_signal: t.exit_signal.clone(),
+                    effect: match t.status {
+                        // A push that failed or has not finished did not push.
+                        ToolStatus::Completed => {
+                            tool_effect(t.kind.as_deref(), t.subject.as_deref()).map(Into::into)
+                        }
+                        _ => None,
+                    },
                 });
             }
             ItemKind::Note(text) => out.text = Some(text.clone()),

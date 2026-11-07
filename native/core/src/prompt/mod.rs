@@ -22,6 +22,7 @@
 //! ```
 
 mod detect;
+mod effect;
 mod mode;
 mod re;
 mod risk;
@@ -32,6 +33,7 @@ use std::sync::LazyLock;
 use regex::Regex;
 
 pub use detect::{DASHED_RULE_ROW, clean_preview_row, detect, is_dashed_rule, is_negative_reply};
+pub use effect::{EffectKind, ToolEffect, tool_effect};
 pub use mode::{ModeAssessment, ModeRisk, assess_mode};
 pub use risk::{Risk, command_risk, grants_standing_permission, path_risk, prose_risk, risk_of};
 pub use text::{ellipsize, plain_line, strip_ansi};
