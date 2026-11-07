@@ -1,7 +1,9 @@
 //! Desktop notifications: tell the person, while the window is away, that an agent needs them.
 //!
-//! The rules are [`policy`] (pure, tested with a moving instant); delivery is [`desktop`] (freedesktop
-//! notifications over the session bus); this module is the thread between them and the engine:
+//! The rules are [`policy`] (pure, tested with a moving instant); delivery is the desktop's own service:
+//! `freedesktop` (notifications over the session bus, with answer buttons) everywhere but macOS, and
+//! `applescript` on macOS (title and body only: it cannot show buttons or hear a click). This module is
+//! the thread between them and the engine:
 //!
 //! * the engine tells it "something changed" ([`Input::Tick`]) and "the window left or came back"
 //!   ([`Input::Away`]);
@@ -14,7 +16,9 @@
 //!
 //! Nothing here approves anything on its own: no timer and no default sends an answer.
 
-mod desktop;
+mod applescript;
+#[cfg(not(target_os = "macos"))]
+mod freedesktop;
 pub mod policy;
 mod recording;
 
@@ -26,7 +30,10 @@ use crossbeam_channel::{Receiver, RecvTimeoutError, Sender, unbounded};
 use herdr_core::link::Clock;
 use parking_lot::Mutex;
 
-pub use desktop::{DesktopSink, Support};
+#[cfg(target_os = "macos")]
+pub use applescript::AppleScriptSink as DesktopSink;
+#[cfg(not(target_os = "macos"))]
+pub use freedesktop::DesktopSink;
 pub use policy::{Item, Kind, Notification, Question, Sent, Target};
 pub use recording::{RecordedNotification, RecordingSink};
 
@@ -80,6 +87,15 @@ pub struct Settings {
     pub needs_you: bool,
     /// `Also when an agent finishes`.
     pub also_done: bool,
+}
+
+/// What the running notification service can do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Support {
+    /// It shows buttons and calls back when one is pressed or the body is clicked.
+    pub actions: bool,
+    /// It renders markup in the body, so the text must be escaped.
+    pub markup: bool,
 }
 
 /// Where notifications go.

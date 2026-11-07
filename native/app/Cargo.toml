@@ -1,6 +1,6 @@
 [package]
 name = "herdr-desktop-native"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 edition = "2024"
 license = "GPL-3.0-or-later"
 publish = false
@@ -16,7 +16,14 @@ crossbeam-channel = "0.5"
 parking_lot = "0.12"
 serde_json = "1"
 unicode-width = "0.2"
+
+# freedesktop notifications over the session bus: every desktop but macOS (see src/notify).
+[target.'cfg(not(target_os = "macos"))'.dependencies]
 zbus = "5"
+
+# proc_pidinfo for the developer panel's memory, threads and open files (src/metrics.rs).
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"

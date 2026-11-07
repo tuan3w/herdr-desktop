@@ -118,7 +118,8 @@ pub fn changed_rows(last: &herdr_core::screen::Screen, next: &herdr_core::screen
     moved + last.rows.len().abs_diff(next.rows.len())
 }
 
-/// What the process itself uses, from `/proc/self`.
+/// What the process itself uses. Linux reads `/proc/self`, macOS asks `proc_pidinfo`; anywhere else the
+/// figures are 0, which the developer panel shows as unmeasured rather than as a small number.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Process {
     /// Resident memory in kilobytes.
@@ -128,6 +129,7 @@ pub struct Process {
 }
 
 /// Reads `VmRSS` and `Threads` out of the text of `/proc/self/status`; a missing line is 0.
+#[cfg(target_os = "linux")]
 pub fn parse_status(status: &str) -> Process {
     let number = |key: &str| {
         status
@@ -143,12 +145,69 @@ pub fn parse_status(status: &str) -> Process {
     }
 }
 
+#[cfg(target_os = "linux")]
+fn process() -> Process {
+    std::fs::read_to_string("/proc/self/status")
+        .map(|s| parse_status(&s))
+        .unwrap_or_default()
+}
+
 /// Open file descriptors of this process; 0 where `/proc` is missing. The directory handle used to count
 /// is itself one of the entries, so it is taken off.
+#[cfg(target_os = "linux")]
 fn open_fds() -> u32 {
     std::fs::read_dir("/proc/self/fd")
         .map(|dir| dir.count().saturating_sub(1) as u32)
         .unwrap_or(0)
+}
+
+#[cfg(target_os = "macos")]
+fn process() -> Process {
+    // SAFETY: `proc_pidinfo` writes at most `size` bytes into `info`, a zeroed plain-data struct of exactly
+    // that size, and the return value says how many it wrote.
+    let mut info: libc::proc_taskinfo = unsafe { std::mem::zeroed() };
+    let size = std::mem::size_of::<libc::proc_taskinfo>() as libc::c_int;
+    let wrote = unsafe {
+        libc::proc_pidinfo(
+            libc::getpid(),
+            libc::PROC_PIDTASKINFO,
+            0,
+            (&raw mut info).cast(),
+            size,
+        )
+    };
+    if wrote != size {
+        return Process::default();
+    }
+    Process {
+        rss_kb: info.pti_resident_size / 1024,
+        threads: info.pti_threadnum.max(0) as u32,
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn open_fds() -> u32 {
+    // SAFETY: with no buffer `proc_pidinfo` only reports the bytes the descriptor list would take.
+    let bytes = unsafe {
+        libc::proc_pidinfo(
+            libc::getpid(),
+            libc::PROC_PIDLISTFDS,
+            0,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    (bytes.max(0) as usize / std::mem::size_of::<libc::proc_fdinfo>()) as u32
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn process() -> Process {
+    Process::default()
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn open_fds() -> u32 {
+    0
 }
 
 /// Everything recorded since the process started (or the window rolled over).
@@ -264,9 +323,7 @@ pub struct Metrics {
 /// The recorded figures plus the process's own, read now.
 pub fn read() -> Metrics {
     let mut metrics = with(|r| r.snapshot(Instant::now()));
-    let process = std::fs::read_to_string("/proc/self/status")
-        .map(|s| parse_status(&s))
-        .unwrap_or_default();
+    let process = process();
     metrics.rss_mb = process.rss_kb as f64 / 1024.0;
     metrics.threads = process.threads;
     metrics.open_fds = open_fds();
@@ -406,6 +463,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn the_status_file_gives_memory_and_threads_and_a_missing_line_is_zero() {
         let text = "Name:\therdr\nVmPeak:\t  900000 kB\nVmRSS:\t  123456 kB\nThreads:\t17\n";
         assert_eq!(
@@ -419,6 +477,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     fn this_process_reports_itself() {
         let m = read();
         assert!(m.rss_mb > 1.0, "{m:?}");

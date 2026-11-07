@@ -5,6 +5,8 @@
 //! scripted source on a manual clock. The service prints every call it receives, so a test asserts what
 //! the person's desktop would have been told, and it emits `ActionInvoked` as a press would. Only the
 //! processes started here are ever killed, by their handle. Needs `dbus-daemon` and python3 with `gi`.
+//! macOS has no D-Bus notification service (its sink is `notify::applescript`, tested in the crate), so the file is empty there.
+#![cfg(not(target_os = "macos"))]
 
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;

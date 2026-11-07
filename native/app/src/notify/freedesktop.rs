@@ -23,7 +23,7 @@ use zbus::zvariant::Value;
 use zbus::{MatchRule, message::Type};
 
 use super::policy::{DEFAULT_ACTION, Notification};
-use super::{Input, Sink};
+use super::{Input, Sink, Support};
 
 const SERVICE: &str = "org.freedesktop.Notifications";
 const PATH: &str = "/org/freedesktop/Notifications";
@@ -34,15 +34,6 @@ const APP_ID: &str = "dev.herdrmobile.herdr_desktop";
 /// `NotificationClosed` reasons that mean the person (or the clock) took it away: 1 expired,
 /// 2 dismissed. 3 is our own `CloseNotification`, 4 undefined.
 const GONE_REASONS: [u32; 2] = [1, 2];
-
-/// What the running notification service can do.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Support {
-    /// It shows buttons and calls back when one is pressed or the body is clicked.
-    pub actions: bool,
-    /// It renders markup in the body, so the text must be escaped.
-    pub markup: bool,
-}
 
 struct Shared {
     /// Our id to the service's id of the notification now showing.
