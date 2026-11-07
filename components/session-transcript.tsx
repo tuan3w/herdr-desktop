@@ -8,13 +8,12 @@ import type { RowContext } from "#components/session-item";
 import { SessionRow } from "#components/session-item";
 import { FOCUS_RING, Icon } from "#kit";
 import { CHAT_COLUMN } from "#lib/layout";
-import { appear } from "#lib/motion";
+import { leaving } from "#lib/motion";
 import type { Row } from "#lib/session-rows";
 import { durationText, visibleText } from "#lib/session-text";
+import { FOLLOW_PT, isAtEnd, pageOffset } from "#lib/transcript-scroll";
 import { anchorOf, setAnchor } from "#lib/view-state";
 
-/** How far from the end still counts as being at it: a streamed line or two must not unstick the view. */
-const AT_END = 64;
 /** How long a chat waits for enough of its conversation to put the person back where they were. */
 const PLACE_MS = 1500;
 
@@ -93,6 +92,7 @@ export function SessionTranscript(props: {
 
   const jump = () => {
     list?.scrollToEnd({ animated: false });
+    metrics.offset = Math.max(0, metrics.content - metrics.size);
     props.atEnd.set(true);
     props.unseen.set(0);
   };
@@ -126,16 +126,21 @@ export function SessionTranscript(props: {
     lastUser = key;
   });
 
+  // The offset is also written here: `onScroll` is throttled, and a held key repeats faster, so the next press would
+  // read the offset from before this one and lose a page.
+  const moveTo = (offset: number) => {
+    metrics.offset = offset;
+    list?.scrollToOffset({ offset, animated: false });
+  };
   const page = (direction: 1 | -1) => {
-    const to = Math.max(0, Math.min(metrics.content - metrics.size, metrics.offset + direction * metrics.size * 0.9));
-    list?.scrollToOffset({ offset: to, animated: false });
+    moveTo(pageOffset(metrics.offset, metrics.size, metrics.content, direction));
   };
   effect(() => {
     if (!props.active) return;
     const always = keymap.bind({ pageup: () => page(-1), pagedown: () => page(1) }, { when: "always" });
     const idle = keymap.bind(
       {
-        home: () => list?.scrollToOffset({ offset: 0, animated: false }),
+        home: () => moveTo(0),
         end: jump,
       },
       { when: "notEditing" },
@@ -153,6 +158,7 @@ export function SessionTranscript(props: {
     const n = props.unseen();
     return n > 0 ? `${n} new ${n === 1 ? "message" : "messages"}` : "Jump to latest";
   };
+  const shownPill = leaving(pill);
 
   return (
     <View class="min-h-0 flex-1">
@@ -163,7 +169,7 @@ export function SessionTranscript(props: {
         each={rows() as Row[]}
         keyExtractor={(r: Row) => r.key}
         estimatedItemSize={72}
-        maintainVisibleContentPosition={{ autoscrollToBottomThreshold: AT_END }}
+        maintainVisibleContentPosition={{ autoscrollToBottomThreshold: FOLLOW_PT }}
         scrollEventThrottle={50}
         onScroll={(e) => {
           metrics.offset = e.offset.y;
@@ -178,7 +184,7 @@ export function SessionTranscript(props: {
             list?.scrollToOffset({ offset: to, animated: false });
             return;
           }
-          const end = e.offset.y + e.size.height >= e.contentSize.height - AT_END;
+          const end = isAtEnd(e.offset.y, e.size.height, e.contentSize.height);
           setAnchor(props.panel, {
             atEnd: end,
             fromEnd: Math.max(0, e.contentSize.height - (e.offset.y + e.size.height)),
@@ -201,9 +207,9 @@ export function SessionTranscript(props: {
       >
         {(row) => <SessionRow row={row} ctx={props.ctx} />}
       </List>
-      <If when={pill()}>
+      <If when={shownPill.value()}>
         {(label) => (
-          <View style={appear()} class="absolute bottom-3 left-0 right-0 items-center">
+          <View style={shownPill.style} class="absolute bottom-3 left-0 right-0 items-center">
             <Button
               onPress={jump}
               accessibilityLabel={label()}

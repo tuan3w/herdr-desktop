@@ -1,6 +1,6 @@
 import { Code } from "herdr-desktop/native";
 import { effect, host, mount, signal, Text, View } from "nsh";
-import { DiffView, Editor, TextView } from "nsh/base";
+import { Button, DiffView, Editor, TextView } from "nsh/base";
 
 import { CodeBlock, InlineCode } from "#components/code-block";
 import { DiffBlock } from "#components/diff-block";
@@ -11,7 +11,7 @@ import { codeLineNumbers, codeWrap } from "#lib/settings";
  * The entry of the code labs and of the `code-*` screenshots: every synthetic sample, a fence being written, a diff, a
  * block of 3,000 lines, and the same block drawn by nsh's own `TextView`, `Editor` and `DiffView` for comparison.
  * `host.params.part` picks one: `languages` (a page of blocks, `from`/`count` choose which), `one` (`lang`, opened, with
- * line numbers), `stream` (`lang`, a fence that grows), `diff` (`layout`), `long` (`lines`), `compare` (`lang`), `inline`.
+ * line numbers), `stream` (`lang`, a fence that grows), `diff` (`layout`), `long` (`lines`), `goto` (`lines`, `line`; a button asks for the same line again), `compare` (`lang`), `inline`.
  * Not part of the app. Fonts are registered by the entry above it (`code-lab-app.tsx`: assets must live under the entry's folder).
  */
 const part = typeof host.params.part === "string" ? host.params.part : "languages";
@@ -132,6 +132,20 @@ function Compare(props: { fence: string }) {
   );
 }
 
+/** A long block asked to show one line, and a button that asks for the same line again (`goToNonce`). */
+function GoTo() {
+  const again = signal(0);
+  const line = Number(host.params.line ?? 1500);
+  return (
+    <View class="flex-1 gap-2">
+      <Button onPress={() => again.set(again() + 1)} accessibilityLabel="Show the line again">
+        <Text class="text-sm text-foreground">Again</Text>
+      </Button>
+      <CodeBlock code={bigText()} language="rust" collapsedLines={0} lineNumbers goTo={line} goToNonce={again()} />
+    </View>
+  );
+}
+
 function Lab() {
   if (host.params.wrap === true) codeWrap.set(true);
   if (host.params.numbers === true) codeLineNumbers.set(true);
@@ -176,6 +190,9 @@ function Lab() {
           </If>
           <If when={part === "long"}>
             <CodeBlock code={bigText()} language="rust" collapsedLines={0} />
+          </If>
+          <If when={part === "goto"}>
+            <GoTo />
           </If>
           <If when={part === "compare"}>
             <Compare fence={wanted} />

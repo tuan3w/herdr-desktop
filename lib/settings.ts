@@ -37,6 +37,10 @@ export const diffSplit = signal(false);
 export const enterNewline = signal(false);
 /** Pictures go to the agent as they are, not scaled to 2000 pixels on the long side. */
 export const picturesOriginal = signal(false);
+/** Keep scroll bars on screen instead of showing them while a view scrolls (`lib/scrollbars.ts`). */
+export const alwaysShowScrollbars = signal(false);
+/** The player's volume, 0 to 1: kept between files and sessions (`components/media-player.tsx`). */
+export const mediaVolume = signal(1);
 export const settingsReady = signal(false);
 
 interface Saved {
@@ -54,6 +58,8 @@ interface Saved {
   diffSplit: boolean;
   enterNewline: boolean;
   picturesOriginal: boolean;
+  alwaysShowScrollbars: boolean;
+  mediaVolume: number;
 }
 
 export async function loadSettings(): Promise<void> {
@@ -77,6 +83,9 @@ export async function loadSettings(): Promise<void> {
       if (typeof saved.diffSplit === "boolean") diffSplit.set(saved.diffSplit);
       if (typeof saved.enterNewline === "boolean") enterNewline.set(saved.enterNewline);
       if (typeof saved.picturesOriginal === "boolean") picturesOriginal.set(saved.picturesOriginal);
+      if (typeof saved.alwaysShowScrollbars === "boolean") alwaysShowScrollbars.set(saved.alwaysShowScrollbars);
+      if (typeof saved.mediaVolume === "number" && saved.mediaVolume >= 0 && saved.mediaVolume <= 1)
+        mediaVolume.set(saved.mediaVolume);
     }
   } catch (e) {
     console.error("herdr-desktop: cannot read settings", e);
@@ -101,6 +110,8 @@ effect(() => {
     diffSplit: diffSplit(),
     enterNewline: enterNewline(),
     picturesOriginal: picturesOriginal(),
+    alwaysShowScrollbars: alwaysShowScrollbars(),
+    mediaVolume: mediaVolume(),
   };
   save(KEY, JSON.stringify(saved));
 });

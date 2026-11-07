@@ -7,6 +7,7 @@ import { Machines } from "#components/machines";
 import { Btn, Modal, notify, RadioGroup, RadioItem, SelectField, SettingRow, SettingsSection, Switch } from "#kit";
 import { revision } from "#lib/herdr";
 import {
+  alwaysShowScrollbars,
   announceOutput,
   checkUpdates,
   codeLineNumbers,
@@ -149,37 +150,55 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
               control={<ThemePicker />}
             />
             <SettingRow
+              onPress={() => alwaysShowScrollbars.set(!alwaysShowScrollbars())}
+              label="Always show scrollbars"
+              description="Keeps the scroll bar visible instead of showing it while you scroll. Turn on if you lose track of how far a list goes."
+              control={
+                <Switch
+                  label="Always show scrollbars"
+                  checked={alwaysShowScrollbars()}
+                  onChange={(v) => alwaysShowScrollbars.set(v)}
+                />
+              }
+            />
+            <SettingRow
               label="Pane font size"
               description="The size a pane's text is drawn at. It is scaled down to fit the pane's columns in the width, never below 9 pt."
               control={
-                <SelectField
-                  small
-                  name="Pane font size"
-                  items={fontSizes()}
-                  value={String(paneFontSize())}
-                  onChange={(v) => paneFontSize.set(Number(v))}
-                />
+                <View class="w-44">
+                  <SelectField
+                    small
+                    name="Pane font size"
+                    items={fontSizes()}
+                    value={String(paneFontSize())}
+                    onChange={(v) => paneFontSize.set(Number(v))}
+                  />
+                </View>
               }
             />
             <SettingRow
               label="Minimum contrast"
               description="Lightens or darkens terminal text that is too faint for its background. Off keeps the colours the agent sent."
               control={
-                <SelectField
-                  small
-                  name="Minimum contrast"
-                  items={contrasts().map((n) => ({ value: String(n), title: contrastTitle(n) }))}
-                  value={String(minContrast())}
-                  onChange={(v) => minContrast.set(Number(v))}
-                />
+                <View class="w-44">
+                  <SelectField
+                    small
+                    name="Minimum contrast"
+                    items={contrasts().map((n) => ({ value: String(n), title: contrastTitle(n) }))}
+                    value={String(minContrast())}
+                    onChange={(v) => minContrast.set(Number(v))}
+                  />
+                </View>
               }
             />
             <SettingRow
+              onPress={() => codeWrap.set(!codeWrap())}
               label="Wrap code"
               description="Long lines of code wrap instead of scrolling sideways. Every code block also has a Wrap button."
               control={<Switch label="Wrap code" checked={codeWrap()} onChange={(v) => codeWrap.set(v)} />}
             />
             <SettingRow
+              onPress={() => codeLineNumbers.set(!codeLineNumbers())}
               label="Line numbers in code"
               description="A muted number beside every line of code."
               control={
@@ -191,6 +210,7 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
               }
             />
             <SettingRow
+              onPress={() => codeWhitespace.set(!codeWhitespace())}
               label="Show tabs and spaces"
               description="Draws a tab as an arrow and a space at the end of a line as a dot, so a stray one cannot hide."
               control={
@@ -202,6 +222,7 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
               }
             />
             <SettingRow
+              onPress={() => diffSplit.set(!diffSplit())}
               label="Diffs side by side"
               description="Old text on the left and new on the right, instead of one column."
               control={<Switch label="Diffs side by side" checked={diffSplit()} onChange={(v) => diffSplit.set(v)} />}
@@ -209,6 +230,7 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
           </SettingsSection>
           <SettingsSection title="Notifications">
             <SettingRow
+              onPress={() => setNotify(NOTIFY_NEEDS_YOU, !notifications().needsYou)}
               label="Notify me when an agent needs me"
               description="Shows the question and the command in a desktop notification while this window is not in front. Off until you switch it on; nothing leaves this computer."
               control={
@@ -220,6 +242,8 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
               }
             />
             <SettingRow
+              onPress={() => setNotify(NOTIFY_ALSO_DONE, !notifications().alsoDone)}
+              disabled={!notifications().needsYou}
               label="Also when an agent finishes"
               description="A quieter notification when an agent is done and you have not looked yet."
               control={
@@ -250,6 +274,7 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
           </SettingsSection>
           <SettingsSection title="Accessibility">
             <SettingRow
+              onPress={() => announceOutput.set(!announceOutput())}
               label="Announce agent output"
               description="A screen reader reads new text from the pane you are watching, at most every two seconds. An agent that needs you is always announced."
               control={
@@ -261,6 +286,7 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
               }
             />
             <SettingRow
+              onPress={() => reduceMotionOverride.set(!reduceMotionOverride())}
               label="Reduce motion"
               description="Turns off the app's own animations, as your system's setting does. Windows the system draws still follow the system."
               control={
@@ -272,6 +298,7 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
               }
             />
             <SettingRow
+              onPress={() => largeTargets.set(!largeTargets())}
               label="Large hit targets"
               description="44 pt targets for a touch screen. A pointer gets 24 pt targets."
               control={
@@ -300,6 +327,7 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
               />
             </If>
             <SettingRow
+              onPress={() => checkUpdates.set(!checkUpdates())}
               label="Check for updates"
               description="When Settings opens, asks api.github.com for the newest release of Herdr Desktop. Nothing else is sent and nothing is installed."
               control={

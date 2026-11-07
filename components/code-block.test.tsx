@@ -109,3 +109,26 @@ test("a right click on a diff offers the new version, copied as written", async 
   await app.chooseMenuItem("Copy new version");
   await app.waitUntil(() => (app.clipboard() ?? "").includes("export async function load(key: string, signal"));
 });
+
+/** The line numbers on screen: a block of thousands of lines mounts only the rows near its view. */
+const numbersOn = (app: App) =>
+  app
+    .texts()
+    .filter((t) => /^\d+$/.test(t))
+    .map(Number);
+
+test("a block asked to show a far line scrolls there once its view exists, without a request from the person", async () => {
+  const app = await lab({ part: "goto", lines: 3000, line: 1500 });
+  await app.waitUntil(() => numbersOn(app).includes(1500));
+  expect(numbersOn(app).includes(1)).toBe(false);
+});
+
+test("asking again for the line already shown scrolls back to it after the reader scrolled away", async () => {
+  const app = await lab({ part: "goto", lines: 3000, line: 1500 });
+  await app.waitUntil(() => numbersOn(app).includes(1500));
+  // Away from it: the same `goTo` alone changes nothing, so only the repeated request can bring the reader back.
+  for (let i = 0; i < 4; i++) await app.scroll("label:/^Code, Rust, \\d+ lines$/", 2000);
+  await app.waitUntil(() => !numbersOn(app).includes(1500));
+  await app.press("Show the line again");
+  await app.waitUntil(() => numbersOn(app).includes(1500));
+});

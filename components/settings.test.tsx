@@ -97,6 +97,19 @@ test("how code is drawn is chosen in Settings, applies at once, is saved, and is
   await again.waitUntil(() => again.texts().includes("code=false/true/false/true"));
 });
 
+test("Always show scrollbars is off until chosen, is saved at once and is what the window opens with", async () => {
+  const a = await inSettings();
+  expect(a.shows("label:Always show scrollbars")).toBe(true);
+  expect(saved(a).alwaysShowScrollbars).not.toBe(true);
+  await a.press("label:Always show scrollbars");
+  await a.waitUntil(() => saved(a).alwaysShowScrollbars === true);
+
+  const again = await inSettings({ ...DESKTOP, storage: { [KEY]: JSON.stringify({ alwaysShowScrollbars: true }) } });
+  // The saved choice is read back: pressing turns it off, which is only a change when it was on.
+  await again.press("label:Always show scrollbars");
+  await again.waitUntil(() => saved(again).alwaysShowScrollbars === false);
+});
+
 test("Reduce motion turns the app's own transitions off even when the system does not ask", async () => {
   const a = await inSettings();
   expect(a.texts()).toContain("press=eased");

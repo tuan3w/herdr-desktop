@@ -347,6 +347,21 @@ test("PageUp scrolls a page back from the message box and PageDown comes forward
   expect(app.shows(label("^Agent: Answer 200"))).toBe(true);
 });
 
+test("two page keys pressed faster than the list reports its scroll move two pages", async () => {
+  const app = await scripted("long");
+  await app.waitFor(label("^Agent: Answer 200"));
+  await app.type(BOX, "x");
+  await keyUntil(app, "pageup", () => app.shows("Jump to latest"));
+  const onePage = app.texts().join("\n");
+  await keyUntil(app, "pagedown", () => !app.shows("Jump to latest"));
+  // A held key repeats faster than the list reports a scroll: the second press must not read the offset of before the
+  // first. Two presses with nothing between them; the screen then has to leave where one page up put it, so the
+  // wait is for that change and not for a time.
+  await app.keyboard.press("pageup");
+  await app.keyboard.press("pageup");
+  await app.waitUntil(() => app.texts().join("\n") !== onePage);
+});
+
 const LOG = "Log: ";
 const logged = (app: App, part: string) => app.texts().some((t) => t.startsWith(LOG) && t.includes(part));
 
@@ -507,7 +522,7 @@ test("an answer that is still being written shows its open fence as it stands, a
   await whole.waitUntil(() => (whole.clipboard() ?? "") !== "");
   expect(live.clipboard()).toBe(whole.clipboard());
   // Everything on screen but the two windows' own scratch folders.
-  const shown = (a: App) => a.texts().filter((t) => !t.includes("/tmp/herdr-desktop-"));
+  const shown = (a: App) => a.texts().filter((t) => !t.includes("/herdr-desktop-"));
   expect(shown(live)).toEqual(shown(whole));
 });
 

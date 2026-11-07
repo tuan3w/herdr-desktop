@@ -4,10 +4,9 @@ import { Button } from "nsh/base";
 import type { MentionView, PeekView } from "herdr-desktop/native";
 import type { Bounds, ScrollRef, ViewRef } from "nsh/types";
 
-import { FOCUS_RING_INSET, Icon, Kbd } from "#kit";
+import { EDGE, FOCUS_RING_INSET, Icon, Kbd, offsetsOf, revealOffset } from "#kit";
 import { fileGlyph, markRuns } from "#lib/composer-refs";
 import { sizeText } from "#lib/files";
-import { paletteEnter } from "#lib/motion";
 import { commandText, type SlashCommand, usageKey } from "#lib/slash";
 
 /** One row's height in points: the list scrolls by whole rows to keep the highlighted one in view. */
@@ -26,26 +25,32 @@ export function ComposerPicker(props: {
   label: string;
   anchor: Bounds | ViewRef | null;
   highlighted: number;
+  /** How many rows `children` holds: the rows are all `ROW` tall, so this is all the reveal needs to know. */
+  count: number;
   children: JSX.Element;
   footer?: JSX.Element;
 }) {
   let scroll: ScrollRef | undefined;
-  // Keep the highlighted row in the list's upper middle, so there is always a row before it to see where it came from.
+  // The offset the person (or the last reveal) left the list at, from `onScroll`.
+  let offset = 0;
+  // Move only when the highlighted row is out of view, and only as far as its edge.
   effect(() => {
-    const y = Math.max(0, (props.highlighted - 2) * ROW);
+    const rows = offsetsOf(Array.from({ length: props.count }, () => ROW));
+    const y = revealOffset(rows, props.highlighted, offset, ROW * VISIBLE);
+    if (y === undefined) return;
+    offset = y;
     scroll?.scrollTo({ y, animated: false });
   });
-  const enter = paletteEnter(() => true);
   return (
     <Overlay anchor={props.anchor} placement="top" align="start" offset={8} margin={8}>
-      <View
-        style={[{ width: WIDTH }, enter]}
-        class="overflow-hidden rounded-lg border border-border bg-popover shadow-md"
-      >
+      <View style={{ width: WIDTH }} class={`overflow-hidden rounded-lg bg-popover ${EDGE.md}`}>
         <View role="listbox" accessibilityLabel={props.label} style={{ maxHeight: ROW * VISIBLE }}>
           <Scroll
             ref={(node: ScrollRef) => {
               scroll = node;
+            }}
+            onScroll={(e) => {
+              offset = e.offset.y;
             }}
           >
             {props.children}
@@ -94,6 +99,7 @@ export function MentionList(props: {
       label="Files"
       anchor={props.anchor}
       highlighted={props.highlighted}
+      count={props.hits.length}
       footer={<MentionFooter hit={props.hits[props.highlighted]} peek={props.peek} />}
     >
       <Each of={props.hits} key="index">
@@ -214,7 +220,12 @@ export function CommandList(props: {
   onTogglePin: (command: SlashCommand) => void;
 }) {
   return (
-    <ComposerPicker label="Commands" anchor={props.anchor} highlighted={props.highlighted}>
+    <ComposerPicker
+      label="Commands"
+      anchor={props.anchor}
+      highlighted={props.highlighted}
+      count={props.commands.length}
+    >
       <Each of={props.commands} key="index">
         {(command, i) => (
           <View

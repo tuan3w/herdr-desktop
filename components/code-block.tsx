@@ -47,6 +47,8 @@ export function CodeBlock(props: {
   lineNumbers?: boolean;
   /** Scrolls this line (a number counted from `firstLine`) to the top when it changes; it is not marked, `marks` does that. */
   goTo?: number;
+  /** Changes with every request for the same `goTo` (a "next hit" on the line the reader scrolled away from): the block scrolls again. */
+  goToNonce?: number;
 }) {
   const info = computed(() => Code.describe(props.code, props.language ?? null, props.path ?? null));
   const lines = computed(() => lineCount(props.code));
@@ -60,12 +62,22 @@ export function CodeBlock(props: {
   const timer = restartable();
 
   let view: CodeViewRef | undefined;
-  // A block that scrolls inside itself builds its list a frame after the block is made: ask after that.
+  const viewReady = signal(false);
+  // A block that scrolls inside itself builds its list a frame or two after the block is made, and `goToLine` says
+  // nothing when it came too early: ask once the view exists and again on the next two frames (frames, not a clock
+  // guess), and again whenever the request is repeated (`goToNonce`).
   effect(() => {
     const line = props.goTo;
-    if (!line) return;
-    const id = setTimeout(() => view?.goToLine(line), 60);
-    return () => clearTimeout(id);
+    void props.goToNonce;
+    if (!line || !viewReady()) return;
+    let frame = 0;
+    let left = 3;
+    const ask = () => {
+      view?.goToLine(line);
+      if (--left > 0) frame = requestAnimationFrame(ask);
+    };
+    ask();
+    return () => cancelAnimationFrame(frame);
   });
   const numbers = () => props.lineNumbers ?? codeLineNumbers();
   const mine = () => props.code;
@@ -82,10 +94,11 @@ export function CodeBlock(props: {
     );
   };
 
-  const code = (streaming: boolean) => (
+  const code = (
     <CodeView
       ref={(ref: CodeViewRef) => {
         view = ref;
+        viewReady.set(true);
       }}
       code={props.code}
       language={props.language}
@@ -97,7 +110,7 @@ export function CodeBlock(props: {
       marks={props.marks}
       visibleLines={shown()}
       maxHeight={props.maxHeight ?? CODE_MAX_HEIGHT}
-      follow={streaming}
+      follow={props.streaming ?? false}
       label={codeLabel(info().language, lines())}
     />
   );
@@ -141,9 +154,9 @@ export function CodeBlock(props: {
           />
         </View>
       </If>
-      {/* Written and finished are two views on purpose: the first follows its end, the second starts at the top. */}
-      <If when={props.streaming}>{code(true)}</If>
-      <If when={!props.streaming}>{code(false)}</If>
+      {/* One view for a block being written and for the same block finished: it reads `follow` once, when it is made, so
+          a reader at the end stays there, and a second view would start again at the top. */}
+      {code}
       <If when={foldable()}>
         <Button
           onPress={toggle}

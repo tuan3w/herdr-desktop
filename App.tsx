@@ -7,7 +7,7 @@ import "./fonts/IBMPlexMono-Medium.ttf";
 
 import { Herdr } from "herdr-desktop/native";
 import { announce, effect, host, keymap, lifecycle, mount, View, windowSize } from "nsh";
-import { ResizablePanel, ResizablePanelGroup } from "nsh/base";
+import { ResizablePanel, ResizablePanelGroup, Scrollbar } from "nsh/base";
 import { isAvailable, Menu, Window } from "nsh/desktop";
 
 import { BulkBar } from "#components/bulk-bar";
@@ -43,11 +43,12 @@ import { dockReady, loadDock, openPane, openSession, showBoard, startDock } from
 import { board, startHerdr } from "#lib/herdr";
 import { warmCode } from "#lib/highlight";
 import { RAIL_WIDTH, SIDEBAR_WIDTH } from "#lib/layout";
-import { hoverTransition, motionReady } from "#lib/motion";
+import { hoverTransition, markKeyboard, motionReady } from "#lib/motion";
 import { startNav, switcherOpen } from "#lib/nav";
 import { openTarget } from "#lib/open-agent";
 import { saveFailures } from "#lib/save";
-import { loadSettings, settingsReady } from "#lib/settings";
+import { scrollbarTheme } from "#lib/scrollbars";
+import { alwaysShowScrollbars, loadSettings, settingsReady } from "#lib/settings";
 import { type GlobalShortcut, GLOBAL, keysOf } from "#lib/shortcuts";
 import { loadSidebar, sidebarReady, sidebarWidth } from "#lib/sidebar";
 import { loadViews } from "#lib/view-state";
@@ -62,6 +63,10 @@ warmCode();
 void loadDock();
 void loadViews();
 startNav();
+// Every scroll view and list draws the app's thin bar in place of the platform's thick indicator (`lib/scrollbars.ts`).
+// Setting the theme again restyles the bars already on screen (nsh `Core::set_builtin_scrollbars`), so the person's
+// "Always show scrollbars" applies at once.
+effect(() => Scrollbar.setTheme(scrollbarTheme(alwaysShowScrollbars())));
 void loadSidebar();
 for (const warning of Herdr.warnings()) notify(warning, { lasting: true });
 
@@ -92,7 +97,16 @@ function App() {
     Object.fromEntries(
       Object.entries(GLOBAL)
         .filter(([, shortcut]) => (shortcut.always ?? false) === always)
-        .flatMap(([id, shortcut]) => keysOf(shortcut).map((keys) => [keys, globalActions[id as GlobalShortcut]])),
+        .flatMap(([id, shortcut]) =>
+          keysOf(shortcut).map((keys) => [
+            keys,
+            // A key caused whatever the action does next: it must not animate (`markKeyboard`).
+            () => {
+              markKeyboard();
+              return globalActions[id as GlobalShortcut]();
+            },
+          ]),
+        ),
     );
   keymap.bind(bindings(false));
   keymap.bind(bindings(true), { when: "always" });
