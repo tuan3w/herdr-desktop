@@ -4,12 +4,83 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
-- **A pane tab is a read-only view, not a pretend terminal.** The key row (Esc, arrows, Ctrl+C), the typing mode (`Ctrl+Shift+K`) with its hint bar, the slash list and quick phrases above the message box, and the `Wrap lines`, `Fit width` and `Actual size` options are gone: with a full keyboard they were clutter, and the typing mode took Escape and Ctrl+K from you. The tab is named `<agent> (view)` and its header says `Read-only view`. You still answer a question with the buttons, `Stop` the agent, send a line with the message box, follow links, find and copy; the pane's columns always fill the width. Chat tabs keep their slash commands.
+## [0.1.0-alpha.3] - 2026-11-07
 
-- **One-command install.** `curl -fsSL https://raw.githubusercontent.com/tuan3w/herdr-desktop/main/scripts/install.sh | sh` installs the newest release on Linux x86_64 or macOS Apple silicon after checking `SHA256SUMS` (`--version X` for another, `--uninstall` to remove). The macOS path is untested on a real Mac.
+### Jump between agents and projects with the keyboard
 
-- **Switch between agents and projects from the keyboard.** `Ctrl+Tab` goes to the agent you were in before this one and `Ctrl+Shift+Tab` to the previous project; tap again to come back. `Ctrl+E` opens the Switcher, a short list of the agents and projects you visited last with the one to go back to highlighted (`Ctrl+E` again moves down, `Enter` opens, `Escape` leaves everything as it was); its rows stay where they are while it is open. `Ctrl+[` and `Ctrl+]` go back and forward through the places you went to, `Ctrl+Shift+[` and `Ctrl+Shift+]` step through the projects. What you visited is remembered between runs (agent and project ids and times only, never what a pane showed).
-- **Each project keeps its own tabs.** Opening an agent of another project, `Ctrl+Shift+[`/`]`, `Ctrl+Tab` and the Switcher swap the whole workspace: the tabs, the tab you were in, the message you had not sent and where a chat was scrolled come back as you left them (unsent messages are kept in memory only, never written down). A project with no tab open shows its own card; the board and anything left there is Home (`Ctrl+1`). The saved layout of earlier versions is split by project on first start.
+`Ctrl+Tab` goes back to the agent you were in, `Ctrl+Shift+Tab` to the
+previous project, and each project keeps its own tabs.
+
+> [!TIP]
+> Try it: open two agents, press `Ctrl+Tab`, then `Ctrl+E` for the list of
+> recent agents and projects (`Shift+Enter` opens one in the workspace you
+> are in).
+
+- `Ctrl+[` and `Ctrl+]` go back and forward; `Ctrl+Shift+[` and `]` move to
+  the previous and next project. All are in the menus and the palette.
+- Opening an agent of another project swaps the whole workspace. A draft you
+  had typed in a chat is still there when you come back (kept in memory only).
+- Clicking a project's name in the sidebar switches to it; the arrow folds it.
+
+### A palette that finds things
+
+`Ctrl+K` searches projects, agents and chats, actions, settings, machines and
+files in one box, with the shortcut next to each result.
+
+> [!TIP]
+> Try it: press `Ctrl+K`, type `@` for agents, `>` for actions, `/` for files
+> of the open project, or `new session pay` to start a session in a project.
+
+- `Ctrl+K` on a result opens its actions (open in a split, mark reviewed,
+  copy the id, close). Dangerous ones ask first.
+- `Ctrl+P` jumps to a file of the project.
+
+### Review what an agent changed
+
+`Ctrl+Shift+G` opens `Changes` for a project's folder: the changed files, and
+the highlighted diff of the one you pick.
+
+> [!TIP]
+> Try it: in a chat, click `Changes` in the header. `J`/`K` change file, `N`/`P`
+> change hunk, `X` marks a file reviewed, `C` writes a note, and `Ctrl+Enter`
+> sends all notes to the agent after showing you the message.
+
+- A file or one group of changes can be reverted after a confirmation that
+  says what is lost, with an `Undo`.
+- Reading changes never touches your git index.
+
+### A better message box
+
+Type `@` to pick a file or folder of the project, and paste or drop pictures.
+
+> [!TIP]
+> Try it: in a chat, type `@` and a few letters of a file name; `Tab` adds it.
+> Copy a screenshot and press `Ctrl+V`.
+
+- Pictures are shrunk to 2,000 px and go to agents that can see them; for
+  others the thumbnail says so and can save the picture into the project.
+- `Up` in an empty box brings back your last message; `Ctrl+Shift+O` attaches
+  files. A very long paste becomes a `Pasted text` chip that is still sent in full.
+
+### Calmer shell
+
+- Tabs are a fixed width, a long title is cut with an ellipsis instead of
+  running into the next tab, and the front tab is marked with an underline.
+- The sidebar no longer jumps back to the top while agents update.
+- A terminal agent's tab is a read-only view with the answer buttons; the
+  pretend key row, typing mode and slash list are gone. A real terminal is
+  being built and is not in this release.
+- `Copy name`, `Copy folder`, `Copy title` and `Copy path` on sidebar rows and tabs.
+- One-command install: see the README.
+
+**Not checked**
+
+- Copying selected text out of a chat message is still being repaired and may
+  not work yet.
+- The message box, the palette and `Changes` were tested without a screen
+  reader; the new pictures and file picker ran through scripted tests and one
+  Linux display, not on a Mac.
+- macOS has still never been run by the author.
 
 ## [0.1.0-alpha.2] - 2026-11-07
 
