@@ -173,3 +173,16 @@ How the scenarios are driven (traps found while writing them, all about the `--t
 ## Project switch (`switch project x20`, one run, Xvfb + cairo, debug host)
 
 Each switch is one commit of 28.4 ms JS p95 plus 19.1 ms core p95 (the swap of a layout with a pane mirror and a chat or project card: about 48 ms, under the 50 ms budget of `docs/specs/context-switching.md`, and the first row is in that commit, so well under 120 ms). Frame p95 is 14.8 ms, CPU-drawn (a GPU is expected to do better; unverified). After 20 switches the figures are flat: RSS 372 to 375 MB (the Rust side's own 354 to 358), threads 75 to 75, descriptors 19 to 19, panes watched 1 to 1 (0 once the board is shown again). Budgets in `.perf/budgets.json` are this run x 1.5, from one run (`--runs 5` would be better; unmeasured). Not measured: the `PaneScreen` first-row time on a GPU.
+
+## The message box (`.perf/composer.test.tsx`)
+
+What the chat's box costs through the real Rust module, measured headless on the dev host with an **unoptimized** build
+(`nsh test .perf/composer.test.tsx`; make the data first: 20,000 empty files under random folders in `.scratch/perf/project20k`
+(44,123 paths with their folders), and a 4.2 MB picture of noise in `.scratch/perf/noise.png`). The lab is
+`components/composer-perf-lab.tsx`; numbers are 2026-11-07.
+
+| What | Measured | Reading |
+|---|---|---|
+| `@` list, one query, p95 over 40 asks, 20,000 files | 11 to 23 ms (debug build, through the promise, marshalling included) | Over the 16 ms of a frame in a debug build. Ranking alone in release (`cargo bench --bench quick`) is 0.6 to 2.4 ms on 20,000 files and 2.6 to 11 ms on 100,000. **Release end to end through the module was not measured.** The list keeps its rows until the answer arrives, so a slow answer never shows an empty list |
+| a 4.2 MB picture decoded, scaled, re-encoded | 945 ms (debug) | Off the UI thread: a 4 ms timer on the UI thread had gaps of at most 5 ms for the whole run (the headless proxy for frame p95; frames in a real window were not measured) |
+| RSS across attach and remove cycles of that picture | 105 MB, 112 MB after 20 cycles, 112 MB after 40, 60 and 80 | Flat after the first cycles (one warm-up of the decoder's buffers). A chip holds a path and a 112-px thumbnail |
