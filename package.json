@@ -6,5 +6,16 @@
     "#lib/*": "./lib/*.ts",
     "#components/*": "./components/*.tsx",
     "#kit": "./components/kit/index.ts"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.77.0",
+    "oxlint": "^1.92.0"
+  },
+  "scripts": {
+    "lint": "oxlint --deny-warnings",
+    "lint:fix": "oxlint --fix",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "prepare": "git config core.hooksPath .githooks"
   }
 }

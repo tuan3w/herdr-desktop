@@ -1,0 +1,10 @@
+#!/bin/sh
+# Conventional Commits, as AGENTS.md asks: `type(scope): subject`, lower case, at most 72 characters.
+subject=$(head -n 1 "$1")
+case "$subject" in Merge\ *|Revert\ *|fixup!*|squash!*) exit 0 ;; esac
+echo "$subject" | grep -Eq '^(feat|fix|perf|refactor|test|docs|build|ci|chore|revert|style)(\([a-z0-9-]+\))?!?: [^A-Z].{0,}$' || {
+  echo "commit-msg: '$subject'" >&2
+  echo "  expected: type(scope): subject   (types: feat fix perf refactor test docs build ci chore revert style; imperative, lower case, no full stop)" >&2
+  exit 1
+}
+[ ${#subject} -le 72 ] || { echo "commit-msg: the subject is ${#subject} characters, keep it to 72" >&2; exit 1; }

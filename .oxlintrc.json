@@ -1,0 +1,36 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "import", "promise"],
+  "categories": { "correctness": "error", "suspicious": "warn", "perf": "warn" },
+  "env": { "es2024": true },
+  "ignorePatterns": ["node_modules", "target", ".nsh", ".scratch", "native", "fixtures", "fonts", "assets", "docs"],
+  "rules": {
+    "typescript/no-explicit-any": "error",
+    "typescript/consistent-type-imports": "error",
+    "import/no-cycle": "error",
+    "import/no-duplicates": "error",
+    "eqeqeq": "error",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+
+    // A step-by-step test, a keystroke sequence or a retry presses one thing after another: awaiting in a loop is the point.
+    "no-await-in-loop": "off",
+    // Asset imports (`import "./fonts/x.ttf"`) are side effects by design in nsh.
+    "import/no-unassigned-import": "off",
+    // Style rules that fight how nsh components are written (accessors and handlers close over props).
+    "unicorn/consistent-function-scoping": "off",
+    "no-underscore-dangle": "off",
+    "no-shadow": "off",
+    "promise/always-return": "off",
+    "promise/no-callback-in-promise": "off",
+    // The nsh runtime is QuickJS (ES2023 library): `toSorted`/`toReversed` are there, but nsh's own types lag.
+    "unicorn/no-array-sort": "off",
+    "unicorn/no-array-reverse": "off"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "**/*-lab.tsx", "**/*-probe.tsx", "**/*.fixture.tsx", ".perf/**", ".shots/**", ".a11y/**", "perf-*.tsx", "code-lab-app.tsx", "scripts/**"],
+      "rules": { "no-console": "off" }
+    }
+  ]
+}

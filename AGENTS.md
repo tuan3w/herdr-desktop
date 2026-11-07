@@ -44,6 +44,8 @@ A screen, row, word or animation that answers none of these is noise. Desktop me
 make                       # verify: nsh check, nsh test, core (fmt+clippy+test), docs, a11y
 nsh check                  # types: must print nothing
 nsh test [path|--filter n] # headless; --trace shows ops; --target linux = real GTK window (xvfb-run -a env GSK_RENDERER=cairo ...)
+make lint | fmt            # oxlint --deny-warnings | oxfmt (formats and sorts imports); `make fmt-check` is the CI form
+make hooks                 # once per clone: pre-commit (format, lint, imports, rustfmt, docs on what is staged) and commit-msg (semantic commits)
 make core                  # cargo fmt/clippy/test of native/core and native/app
 make docs                  # DESIGN.md < 100 lines, design/*.md < 150, every backticked name exists
 make a11y                  # AT-SPI tree of every screen, no unnamed control
@@ -99,6 +101,7 @@ perf-app.tsx, perf-chat.tsx  entries of those scenarios (the app plus a driver f
 
 ## Code rules
 
+- **Formatting and lint are oxc's** (`.oxfmtrc.json`: 120 columns, double quotes, trailing commas, imports sorted in groups: framework, `#` aliases, relative; `.oxlintrc.json`, `--deny-warnings`): never hand-format, run `make fmt`; a lint rule that fights nsh style is switched off in the config with the reason next to it.
 - **Project imports are absolute** through `package.json` `imports`: `#lib/<file>`, `#components/<file>`, `#kit` (never `../` or `./` for project code). Exceptions: siblings inside `components/kit/`, assets (fonts, SVG, PNG) and the `.ts` test seams in `components/`. `node scripts/absolute-imports.mjs` converts, `--check` is part of `make check`. Why not `@/`: nsh reads `resolve.alias` from the nsh.json next to the entry, which labs under `components/` do not have; `imports` is resolved by package, so it works everywhere (bundle, `nsh check`, `nsh test`).
 - **File names are kebab-case** for every `.ts`/`.tsx` file (`dev-panel.tsx`, `pane-tab.tsx`, `answer-dock.tsx`); the exported component keeps its PascalCase name (`DevPanel`). Tests sit beside what they test (`palette.test.tsx`), test entries end in `-lab`, `-probe` or `.fixture`. Rust files are `snake_case.rs` (the language's rule).
 - UI is built from the kit. A screen never pastes a kit component's class string. Colour is a semantic token class, never hex or `rgb()`: themes switch at runtime. Terminal colours are the one exception and come from `term-*` tokens.
@@ -128,7 +131,7 @@ perf-app.tsx, perf-chat.tsx  entries of those scenarios (the app plus a driver f
 
 Semantic (Conventional Commits): `type(scope): subject`, imperative, lower case, at most 72 characters, no full stop.
 
-- **Types:** `feat`, `fix`, `perf`, `refactor`, `test`, `docs`, `build`, `ci`, `chore`, `revert`. `!` after the scope or a `BREAKING CHANGE:` line when a stored format or wire contract changes.
+- **Types:** `feat`, `fix`, `perf`, `refactor`, `test`, `docs`, `build`, `ci`, `chore`, `revert`, `style` (formatting and import order only). `!` after the scope or a `BREAKING CHANGE:` line when a stored format or wire contract changes.
 - **Scopes:** `core wire link ssh board prompt screen pane session observed kit theme a11y notify files perf`. Leave it out when a change spans many.
 - **Body** says why and what was measured or left unverified. One logical change per commit.
 - The remote is `origin` = `https://github.com/tuan3w/herdr-desktop.git`. Do not rewrite or force-push published history.

@@ -7,7 +7,7 @@ export HERDR_DESKTOP_TEST := 1
 CORE := native/core/Cargo.toml
 APP  := native/app/Cargo.toml
 
-.PHONY: verify verify-mac check test test-smoke core docs a11y run package theme perf cpu perf-check schema shots
+.PHONY: lint fmt fmt-check hooks verify verify-mac check test test-smoke core docs a11y run package theme perf cpu perf-check schema shots
 
 # Linux: everything. `a11y` needs AT-SPI (dbus, Xvfb, python3-gi), which only Linux has.
 verify: check test core docs a11y
@@ -17,6 +17,20 @@ verify: check test core docs a11y
 # tests. Not run there: `a11y` (the AT-SPI audit reads Linux's accessibility bus), the Xvfb screenshots (`shots`) and the
 # perf/cpu scripts (/proc); nothing replaces them on a Mac yet, and docs/MACOS.md says so.
 verify-mac: check core docs test-smoke
+
+# oxlint (lint), oxfmt (format and sorted imports), the absolute-import rule.
+lint:
+	node_modules/.bin/oxlint --deny-warnings
+
+fmt:
+	node_modules/.bin/oxfmt
+
+fmt-check:
+	node_modules/.bin/oxfmt --check
+
+# Git hooks: pre-commit (format, lint, imports, rustfmt, docs on what is staged) and commit-msg (semantic commits).
+hooks:
+	git config core.hooksPath .githooks
 
 check:
 	nsh check

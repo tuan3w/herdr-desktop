@@ -1,0 +1,40 @@
+#!/bin/sh
+# Fast checks on what is staged (CI runs the slow ones: tests, clippy, the AT-SPI audit). Install with `make hooks`.
+# Skip once with `git commit --no-verify`; fix the cause when you can.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+bin=node_modules/.bin
+staged() { git diff --cached --name-only --diff-filter=ACMR | grep -E "$1" || true; }
+
+js=$(staged '\.(ts|tsx|mjs|js|json)$' | grep -vE '^(theme\.json|fixtures/|native/|docs/|\.nsh/|node_modules/)' || true)
+if [ -n "$js" ]; then
+  [ -x "$bin/oxfmt" ] || { echo "pre-commit: run 'bun install' first (oxfmt and oxlint are dev dependencies)" >&2; exit 1; }
+  # shellcheck disable=SC2086
+  $bin/oxfmt --check $js || { echo "pre-commit: format with 'make fmt'" >&2; exit 1; }
+  code=$(echo "$js" | grep -E '\.(ts|tsx|mjs|js)$' || true)
+  # shellcheck disable=SC2086
+  [ -z "$code" ] || $bin/oxlint --deny-warnings $code || exit 1
+  node scripts/absolute-imports.mjs --check
+fi
+
+rs=$(staged '\.rs$')
+if [ -n "$rs" ]; then
+  # shellcheck disable=SC2086
+  rustfmt --edition 2024 --check $rs || { echo "pre-commit: run 'cargo fmt' in native/core and native/app" >&2; exit 1; }
+fi
+
+if [ -n "$(staged '^(DESIGN\.md|design/|scripts/docs-allow\.txt)')" ]; then
+  node scripts/check-docs.mjs
+fi
+
+# No loose screenshots or build products: the README's three images are the only pictures in git.
+bad=$(staged '\.(png|jpg|jpeg|webp|gif)$' | grep -vE '^(icon\.png|docs/screenshots/|fixtures/|assets/)' || true)
+if [ -n "$bad" ]; then
+  echo "pre-commit: pictures are not committed (AGENTS.md, Writing things down): $bad" >&2
+  exit 1
+fi
+big=$(git diff --cached --name-only --diff-filter=ACM | while read -r f; do [ -f "$f" ] && [ "$(wc -c < "$f")" -gt 1048576 ] && echo "$f"; done || true)
+if [ -n "$big" ]; then
+  echo "pre-commit: files over 1 MB stay out of git: $big" >&2
+  exit 1
+fi
