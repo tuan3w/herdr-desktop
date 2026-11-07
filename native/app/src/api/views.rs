@@ -265,6 +265,19 @@ impl From<Connection> for TestResult {
     }
 }
 
+/// One destination the person visited (`Herdr.recents`).
+#[derive(Debug, Clone, PartialEq, JsObject)]
+pub struct Recent {
+    /// What `Herdr.visit` was given: `agent:<BoardRow.key>` or `project:<BoardProject.key>`.
+    pub key: String,
+    /// When it was visited last, in milliseconds since the epoch.
+    pub last_visit: u64,
+    /// How many visits were counted in all.
+    pub count: u64,
+    /// How often and how recently, from the last ten visits (a visit just now weighs 1, a week ago 0.5): for a ranking.
+    pub frecency: f64,
+}
+
 /// One machine's connection, for the machine list and the sidebar.
 #[derive(Debug, Clone, PartialEq, JsObject)]
 pub struct MachineStatus {

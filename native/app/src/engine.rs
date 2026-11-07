@@ -43,6 +43,7 @@ use herdr_core::link::{
     default_socket_path,
 };
 use herdr_core::prompt::PromptInfo;
+use herdr_core::recents::Recents;
 use herdr_core::schema::{AgentStatus, PaneInfo, Snapshot, clean_terminal_title};
 use herdr_core::session::SessionHub;
 use herdr_core::ssh::{SshClient, SshTarget, SshWire, classify_ssh};
@@ -133,6 +134,8 @@ impl Engine {
         keep(stored_reviewed.warning);
         let stored_settings = store.settings();
         keep(stored_settings.warning);
+        let stored_recents = store.recents();
+        keep(stored_recents.warning);
 
         let ssh = match SshClient::new(store.dir()) {
             Ok(client) => Some(client),
@@ -177,6 +180,7 @@ impl Engine {
             reviewed: Mutex::new(stored_reviewed.value),
             first_seen: Mutex::new(FirstSeen::new()),
             settings: Mutex::new(stored_settings.value),
+            recents: Mutex::new(stored_recents.value),
             previews: preview::Previews::default(),
             watches: panes::Watches::default(),
             answering: Mutex::new(HashSet::new()),
@@ -319,6 +323,7 @@ pub struct Fleet {
     reviewed: Mutex<Reviewed>,
     first_seen: Mutex<FirstSeen>,
     settings: Mutex<Settings>,
+    recents: Mutex<Recents>,
     previews: preview::Previews,
     watches: panes::Watches,
     /// Panes with an answer on its way, so a double press sends once.
@@ -856,6 +861,40 @@ impl Fleet {
         Ok(())
     }
 
+    // ---- what was visited ---------------------------------------------------------------------------
+
+    /// Notes a visit to `key` (`agent:<row key>`, `project:<key>`) now and persists the list. The board does not
+    /// change, so nobody is ticked.
+    pub fn visit(&self, key: &str) -> Result<(), String> {
+        let mut recents = self.recents.lock();
+        recents.visit(key, now_ms());
+        self.store
+            .save_recents(&recents)
+            .map_err(|e| format!("cannot save the recent visits: {e}"))
+    }
+
+    /// Forgets a destination (an agent that was closed, `Clear history`).
+    pub fn forget(&self, key: &str) -> Result<(), String> {
+        let mut recents = self.recents.lock();
+        if recents.forget(key) {
+            self.store
+                .save_recents(&recents)
+                .map_err(|e| format!("cannot save the recent visits: {e}"))?;
+        }
+        Ok(())
+    }
+
+    /// The visited destinations, newest first, with the figures a ranking needs.
+    pub fn recents(&self) -> Vec<(String, u64, u64, f64)> {
+        let now = now_ms();
+        self.recents
+            .lock()
+            .entries()
+            .iter()
+            .map(|e| (e.key.clone(), e.last(), e.count, e.frecency(now)))
+            .collect()
+    }
+
     // ---- the test seam ----------------------------------------------------------------------------
 
     /// The scripted herdr, when the engine was started with one.
@@ -946,4 +985,11 @@ impl Wire for ScriptedSsh {
     fn events(&self, _: &[Value]) -> Result<Box<dyn herdr_core::wire::EventStream>, WireError> {
         Err(classify_ssh(Some(255), &self.stderr, &self.dest))
     }
+}
+
+/// Milliseconds since the epoch.
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64)
 }

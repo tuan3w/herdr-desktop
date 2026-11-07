@@ -510,3 +510,23 @@ fn an_agent_is_started_in_a_new_tab_or_workspace_of_the_given_folder() {
         .is_err()
     );
 }
+
+#[test]
+fn visits_are_kept_newest_first_across_a_restart_and_a_forgotten_one_is_gone() {
+    let rig = start("empty");
+    assert!(rig.engine.recents().is_empty());
+    rig.engine.visit("agent:local/w1:p1").expect("saved");
+    rig.engine.visit("project:payments").expect("saved");
+    rig.engine.visit("agent:local/w1:p1").expect("saved");
+    let keys =
+        |rig: &Rig| -> Vec<String> { rig.engine.recents().into_iter().map(|r| r.0).collect() };
+    assert_eq!(keys(&rig), ["agent:local/w1:p1", "project:payments"]);
+    assert_eq!(rig.engine.recents()[0].2, 2, "two visits counted");
+
+    let Rig { engine, dir, .. } = rig;
+    drop(engine);
+    let again = start_in("empty", dir);
+    assert_eq!(keys(&again), ["agent:local/w1:p1", "project:payments"]);
+    again.engine.forget("agent:local/w1:p1").expect("saved");
+    assert_eq!(keys(&again), ["project:payments"]);
+}

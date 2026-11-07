@@ -325,6 +325,31 @@ impl Herdr {
         engine()?.pin_project(&key, pinned)
     }
 
+    /// Notes that the person arrived at a destination: `agent:<BoardRow.key>` or `project:<BoardProject.key>`. Persisted
+    /// (`recents.json`: the key, the times of its last ten visits and a count; never what a pane showed).
+    pub fn visit(key: String) -> Result<(), String> {
+        engine()?.visit(&key)
+    }
+
+    /// Takes a destination out of the recent visits.
+    pub fn forget(key: String) -> Result<(), String> {
+        engine()?.forget(&key)
+    }
+
+    /// What was visited, newest first.
+    pub fn recents() -> Result<Vec<Recent>, String> {
+        Ok(engine()?
+            .recents()
+            .into_iter()
+            .map(|(key, last_visit, count, frecency)| Recent {
+                key,
+                last_visit,
+                count,
+                frecency,
+            })
+            .collect())
+    }
+
     /// A setting, or `null` when it was never set.
     pub fn setting(key: String) -> Result<JsonValue, String> {
         Ok(engine()?.setting(&key).unwrap_or(Value::Null))
