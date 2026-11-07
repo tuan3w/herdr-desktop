@@ -1,4 +1,5 @@
 import type { BoardData, BoardProject, BoardRow } from "herdr-desktop/native";
+
 import { shownRows } from "#lib/sidebar";
 
 /**
@@ -47,7 +48,12 @@ export interface HomeLine {
  * agents (`WIDE_ROWS`) takes a line to itself. A card's place depends only on the cards before it, so nothing before
  * the one that changed moves.
  */
-export function homeLines(projects: readonly BoardProject[], columns: 1 | 2, opened: readonly string[], folds: readonly string[]): HomeLine[] {
+export function homeLines(
+  projects: readonly BoardProject[],
+  columns: 1 | 2,
+  opened: readonly string[],
+  folds: readonly string[],
+): HomeLine[] {
   const lines: HomeLine[] = [];
   let pending: BoardProject[] = [];
   const flush = () => {

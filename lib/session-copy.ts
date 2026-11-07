@@ -1,5 +1,5 @@
-import type { Row } from "#lib/session-rows";
 import { splitFences } from "#lib/markdown-fences";
+import type { Row } from "#lib/session-rows";
 import { safeCode } from "#lib/visible-text";
 
 /** The Markdown of the agent's last answer, as it was written; `undefined` when the agent has said nothing yet. */

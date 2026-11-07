@@ -1,5 +1,6 @@
 import { announce, computed, signal, Text, View } from "nsh";
 import { Command, type CommandItem, type CommandRef } from "nsh/base";
+
 import { Kbd, Modal } from "#kit";
 
 /** One thing the palette can run. `shortcut` is a `keymap` key shown beside it (the app binds it elsewhere). */
@@ -12,7 +13,12 @@ export type PaletteItem = CommandItem;
  *
  * `onRun` gets the item id after the palette closed (so what it opens can take the focus).
  */
-export function Palette(props: { open: boolean; onClose: () => void; items: PaletteItem[]; onRun: (id: string) => void }) {
+export function Palette(props: {
+  open: boolean;
+  onClose: () => void;
+  items: PaletteItem[];
+  onRun: (id: string) => void;
+}) {
   const query = signal("");
   // The list shows a heading where the group changes, so one group must be one run: groups keep the order they first appear in.
   const grouped = computed(() => {

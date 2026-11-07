@@ -1,20 +1,22 @@
-import { announce, Clipboard, computed, effect, signal, Text, View } from "nsh";
 import { Files, Herdr, PaneScreen } from "herdr-desktop/native";
+import { announce, Clipboard, computed, effect, signal, Text, View } from "nsh";
+
 import type { PaneLink, PaneScreenRef } from "herdr-desktop/native";
-import { meta } from "#lib/herdr";
-import { browseFiles, sending } from "#lib/files";
-import { canShowChat, showChat } from "#lib/open-agent";
-import { registerPane, type TerminalInput } from "#lib/pane-input";
-import { announceOutput, minContrast, paneFit, paneFontSize } from "#lib/settings";
-import { keyLabel } from "#lib/shortcuts";
+
 import { AnswerDock } from "#components/answer-dock";
 import { CaptureBar } from "#components/capture-bar";
 import { Composer, type ComposerHandle } from "#components/composer";
-import { Btn, dialogDepth, Empty, notify } from "#kit";
 import { KeyRow } from "#components/key-row";
 import { LinksDialog, openLink } from "#components/links-dialog";
 import { PaneFind } from "#components/pane-find";
 import { PaneHeader } from "#components/pane-header";
+import { Btn, dialogDepth, Empty, notify } from "#kit";
+import { browseFiles, sending } from "#lib/files";
+import { meta } from "#lib/herdr";
+import { canShowChat, showChat } from "#lib/open-agent";
+import { registerPane, type TerminalInput } from "#lib/pane-input";
+import { announceOutput, minContrast, paneFit, paneFontSize } from "#lib/settings";
+import { keyLabel } from "#lib/shortcuts";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
@@ -30,7 +32,12 @@ const reason = (e: unknown): string => (e instanceof Error ? e.message : String(
  * and the two above it; a web address in the browser; a page on a remote machine's `localhost` through a tunnel. Files
  * dropped on the tab are offered to the machine's folder (`SendFiles`).
  */
-export function PaneTab(props: { machine: string; pane: string; active: boolean; onOpenPane?: (machine: string, pane: string) => void }) {
+export function PaneTab(props: {
+  machine: string;
+  pane: string;
+  active: boolean;
+  onOpenPane?: (machine: string, pane: string) => void;
+}) {
   const info = meta(props.machine, props.pane);
   const capturing = signal(false);
   const finding = signal(false);
@@ -52,7 +59,8 @@ export function PaneTab(props: { machine: string; pane: string; active: boolean;
   // The mirror shows what herdr last said; after something was sent, read again instead of waiting for its next event.
   const refresh = () => void Herdr.readPane(props.machine, props.pane, "visible").catch(() => undefined);
   const failed = (what: string) => (e: unknown) => notify(`${what}: ${reason(e)}`, { type: "error" });
-  const sendKeys = (keys: string[]) => void Herdr.sendKeys(props.machine, props.pane, keys).then(refresh, failed("Could not send the key"));
+  const sendKeys = (keys: string[]) =>
+    void Herdr.sendKeys(props.machine, props.pane, keys).then(refresh, failed("Could not send the key"));
 
   const leaveCapture = () => {
     if (!capturing()) return;
@@ -130,7 +138,12 @@ export function PaneTab(props: { machine: string; pane: string; active: boolean;
         dropFiles(uris);
       }}
     >
-      <If when={shown()} else={<Empty fill icon="alert" title="This agent is gone" hint="herdr no longer has this pane. Close the tab." />}>
+      <If
+        when={shown()}
+        else={
+          <Empty fill icon="alert" title="This agent is gone" hint="herdr no longer has this pane. Close the tab." />
+        }
+      >
         {(i) => (
           <>
             <PaneHeader
@@ -181,8 +194,17 @@ export function PaneTab(props: { machine: string; pane: string; active: boolean;
               when={capturing()}
               else={
                 <View class="flex-row items-center gap-3 px-4 py-2">
-                  <Text class="min-w-0 flex-1 text-xs text-muted-foreground">Mirror: type with Mirror mode or the composer</Text>
-                  <Btn small label="Mirror mode" name="Mirror mode, type into the pane" hint={keyLabel("capture")} disabled={!live()} onPress={toggleCapture} />
+                  <Text class="min-w-0 flex-1 text-xs text-muted-foreground">
+                    Mirror: type with Mirror mode or the composer
+                  </Text>
+                  <Btn
+                    small
+                    label="Mirror mode"
+                    name="Mirror mode, type into the pane"
+                    hint={keyLabel("capture")}
+                    disabled={!live()}
+                    onPress={toggleCapture}
+                  />
                 </View>
               }
             >
@@ -207,10 +229,24 @@ export function PaneTab(props: { machine: string; pane: string; active: boolean;
               }}
               onSent={refresh}
             />
-            <KeyRow agent={i().agent !== ""} disabled={!live()} onKeys={sendKeys} onInsert={(text) => composer?.insert(text)} />
-            <LinksDialog open={links() !== null} links={links() ?? []} at={{ machine: props.machine, cwd: i().cwd }} onClose={() => links.set(null)} />
+            <KeyRow
+              agent={i().agent !== ""}
+              disabled={!live()}
+              onKeys={sendKeys}
+              onInsert={(text) => composer?.insert(text)}
+            />
+            <LinksDialog
+              open={links() !== null}
+              links={links() ?? []}
+              at={{ machine: props.machine, cwd: i().cwd }}
+              onClose={() => links.set(null)}
+            />
             <If when={dropping()}>
-              <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" class="absolute inset-0 items-center justify-center border-2 border-dashed border-primary bg-background/80">
+              <View
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+                class="absolute inset-0 items-center justify-center border-2 border-dashed border-primary bg-background/80"
+              >
                 <Text class="text-sm font-medium text-foreground">{`Drop to send to ${i().machineName}: ${i().cwd ?? "its home folder"}`}</Text>
               </View>
             </If>

@@ -1,11 +1,13 @@
-import { announce, Clipboard, computed, effect, signal, Text, untracked, View } from "nsh";
 import { Herdr, Sessions } from "herdr-desktop/native";
+import { announce, Clipboard, computed, effect, signal, Text, untracked, View } from "nsh";
+
 import type { PhaseName, SessionInfo } from "herdr-desktop/native";
-import { revision } from "#lib/herdr";
-import { agentLabel } from "#lib/new-session";
-import { Btn, confirmDestructive, Icon, Modal, notify, Progress } from "#kit";
+
 import { PlanSteps } from "#components/plan-steps";
 import { SessionOption } from "#components/session-config";
+import { Btn, confirmDestructive, Icon, Modal, notify, Progress } from "#kit";
+import { revision } from "#lib/herdr";
+import { agentLabel } from "#lib/new-session";
 
 /** Where the session stands, in the words the transcript's header uses. */
 const PHASE: Record<PhaseName, string> = {
@@ -21,7 +23,12 @@ const PHASE: Record<PhaseName, string> = {
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 /** One fact of the session: its name above, its value below, and an optional action (copy). */
-function Detail(props: { label: string; value: string; mono?: boolean; action?: { label: string; onPress: () => void } }) {
+function Detail(props: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  action?: { label: string; onPress: () => void };
+}) {
   return (
     <View class="flex-row items-start justify-between gap-3 py-2">
       <View class="min-w-0 flex-1 gap-1">
@@ -30,7 +37,9 @@ function Detail(props: { label: string; value: string; mono?: boolean; action?: 
           {props.value}
         </Text>
       </View>
-      <If when={props.action}>{(action) => <Btn small variant="ghost" label={action().label} onPress={action().onPress} />}</If>
+      <If when={props.action}>
+        {(action) => <Btn small variant="ghost" label={action().label} onPress={action().onPress} />}
+      </If>
     </View>
   );
 }
@@ -79,7 +88,9 @@ export function SessionOverview(props: { open: boolean; onClose: () => void; mac
       const exited = record.state === "exited";
       const ok = await confirmDestructive({
         title: exited ? "Remove this session?" : "End this session?",
-        description: exited ? "Its agent has exited. This removes its record from the machine." : "This stops the agent and removes its record from the machine. What it was doing is lost.",
+        description: exited
+          ? "Its agent has exited. This removes its record from the machine."
+          : "This stops the agent and removes its record from the machine. What it was doing is lost.",
         action: exited ? "Remove" : "End session",
       });
       if (!ok) return;
@@ -107,7 +118,13 @@ export function SessionOverview(props: { open: boolean; onClose: () => void; mac
   };
 
   return (
-    <Modal open={props.open} wide onClose={() => props.onClose()} title="Session details" description={view()?.title ?? undefined}>
+    <Modal
+      open={props.open}
+      wide
+      onClose={() => props.onClose()}
+      title="Session details"
+      description={view()?.title ?? undefined}
+    >
       <View class="gap-1">
         <Detail label="Agent" value={agentLabel(view()?.agent ?? info()?.agent ?? "")} />
         <Detail label="Machine" value={machineName()} />
@@ -116,13 +133,20 @@ export function SessionOverview(props: { open: boolean; onClose: () => void; mac
           label="Session id"
           value={props.id}
           mono
-          action={{ label: "Copy id", onPress: () => void Clipboard.writeText(props.id).then(() => notify("Session id copied")) }}
+          action={{
+            label: "Copy id",
+            onPress: () => void Clipboard.writeText(props.id).then(() => notify("Session id copied")),
+          }}
         />
         <Detail label="State" value={state()} />
         <If when={view()?.contextPercent !== undefined && view()?.contextPercent !== null}>
           <View class="gap-1 py-2">
             <Text class="text-xs text-muted-foreground">Context</Text>
-            <Progress label="Context used" value={view()?.contextPercent ?? 0} valueText={`${Math.round(view()?.contextPercent ?? 0)} percent of the context is used`} />
+            <Progress
+              label="Context used"
+              value={view()?.contextPercent ?? 0}
+              valueText={`${Math.round(view()?.contextPercent ?? 0)} percent of the context is used`}
+            />
             <Text class="text-sm text-foreground">{`${Math.round(view()?.contextPercent ?? 0)}% used`}</Text>
           </View>
         </If>

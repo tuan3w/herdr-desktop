@@ -1,9 +1,9 @@
+import { Sessions } from "herdr-desktop/native";
 import { computed, host, mount, signal, Text, View } from "nsh";
 import { Button } from "nsh/base";
-import { Sessions } from "herdr-desktop/native";
+
 import type { DiffItem, QuestionFieldView, SessionRef, SessionView, WaitingView } from "herdr-desktop/native";
-import { revision, startHerdr } from "#lib/herdr";
-import { endSessions } from "./chat-parts-seam";
+
 import { NewSession } from "#components/new-session";
 import { PastSessions } from "#components/past-sessions";
 import { PermissionDiff } from "#components/permission-diff";
@@ -12,6 +12,9 @@ import { SessionModeChip, SessionModelPicker } from "#components/session-config"
 import { SessionOverview } from "#components/session-overview";
 import { SessionQuestion } from "#components/session-question";
 import { Field, ThemeRoot, ToastHost } from "#kit";
+import { revision, startHerdr } from "#lib/herdr";
+
+import { endSessions } from "./chat-parts-seam";
 
 /**
  * The entry of the chat parts' tests (`permission-dock.test.tsx`, `session-question.test.tsx`, `new-session.test.tsx`,
@@ -23,7 +26,15 @@ import { Field, ThemeRoot, ToastHost } from "#kit";
  * - `new-session`, `past`, `ghost` (the details of a session that is not this app's): the dialogs. Not part of the app.
  * `endAfter` ends the live session that many milliseconds after it started, for runs that end the process early.
  */
-const params = host.params as { part?: string; variant?: string; project?: { machine: string; folder: string }; agent?: string; bare?: boolean; quiet?: boolean; endAfter?: number };
+const params = host.params as {
+  part?: string;
+  variant?: string;
+  project?: { machine: string; folder: string };
+  agent?: string;
+  bare?: boolean;
+  quiet?: boolean;
+  endAfter?: number;
+};
 startHerdr("", "empty");
 const MACHINE = "local";
 
@@ -73,7 +84,12 @@ const QUESTION = permission({
     field({ name: "name", label: "Project name", required: true, text: "demo" }),
     field({ name: "count", label: "How many", kind: "number", integer: true, text: "3" }),
     field({ name: "colour", label: "Colour", kind: "choice", choices: titled("Red", "Green", "Blue"), choice: 0 }),
-    field({ name: "city", label: "City", kind: "choice", choices: titled("Hanoi", "Hue", "Da Nang", "Saigon", "Can Tho", "Hai Phong", "Nha Trang") }),
+    field({
+      name: "city",
+      label: "City",
+      kind: "choice",
+      choices: titled("Hanoi", "Hue", "Da Nang", "Saigon", "Can Tho", "Hai Phong", "Nha Trang"),
+    }),
     field({ name: "extras", label: "Extras", kind: "multi", choices: titled("Tests", "Docs", "CI"), ticked: [0] }),
     field({ name: "go", label: "Proceed", kind: "bool" }),
     field({ name: "blob", label: "Attachment", kind: "unsupported" }),
@@ -82,12 +98,30 @@ const QUESTION = permission({
 });
 
 /** A deploy script of a dozen lines: it fills the command box without overflowing it much. */
-const SCRIPT = ["set -e", "cd /srv/app", "git fetch origin", "git checkout main", "git pull --ff-only", "npm ci", "npm run build", "npm test -- --run", "rsync -a dist/ deploy@prod:/srv/app/dist/", "ssh deploy@prod 'systemctl restart app'", "curl -fsS https://app.example.com/health", "git tag release-$(date +%F)", "git push origin main --tags"].join("\n");
+const SCRIPT = [
+  "set -e",
+  "cd /srv/app",
+  "git fetch origin",
+  "git checkout main",
+  "git pull --ff-only",
+  "npm ci",
+  "npm run build",
+  "npm test -- --run",
+  "rsync -a dist/ deploy@prod:/srv/app/dist/",
+  "ssh deploy@prod 'systemctl restart app'",
+  "curl -fsS https://app.example.com/health",
+  "git tag release-$(date +%F)",
+  "git push origin main --tags",
+].join("\n");
 
 const VARIANTS: Record<string, WaitingView> = {
   question: QUESTION,
   full: permission({ subject: SCRIPT, risk: "pushes to a remote", title: "Deploy the app" }),
-  plain: permission({ subject: "ls -la", title: "Bash", choices: permission().choices.filter((c) => c.id !== "always") }),
+  plain: permission({
+    subject: "ls -la",
+    title: "Bash",
+    choices: permission().choices.filter((c) => c.id !== "always"),
+  }),
   risky: permission({ risk: "pushes to a remote" }),
   long: permission({ subject: LONG_COMMAND, title: "Bash" }),
   longRisky: permission({ subject: LONG_COMMAND, risk: "pushes to a remote" }),
@@ -97,7 +131,15 @@ const base = (waiting: WaitingView[], withPlan: boolean): SessionView => ({
   revision: 1,
   phase: "blockedOnPermission",
   connectionLost: false,
-  acp: { canResume: false, canList: false, canClose: false, canLogout: false, acceptsAudio: false, acceptsEmbedded: false, auth: [] },
+  acp: {
+    canResume: false,
+    canList: false,
+    canClose: false,
+    canLogout: false,
+    acceptsAudio: false,
+    acceptsEmbedded: false,
+    auth: [],
+  },
   agent: "omp",
   cwd: "/work/app",
   title: "Fix the build",
@@ -118,7 +160,15 @@ const base = (waiting: WaitingView[], withPlan: boolean): SessionView => ({
   acceptsPictures: false,
 });
 
-const DIFFS: DiffItem[] = [{ path: "src/main.ts", old: "const a = 1;\nconst b = 2;\n", new: "const a = 1;\nconst b = 3;\nconst c = 4;\n", added: 2, removed: 1 }];
+const DIFFS: DiffItem[] = [
+  {
+    path: "src/main.ts",
+    old: "const a = 1;\nconst b = 2;\n",
+    new: "const a = 1;\nconst b = 3;\nconst c = 4;\n",
+    added: 2,
+    removed: 1,
+  },
+];
 
 function Synthetic() {
   const first = VARIANTS[params.variant ?? "plain"] ?? VARIANTS.plain!;
@@ -128,7 +178,13 @@ function Synthetic() {
     <View class="gap-2">
       <If when={!params.bare && !params.quiet}>
         <View class="gap-2">
-          <Button onPress={() => waiting.set([{ ...waiting()[0]!, requestId: "r2", digest: "d2", subject: "git push --force origin main" }])}>
+          <Button
+            onPress={() =>
+              waiting.set([
+                { ...waiting()[0]!, requestId: "r2", digest: "d2", subject: "git push --force origin main" },
+              ])
+            }
+          >
             <Text>Another request</Text>
           </Button>
           <Button onPress={() => waiting.set([...waiting(), permission({ requestId: "r3", digest: "d3" })])}>
@@ -238,7 +294,11 @@ function Live() {
           </>
         )}
       </If>
-      <If when={ref()}>{(r) => <SessionOverview open={details()} onClose={() => details.set(false)} machine={r().machine} id={r().id} />}</If>
+      <If when={ref()}>
+        {(r) => (
+          <SessionOverview open={details()} onClose={() => details.set(false)} machine={r().machine} id={r().id} />
+        )}
+      </If>
     </View>
   );
 }
@@ -254,10 +314,21 @@ function Dialogs() {
         <Text>Open the dialog</Text>
       </Button>
       <If when={part === "new-session"}>
-        <NewSession open={open()} project={params.project} onClose={() => open.set(false)} onStarted={(m, id) => opened.set(`Opened ${m}/${id}`)} />
+        <NewSession
+          open={open()}
+          project={params.project}
+          onClose={() => open.set(false)}
+          onStarted={(m, id) => opened.set(`Opened ${m}/${id}`)}
+        />
       </If>
       <If when={part === "past"}>
-        <PastSessions open={open()} machine={MACHINE} agent={params.agent} onClose={() => open.set(false)} onResumed={(m, id) => opened.set(`Opened ${m}/${id}`)} />
+        <PastSessions
+          open={open()}
+          machine={MACHINE}
+          agent={params.agent}
+          onClose={() => open.set(false)}
+          onResumed={(m, id) => opened.set(`Opened ${m}/${id}`)}
+        />
       </If>
       <If when={part === "ghost"}>
         <SessionOverview open={open()} onClose={() => open.set(false)} machine={MACHINE} id="ghost" />

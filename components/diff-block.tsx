@@ -1,11 +1,13 @@
+import { CodeDiff } from "herdr-desktop/native";
 import { computed, signal, Text, token, View } from "nsh";
 import { Button } from "nsh/base";
-import { CodeDiff } from "herdr-desktop/native";
+
 import type { CodeDiffRef } from "herdr-desktop/native";
-import { CODE_MAX_HEIGHT, diffLabel } from "#lib/highlight";
-import { codeWhitespace, codeWrap, diffSplit } from "#lib/settings";
-import { hoverTransition } from "#lib/motion";
+
 import { FOCUS_RING, Icon, Tipped } from "#kit";
+import { CODE_MAX_HEIGHT, diffLabel } from "#lib/highlight";
+import { hoverTransition } from "#lib/motion";
+import { codeWhitespace, codeWrap, diffSplit } from "#lib/settings";
 
 /**
  * A file's change, drawn like a block of code: the file in the corner with `+3 −1` as words (the same counts the
@@ -47,25 +49,40 @@ export function DiffBlock(props: {
       <View class="relative min-h-8 flex-row items-center gap-1 pl-3 pr-1">
         <If when={props.onOpenFile}>
           {(open) => (
-            <Button onPress={open()} accessibilityLabel={`Open ${props.path}`} class={`min-w-0 flex-1 flex-row rounded-md py-1 ${FOCUS_RING}`}>
-              <Text class="min-w-0 font-mono text-xs text-foreground underline" style={{ numberOfLines: 1, textOverflow: "ellipsis", userSelect: "none" }}>
+            <Button
+              onPress={open()}
+              accessibilityLabel={`Open ${props.path}`}
+              class={`min-w-0 flex-1 flex-row rounded-md py-1 ${FOCUS_RING}`}
+            >
+              <Text
+                class="min-w-0 font-mono text-xs text-foreground underline"
+                style={{ numberOfLines: 1, textOverflow: "ellipsis", userSelect: "none" }}
+              >
                 {props.path ?? "Changes"}
               </Text>
             </Button>
           )}
         </If>
         <If when={!props.onOpenFile}>
-          <Text class="min-w-0 flex-1 font-mono text-xs text-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis", userSelect: "none" }}>
+          <Text
+            class="min-w-0 flex-1 font-mono text-xs text-foreground"
+            style={{ numberOfLines: 1, textOverflow: "ellipsis", userSelect: "none" }}
+          >
             {props.path ?? "Changes"}
           </Text>
         </If>
         <If when={props.created}>
-          <Text class="text-xs text-muted-foreground" style={{ userSelect: "none" }}>new file</Text>
+          <Text class="text-xs text-muted-foreground" style={{ userSelect: "none" }}>
+            new file
+          </Text>
         </If>
         <Text class="pr-2 text-xs text-muted-foreground" style={{ fontVariant: ["tabular-nums"], userSelect: "none" }}>
           {`+${counts().added} \u2212${counts().removed}`}
         </Text>
-        <View class="absolute right-1 top-1 flex-row items-center gap-1 rounded-md opacity-0 group-focus-within:opacity-100 group-hover:opacity-100" style={{ backgroundColor: token("code-bg") }}>
+        <View
+          class="absolute right-1 top-1 flex-row items-center gap-1 rounded-md opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+          style={{ backgroundColor: token("code-bg") }}
+        >
           <Tool label="Previous change" icon="arrow-up" disabled={counts().changes === 0} onPress={() => step(-1)} />
           <Tool label="Next change" icon="chevron-down" disabled={counts().changes === 0} onPress={() => step(1)} />
           <Tool label="Side by side" text="Split" selected={split()} onPress={() => diffSplit.set(!split())} />
@@ -91,13 +108,23 @@ export function DiffBlock(props: {
         onChange={(e: { index: number }) => at.set(e.index)}
       />
       <If when={counts().changes > 1 && at() !== null}>
-        <Text class="px-3 py-1 text-xs text-muted-foreground" style={{ userSelect: "none" }}>{`Change ${(at() ?? 0) + 1} of ${counts().changes}`}</Text>
+        <Text
+          class="px-3 py-1 text-xs text-muted-foreground"
+          style={{ userSelect: "none" }}
+        >{`Change ${(at() ?? 0) + 1} of ${counts().changes}`}</Text>
       </If>
     </View>
   );
 }
 
-function Tool(props: { label: string; onPress: () => void; text?: string; icon?: "arrow-up" | "chevron-down"; selected?: boolean; disabled?: boolean }) {
+function Tool(props: {
+  label: string;
+  onPress: () => void;
+  text?: string;
+  icon?: "arrow-up" | "chevron-down";
+  selected?: boolean;
+  disabled?: boolean;
+}) {
   return (
     <Tipped label={props.label}>
       <Button
@@ -110,7 +137,9 @@ function Tool(props: { label: string; onPress: () => void; text?: string; icon?:
       >
         <If when={props.icon}>{(name) => <Icon name={name()} size={14} tone="muted-foreground" />}</If>
         <If when={props.text}>
-          <Text class="text-xs text-muted-foreground" style={{ userSelect: "none" }}>{props.text}</Text>
+          <Text class="text-xs text-muted-foreground" style={{ userSelect: "none" }}>
+            {props.text}
+          </Text>
         </If>
       </Button>
     </Tipped>

@@ -1,8 +1,11 @@
 import { announce, cleanup, effect, keymap, Overlay, setAccessibilityFocus, signal, Text, View } from "nsh";
-import type { ViewRef } from "nsh/types";
 import { Toast, ToastStack } from "nsh/base";
+
+import type { ViewRef } from "nsh/types";
+
 import { DURATION, reducedMotion } from "#lib/motion";
 import { keyLabel } from "#lib/shortcuts";
+
 import { FOCUS_RING } from "./core";
 import { dialogDepth, topDialog } from "./dialog-stack";
 import { Kbd } from "./hint";
@@ -62,7 +65,12 @@ const KEEP = 30;
 const TIMEOUT = { undo: 10000, plain: 3500, lasting: 30000 } as const;
 const APP_ROOT = "app";
 
-const store = createToasts<Data>({ limit: VISIBLE, keep: KEEP, timeout: TIMEOUT.plain, exitMs: () => (reducedMotion() ? 0 : DURATION.exit) });
+const store = createToasts<Data>({
+  limit: VISIBLE,
+  keep: KEEP,
+  timeout: TIMEOUT.plain,
+  exitMs: () => (reducedMotion() ? 0 : DURATION.exit),
+});
 const shown = signal<ToastRecord<Data>[]>([]);
 const region = signal(false);
 const nodes = new Map<string, ViewRef>();
@@ -163,7 +171,11 @@ export function notifyPromise<T>(
   phases: { loading: Phase; success: (value: T) => Phase | undefined; error: (error: unknown) => Phase | undefined },
 ): Promise<T> {
   // Its own name: two sends that say the same thing are two toasts.
-  const id = notify(phases.loading.text, { ...phases.loading, id: phases.loading.id ?? `promise-${promises++}`, type: "loading" });
+  const id = notify(phases.loading.text, {
+    ...phases.loading,
+    id: phases.loading.id ?? `promise-${promises++}`,
+    type: "loading",
+  });
   const finish = (phase: Phase | undefined, fallback: ToastType) => {
     if (!phase) return closeToast(id);
     const type = phase.type ?? (phase.lasting ? "warning" : fallback);
@@ -234,7 +246,9 @@ export function focusToasts() {
   pauseFor("region");
   const newest = [...list].reverse().filter((t) => t.status === "present");
   if (newest.length === 0) return;
-  announce(`${newest.length} notifications. ${newest.map((t) => t.text).join(". ")}. Esc closes the newest notification.`);
+  announce(
+    `${newest.length} notifications. ${newest.map((t) => t.text).join(". ")}. Esc closes the newest notification.`,
+  );
   const node = nodes.get(newest[0].id);
   if (node) setAccessibilityFocus(node);
 }
@@ -265,7 +279,16 @@ function ToastIcon(props: { type: ToastType }) {
  * The buttons of a toast. Not `Btn`: nsh's `Button` reports no focus, and the timer must stand still while the keyboard
  * is on a toast (Base UI's viewport does the same). A view that takes presses reports `onFocus` when Tab reaches it.
  */
-function ToastButton(props: { label: string; text?: string; icon: "undo" | "x"; hint?: string; onPress: () => void; disabled?: boolean; onFocus: () => void; onBlur: () => void }) {
+function ToastButton(props: {
+  label: string;
+  text?: string;
+  icon: "undo" | "x";
+  hint?: string;
+  onPress: () => void;
+  disabled?: boolean;
+  onFocus: () => void;
+  onBlur: () => void;
+}) {
   return (
     <View
       role="button"
@@ -278,7 +301,9 @@ function ToastButton(props: { label: string; text?: string; icon: "undo" | "x"; 
     >
       <Icon name={props.icon} size={14} tone={props.disabled ? "muted-foreground" : "foreground"} />
       <If when={props.text}>
-        <Text class={`text-xs font-medium ${props.disabled ? "text-muted-foreground" : "text-foreground"}`}>{props.text}</Text>
+        <Text class={`text-xs font-medium ${props.disabled ? "text-muted-foreground" : "text-foreground"}`}>
+          {props.text}
+        </Text>
       </If>
       <If when={props.hint}>
         <Kbd keys={props.hint!} tone="muted" />
@@ -308,10 +333,25 @@ function ToastItem(props: { toast: () => ToastRecord<Data> }) {
       {/* Never cut: a toast is read once, and what it says is what the user acts on. */}
       <Text class="flex-1 text-sm text-popover-foreground">{props.toast().text}</Text>
       <If when={props.toast().data.undo}>
-        <ToastButton label="Undo" text="Undo" icon="undo" hint={keyLabel("undo")} disabled={ending()} onPress={() => undoToast(id)} onFocus={() => focusIn(id)} onBlur={() => focusOut(id)} />
+        <ToastButton
+          label="Undo"
+          text="Undo"
+          icon="undo"
+          hint={keyLabel("undo")}
+          disabled={ending()}
+          onPress={() => undoToast(id)}
+          onFocus={() => focusIn(id)}
+          onBlur={() => focusOut(id)}
+        />
       </If>
       <View class={stays() ? "" : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"}>
-        <ToastButton label="Close notification" icon="x" onPress={() => closeToast(id)} onFocus={() => focusIn(id)} onBlur={() => focusOut(id)} />
+        <ToastButton
+          label="Close notification"
+          icon="x"
+          onPress={() => closeToast(id)}
+          onFocus={() => focusIn(id)}
+          onBlur={() => focusOut(id)}
+        />
       </View>
     </Toast>
   );
@@ -331,7 +371,9 @@ export function ToastHost(props: { dialog?: string }) {
   });
   return (
     <If when={here() && shown().length > 0}>
-      <Overlay style={{ position: "absolute", bottom: 20, left: 0, right: 0, alignItems: "center", pointerEvents: "box-none" }}>
+      <Overlay
+        style={{ position: "absolute", bottom: 20, left: 0, right: 0, alignItems: "center", pointerEvents: "box-none" }}
+      >
         <ToastStack
           class="w-[400px]"
           placement="bottomCenter"

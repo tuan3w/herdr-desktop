@@ -1,9 +1,11 @@
+import { Files } from "herdr-desktop/native";
 import { announce, computed, effect, Scroll, signal, Text, untracked, View } from "nsh";
 import { Button } from "nsh/base";
-import { Files } from "herdr-desktop/native";
+
 import type { EntryView, FolderView } from "herdr-desktop/native";
-import { joinPath, parentOf, showHidden } from "#lib/files";
+
 import { Btn, Field, FOCUS_RING_INSET, Icon, IconButton, Modal, Skeleton } from "#kit";
+import { joinPath, parentOf, showHidden } from "#lib/files";
 
 /** The tallest the list grows before it scrolls, in points, and how many folders it draws before it says to type a path. */
 const LIST_HEIGHT = 300;
@@ -17,7 +19,13 @@ const reason = (e: unknown): string => (e instanceof Error ? e.message : String(
  * `onPick`. The file browser (`files.tsx`) is for reading files and has no way to return a path, so this is its
  * smaller sibling for the one question the New session form asks. Hidden folders follow the browser's setting.
  */
-export function FolderPicker(props: { open: boolean; machine: string; start: string; onClose: () => void; onPick: (path: string) => void }) {
+export function FolderPicker(props: {
+  open: boolean;
+  machine: string;
+  start: string;
+  onClose: () => void;
+  onPick: (path: string) => void;
+}) {
   const listing = signal<FolderView | null>(null);
   const loading = signal(false);
   const failure = signal<string | null>(null);
@@ -52,7 +60,9 @@ export function FolderPicker(props: { open: boolean; machine: string; start: str
     });
   });
 
-  const folders = computed(() => (listing()?.entries ?? []).filter((e: EntryView) => e.kind === "dir" && (showHidden() || !e.name.startsWith("."))));
+  const folders = computed(() =>
+    (listing()?.entries ?? []).filter((e: EntryView) => e.kind === "dir" && (showHidden() || !e.name.startsWith("."))),
+  );
   const here = () => listing()?.path ?? "";
   const up = () => parentOf(here());
 
@@ -80,7 +90,13 @@ export function FolderPicker(props: { open: boolean; machine: string; start: str
       <View class="gap-2">
         <View class="flex-row items-end gap-2">
           <View class="min-w-0 flex-1">
-            <Field label="Folder" mono value={typed()} onChange={(v) => typed.set(v)} onSubmit={() => void go(typed())} />
+            <Field
+              label="Folder"
+              mono
+              value={typed()}
+              onChange={(v) => typed.set(v)}
+              onSubmit={() => void go(typed())}
+            />
           </View>
           <IconButton icon="arrow-up" label="Up one folder" onPress={() => void go(up() ?? "/")} />
         </View>
@@ -109,7 +125,10 @@ export function FolderPicker(props: { open: boolean; machine: string; start: str
                     class={`h-9 flex-row items-center gap-2 rounded-md px-2 hover:bg-accent ${entry().readable ? "" : "opacity-60"} ${FOCUS_RING_INSET}`}
                   >
                     <Icon name="folder" size={16} tone="muted-foreground" />
-                    <Text class="min-w-0 flex-1 text-sm text-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
+                    <Text
+                      class="min-w-0 flex-1 text-sm text-foreground"
+                      style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
+                    >
                       {entry().name}
                     </Text>
                     <If when={!entry().readable}>
@@ -119,7 +138,9 @@ export function FolderPicker(props: { open: boolean; machine: string; start: str
                 )}
               </Each>
               <If when={folders().length === 0}>
-                <Text class="px-2 py-3 text-sm text-muted-foreground">No folders in here. Use this folder, or go up.</Text>
+                <Text class="px-2 py-3 text-sm text-muted-foreground">
+                  No folders in here. Use this folder, or go up.
+                </Text>
               </If>
               <If when={folders().length > MAX_ROWS}>
                 <Text class="px-2 py-2 text-xs text-muted-foreground">{`${folders().length - MAX_ROWS} more folders: type the path above.`}</Text>

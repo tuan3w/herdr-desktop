@@ -1,7 +1,9 @@
-import { cleanup, computed, effect, signal, untracked } from "nsh";
-import type { Accessor } from "nsh";
 import { Sessions } from "herdr-desktop/native";
+import { cleanup, computed, effect, signal, untracked } from "nsh";
+
 import type { ActionResult, SessionItem, SessionView, UnqueuedView } from "herdr-desktop/native";
+import type { Accessor } from "nsh";
+
 import { revision } from "#lib/herdr";
 import { buildRows, type Row, unitStart } from "#lib/session-rows";
 
@@ -158,7 +160,7 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
       if (v.droppedItems !== dropped) {
         // Rows dropped from the start shift every index: forget what left, and read everything from the top again.
         const keep = new Set(fresh);
-        for (const id of [...entries.keys()]) if (!keep.has(id)) entries.delete(id);
+        for (const id of entries.keys()) if (!keep.has(id)) entries.delete(id);
         changedFrom = 0;
       }
       dropped = v.droppedItems;
@@ -249,7 +251,8 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
   /** The session's own clock now, in the units of `SessionItem.startedMs`; `null` until a live row has paired it with ours. */
   const sessionNow = (): number | null => (offset === null ? null : clock() - offset);
 
-  let committed: { upTo: number; open: ReadonlyMap<string, boolean>; rows: Row[]; keys: Map<string, Row> } | null = null;
+  let committed: { upTo: number; open: ReadonlyMap<string, boolean>; rows: Row[]; keys: Map<string, Row> } | null =
+    null;
   let tailKeys = new Map<string, Row>();
   const rows = computed<readonly Row[]>(() => {
     version();
@@ -258,15 +261,23 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
     const v = viewSignal();
     const items = list;
     const tailAt = items.length === 0 ? 0 : unitStart(items, items.length - 1);
-    const earlier = v?.earlierNotice ?? (v && v.droppedItems > 0 ? "Earlier messages are not shown here; the machine still has them" : null);
+    const earlier =
+      v?.earlierNotice ??
+      (v && v.droppedItems > 0 ? "Earlier messages are not shown here; the machine still has them" : null);
     const input = { items, earlier, running: v?.running ?? false, open, nowMs: v?.running ? sessionNow() : null };
     if (!committed || committed.upTo !== tailAt || committed.open !== open || changedFrom < committed.upTo) {
-      const built = buildRows({ ...input, earlier: tailAt === 0 ? null : earlier }, committed?.keys, { from: 0, to: tailAt });
+      const built = buildRows({ ...input, earlier: tailAt === 0 ? null : earlier }, committed?.keys, {
+        from: 0,
+        to: tailAt,
+      });
       committed = { upTo: tailAt, open, rows: built, keys: new Map(built.map((r) => [r.key, r])) };
     }
     changedFrom = Infinity;
     // The notice about earlier turns belongs to the top, which the built part owns (it is empty when the tail is everything).
-    const tail = buildRows({ ...input, earlier: tailAt === 0 ? earlier : null }, tailKeys, { from: tailAt, to: items.length });
+    const tail = buildRows({ ...input, earlier: tailAt === 0 ? earlier : null }, tailKeys, {
+      from: tailAt,
+      to: items.length,
+    });
     tailKeys = new Map(tail.map((r) => [r.key, r]));
     return committed.rows.concat(tail);
   });
@@ -285,7 +296,11 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
     };
   });
 
-  const toggle = (row: Row): void => choose(row.key, row.kind === "work" ? row.work.open : row.kind === "tool" || row.kind === "thought" ? row.open : false);
+  const toggle = (row: Row): void =>
+    choose(
+      row.key,
+      row.kind === "work" ? row.work.open : row.kind === "tool" || row.kind === "thought" ? row.open : false,
+    );
 
   const choose = (key: string, now: boolean): void => choices.update((m) => new Map(m).set(key, !now));
 

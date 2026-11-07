@@ -1,13 +1,16 @@
 import { cleanup, effect, keymap, List, signal, Text, untracked, View } from "nsh";
+import { Button } from "nsh/base";
+
 import type { Signal } from "nsh";
 import type { ListRef } from "nsh/types";
-import { Button } from "nsh/base";
-import type { Row } from "#lib/session-rows";
-import { durationText, visibleText } from "#lib/session-text";
+
+import type { RowContext } from "#components/session-item";
+import { SessionRow } from "#components/session-item";
+import { FOCUS_RING, Icon } from "#kit";
 import { CHAT_COLUMN } from "#lib/layout";
 import { appear } from "#lib/motion";
-import { FOCUS_RING, Icon } from "#kit";
-import { RowContext, SessionRow } from "#components/session-item";
+import type { Row } from "#lib/session-rows";
+import { durationText, visibleText } from "#lib/session-text";
 
 /** How far from the end still counts as being at it: a streamed line or two must not unstick the view. */
 const AT_END = 64;
@@ -156,7 +159,9 @@ export function SessionTranscript(props: {
         footer={() => <Footer ctx={props.ctx} />}
         empty={() => (
           <View class={`py-8 ${CHAT_COLUMN}`}>
-            <Text class="text-sm text-muted-foreground">{props.opening() ? "Opening the session…" : "Nothing here yet. Ask anything below."}</Text>
+            <Text class="text-sm text-muted-foreground">
+              {props.opening() ? "Opening the session…" : "Nothing here yet. Ask anything below."}
+            </Text>
           </View>
         )}
       >
@@ -171,7 +176,9 @@ export function SessionTranscript(props: {
               class={`h-9 flex-row items-center gap-2 rounded-full border border-border bg-popover px-3 ${FOCUS_RING}`}
             >
               <Icon name="chevron-down" size={14} tone={props.waiting() ? "signal" : "muted-foreground"} />
-              <Text class={`text-sm font-medium ${props.waiting() ? "text-signal" : "text-popover-foreground"}`}>{label()}</Text>
+              <Text class={`text-sm font-medium ${props.waiting() ? "text-signal" : "text-popover-foreground"}`}>
+                {label()}
+              </Text>
             </Button>
           </View>
         )}

@@ -1,5 +1,7 @@
 import { createMotion, cleanup, View } from "nsh";
+
 import { reducedMotion } from "#lib/motion";
+
 import { Icon, type IconTone } from "./icon";
 
 /**
@@ -26,7 +28,12 @@ export function Spinner(props: { size?: 12 | 14 | 16 | 20; tone?: IconTone }) {
 export function Skeleton(props: { class?: string }) {
   const pulse = createMotion();
   if (!reducedMotion()) {
-    void pulse.play({ keyframes: { opacity: [1, 0.5, 1] }, duration: 1400, easing: "easeInOut", iterations: "infinite" });
+    void pulse.play({
+      keyframes: { opacity: [1, 0.5, 1] },
+      duration: 1400,
+      easing: "easeInOut",
+      iterations: "infinite",
+    });
     cleanup(() => pulse.stop());
   }
   return <View style={pulse.style} class={`rounded-md bg-muted ${props.class ?? ""}`} />;

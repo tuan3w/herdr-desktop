@@ -1,16 +1,20 @@
-import { expect, test } from "nsh/test";
-import type { App } from "nsh/test";
 import { Herdr } from "herdr-desktop/native";
+import { expect, test } from "nsh/test";
+
 import type { TestNotification } from "herdr-desktop/native";
-import mixed from "../fixtures/herdr/mixed.json";
+import type { App } from "nsh/test";
+
 import { ENTRY, FIRST, onBoard, openAgents, ready, settle, shown } from "../app-seam";
+import mixed from "../fixtures/herdr/mixed.json";
 import { scripted, sentKeys } from "./board-seam";
 
 ENTRY.path = "../App.tsx";
 
 /** Desktop notifications through the whole app, against the scripted herdr: it records what the app would have shown. */
 const asking = (command: string) =>
-  (mixed.panes as Record<string, { screen: string[] }>)["w1:p1"].screen.map((r) => r.replace(/touch \/tmp\/hm-capture-claude\/[^\s\u001b]+/, command));
+  (mixed.panes as Record<string, { screen: string[] }>)["w1:p1"].screen.map((r) =>
+    r.replace(/touch \/tmp\/hm-capture-claude\/[^\s\u001b]+/, command),
+  );
 
 /** The app with notifications on and its window away, with what was blocked at that moment taken as seen. */
 async function away(): Promise<App> {

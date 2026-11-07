@@ -1,8 +1,10 @@
 import { expect, open, test } from "nsh/test";
+
 import type { App } from "nsh/test";
 
 /** The file features of a pane tab in the whole app, against the scripted herdr (its folders do not exist on this computer). */
-const app = () => open("../App.tsx", { width: 1280, height: 800, platform: "linux", host: { params: { fixture: "mixed" } } });
+const app = () =>
+  open("../App.tsx", { width: 1280, height: 800, platform: "linux", host: { params: { fixture: "mixed" } } });
 
 const said = (a: App, part: string) => a.texts().some((t) => t.includes(part));
 

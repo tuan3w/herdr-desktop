@@ -1,9 +1,10 @@
 import { signal, Text, View } from "nsh";
-import { allRows, board, reviewable, reviewWithUndo } from "#lib/herdr";
-import type { BulkAction } from "#lib/bulk";
-import { clear, select, selected } from "#lib/selection";
+
 import { BulkConfirm, pickedRows } from "#components/bulk-confirm";
 import { Btn, IconButton } from "#kit";
+import type { BulkAction } from "#lib/bulk";
+import { allRows, board, reviewable, reviewWithUndo } from "#lib/herdr";
+import { clear, select, selected } from "#lib/selection";
 
 /**
  * What can be done to the agents picked in the board or the sidebar: `Reviewed` (at once, one `Undo`), `Stop` (Esc),
@@ -16,7 +17,11 @@ export function BulkBar() {
   return (
     <>
       <If when={count() > 0}>
-        <View role="group" accessibilityLabel="Selected agents" class="flex-row flex-wrap items-center gap-2 border-t border-border bg-card px-4 py-2">
+        <View
+          role="group"
+          accessibilityLabel="Selected agents"
+          class="flex-row flex-wrap items-center gap-2 border-t border-border bg-card px-4 py-2"
+        >
           <Text class="mr-2 text-sm font-medium text-foreground">{`${count()} selected`}</Text>
           <Btn
             small

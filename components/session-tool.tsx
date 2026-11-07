@@ -1,15 +1,17 @@
 import { Image, type JSX, Text, View } from "nsh";
 import { Button } from "nsh/base";
+
 import type { DiffItem, LocationView, PartView, ToolItem, ToolStatusName } from "herdr-desktop/native";
-import { viewFile } from "#lib/files";
-import { pictureSize } from "#lib/session-pictures";
-import { hoverTransition } from "#lib/motion";
-import { outputView, shortPath, toolIcon, toolKindOf, toolLine, toolStatusText, visibleText } from "#lib/session-text";
-import { FOCUS_RING, FOCUS_RING_INSET, Icon } from "#kit";
+
 import { CodeBlock } from "#components/code-block";
 import { DiffBlock } from "#components/diff-block";
 import { openLink } from "#components/links-dialog";
 import { StatusGlyph } from "#components/status-glyph";
+import { FOCUS_RING, FOCUS_RING_INSET, Icon } from "#kit";
+import { viewFile } from "#lib/files";
+import { hoverTransition } from "#lib/motion";
+import { pictureSize } from "#lib/session-pictures";
+import { outputView, shortPath, toolIcon, toolKindOf, toolLine, toolStatusText, visibleText } from "#lib/session-text";
 
 /** Lines of a call's input shown before it is cut. */
 const INPUT_LINES = 12;
@@ -21,7 +23,13 @@ const TOOL_BLOCK_HEIGHT = 360;
  * view can say `expanded` to a screen reader (`Button` has `selected`, which would read as "selected"). Enter and Space
  * press it like any press target, and it is a stop of the keyboard focus.
  */
-export function Disclosure(props: { label: string; open: boolean; onPress: () => void; class?: string; children?: JSX.Element }) {
+export function Disclosure(props: {
+  label: string;
+  open: boolean;
+  onPress: () => void;
+  class?: string;
+  children?: JSX.Element;
+}) {
   return (
     <View
       role="button"
@@ -39,7 +47,11 @@ export function Disclosure(props: { label: string; open: boolean; onPress: () =>
 /** A call's state as a shape: waiting is a dashed ring, running a half ring, done a quiet check, failed a cross. */
 export function ToolStatus(props: { status: ToolStatusName }) {
   return (
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" class="size-4 shrink-0 items-center justify-center">
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      class="size-4 shrink-0 items-center justify-center"
+    >
       <If when={props.status === "completed"}>
         <Icon name="check" size={14} tone="muted-foreground" />
       </If>
@@ -87,7 +99,9 @@ export function ToolRow(props: { tool: ToolItem; cwd: string; open: boolean; onT
         <If when={line().verb}>
           <Text class="text-muted-foreground">{`${line().verb} `}</Text>
         </If>
-        <Text class={line().verb ? "font-mono text-xs text-foreground" : "text-sm text-foreground"}>{line().object}</Text>
+        <Text class={line().verb ? "font-mono text-xs text-foreground" : "text-sm text-foreground"}>
+          {line().object}
+        </Text>
       </Text>
       <DiffStat added={line().added} removed={line().removed} />
       <ToolStatus status={props.tool.status} />
@@ -130,12 +144,22 @@ export function PartChips(props: { parts: readonly PartView[]; machine: string; 
     <Each of={props.parts as PartView[]} key="index">
       {(part) => {
         const path = () => pathOf(part().uri);
-        const drawn = () => (part().partKind === "image" && part().data ? `data:${part().mime ?? "image/png"};base64,${part().data}` : null);
-        const detail = () => [part().partKind === "audio" ? "Sound" : part().partKind === "image" ? "Picture" : "", pictureSize(part().size)].filter(Boolean).join(" · ");
+        const drawn = () =>
+          part().partKind === "image" && part().data
+            ? `data:${part().mime ?? "image/png"};base64,${part().data}`
+            : null;
+        const detail = () =>
+          [
+            part().partKind === "audio" ? "Sound" : part().partKind === "image" ? "Picture" : "",
+            pictureSize(part().size),
+          ]
+            .filter(Boolean)
+            .join(" · ");
         const press = () => {
           const p = path();
           if (p) viewFile(props.machine, p);
-          else if (part().uri && /^https?:\/\//i.test(part().uri!)) void openLink("url", part().uri!, null, null, { machine: props.machine, cwd: props.cwd });
+          else if (part().uri && /^https?:\/\//i.test(part().uri!))
+            void openLink("url", part().uri!, null, null, { machine: props.machine, cwd: props.cwd });
         };
         return (
           <View class="items-start py-1">
@@ -206,7 +230,11 @@ export function ToolDetails(props: { tool: ToolItem; machine: string; cwd: strin
   const text = () => {
     const o = output();
     return o.omitted > 0 && o.lines.length > 1
-      ? [...o.lines.slice(0, props.tool.head.length), `… ${o.omitted} lines not kept …`, ...o.lines.slice(props.tool.head.length)].join("\n")
+      ? [
+          ...o.lines.slice(0, props.tool.head.length),
+          `… ${o.omitted} lines not kept …`,
+          ...o.lines.slice(props.tool.head.length),
+        ].join("\n")
       : o.lines.join("\n");
   };
   const subject = () => visibleText(props.tool.subject ?? "");
@@ -217,7 +245,9 @@ export function ToolDetails(props: { tool: ToolItem; machine: string; cwd: strin
     const input = props.tool.input;
     if (!input || toolKindOf(props.tool) === "execute") return "";
     const lines = visibleText(input).split("\n");
-    return lines.length > INPUT_LINES ? `${lines.slice(0, INPUT_LINES).join("\n")}\n… ${lines.length - INPUT_LINES} more lines` : lines.join("\n");
+    return lines.length > INPUT_LINES
+      ? `${lines.slice(0, INPUT_LINES).join("\n")}\n… ${lines.length - INPUT_LINES} more lines`
+      : lines.join("\n");
   };
   const ended = () => {
     const { exitCode, exitSignal, cwd } = props.tool;
@@ -252,10 +282,16 @@ export function ToolDetails(props: { tool: ToolItem; machine: string; cwd: strin
         </If>
       </If>
       <If when={ended()}>
-        <Text class={`font-mono text-xs ${props.tool.exitCode || props.tool.exitSignal ? "text-destructive" : "text-muted-foreground"}`}>{ended()}</Text>
+        <Text
+          class={`font-mono text-xs ${props.tool.exitCode || props.tool.exitSignal ? "text-destructive" : "text-muted-foreground"}`}
+        >
+          {ended()}
+        </Text>
       </If>
       <If when={output().lines.length === 0 && props.tool.diffs.length === 0 && !showSubject() && inputText() === ""}>
-        <Text class="text-xs text-muted-foreground">{props.tool.status === "pending" || props.tool.status === "inProgress" ? "No output yet" : "No output"}</Text>
+        <Text class="text-xs text-muted-foreground">
+          {props.tool.status === "pending" || props.tool.status === "inProgress" ? "No output yet" : "No output"}
+        </Text>
       </If>
     </View>
   );

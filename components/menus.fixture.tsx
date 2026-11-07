@@ -1,9 +1,16 @@
 import { mount, signal, Text, View } from "nsh";
+
 import { ActionMenu, Btn, type MenuEntry, Modal, RowMenu, SelectField, ThemeRoot, PopupRoot } from "#kit";
 
 /** Test entry only: every menu and select feature on one page, so `menus.test.tsx` can drive them without the app's data. */
-const MACHINES = Array.from({ length: 500 }, (_, i) => ({ value: `m${i + 1}`, title: `Machine ${String(i + 1).padStart(3, "0")}` }));
-const AGENTS = Array.from({ length: 80 }, (_, i) => ({ value: `a${i + 1}`, label: `Agent ${String(i + 1).padStart(3, "0")}` }));
+const MACHINES = Array.from({ length: 500 }, (_, i) => ({
+  value: `m${i + 1}`,
+  title: `Machine ${String(i + 1).padStart(3, "0")}`,
+}));
+const AGENTS = Array.from({ length: 80 }, (_, i) => ({
+  value: `a${i + 1}`,
+  label: `Agent ${String(i + 1).padStart(3, "0")}`,
+}));
 
 const runs = signal(0);
 const finished = signal(false);
@@ -18,7 +25,12 @@ const dialogAgent = signal("");
 
 const entries = (): MenuEntry[] => [
   { label: "Open", icon: "copy", shortcut: "⌘O", onSelect: () => runs.set(runs() + 1) },
-  { type: "checkbox", label: "Show finished sessions", checked: finished(), onCheckedChange: (checked) => finished.set(checked) },
+  {
+    type: "checkbox",
+    label: "Show finished sessions",
+    checked: finished(),
+    onCheckedChange: (checked) => finished.set(checked),
+  },
   {
     type: "radio",
     label: "Sort",
@@ -65,15 +77,39 @@ function Lab() {
         <Text class="text-sm text-foreground">{`Machine: ${machine()}`}</Text>
         <Text class="text-sm text-foreground">{`Machines: ${machines().join(",")}`}</Text>
         <View class="w-72 gap-3">
-          <SelectField label="Target machine" items={MACHINES} value={machine()} onChange={(value) => machine.set(value)} />
-          <SelectField label="Machines" multiple items={MACHINES.slice(0, 6)} value={machines()} onChange={(value) => machines.set(value)} />
-          <SelectField label="Read only" readOnly items={MACHINES.slice(0, 4)} value={locked() || "m1"} onChange={(value) => locked.set(value)} />
+          <SelectField
+            label="Target machine"
+            items={MACHINES}
+            value={machine()}
+            onChange={(value) => machine.set(value)}
+          />
+          <SelectField
+            label="Machines"
+            multiple
+            items={MACHINES.slice(0, 6)}
+            value={machines()}
+            onChange={(value) => machines.set(value)}
+          />
+          <SelectField
+            label="Read only"
+            readOnly
+            items={MACHINES.slice(0, 4)}
+            value={locked() || "m1"}
+            onChange={(value) => locked.set(value)}
+          />
           <SelectField label="Disabled" disabled items={MACHINES.slice(0, 4)} value="m1" onChange={() => {}} />
           <SelectField
             label="Machine group"
             placeholder="Select machine"
             items={[
-              { label: "Office", items: [{ value: "lap", title: "Laptop" }, { value: "bb", title: "Build box", disabled: true }, { value: "dev", title: "Dev server" }] },
+              {
+                label: "Office",
+                items: [
+                  { value: "lap", title: "Laptop" },
+                  { value: "bb", title: "Build box", disabled: true },
+                  { value: "dev", title: "Dev server" },
+                ],
+              },
               "separator",
               { label: "Cloud", items: [{ value: "vm", title: "Cloud VM" }] },
             ]}
@@ -88,7 +124,12 @@ function Lab() {
         </RowMenu>
         <Btn label="Open dialog" onPress={() => dialog.set(true)} />
         <Modal open={dialog()} onClose={() => dialog.set(false)} title="Dialog with a list">
-          <SelectField label="Agent in dialog" items={AGENTS.map((c) => ({ value: c.value, title: c.label }))} value={dialogAgent() as string} onChange={(value) => dialogAgent.set(value)} />
+          <SelectField
+            label="Agent in dialog"
+            items={AGENTS.map((c) => ({ value: c.value, title: c.label }))}
+            value={dialogAgent() as string}
+            onChange={(value) => dialogAgent.set(value)}
+          />
         </Modal>
       </PopupRoot>
     </ThemeRoot>

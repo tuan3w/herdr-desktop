@@ -1,13 +1,27 @@
-import { mount, signal, Text, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
-import { revision, startHerdr } from "#lib/herdr";
-import { pressTransition } from "#lib/motion";
-import { announceOutput, codeLineNumbers, codeWhitespace, codeWrap, diffSplit, loadSettings, minContrast, paneFit, paneFontSize, quickPhrases, reduceMotionOverride, themeId } from "#lib/settings";
+import { mount, signal, Text, View } from "nsh";
+
 import { Machines } from "#components/machines";
 import { NameDialog } from "#components/name-dialog";
 import { Settings } from "#components/settings";
 import { StartAgent } from "#components/start-agent";
 import { Btn, ThemeRoot } from "#kit";
+import { revision, startHerdr } from "#lib/herdr";
+import { pressTransition } from "#lib/motion";
+import {
+  announceOutput,
+  codeLineNumbers,
+  codeWhitespace,
+  codeWrap,
+  diffSplit,
+  loadSettings,
+  minContrast,
+  paneFit,
+  paneFontSize,
+  quickPhrases,
+  reduceMotionOverride,
+  themeId,
+} from "#lib/settings";
 
 /**
  * The entry of `machines.test.tsx`, `settings.test.tsx`, `start-agent.test.tsx` and `name-dialog.test.tsx`: the dialogs of
@@ -20,7 +34,11 @@ function Lab() {
   const machines = signal(false);
   const settings = signal(false);
   const start = signal(false);
-  const name = signal<{ open: boolean; initial?: string; confirm: string; title: string }>({ open: false, confirm: "Create", title: "New workspace" });
+  const name = signal<{ open: boolean; initial?: string; confirm: string; title: string }>({
+    open: false,
+    confirm: "Create",
+    title: "New workspace",
+  });
   const started = signal("nothing started");
   const named = signal("no name");
   const requests = signal("no requests");
@@ -33,14 +51,19 @@ function Lab() {
   };
 
   const show = () => {
-    const calls = ["workspace.create", "tab.create", "agent.start"].flatMap((method) => Herdr.testRequests(method).map((r) => `${method} ${JSON.stringify(r.params)}`));
+    const calls = ["workspace.create", "tab.create", "agent.start"].flatMap((method) =>
+      Herdr.testRequests(method).map((r) => `${method} ${JSON.stringify(r.params)}`),
+    );
     requests.set(calls.length ? calls.join(" | ") : "no requests");
   };
 
   // What ssh would print for three destinations, so machines added afterwards fail the way real ones do: a changed host
   // key and an untrusted one need the person (no retries), a refused connection is retried.
   const scriptSsh = () => {
-    Herdr.testSshFault("changed.example", "@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @@@\nHost key verification failed.");
+    Herdr.testSshFault(
+      "changed.example",
+      "@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @@@\nHost key verification failed.",
+    );
     Herdr.testSshFault("unknown.example", "Host key verification failed.");
     Herdr.testSshFault("refused.example", "ssh: connect to host refused.example port 22: Connection refused");
   };
@@ -52,8 +75,14 @@ function Lab() {
           <Btn label="Open machines" onPress={() => machines.set(true)} />
           <Btn label="Open settings" onPress={() => settings.set(true)} />
           <Btn label="Open start agent" onPress={() => start.set(true)} />
-          <Btn label="Rename workspace" onPress={() => name.set({ open: true, initial: "payments", confirm: "Rename", title: "Rename workspace" })} />
-          <Btn label="New workspace" onPress={() => name.set({ open: true, confirm: "Create", title: "New workspace" })} />
+          <Btn
+            label="Rename workspace"
+            onPress={() => name.set({ open: true, initial: "payments", confirm: "Rename", title: "Rename workspace" })}
+          />
+          <Btn
+            label="New workspace"
+            onPress={() => name.set({ open: true, confirm: "Create", title: "New workspace" })}
+          />
           <Btn label="Show requests" onPress={show} />
           <Btn label="Forget the remote machine" onPress={forget} />
           <Btn label="Script ssh failures" onPress={scriptSsh} />
@@ -70,7 +99,11 @@ function Lab() {
       </View>
       <Machines open={machines()} onClose={() => machines.set(false)} />
       <Settings open={settings()} onClose={() => settings.set(false)} />
-      <StartAgent open={start()} onClose={() => start.set(false)} onStarted={(machine, pane) => started.set(`started ${machine} ${pane}`)} />
+      <StartAgent
+        open={start()}
+        onClose={() => start.set(false)}
+        onStarted={(machine, pane) => started.set(`started ${machine} ${pane}`)}
+      />
       <NameDialog
         open={name().open}
         title={name().title}

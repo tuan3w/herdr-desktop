@@ -1,4 +1,5 @@
 import { View } from "nsh";
+
 import { Btn } from "#kit";
 
 interface Press {
@@ -51,9 +52,18 @@ export const keysFor = (agent: boolean): Press[] => (agent ? AGENT : SHELL);
  * desktop keyboard has them all; the row is for the pointer, and capture mode is for the keyboard. Disabled while
  * the machine is not connected.
  */
-export function KeyRow(props: { agent: boolean; disabled: boolean; onKeys: (keys: string[]) => void; onInsert: (text: string) => void }) {
+export function KeyRow(props: {
+  agent: boolean;
+  disabled: boolean;
+  onKeys: (keys: string[]) => void;
+  onInsert: (text: string) => void;
+}) {
   return (
-    <View role="toolbar" accessibilityLabel="Keys" class="flex-row flex-wrap gap-2 border-t border-border bg-card px-4 py-3">
+    <View
+      role="toolbar"
+      accessibilityLabel="Keys"
+      class="flex-row flex-wrap gap-2 border-t border-border bg-card px-4 py-3"
+    >
       <Each of={keysFor(props.agent)} key={(p: Press) => p.name}>
         {(press) => (
           <Btn

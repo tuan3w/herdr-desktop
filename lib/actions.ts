@@ -1,14 +1,42 @@
+import { Herdr } from "herdr-desktop/native";
 import { announce, openUrl, signal } from "nsh";
+
+import type { BoardData, BoardRow, PaneMeta } from "herdr-desktop/native";
 import type { Accessor } from "nsh";
 import type { MenuItem } from "nsh/desktop";
-import { Herdr } from "herdr-desktop/native";
-import type { BoardData, BoardRow, PaneMeta } from "herdr-desktop/native";
+
 import { confirmDestructive, notify, rail, undoLast } from "#kit";
-import { closeTab, focused, focusedPane, groupOf, groups, lastPane, layout, moveFocused, openPane, openPanel, parsePaneKey, parseSessionKey, removePanel, rowKeyOf, selectNth, showBoard } from "#lib/dock";
-import { allRows, board, meta, reviewable } from "#lib/herdr";
+import {
+  closeTab,
+  focused,
+  focusedPane,
+  groupOf,
+  groups,
+  lastPane,
+  layout,
+  moveFocused,
+  openPane,
+  openPanel,
+  parsePaneKey,
+  parseSessionKey,
+  removePanel,
+  rowKeyOf,
+  selectNth,
+  showBoard,
+} from "#lib/dock";
 import { browseFiles } from "#lib/files";
+import { allRows, board, meta, reviewable } from "#lib/herdr";
 import { canShowChat, openAgent, showChat, showTerminal } from "#lib/open-agent";
-import { chatInFront, copyCode, copyReply, focusComposer, paneInFront, searchInPane, showLinks, toggleCapture } from "#lib/pane-input";
+import {
+  chatInFront,
+  copyCode,
+  copyReply,
+  focusComposer,
+  paneInFront,
+  searchInPane,
+  showLinks,
+  toggleCapture,
+} from "#lib/pane-input";
 import { perfOpen } from "#lib/perf";
 import { sidebarCollapsed, themeId } from "#lib/settings";
 import { type GlobalShortcut, GLOBAL, keysOf, type ShortcutGroup } from "#lib/shortcuts";
@@ -59,7 +87,9 @@ export const ACCESSIBILITY_GUIDE = "https://github.com/tuan3w/herdr-desktop/blob
  * connected is not in it, as it is not in the counts.
  */
 export function attentionOrder(data: BoardData): BoardRow[] {
-  const finished = reviewable(allRows(data)).sort((a, b) => (a.sinceSecs ?? Number.POSITIVE_INFINITY) - (b.sinceSecs ?? Number.POSITIVE_INFINITY));
+  const finished = reviewable(allRows(data)).sort(
+    (a, b) => (a.sinceSecs ?? Number.POSITIVE_INFINITY) - (b.sinceSecs ?? Number.POSITIVE_INFINITY),
+  );
   return [...data.needsYou.filter((r) => !r.offline), ...finished];
 }
 
@@ -132,7 +162,10 @@ function targetMachine(): string {
 
 const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-async function openMade(machine: string, created: { workspaceId: string; tabId: string; paneId: string }): Promise<void> {
+async function openMade(
+  machine: string,
+  created: { workspaceId: string; tabId: string; paneId: string },
+): Promise<void> {
   made.set(`${machine}/${created.paneId}`, { workspaceId: created.workspaceId, tabId: created.tabId });
   await openPane(machine, created.paneId);
 }
@@ -188,7 +221,11 @@ function rename(kind: "workspace" | "tab" | "pane"): void {
     confirm: "Rename",
     onSubmit: (name) => {
       const done =
-        kind === "workspace" ? Herdr.renameWorkspace(machine, at.workspaceId!, name) : kind === "tab" ? Herdr.renameTab(machine, at.tabId!, name) : Herdr.renamePane(machine, at.pane, name);
+        kind === "workspace"
+          ? Herdr.renameWorkspace(machine, at.workspaceId!, name)
+          : kind === "tab"
+            ? Herdr.renameTab(machine, at.tabId!, name)
+            : Herdr.renamePane(machine, at.pane, name);
       done.then(
         () => announce(`Renamed ${kind}`),
         (e) => fail(`Could not rename the ${kind}`, e),
@@ -214,7 +251,12 @@ async function closeInHerdr(kind: "pane" | "tab" | "workspace"): Promise<void> {
   const at = here();
   if (!at) return;
   const label = kind === "pane" ? at.name : kind === "tab" ? at.tabLabel : at.workspaceLabel;
-  const taken = kind === "pane" ? "what runs in it" : kind === "tab" ? "every pane in it and what runs there" : "every tab and pane in it and what runs there";
+  const taken =
+    kind === "pane"
+      ? "what runs in it"
+      : kind === "tab"
+        ? "every pane in it and what runs there"
+        : "every tab and pane in it and what runs there";
   const ok = await confirmDestructive({
     title: `Close ${kind} “${label}”?`,
     description: `This stops ${taken}, on ${paneMeta(at.machine, at.pane)?.machineName ?? at.machine}. It cannot be undone.`,
@@ -258,7 +300,8 @@ async function toggleView(which: "chat" | "terminal"): Promise<void> {
   const pane = parsePaneKey(focused());
   const chat = parseSessionKey(focused());
   if (which === "chat" && pane) await showChat(pane.machine, pane.pane);
-  else if (which === "terminal" && chat?.id.startsWith("pane:")) await showTerminal(chat.machine, chat.id.slice("pane:".length));
+  else if (which === "terminal" && chat?.id.startsWith("pane:"))
+    await showTerminal(chat.machine, chat.id.slice("pane:".length));
   else announce(which === "chat" ? "Open a terminal agent first" : "Open a chat read from a terminal first");
 }
 
@@ -381,7 +424,14 @@ export function actions(): Action[] {
   const canMove = sideBySide || (group !== undefined && group.panels.length > 1);
   const list: Action[] = [];
   const global = (id: GlobalShortcut, extraWords: string[] = [], disabled = false) =>
-    list.push({ id, label: GLOBAL[id].label, group: groupName(GLOBAL[id].group), shortcut: shortcutOf(id), disabled, keywords: extraWords });
+    list.push({
+      id,
+      label: GLOBAL[id].label,
+      group: groupName(GLOBAL[id].group),
+      shortcut: shortcutOf(id),
+      disabled,
+      keywords: extraWords,
+    });
 
   global("nextAttention", ["attention", "blocked", "waiting"]);
   global("prevAttention", ["attention", "blocked", "waiting"]);
@@ -402,22 +452,80 @@ export function actions(): Action[] {
   const terminal = parsePaneKey(focused());
   const showableChat = terminal !== null && canShowChat(terminal.machine, terminal.pane);
   const terminalChat = parseSessionKey(focused())?.id.startsWith("pane:") === true;
-  list.push({ id: "showChat", label: "Show chat", group: "Pane", disabled: !showableChat, keywords: ["conversation", "transcript"] });
-  list.push({ id: "showTerminal", label: "Show terminal", group: "Pane", disabled: !terminalChat, keywords: ["mirror", "pane"] });
-  list.push({ id: "links", label: "Links in this pane…", group: "Pane", disabled: !pane, keywords: ["url", "open", "path"] });
-  list.push({ id: "browseFiles", label: pane ? "Browse files in this pane's folder…" : "Browse files on this computer…", group: pane ? "Pane" : "App", keywords: ["folder", "open", "view", "photos", "images"] });
+  list.push({
+    id: "showChat",
+    label: "Show chat",
+    group: "Pane",
+    disabled: !showableChat,
+    keywords: ["conversation", "transcript"],
+  });
+  list.push({
+    id: "showTerminal",
+    label: "Show terminal",
+    group: "Pane",
+    disabled: !terminalChat,
+    keywords: ["mirror", "pane"],
+  });
+  list.push({
+    id: "links",
+    label: "Links in this pane…",
+    group: "Pane",
+    disabled: !pane,
+    keywords: ["url", "open", "path"],
+  });
+  list.push({
+    id: "browseFiles",
+    label: pane ? "Browse files in this pane's folder…" : "Browse files on this computer…",
+    group: pane ? "Pane" : "App",
+    keywords: ["folder", "open", "view", "photos", "images"],
+  });
 
-  list.push({ id: "startTerminalAgent", label: "Start a terminal agent…", group: "herdr", keywords: ["new agent", "claude", "codex", "omp"] });
+  list.push({
+    id: "startTerminalAgent",
+    label: "Start a terminal agent…",
+    group: "herdr",
+    keywords: ["new agent", "claude", "codex", "omp"],
+  });
   list.push({ id: "newWorkspace", label: "New workspace…", group: "herdr" });
   list.push({ id: "newTab", label: "New tab in this workspace…", group: "herdr", disabled: !at?.workspaceId });
   list.push({ id: "renameWorkspace", label: "Rename workspace…", group: "herdr", disabled: !at?.workspaceId });
   list.push({ id: "renameTab", label: "Rename tab…", group: "herdr", disabled: !at?.tabId });
   list.push({ id: "renamePane", label: "Rename pane…", group: "herdr", disabled: !pane });
-  list.push({ id: "splitHerdrRight", label: "Split pane right in herdr", group: "herdr", disabled: !pane, keywords: ["new terminal"] });
-  list.push({ id: "splitHerdrDown", label: "Split pane down in herdr", group: "herdr", disabled: !pane, keywords: ["new terminal"] });
-  list.push({ id: "closePane", label: "Close pane in herdr…", group: "herdr", disabled: !pane, keywords: ["stop", "kill"] });
-  list.push({ id: "closeHerdrTab", label: "Close tab in herdr…", group: "herdr", disabled: !at?.tabId, keywords: ["stop", "kill"] });
-  list.push({ id: "closeWorkspace", label: "Close workspace in herdr…", group: "herdr", disabled: !at?.workspaceId, keywords: ["stop", "kill"] });
+  list.push({
+    id: "splitHerdrRight",
+    label: "Split pane right in herdr",
+    group: "herdr",
+    disabled: !pane,
+    keywords: ["new terminal"],
+  });
+  list.push({
+    id: "splitHerdrDown",
+    label: "Split pane down in herdr",
+    group: "herdr",
+    disabled: !pane,
+    keywords: ["new terminal"],
+  });
+  list.push({
+    id: "closePane",
+    label: "Close pane in herdr…",
+    group: "herdr",
+    disabled: !pane,
+    keywords: ["stop", "kill"],
+  });
+  list.push({
+    id: "closeHerdrTab",
+    label: "Close tab in herdr…",
+    group: "herdr",
+    disabled: !at?.tabId,
+    keywords: ["stop", "kill"],
+  });
+  list.push({
+    id: "closeWorkspace",
+    label: "Close workspace in herdr…",
+    group: "herdr",
+    disabled: !at?.workspaceId,
+    keywords: ["stop", "kill"],
+  });
   list.push({ id: "machines", label: "Machines…", group: "App", keywords: ["ssh", "connect", "computer"] });
 
   list.push({ id: "moveRight", label: "Move tab to split right", group: "Tabs", disabled: !canMove });
@@ -426,17 +534,38 @@ export function actions(): Action[] {
   list.push({ id: "moveUp", label: "Move tab to split up", group: "Tabs", disabled: !canMove });
   list.push({ id: "moveOther", label: "Move tab to other group", group: "Tabs", disabled: !sideBySide });
   if (group) {
-    group.panels.slice(0, 9).forEach((key, i) => list.push({ id: `tab:${key}`, label: `Open tab ${i + 1}: ${tabName(key)}`, group: "Tabs", checked: key === focused() }));
+    group.panels.slice(0, 9).forEach((key, i) =>
+      list.push({
+        id: `tab:${key}`,
+        label: `Open tab ${i + 1}: ${tabName(key)}`,
+        group: "Tabs",
+        checked: key === focused(),
+      }),
+    );
   }
 
-  for (const theme of THEMES) list.push({ id: `theme:${theme.id}`, label: `Theme: ${theme.name}`, group: "Look", checked: themeId() === theme.id });
+  for (const theme of THEMES)
+    list.push({
+      id: `theme:${theme.id}`,
+      label: `Theme: ${theme.name}`,
+      group: "Look",
+      checked: themeId() === theme.id,
+    });
   list.push({ id: "accessibilityGuide", label: "Accessibility guide", group: "App" });
   return list;
 }
 
 /** The palette's heading for a shortcut group of `lib/shortcuts.ts`. */
 function groupName(group: ShortcutGroup): string {
-  return group === "attention" || group === "navigate" ? "Go" : group === "tabs" ? "Tabs" : group === "typing" ? "Pane" : group === "chat" ? "Chat" : "App";
+  return group === "attention" || group === "navigate"
+    ? "Go"
+    : group === "tabs"
+      ? "Tabs"
+      : group === "typing"
+        ? "Pane"
+        : group === "chat"
+          ? "Chat"
+          : "App";
 }
 
 /** A tab's name for the palette: the agent's name, else `Board`. */
@@ -452,24 +581,56 @@ function tabName(key: string): string {
 
 /** The application menu, built from the same handlers; its shortcuts mirror `GLOBAL` (a binding of the keymap wins over a menu item of the same key). */
 export function appMenu(): MenuItem[] {
-  const item = (label: string, id: GlobalShortcut): MenuItem => ({ label, shortcut: shortcutOf(id), onSelect: globalActions[id] });
+  const item = (label: string, id: GlobalShortcut): MenuItem => ({
+    label,
+    shortcut: shortcutOf(id),
+    onSelect: globalActions[id],
+  });
   const plain = (label: string, id: string): MenuItem => ({ label, onSelect: () => runAction(id) });
   return [
     {
       label: "File",
-      submenu: [item("New agent session", "newAgent"), plain("Start a terminal agent…", "startTerminalAgent"), plain("New workspace…", "newWorkspace"), plain("Machines…", "machines"), item("Settings", "settings"), { type: "separator" }, { role: "quit" }],
+      submenu: [
+        item("New agent session", "newAgent"),
+        plain("Start a terminal agent…", "startTerminalAgent"),
+        plain("New workspace…", "newWorkspace"),
+        plain("Machines…", "machines"),
+        item("Settings", "settings"),
+        { type: "separator" },
+        { role: "quit" },
+      ],
     },
     {
       label: "Edit",
-      submenu: [{ role: "undo" }, { role: "redo" }, { type: "separator" }, { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "selectAll" }],
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { role: "selectAll" },
+      ],
     },
     {
       label: "View",
-      submenu: [item("Board", "board"), item("Sidebar", "sidebar"), item("Command palette", "palette"), { type: "separator" }, { role: "zoom" }, { role: "toggleFullScreen" }],
+      submenu: [
+        item("Board", "board"),
+        item("Sidebar", "sidebar"),
+        item("Command palette", "palette"),
+        { type: "separator" },
+        { role: "zoom" },
+        { role: "toggleFullScreen" },
+      ],
     },
     {
       label: "Go",
-      submenu: [item("Next agent that needs you", "nextAttention"), item("Previous agent that needs you", "prevAttention"), item("Open pane area", "focusPane"), item("Focus the sidebar", "focusSidebar")],
+      submenu: [
+        item("Next agent that needs you", "nextAttention"),
+        item("Previous agent that needs you", "prevAttention"),
+        item("Open pane area", "focusPane"),
+        item("Focus the sidebar", "focusSidebar"),
+      ],
     },
     {
       label: "Help",

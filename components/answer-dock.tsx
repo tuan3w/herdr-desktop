@@ -1,9 +1,11 @@
-import { announce, cleanup, computed, effect, keymap, signal, Text, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
+import { announce, cleanup, computed, effect, keymap, signal, Text, View } from "nsh";
+
 import type { PromptOption, PromptView } from "herdr-desktop/native";
+
+import { Btn, FOCUS_RING, Icon, Modal, Spinner } from "#kit";
 import { hoverTransition } from "#lib/motion";
 import { largeTargets } from "#lib/settings";
-import { Btn, FOCUS_RING, Icon, Modal, Spinner } from "#kit";
 
 /**
  * How long an answer that just appeared or changed takes no press. A keystroke or click aimed at the question that was
@@ -79,7 +81,9 @@ export function AnswerDock(props: { machine: string; pane: string; prompt: Promp
     note.set("");
   });
 
-  const chips = computed(() => (props.prompt.options.length > MAX_CHIPS ? props.prompt.options.slice(0, MAX_CHIPS - 1) : props.prompt.options));
+  const chips = computed(() =>
+    props.prompt.options.length > MAX_CHIPS ? props.prompt.options.slice(0, MAX_CHIPS - 1) : props.prompt.options,
+  );
   const hidden = () => props.prompt.options.length - chips().length;
   const frozen = () => guarded() || sending() !== null || flash() !== null;
 
@@ -234,7 +238,9 @@ function Chip(props: {
         <Icon name="alert" size={14} tone="muted-foreground" />
       </If>
       <View class="shrink gap-0.5">
-        <Text class="text-sm font-medium text-foreground">{props.flashed ? "The question changed" : props.option.label}</Text>
+        <Text class="text-sm font-medium text-foreground">
+          {props.flashed ? "The question changed" : props.option.label}
+        </Text>
         <If when={props.armed}>
           <Text class="text-xs text-foreground">{`Press again to send · ${riskText(props.option)}`}</Text>
         </If>

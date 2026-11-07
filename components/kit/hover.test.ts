@@ -1,8 +1,11 @@
 import { signal } from "nsh";
 import { expect, test } from "nsh/test";
+
 import type { OverlayPosition, ViewRef } from "nsh/types";
+
 import { trackDialog } from "./dialog-stack";
 import { createHover, type HoverOptions, type HoverTrigger, TRANSIT_MS } from "./hover";
+
 import type { OpenReason } from "./popup";
 
 let ids = 0;
@@ -50,7 +53,11 @@ function rig(over: Partial<HoverOptions> = {}) {
 }
 
 function placed(x: number, y: number, width = 100, height = 50): OverlayPosition {
-  return { placement: "bottom", bounds: { origin: { x, y }, size: { width, height } }, available: { width: 400, height: 400 } };
+  return {
+    placement: "bottom",
+    bounds: { origin: { x, y }, size: { width, height } },
+    available: { width: 400, height: 400 },
+  };
 }
 
 test("the first popup waits for the pointer to rest, and leaving before that opens nothing", async () => {

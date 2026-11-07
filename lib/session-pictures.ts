@@ -1,5 +1,6 @@
-import { signal } from "nsh";
 import { Sessions } from "herdr-desktop/native";
+import { signal } from "nsh";
+
 import type { ImageView } from "herdr-desktop/native";
 
 /**
@@ -10,7 +11,11 @@ import type { ImageView } from "herdr-desktop/native";
  */
 
 /** Where one picture stands. */
-export type PictureState = { state: "idle" } | { state: "loading" } | { state: "ready"; uri: string } | { state: "failed"; message: string };
+export type PictureState =
+  | { state: "idle" }
+  | { state: "loading" }
+  | { state: "ready"; uri: string }
+  | { state: "failed"; message: string };
 
 const KEPT = 6;
 const IDLE: PictureState = { state: "idle" };

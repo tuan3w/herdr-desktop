@@ -1,4 +1,5 @@
 import { expect, test } from "nsh/test";
+
 import { isNewer } from "#lib/updates";
 
 test("versions compare by number, not by text, and a tag that is not x.y.z is never newer", () => {

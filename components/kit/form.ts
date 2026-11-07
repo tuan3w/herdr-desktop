@@ -1,4 +1,5 @@
 import { announce, effect, signal, untracked } from "nsh";
+
 import type { FormApi, FormMember, ValidationMode } from "./field";
 
 /** Messages by field name, from the owner: a server's answer, a rule over several fields. */
@@ -54,7 +55,7 @@ export function createForm(options: FormOptions = {}): FormController {
   const focusFirstInvalid = (before?: Map<FormMember, string>): boolean => {
     const wrong = active().filter((m) => m.valid() === false);
     if (wrong.length === 0) return false;
-    const target = wrong.find((m) => m.focus) ?? wrong[0] as FormMember;
+    const target = wrong.find((m) => m.focus) ?? (wrong[0] as FormMember);
     target.focus?.();
     // A field announces its message when it appears; one that stayed wrong across this submit says nothing new.
     if (before && before.get(target) === target.summary()) announce(target.summary());
@@ -119,7 +120,11 @@ export function createForm(options: FormOptions = {}): FormController {
     api,
     submit,
     async validate(name) {
-      await Promise.all(active().filter((m) => !name || m.name() === name).map((m) => m.validate()));
+      await Promise.all(
+        active()
+          .filter((m) => !name || m.name() === name)
+          .map((m) => m.validate()),
+      );
     },
     values,
   };

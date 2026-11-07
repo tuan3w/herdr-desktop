@@ -1,16 +1,18 @@
 import { Clipboard, effect, Image, type JSX, Text, View } from "nsh";
 import { Button } from "nsh/base";
-import { CHAT_COLUMN } from "#lib/layout";
+
 import type { ImageView } from "herdr-desktop/native";
-import { ofKind } from "#lib/list-item";
-import { type Arrivals, arrivals, arriving } from "#lib/motion";
-import { loadPicture, pictureSize, pictureState } from "#lib/session-pictures";
-import type { SessionModel } from "#lib/session";
-import type { Row } from "#lib/session-rows";
-import { durationText, itemLabel, toolLine, toolStatusText, visibleText, workHead, workParts } from "#lib/session-text";
-import { FOCUS_RING, Icon, IconButton, notify } from "#kit";
+
 import { type Folds, MarkdownText } from "#components/markdown";
 import { DiffStat, Disclosure, PartChips, ToolDetails, ToolRow, ToolStatus } from "#components/session-tool";
+import { FOCUS_RING, Icon, IconButton, notify } from "#kit";
+import { CHAT_COLUMN } from "#lib/layout";
+import { ofKind } from "#lib/list-item";
+import { type Arrivals, arrivals, arriving } from "#lib/motion";
+import type { SessionModel } from "#lib/session";
+import { loadPicture, pictureSize, pictureState } from "#lib/session-pictures";
+import type { Row } from "#lib/session-rows";
+import { durationText, itemLabel, toolLine, toolStatusText, visibleText, workHead, workParts } from "#lib/session-text";
 
 /** The widest a line of the conversation is: past this, text is hard to follow and the window is better left calm. */
 const COLUMN = CHAT_COLUMN;
@@ -67,7 +69,10 @@ function Picture(props: { image: ImageView; ctx: RowContext }) {
         </Button>
       </If>
       <If when={state().state === "loading"}>
-        <Text accessibilityState={{ busy: true }} class="text-sm text-muted-foreground">{`Loading picture… ${what()}`}</Text>
+        <Text
+          accessibilityState={{ busy: true }}
+          class="text-sm text-muted-foreground"
+        >{`Loading picture… ${what()}`}</Text>
       </If>
       <If when={failed()}>
         {(message) => (
@@ -85,7 +90,11 @@ function UserRow(props: { row: Extract<Row, { kind: "user" }>; ctx: RowContext }
   const text = () => visibleText(props.row.item.text ?? "");
   return (
     <Line class="items-end pt-3">
-      <View role="group" accessibilityLabel={itemLabel(props.row.item)} class="max-w-[85%] rounded-2xl bg-muted px-4 py-2">
+      <View
+        role="group"
+        accessibilityLabel={itemLabel(props.row.item)}
+        class="max-w-[85%] rounded-2xl bg-muted px-4 py-2"
+      >
         <Text style={{ userSelect: "text" }} class="text-sm text-foreground">
           {text()}
         </Text>
@@ -99,7 +108,10 @@ function UserRow(props: { row: Extract<Row, { kind: "user" }>; ctx: RowContext }
 }
 
 /** The fold state of a message's code blocks, kept in the model by key because the list recycles the cell that draws them. */
-const foldsOf = (model: SessionModel): Folds => ({ get: (key) => model.chosen(key), set: (key, open) => model.choose(key, !open) });
+const foldsOf = (model: SessionModel): Folds => ({
+  get: (key) => model.chosen(key),
+  set: (key, open) => model.choose(key, !open),
+});
 
 /** What the agent said, as Markdown on the page. A press-free `Copy message` appears with the pointer or the focus. */
 function AgentRow(props: { row: Extract<Row, { kind: "agent" }>; ctx: RowContext }) {
@@ -108,7 +120,14 @@ function AgentRow(props: { row: Extract<Row, { kind: "agent" }>; ctx: RowContext
   return (
     <Line class="group py-1">
       <View role="group" accessibilityLabel={itemLabel(props.row.item)}>
-        <MarkdownText source={source()} machine={props.ctx.machine} folder={props.ctx.cwd} streaming={props.row.live} folds={folds} foldKey={props.row.key} />
+        <MarkdownText
+          source={source()}
+          machine={props.ctx.machine}
+          folder={props.ctx.cwd}
+          streaming={props.row.live}
+          folds={folds}
+          foldKey={props.row.key}
+        />
         <Each of={props.row.item.images} key={(i: ImageView) => i.key}>
           {(image) => <Picture image={image()} ctx={props.ctx} />}
         </Each>
@@ -142,7 +161,9 @@ function WorkRow(props: { row: Extract<Row, { kind: "work" }>; model: SessionMod
       >
         <Icon name={work().open ? "chevron-down" : "chevron-right"} size={14} tone="muted-foreground" />
         <Text class="text-sm text-muted-foreground">{head()}</Text>
-        <Text class={`text-xs ${work().summary.failed > 0 ? "text-destructive" : "text-muted-foreground"}`}>{`· ${parts().join(" · ")}`}</Text>
+        <Text
+          class={`text-xs ${work().summary.failed > 0 ? "text-destructive" : "text-muted-foreground"}`}
+        >{`· ${parts().join(" · ")}`}</Text>
       </Disclosure>
     </Line>
   );
@@ -165,7 +186,14 @@ function ThoughtRow(props: { row: Extract<Row, { kind: "thought" }>; ctx: RowCon
       </Disclosure>
       <If when={props.row.open}>
         <View class="ml-4 border-l border-border pl-3">
-          <MarkdownText source={props.row.item.text ?? ""} machine={props.ctx.machine} folder={props.ctx.cwd} class="text-muted-foreground" folds={foldsOf(props.ctx.model)} foldKey={props.row.key} />
+          <MarkdownText
+            source={props.row.item.text ?? ""}
+            machine={props.ctx.machine}
+            folder={props.ctx.cwd}
+            class="text-muted-foreground"
+            folds={foldsOf(props.ctx.model)}
+            foldKey={props.row.key}
+          />
         </View>
       </If>
     </Line>
@@ -177,7 +205,12 @@ function ToolEntry(props: { row: Extract<Row, { kind: "tool" }>; ctx: RowContext
   const tool = () => props.row.item.tool!;
   return (
     <Line>
-      <ToolRow tool={tool()} cwd={props.ctx.cwd} open={props.row.open} onToggle={() => props.ctx.model.toggle(props.row)} />
+      <ToolRow
+        tool={tool()}
+        cwd={props.ctx.cwd}
+        open={props.row.open}
+        onToggle={() => props.ctx.model.toggle(props.row)}
+      />
       <If when={props.row.open}>
         <ToolDetails
           tool={tool()}
@@ -205,7 +238,10 @@ function SubagentRow(props: { row: Extract<Row, { kind: "subagent" }>; ctx: RowC
           class="min-h-9 flex-row items-center gap-2 rounded-lg px-3"
         >
           <Icon name="bot" size={16} tone="muted-foreground" />
-          <Text class="min-w-0 flex-1 text-sm font-medium text-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
+          <Text
+            class="min-w-0 flex-1 text-sm font-medium text-foreground"
+            style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
+          >
             {line().object}
           </Text>
           <DiffStat added={line().added} removed={line().removed} />
@@ -240,16 +276,21 @@ function NoteRow(props: { text: string; title?: string | null; label: string; to
           <Icon name="alert" size={12} tone={props.tone === "failed" ? "destructive" : "warning"} />
         </If>
         <If when={props.title}>
-          <Text class={`text-xs font-medium ${props.tone === "failed" ? "text-destructive" : "text-foreground"}`}>{props.title}</Text>
+          <Text class={`text-xs font-medium ${props.tone === "failed" ? "text-destructive" : "text-foreground"}`}>
+            {props.title}
+          </Text>
         </If>
-        <Text class={`text-xs ${props.tone === "failed" ? "text-destructive" : "text-muted-foreground"}`}>{props.text}</Text>
+        <Text class={`text-xs ${props.tone === "failed" ? "text-destructive" : "text-muted-foreground"}`}>
+          {props.text}
+        </Text>
       </View>
     </Line>
   );
 }
 
 /** The tone a notice's `severity` asks for (`error`, `warning`; anything else is quiet). */
-const toneOf = (severity: string | null | undefined): Tone | undefined => (severity === "error" ? "failed" : severity === "warning" ? "warning" : undefined);
+const toneOf = (severity: string | null | undefined): Tone | undefined =>
+  severity === "error" ? "failed" : severity === "warning" ? "warning" : undefined;
 
 /** The arrivals of each conversation: one list of seen keys per session model, so a cell asks the list it belongs to. */
 const ARRIVALS = new WeakMap<object, Arrivals>();
@@ -310,7 +351,11 @@ export function SessionRow(props: { row: () => Row; ctx: RowContext }) {
         />
       </If>
       <If when={kind() === "done"}>
-        <NoteRow text={visibleText(done().item.text ?? "")} label={itemLabel(done().item)} tone={done().item.ok === false ? "failed" : undefined} />
+        <NoteRow
+          text={visibleText(done().item.text ?? "")}
+          label={itemLabel(done().item)}
+          tone={done().item.ok === false ? "failed" : undefined}
+        />
       </If>
       <If when={kind() === "earlier"}>
         <NoteRow text={earlier().text} label={earlier().text} />

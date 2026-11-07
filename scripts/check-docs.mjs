@@ -10,7 +10,10 @@ const IDENT = /^[A-Za-z_][A-Za-z0-9_.]*$/;
 
 const allow = new Set(
   existsSync(join(root, "scripts/docs-allow.txt"))
-    ? readFileSync(join(root, "scripts/docs-allow.txt"), "utf8").split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"))
+    ? readFileSync(join(root, "scripts/docs-allow.txt"), "utf8")
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l && !l.startsWith("#"))
     : [],
 );
 

@@ -1,4 +1,5 @@
 import { expect, test } from "nsh/test";
+
 import { keysOf, stepIndex } from "./roving";
 
 const open = [false, false, false];

@@ -1,11 +1,22 @@
-import { announce, computed, effect, keymap, signal, Text, untracked, View } from "nsh";
 import { Herdr, Sessions } from "herdr-desktop/native";
+import { announce, computed, effect, keymap, signal, Text, untracked, View } from "nsh";
+
 import type { AgentRoute, SessionInfo } from "herdr-desktop/native";
-import { allRows, board, revision } from "#lib/herdr";
-import { agentChoices, agentLabel, lastStart, recentFolders, rememberStart, type StartFailure, sessionFolderError, startFailure } from "#lib/new-session";
-import { Autocomplete, Btn, Field, FieldRow, Icon, Modal, notify, SelectField, Spinner } from "#kit";
+
 import { FolderPicker } from "#components/folder-picker";
 import { PastSessions } from "#components/past-sessions";
+import { Autocomplete, Btn, Field, FieldRow, Icon, Modal, notify, SelectField, Spinner } from "#kit";
+import { allRows, board, revision } from "#lib/herdr";
+import {
+  agentChoices,
+  agentLabel,
+  lastStart,
+  recentFolders,
+  rememberStart,
+  type StartFailure,
+  sessionFolderError,
+  startFailure,
+} from "#lib/new-session";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 /** How long a first message waits for the session to open before the session is handed over without it. */
@@ -29,7 +40,12 @@ async function opened(machine: string, id: string): Promise<boolean> {
  * the reason. A failure keeps everything typed and says what happened in the keeper's words and what to do next. The last
  * agent and folder per machine are remembered. `Past sessions` opens the conversations an agent kept, to continue one.
  */
-export function NewSession(props: { open: boolean; onClose: () => void; onStarted: (machine: string, id: string) => void; project?: { machine: string; folder: string } }) {
+export function NewSession(props: {
+  open: boolean;
+  onClose: () => void;
+  onStarted: (machine: string, id: string) => void;
+  project?: { machine: string; folder: string };
+}) {
   const machine = signal("");
   const folder = signal("");
   const agent = signal("");
@@ -48,13 +64,24 @@ export function NewSession(props: { open: boolean; onClose: () => void; onStarte
   /** The machines that are switched on, with whether each can be started on now. */
   const choices = computed(() => {
     revision();
-    const online = new Set(Herdr.machineStatuses().filter((s) => s.state === "online").map((s) => s.id));
+    const online = new Set(
+      Herdr.machineStatuses()
+        .filter((s) => s.state === "online")
+        .map((s) => s.id),
+    );
     return Herdr.machines()
       .filter((m) => m.enabled)
-      .map((m) => ({ value: m.id, title: online.has(m.id) ? m.name : `${m.name} (not connected)`, disabled: !online.has(m.id) }));
+      .map((m) => ({
+        value: m.id,
+        title: online.has(m.id) ? m.name : `${m.name} (not connected)`,
+        disabled: !online.has(m.id),
+      }));
   });
   const ready = () => choices().find((c) => c.value === machine() && !c.disabled) !== undefined;
-  const machineName = () => choices().find((c) => c.value === machine())?.title.replace(/ \(not connected\)$/, "") ?? machine();
+  const machineName = () =>
+    choices()
+      .find((c) => c.value === machine())
+      ?.title.replace(/ \(not connected\)$/, "") ?? machine();
 
   /** The agents the machine runs, and the ones it lacks. */
   const agents = computed(() => agentChoices(routes() ?? []));
@@ -65,7 +92,11 @@ export function NewSession(props: { open: boolean; onClose: () => void; onStarte
   const recents = computed(() => {
     const here = machine();
     const rows = allRows(board());
-    return recentFolders({ remembered: lastStart(here).folder, sessions: sessions(), agents: rows.filter((r) => r.machine === here && r.cwd).map((r) => r.cwd as string) });
+    return recentFolders({
+      remembered: lastStart(here).folder,
+      sessions: sessions(),
+      agents: rows.filter((r) => r.machine === here && r.cwd).map((r) => r.cwd as string),
+    });
   });
 
   /** Asks the machine which agents it runs and which sessions it holds; a slow answer for a machine the person left is dropped. */
@@ -108,7 +139,8 @@ export function NewSession(props: { open: boolean; onClose: () => void; onStarte
       prompt.set("");
       agent.set("");
       const want = project?.machine ?? machine();
-      const first = choices().find((c) => c.value === want && !c.disabled) ?? choices().find((c) => !c.disabled) ?? choices()[0];
+      const first =
+        choices().find((c) => c.value === want && !c.disabled) ?? choices().find((c) => !c.disabled) ?? choices()[0];
       machine.set(first?.value ?? "");
       folderTouched.set(project !== undefined);
       folder.set(project?.folder ?? lastStart(machine()).folder ?? "");
@@ -148,8 +180,14 @@ export function NewSession(props: { open: boolean; onClose: () => void; onStarte
       const first = prompt().trim();
       if (first !== "") {
         // A session that is still opening refuses a message; once it is open the first one goes before the person sees it.
-        const sent = (await opened(ref.machine, ref.id)) ? await Sessions.send(ref.machine, ref.id, first, []) : undefined;
-        if (!sent || (sent.kind !== "done" && sent.kind !== "queued")) notify(`The session started, but the first message was not sent${sent ? `: ${sent.message}` : ""}. Send it from the chat.`, { type: "error" });
+        const sent = (await opened(ref.machine, ref.id))
+          ? await Sessions.send(ref.machine, ref.id, first, [])
+          : undefined;
+        if (!sent || (sent.kind !== "done" && sent.kind !== "queued"))
+          notify(
+            `The session started, but the first message was not sent${sent ? `: ${sent.message}` : ""}. Send it from the chat.`,
+            { type: "error" },
+          );
       }
       announce(`Started ${agentLabel(which)}`);
       props.onClose();
@@ -196,7 +234,14 @@ export function NewSession(props: { open: boolean; onClose: () => void; onStarte
           <>
             <Btn variant="ghost" label="Past sessions" disabled={!ready()} onPress={() => history.set(true)} />
             <Btn variant="ghost" label="Cancel" onPress={() => props.onClose()} />
-            <Btn variant="primary" label="Start" hint="Ctrl+↵" loading={busy()} disabled={!ready() || !installed()} onPress={() => void start()} />
+            <Btn
+              variant="primary"
+              label="Start"
+              hint="Ctrl+↵"
+              loading={busy()}
+              disabled={!ready() || !installed()}
+              onPress={() => void start()}
+            />
           </>
         }
       >
@@ -234,14 +279,25 @@ export function NewSession(props: { open: boolean; onClose: () => void; onStarte
             />
           </FieldRow>
           <View class="flex-row">
-            <Btn small variant="ghost" icon="folder" label="Browse folders" disabled={!ready()} onPress={() => picking.set(true)} />
+            <Btn
+              small
+              variant="ghost"
+              icon="folder"
+              label="Browse folders"
+              disabled={!ready()}
+              onPress={() => picking.set(true)}
+            />
           </View>
           <FieldRow>
             <SelectField
               label="Agent *"
               disabled={!ready() || probing() || agents().every((a) => !a.installed)}
               placeholder={probing() ? "Looking for agents…" : "No agent to run"}
-              items={agents().map((a) => ({ value: a.id, title: a.installed ? a.label : `${a.label} (not installed)`, disabled: !a.installed }))}
+              items={agents().map((a) => ({
+                value: a.id,
+                title: a.installed ? a.label : `${a.label} (not installed)`,
+                disabled: !a.installed,
+              }))}
               value={agent()}
               onChange={(id) => agent.set(id)}
               invalid={agentMistake() !== undefined}
@@ -257,7 +313,9 @@ export function NewSession(props: { open: boolean; onClose: () => void; onStarte
             <Text class="text-sm text-destructive">{agentMistake() ?? ""}</Text>
           </If>
           <If when={routes() && missing().length > 0 && !probeFailure()}>
-            <Text class="text-xs text-muted-foreground">{`Not installed on ${machineName()}: ${missing().map((a) => a.label).join(", ")}.`}</Text>
+            <Text class="text-xs text-muted-foreground">{`Not installed on ${machineName()}: ${missing()
+              .map((a) => a.label)
+              .join(", ")}.`}</Text>
           </If>
           <If when={probeFailure()}>
             {(said) => (
@@ -272,7 +330,13 @@ export function NewSession(props: { open: boolean; onClose: () => void; onStarte
           <If when={routes() && routes()!.length === 0 && !probeFailure()}>
             <Text class="text-sm text-foreground">{`No agent is installed on ${machineName()}. Install omp, Claude Code, Codex or pi there, then reopen this.`}</Text>
           </If>
-          <Field label="First message (optional)" multiline placeholder="What should it do first?" value={prompt()} onChange={(v) => prompt.set(v)} />
+          <Field
+            label="First message (optional)"
+            multiline
+            placeholder="What should it do first?"
+            value={prompt()}
+            onChange={(v) => prompt.set(v)}
+          />
           <If when={failure()}>{(said) => problem(said)}</If>
         </View>
       </Modal>

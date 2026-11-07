@@ -1,8 +1,10 @@
 import { expect, test } from "nsh/test";
+
 import { homeLines, STRIP_SHOWN, strip, WIDE_ROWS } from "#lib/board-items";
 import { boardData, project, row } from "#lib/board-rows.fixture";
 
-const agents = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => row(`local/${prefix}${i}`, { status: "working" }));
+const agents = (prefix: string, n: number) =>
+  Array.from({ length: n }, (_, i) => row(`local/${prefix}${i}`, { status: "working" }));
 const shape = (lines: ReturnType<typeof homeLines>) => lines.map((l) => l.projects.map((p) => p.name).join("+"));
 
 test("the strip answers the agent that has waited longest, and says how many more wait", () => {
@@ -31,21 +33,36 @@ test("a project listing many agents takes the whole line; folded, it is a small 
 
 test("a card does not move when a project before it changes state, only when it grows past the wide limit", () => {
   const before = [project("a", agents("a", 2)), project("b", agents("b", 2)), project("c", agents("c", 1))];
-  const after = [project("a", [row("local/a0", { status: "blocked" }), row("local/a1", { status: "done" })]), before[1], before[2]];
+  const after = [
+    project("a", [row("local/a0", { status: "blocked" }), row("local/a1", { status: "done" })]),
+    before[1],
+    before[2],
+  ];
   expect(shape(homeLines(after, 2, [], []))).toEqual(shape(homeLines(before, 2, [], [])));
 });
 
 test("idle agents beyond the first few do not make a card wide while they fold, only once they are listed", () => {
-  const quiet = project("q", Array.from({ length: 10 }, (_, i) => row(`local/i${i}`, { status: "idle" })));
+  const quiet = project(
+    "q",
+    Array.from({ length: 10 }, (_, i) => row(`local/i${i}`, { status: "idle" })),
+  );
   const projects = [quiet, project("r", agents("r", 1))];
   expect(shape(homeLines(projects, 2, [], []))).toEqual(["q+r"]);
   expect(shape(homeLines(projects, 2, [quiet.key], []))).toEqual(["q", "r"]);
 });
 
 test("the agents the strip does not show are counted per project, in the order they have waited, not listed", () => {
-  const docs = project("docs", [1, 2, 3].map((n) => row(`local/d${n}`, { status: "blocked" })));
-  const infra = project("infra", [1, 2].map((n) => row(`local/i${n}`, { status: "blocked" })));
-  const board = boardData([docs, infra], { needsYou: [docs.rows[0], infra.rows[0], docs.rows[1], infra.rows[1], docs.rows[2]] });
+  const docs = project(
+    "docs",
+    [1, 2, 3].map((n) => row(`local/d${n}`, { status: "blocked" })),
+  );
+  const infra = project(
+    "infra",
+    [1, 2].map((n) => row(`local/i${n}`, { status: "blocked" })),
+  );
+  const board = boardData([docs, infra], {
+    needsYou: [docs.rows[0], infra.rows[0], docs.rows[1], infra.rows[1], docs.rows[2]],
+  });
   const s = strip(board);
   expect(s.more).toBe(4);
   expect(s.moreIn).toEqual([

@@ -1,15 +1,22 @@
 import { announce, effect, keymap, signal, Text, View } from "nsh";
 import { Input } from "nsh/base";
+
 import type { InputRef } from "nsh/types";
-import { matchRows } from "#lib/pane-input";
+
 import { Btn, IconButton, INPUT_CLASS } from "#kit";
+import { matchRows } from "#lib/pane-input";
 
 /**
  * The find bar over the rows the mirror shows (`mod+f`). Enter goes to the next match down the pane, Shift+Enter to
  * the one before, Escape closes it. It starts at the last match, the one nearest the newest output (a file: the first). The rows are read
  * again at every query and every step, so output that arrived meanwhile is found; the count is announced politely.
  */
-export function PaneFind(props: { rows: () => Promise<string[]>; scrollToRow: (row: number) => void; onClose: () => void; /** What is searched, for the field's name: `pane` (default) or `file`. A file is read from its top, so its first match comes first. */ what?: string }) {
+export function PaneFind(props: {
+  rows: () => Promise<string[]>;
+  scrollToRow: (row: number) => void;
+  onClose: () => void;
+  /** What is searched, for the field's name: `pane` (default) or `file`. A file is read from its top, so its first match comes first. */ what?: string;
+}) {
   const what = props.what ?? "pane";
   const first = what === "file";
   const query = signal("");
@@ -37,7 +44,9 @@ export function PaneFind(props: { rows: () => Promise<string[]>; scrollToRow: (r
     const previous = keep ? hits()[at()] : undefined;
     hits.set(found);
     const start = first ? 0 : found.length - 1;
-    at.set(Math.max(0, previous === undefined ? start : found.indexOf(previous) >= 0 ? found.indexOf(previous) : start));
+    at.set(
+      Math.max(0, previous === undefined ? start : found.indexOf(previous) >= 0 ? found.indexOf(previous) : start),
+    );
     return true;
   };
   const typed = async () => {
@@ -87,8 +96,20 @@ export function PaneFind(props: { rows: () => Promise<string[]>; scrollToRow: (r
       <Text class="min-w-24 text-xs text-muted-foreground">
         {query().trim() === "" ? "" : hits().length === 0 ? "No matches" : `${at() + 1} of ${hits().length}`}
       </Text>
-      <Btn small label="Previous" name="Previous match" disabled={hits().length === 0} onPress={() => void step(-1).then(() => field?.focus())} />
-      <Btn small label="Next" name="Next match" disabled={hits().length === 0} onPress={() => void step(1).then(() => field?.focus())} />
+      <Btn
+        small
+        label="Previous"
+        name="Previous match"
+        disabled={hits().length === 0}
+        onPress={() => void step(-1).then(() => field?.focus())}
+      />
+      <Btn
+        small
+        label="Next"
+        name="Next match"
+        disabled={hits().length === 0}
+        onPress={() => void step(1).then(() => field?.focus())}
+      />
       <View class="flex-1" />
       <IconButton icon="x" label="Close find" onPress={props.onClose} />
     </View>

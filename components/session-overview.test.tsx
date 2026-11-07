@@ -1,6 +1,8 @@
-import { afterEach, expect, open, test } from "nsh/test";
-import type { App } from "nsh/test";
 import { Sessions } from "herdr-desktop/native";
+import { afterEach, expect, open, test } from "nsh/test";
+
+import type { App } from "nsh/test";
+
 import { endSessions } from "./chat-parts-seam";
 
 /** The details of a session against a real keeper driving the scripted ACP agent, and against a session that is not this app's. */

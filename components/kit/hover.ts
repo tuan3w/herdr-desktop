@@ -1,8 +1,11 @@
 import { signal } from "nsh";
+
 import type { OverlayPosition, Placement, Point, ViewRef } from "nsh/types";
+
 import { dialogDepth } from "./dialog-stack";
-import type { OpenReason } from "./popup";
 import { inSafeZone, type Rect } from "./positioner";
+
+import type { OpenReason } from "./popup";
 
 /**
  * When a popup opened by the pointer or by keyboard focus opens and closes: Base UI's `useHoverTriggerInteraction`,
@@ -96,7 +99,9 @@ export interface Hover<T extends HoverTrigger = HoverTrigger> extends Followed {
 
 async function measureNode(node: ViewRef): Promise<Rect | null> {
   const m = await node.measure();
-  return m ? { x: m.pagePosition.x, y: m.pagePosition.y, width: m.bounds.size.width, height: m.bounds.size.height } : null;
+  return m
+    ? { x: m.pagePosition.x, y: m.pagePosition.y, width: m.bounds.size.width, height: m.bounds.size.height }
+    : null;
 }
 
 export function createHover<T extends HoverTrigger>(o: HoverOptions): Hover<T> {
@@ -291,7 +296,12 @@ export function createHover<T extends HoverTrigger>(o: HoverOptions): Hover<T> {
     },
     /** The overlay was placed (again). */
     placed(p: OverlayPosition) {
-      popupRect = { x: p.bounds.origin.x, y: p.bounds.origin.y, width: p.bounds.size.width, height: p.bounds.size.height };
+      popupRect = {
+        x: p.bounds.origin.x,
+        y: p.bounds.origin.y,
+        width: p.bounds.size.width,
+        height: p.bounds.size.height,
+      };
       side = p.placement;
     },
     /** The anchor moved (`Positioner`'s policy): a popup hung from it is out of place. */

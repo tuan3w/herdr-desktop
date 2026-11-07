@@ -1,4 +1,5 @@
 import type { EntryView, QueuedView, SessionView } from "herdr-desktop/native";
+
 import { fold } from "#lib/text";
 
 /**
@@ -59,7 +60,13 @@ export function rankEntries(entries: readonly EntryView[], name: string): EntryV
  * `text` with the mention replaced by the path picked. A file ends with a space (unless one follows already), so typing goes on; a folder ends with
  * `/` and no space, so the list goes on into it. Returns where the caret belongs.
  */
-export function applyMention(text: string, mention: Mention, caret: number, path: string, folder: boolean): { text: string; caret: number } {
+export function applyMention(
+  text: string,
+  mention: Mention,
+  caret: number,
+  path: string,
+  folder: boolean,
+): { text: string; caret: number } {
   const tail = text.slice(caret);
   const insert = folder ? `@${path}/` : /^\s/.test(tail) ? `@${path}` : `@${path} `;
   const next = text.slice(0, mention.start) + insert + tail;
@@ -85,4 +92,4 @@ export function restoreText(typed: string, taken: string): string {
 export const MAX_FILES = 5;
 
 /** `report.pdf` for `/home/me/report.pdf`. */
-export const fileName = (path: string): string => path.split("/").filter(Boolean).pop() ?? path;
+export const fileName = (path: string): string => path.replace(/\/+$/, "").split("/").pop() || path;

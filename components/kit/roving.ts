@@ -103,13 +103,20 @@ export function createRoving(options: RovingOptions): Roving {
   const go = (move: Move) => {
     const from = landing();
     const at = from ? items.indexOf(from) : -1;
-    const to = stepIndex(items.map((i) => skip && i.disabled()), at, move, loop);
+    const to = stepIndex(
+      items.map((i) => skip && i.disabled()),
+      at,
+      move,
+      loop,
+    );
     if (to < 0 || to === at) return;
     const target = items[to];
     const refused = target.disabled();
     if (options.activateOnMove() && !refused) target.activate();
     else lit.set(target);
-    announce([target.label(), refused ? SAYS_DISABLED : "", target.current() ? SAYS_CURRENT : ""].filter(Boolean).join(", "));
+    announce(
+      [target.label(), refused ? SAYS_DISABLED : "", target.current() ? SAYS_CURRENT : ""].filter(Boolean).join(", "),
+    );
   };
 
   const activate = () => {

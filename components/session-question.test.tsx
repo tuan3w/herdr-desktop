@@ -1,5 +1,7 @@
 import { afterEach, expect, open, test } from "nsh/test";
+
 import type { App } from "nsh/test";
+
 import { endSessions } from "./chat-parts-seam";
 
 /**
@@ -10,7 +12,8 @@ import { endSessions } from "./chat-parts-seam";
 const DESKTOP = { width: 1280, height: 900, clock: {} };
 
 afterEach(() => endSessions());
-const synthetic = () => open("./chat-parts-lab.tsx", { ...DESKTOP, host: { params: { part: "synthetic", variant: "question" } } });
+const synthetic = () =>
+  open("./chat-parts-lab.tsx", { ...DESKTOP, host: { params: { part: "synthetic", variant: "question" } } });
 const live = () => open("./chat-parts-lab.tsx", { ...DESKTOP, host: { params: { part: "live" } } });
 
 const NAME = "label:Project name *";
@@ -27,7 +30,8 @@ async function settle(app: App) {
 async function pressUntil(app: App, button: string, done: string) {
   const deadline = Date.now() + 10_000;
   while (!app.texts().some((t) => t.includes(done))) {
-    if (Date.now() > deadline) throw new Error(`pressing ${button} never showed ${done}; on screen: ${JSON.stringify(app.texts())}`);
+    if (Date.now() > deadline)
+      throw new Error(`pressing ${button} never showed ${done}; on screen: ${JSON.stringify(app.texts())}`);
     // The press that went through removes the button before the phase on screen has caught up: wait for it instead.
     if (!app.shows(button)) {
       await app.waitUntil(() => app.texts().some((t) => t.includes(done)));
@@ -45,7 +49,19 @@ test("every field of the form is there under its own name, with the agent's defa
   expect(app.texts()).toContain("The agent needs a few answers before it continues.");
   expect(app.value(NAME)).toBe("demo");
   expect(app.value("label:How many")).toBe("3");
-  const names = ["label:Red", "label:Green", "label:Blue", "label:Tests", "label:Docs", "label:CI", "label:Yes", "label:No", "label:City: not selected", "Accept", "Decline"];
+  const names = [
+    "label:Red",
+    "label:Green",
+    "label:Blue",
+    "label:Tests",
+    "label:Docs",
+    "label:CI",
+    "label:Yes",
+    "label:No",
+    "label:City: not selected",
+    "Accept",
+    "Decline",
+  ];
   expect(names.filter((n) => !app.shows(n))).toEqual([]);
   // A secret is shown like any other field, and the form says it is not a safe place for one.
   expect(app.texts().some((t) => t.includes("A form is not a safe place for one"))).toBe(true);

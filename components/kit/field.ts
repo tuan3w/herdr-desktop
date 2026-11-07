@@ -87,7 +87,8 @@ export type ValidateResult = string | string[] | null | undefined | void;
  */
 export type Validator = (value: unknown, values: Record<string, unknown>) => ValidateResult | Promise<ValidateResult>;
 
-export const isEmpty = (value: unknown) => value === null || value === undefined || value === "" || (Array.isArray(value) && value.length === 0);
+export const isEmpty = (value: unknown) =>
+  value === null || value === undefined || value === "" || (Array.isArray(value) && value.length === 0);
 
 /** Equal as a control's values are: the same primitive, or lists of the same items. */
 export function same(a: unknown, b: unknown): boolean {
@@ -280,17 +281,27 @@ export function createField(options: FieldOptions = {}): Field {
     const given = fromForm();
     return given.length > 0 ? given : data().errors;
   };
-  const shouldValidateOnChange = () => mode() === "onChange" || (mode() === "onSubmit" && (form?.submitCount() ?? 0) > 0);
+  const shouldValidateOnChange = () =>
+    mode() === "onChange" || (mode() === "onSubmit" && (form?.submitCount() ?? 0) > 0);
 
   const read = (value: unknown): { state: Validity; errors: string[] } => {
     const c = control();
     if (!c) return { state: { ...NEUTRAL, valid: true }, errors: [] };
-    return checkConstraints({ required: !!c.required?.(), empty: (c.empty ?? isEmpty)(value), violations: c.violations?.(value) ?? [] }, markedDirty);
+    return checkConstraints(
+      { required: !!c.required?.(), empty: (c.empty ?? isEmpty)(value), violations: c.violations?.(value) ?? [] },
+      markedDirty,
+    );
   };
 
   const publish = (state: Validity, errs: string[], value: unknown) => {
     pending.set(false);
-    data.set({ state, error: errs[0] ?? "", errors: state.valid === false ? errs : [], value, initialValue: data().initialValue });
+    data.set({
+      state,
+      error: errs[0] ?? "",
+      errors: state.valid === false ? errs : [],
+      value,
+      initialValue: data().initialValue,
+    });
   };
 
   const commit = async (value: unknown, revalidate = false): Promise<void> => {
@@ -478,7 +489,11 @@ export interface FieldControl {
   /** Whether a form is around the control: Return should submit it, so the input keeps the focus (`submitBehavior="submit"`). */
   readonly inForm: boolean;
   /** `accessibilityLabel`, `accessibilityHint` and `disabled` as getters, to spread on an `Input`: `<Input {...control.props} />`. */
-  props: { readonly accessibilityLabel: string | undefined; readonly accessibilityHint: string | undefined; readonly disabled: boolean };
+  props: {
+    readonly accessibilityLabel: string | undefined;
+    readonly accessibilityHint: string | undefined;
+    readonly disabled: boolean;
+  };
 }
 
 /**

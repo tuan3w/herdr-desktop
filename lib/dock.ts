@@ -1,5 +1,7 @@
 import { announce, signal, Storage } from "nsh";
+
 import type { DockAreaLayout, DockAreaRef, DockNode, Placement } from "nsh/base";
+
 import { focusComposer, paneInFront } from "#lib/pane-input";
 import { save } from "#lib/save";
 
@@ -48,10 +50,13 @@ export function rowKeyOf(panel: string): string | null {
   if (pane) return `${pane.machine}/${pane.pane}`;
   const chat = parseSessionKey(panel);
   if (!chat) return null;
-  return chat.id.startsWith(PANE) ? `${chat.machine}/${chat.id.slice(PANE.length)}` : `${chat.machine}/session:${chat.id}`;
+  return chat.id.startsWith(PANE)
+    ? `${chat.machine}/${chat.id.slice(PANE.length)}`
+    : `${chat.machine}/session:${chat.id}`;
 }
 
-const validKey = (key: unknown): key is string => typeof key === "string" && (key === BOARD || parsePaneKey(key) !== null || parseSessionKey(key) !== null);
+const validKey = (key: unknown): key is string =>
+  typeof key === "string" && (key === BOARD || parsePaneKey(key) !== null || parseSessionKey(key) !== null);
 
 export function defaultLayout(): DockAreaLayout {
   return { center: { type: "split", axis: "horizontal", children: [{ type: "tabs", panels: [BOARD] }] } };
@@ -79,7 +84,8 @@ export function groups(layout: DockAreaLayout): Group[] {
 export const panelsOf = (layout: DockAreaLayout): string[] => groups(layout).flatMap((g) => g.panels);
 
 /** The group holding `key` (`undefined` when no group does). */
-export const groupOf = (layout: DockAreaLayout, key: string): Group | undefined => groups(layout).find((g) => g.panels.includes(key));
+export const groupOf = (layout: DockAreaLayout, key: string): Group | undefined =>
+  groups(layout).find((g) => g.panels.includes(key));
 
 /** The group after the one holding `key`, wrapping; `undefined` when there is only one group. */
 export function otherGroup(layout: DockAreaLayout, key: string): Group | undefined {
@@ -100,7 +106,8 @@ function clean(node: unknown, seen: Set<string>): DockNode | null {
       panels.push(p);
     }
     if (panels.length === 0) return null;
-    const active = typeof n.activeIndex === "number" && n.activeIndex >= 0 && n.activeIndex < panels.length ? n.activeIndex : 0;
+    const active =
+      typeof n.activeIndex === "number" && n.activeIndex >= 0 && n.activeIndex < panels.length ? n.activeIndex : 0;
     return { type: "tabs", panels, activeIndex: active };
   }
   if (n.type === "split" && Array.isArray(n.children) && (n.axis === "horizontal" || n.axis === "vertical")) {
@@ -132,7 +139,8 @@ export function readLayout(raw: string | null | undefined): DockAreaLayout {
   } catch {
     return defaultLayout();
   }
-  const center = typeof parsed === "object" && parsed !== null && "center" in parsed ? clean(parsed.center, new Set()) : null;
+  const center =
+    typeof parsed === "object" && parsed !== null && "center" in parsed ? clean(parsed.center, new Set()) : null;
   if (!center) return defaultLayout();
   const root: DockNode = center.type === "split" ? center : { type: "split", axis: "horizontal", children: [center] };
   const layout: DockAreaLayout = { center: root };

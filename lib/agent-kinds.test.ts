@@ -1,10 +1,15 @@
 import { expect, test } from "nsh/test";
-import schema from "../docs/herdr-api.schema.json";
+
 import { AGENT_KINDS, folderError } from "#lib/agent-kinds";
+
+import schema from "../docs/herdr-api.schema.json";
 
 /** The `enum` in herdr's schema that lists `claude`: its agent kinds. */
 function schemaKinds(node: unknown): string[] | undefined {
-  if (Array.isArray(node)) return node.every((x) => typeof x === "string") && node.includes("claude") ? (node as string[]) : node.map(schemaKinds).find(Boolean);
+  if (Array.isArray(node))
+    return node.every((x) => typeof x === "string") && node.includes("claude")
+      ? (node as string[])
+      : node.map(schemaKinds).find(Boolean);
   if (node && typeof node === "object") return Object.values(node).map(schemaKinds).find(Boolean);
   return undefined;
 }

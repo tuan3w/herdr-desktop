@@ -1,5 +1,7 @@
 import { context, type JSX, View } from "nsh";
+
 import { hoverTransition, moveTransition } from "#lib/motion";
+
 import { FOCUS_RING } from "./core";
 import { Icon } from "./icon";
 import { createOpenState, type OpenChange } from "./popup";
@@ -16,7 +18,8 @@ export const Disclosure = context<DisclosureScope | undefined>(undefined);
 
 function scopeOf(): DisclosureScope {
   const scope = Disclosure();
-  if (!scope) throw new Error("CollapsibleTrigger and CollapsiblePanel must be inside a Collapsible or an AccordionItem");
+  if (!scope)
+    throw new Error("CollapsibleTrigger and CollapsiblePanel must be inside a Collapsible or an AccordionItem");
   return scope;
 }
 
@@ -34,7 +37,11 @@ export function Collapsible(props: {
   class?: string;
   children?: JSX.Element;
 }) {
-  const state = createOpenState({ open: () => props.open, defaultOpen: props.defaultOpen, onOpenChange: props.onOpenChange });
+  const state = createOpenState({
+    open: () => props.open,
+    defaultOpen: props.defaultOpen,
+    onOpenChange: props.onOpenChange,
+  });
   const scope: DisclosureScope = {
     open: state.open,
     toggle: () => {
@@ -54,7 +61,12 @@ export function Collapsible(props: {
  * The control that opens and closes: a button that says `expanded` to screen readers. `label` is its accessible name
  * (the text it draws when omitted). `chevron` draws the turning arrow before `children`; without it `class` is the whole look.
  */
-export function CollapsibleTrigger(props: { label?: string; chevron?: boolean; class?: string; children?: JSX.Element }) {
+export function CollapsibleTrigger(props: {
+  label?: string;
+  chevron?: boolean;
+  class?: string;
+  children?: JSX.Element;
+}) {
   const scope = scopeOf();
   return (
     <View
@@ -67,7 +79,12 @@ export function CollapsibleTrigger(props: { label?: string; chevron?: boolean; c
       class={`${props.chevron ? "h-9 flex-row items-center gap-2 rounded-md" : ""} disabled:opacity-50 ${FOCUS_RING} ${props.class ?? ""}`}
     >
       <If when={props.chevron}>
-        <View style={moveTransition()} class={scope.open() ? "rotate-90" : ""} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <View
+          style={moveTransition()}
+          class={scope.open() ? "rotate-90" : ""}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
           <Icon name="chevron-right" size={14} tone="muted-foreground" />
         </View>
       </If>
@@ -85,7 +102,10 @@ export function CollapsiblePanel(props: { keepMounted?: boolean; class?: string;
   const kept = () => props.keepMounted ?? scope.keepMounted();
   return (
     <If when={scope.open() || kept()}>
-      <View class={`${scope.open() ? "" : "hidden"} ${props.class ?? ""}`} importantForAccessibility={scope.open() ? "auto" : "no-hide-descendants"}>
+      <View
+        class={`${scope.open() ? "" : "hidden"} ${props.class ?? ""}`}
+        importantForAccessibility={scope.open() ? "auto" : "no-hide-descendants"}
+      >
         {props.children}
       </View>
     </If>

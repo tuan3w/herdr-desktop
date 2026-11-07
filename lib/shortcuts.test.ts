@@ -1,5 +1,6 @@
-import { expect, test } from "nsh/test";
 import { keymap } from "nsh";
+import { expect, test } from "nsh/test";
+
 import { GLOBAL, keysOf, LOCAL, SHORTCUTS } from "#lib/shortcuts";
 
 /** The two key families: Apple platforms take Command for `mod`, every other Ctrl. */
@@ -14,7 +15,8 @@ test("every key is a keystroke nsh accepts, so binding them cannot throw at star
 
 test("a global shortcut cannot steal typing: it carries mod or is a function key", () => {
   for (const onApple of FAMILIES) {
-    for (const s of Object.values(GLOBAL)) for (const k of keysOf(s, onApple)) expect(/^mod\+|^f\d+$/.test(k)).toBe(true);
+    for (const s of Object.values(GLOBAL))
+      for (const k of keysOf(s, onApple)) expect(/^mod\+|^f\d+$/.test(k)).toBe(true);
   }
 });
 
@@ -36,8 +38,8 @@ test("a platform's own keys replace the shared ones, and F1 is Help only where i
 });
 
 test("the local keys are the ones controls take natively, so none is bound twice", () => {
-  const global = Object.values(GLOBAL).flatMap((s) => s.keys);
-  for (const s of LOCAL) for (const k of s.keys) expect(global.includes(k)).toBe(false);
+  const global = new Set(Object.values(GLOBAL).flatMap((s) => s.keys));
+  for (const s of LOCAL) for (const k of s.keys) expect(global.has(k)).toBe(false);
 });
 
 test("nsh keeps Quit and Full screen: no shortcut binds them", () => {
@@ -45,7 +47,8 @@ test("nsh keeps Quit and Full screen: no shortcut binds them", () => {
 });
 
 test("Escape belongs to the agent: it is never a global shortcut, so capture mode cannot depend on it", () => {
-  for (const s of Object.values(GLOBAL)) for (const onApple of FAMILIES) expect(keysOf(s, onApple).some((k) => k.split("+").includes("escape"))).toBe(false);
+  for (const s of Object.values(GLOBAL))
+    for (const onApple of FAMILIES) expect(keysOf(s, onApple).some((k) => k.split("+").includes("escape"))).toBe(false);
 });
 
 test("the nine tab shortcuts are mod+shift+digit, so no digit alone or mod+digit is taken from the screens", () => {

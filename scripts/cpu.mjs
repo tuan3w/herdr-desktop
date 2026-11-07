@@ -11,6 +11,7 @@
 // marker's row spans until the next marker; a window's last marker is named `end`. Under Xvfb with cairo the drawing cost is
 // the CPU's (no GPU): an idle row should still read ~0%.
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+
 import { nshTest, realDisplay } from "./run-linux.mjs";
 
 const args = process.argv.slice(2);
@@ -114,7 +115,9 @@ for (let i = 0; i < runs; i++) {
   if (runs > 1) console.error(`run ${i + 1} of ${runs}...`);
   const rows = await runOnce();
   if (rows.length === 0) {
-    console.log(`no readings from ${file}: it printed no PERF-SCENARIO marker, or fewer than two markers were printed (a row needs a marker after it, and one host)`);
+    console.log(
+      `no readings from ${file}: it printed no PERF-SCENARIO marker, or fewer than two markers were printed (a row needs a marker after it, and one host)`,
+    );
     process.exit(2);
   }
   results.push(rows);
@@ -123,7 +126,13 @@ for (let i = 0; i < runs; i++) {
 const aggregate = results[0].map((first) => {
   const mine = results.map((run) => run.find((r) => r.name === first.name)).filter(Boolean);
   const cpus = mine.map((r) => r.cpu);
-  return { name: first.name, wall: median(mine.map((r) => r.wall)), cpu: median(cpus), lo: Math.min(...cpus), hi: Math.max(...cpus) };
+  return {
+    name: first.name,
+    wall: median(mine.map((r) => r.wall)),
+    cpu: median(cpus),
+    lo: Math.min(...cpus),
+    hi: Math.max(...cpus),
+  };
 });
 
 const broken = [];
@@ -132,7 +141,8 @@ const body = aggregate.map((row) => {
   // The best run is held to the budget: noise on a shared machine only makes a run slower.
   const over = budget !== undefined && row.lo > budget;
   if (over) broken.push(`${row.name}: cpu best ${row.lo.toFixed(1)}% > ${budget}%`);
-  const text = runs > 1 ? `${row.cpu.toFixed(1)}% [${row.lo.toFixed(1)}-${row.hi.toFixed(1)}]` : `${row.cpu.toFixed(1)}%`;
+  const text =
+    runs > 1 ? `${row.cpu.toFixed(1)}% [${row.lo.toFixed(1)}-${row.hi.toFixed(1)}]` : `${row.cpu.toFixed(1)}%`;
   return [row.name, row.wall.toFixed(0), over ? `${text}!` : text];
 });
 const header = ["scenario", "s", "cpu"];
@@ -141,8 +151,14 @@ const format = (row) => row.map((c, i) => (i === 0 ? c.padEnd(widths[i]) : c.pad
 console.log(format(header));
 console.log(widths.map((w) => "-".repeat(w)).join("  "));
 for (const row of body) console.log(format(row));
-console.log(`\ncpu is the whole host process in percent of one core, from its CPU time between markers (10 ms resolution)${runs > 1 ? `; median of ${runs} runs with [min-max]` : ""}: short scenarios read coarsely.`);
-console.log(realDisplay ? "Measured on the display of this session." : "Measured under Xvfb with the cairo renderer (CPU-drawn): the drawing cost is the CPU's, so it is an upper bound for a GPU.");
+console.log(
+  `\ncpu is the whole host process in percent of one core, from its CPU time between markers (10 ms resolution)${runs > 1 ? `; median of ${runs} runs with [min-max]` : ""}: short scenarios read coarsely.`,
+);
+console.log(
+  realDisplay
+    ? "Measured on the display of this session."
+    : "Measured under Xvfb with the cairo renderer (CPU-drawn): the drawing cost is the CPU's, so it is an upper bound for a GPU.",
+);
 
 if (flag("write-budgets")) {
   // `drawn: 0` marks a scenario at rest (scripts/perf.mjs writes it): its budget is 1% of a core, the rest is the median x 1.5.
@@ -159,7 +175,9 @@ if (flag("write-budgets")) {
 if (broken.length) console.log(`\nbroken (${broken.length}):\n  ${broken.join("\n  ")}`);
 if (flag("check")) {
   if (!existsSync(budgetFile)) {
-    console.error("--check needs .perf/budgets.json (bun scripts/cpu.mjs --runs 5 --write-budgets writes the cpu part)");
+    console.error(
+      "--check needs .perf/budgets.json (bun scripts/cpu.mjs --runs 5 --write-budgets writes the cpu part)",
+    );
     process.exit(2);
   }
   const missing = aggregate.filter((r) => budgets.scenarios?.[r.name]?.cpu === undefined).map((r) => r.name);

@@ -1,14 +1,25 @@
+import { Herdr } from "herdr-desktop/native";
 import { announce, effect, keymap, signal, Text, View } from "nsh";
 import { Input } from "nsh/base";
+
 import type { InputRef } from "nsh/types";
-import { Herdr } from "herdr-desktop/native";
+
+import { SlashList } from "#components/slash-list";
+import { Btn, INPUT_CLASS } from "#kit";
 import { AGENT_KINDS } from "#lib/agent-kinds";
 import { learnPhrase, noteSent, phraseMemory, pinCommand, slashMemory } from "#lib/pane-memory";
 import { quickChips } from "#lib/phrases";
 import { quickPhrases } from "#lib/settings";
-import { commandsOf, commandText, hintFor, isPinned, matchCommands, type SlashCommand, unknownCommand, usageKey } from "#lib/slash";
-import { Btn, INPUT_CLASS } from "#kit";
-import { SlashList } from "#components/slash-list";
+import {
+  commandsOf,
+  commandText,
+  hintFor,
+  isPinned,
+  matchCommands,
+  type SlashCommand,
+  unknownCommand,
+  usageKey,
+} from "#lib/slash";
 
 /** What the pane tab does with its message box from outside: the key row's `/` and `@`, the board's `Reply…`. */
 export interface ComposerHandle {
@@ -60,8 +71,10 @@ export function Composer(props: {
 
   const isAgent = () => props.agent !== "";
   const commands = () => commandsOf(props.agent);
-  const matches = (): SlashCommand[] => (isAgent() && !hidden() ? matchCommands(value(), props.agent, commands(), slashMemory()) : []);
-  const chips = (): string[] => (quickPhrases() && isAgent() && !props.blocked && value() === "" ? quickChips(phraseMemory()) : []);
+  const matches = (): SlashCommand[] =>
+    isAgent() && !hidden() ? matchCommands(value(), props.agent, commands(), slashMemory()) : [];
+  const chips = (): string[] =>
+    quickPhrases() && isAgent() && !props.blocked && value() === "" ? quickChips(phraseMemory()) : [];
   const ghost = (): string | null => (isAgent() ? hintFor(value(), commands()) : null);
 
   props.onHandle({
@@ -211,7 +224,9 @@ export function Composer(props: {
             multiline
             submitBehavior="submit"
             onSubmit={({ text }) => submit(text)}
-            onContentSizeChange={({ size }) => height.set(Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, Math.ceil(size.height) + 14)))}
+            onContentSizeChange={({ size }) =>
+              height.set(Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, Math.ceil(size.height) + 14)))
+            }
             autoCorrect={false}
             autoCapitalize="none"
             autoComplete="off"
@@ -221,7 +236,13 @@ export function Composer(props: {
             class={`${INPUT_CLASS} py-2`}
           />
         </View>
-        <Btn label="Send" name="Send message" variant="primary" disabled={props.disabled || value().trim() === ""} onPress={() => submit(value())} />
+        <Btn
+          label="Send"
+          name="Send message"
+          variant="primary"
+          disabled={props.disabled || value().trim() === ""}
+          onPress={() => submit(value())}
+        />
       </View>
       <If when={ghost()}>
         <Text class="px-1 text-xs text-muted-foreground">{`${value().trim()} takes ${ghost()}`}</Text>

@@ -1,11 +1,13 @@
-import { announce, computed, effect, signal, Text, untracked, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
+import { announce, computed, effect, signal, Text, untracked, View } from "nsh";
+
 import type { BoardRow } from "herdr-desktop/native";
+
+import { AnswerDock } from "#components/answer-dock";
+import { StatusGlyph } from "#components/status-glyph";
+import { Btn, Field, Icon, Modal, NUM, notify } from "#kit";
 import { board, projectOf } from "#lib/herdr";
 import { ageText } from "#lib/sidebar";
-import { AnswerDock } from "#components/answer-dock";
-import { Btn, Field, Icon, Modal, NUM, notify } from "#kit";
-import { StatusGlyph } from "#components/status-glyph";
 
 /**
  * Answer one by one: a dialog that walks the agents that need you, longest waiting first, with their answers and a
@@ -86,7 +88,9 @@ export function Triage(props: { open: boolean; start?: string; onClose: () => vo
             <Btn label="Previous agent" icon="arrow-left" onPress={() => step(-1)} />
             <Btn label="Next agent" onPress={() => step(1)} />
           </If>
-          <If when={row()}>{(r) => <Btn label="Open" name={`Open ${r().name}`} onPress={() => props.onOpen(r())} />}</If>
+          <If when={row()}>
+            {(r) => <Btn label="Open" name={`Open ${r().name}`} onPress={() => props.onOpen(r())} />}
+          </If>
           <Btn variant="primary" label="Done" onPress={props.onClose} />
         </>
       }
@@ -106,13 +110,29 @@ export function Triage(props: { open: boolean; start?: string; onClose: () => vo
               <StatusGlyph status={r().status} size={16} loud />
               <View class="min-w-0 flex-1">
                 <Text class="text-sm font-medium text-foreground">{r().name}</Text>
-                <Text class="text-xs text-muted-foreground">{[projectOf(r().project)?.name ?? r().cwd?.split("/").filter(Boolean).pop(), r().agent, r().session ? "chat" : "terminal", r().machineName].filter(Boolean).join(" · ")}</Text>
+                <Text class="text-xs text-muted-foreground">
+                  {[
+                    projectOf(r().project)?.name ?? r().cwd?.replace(/\/+$/, "").split("/").pop(),
+                    r().agent,
+                    r().session ? "chat" : "terminal",
+                    r().machineName,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </Text>
               </View>
               <Text style={NUM} class="text-xs text-muted-foreground">
                 {ageText(r().sinceSecs)}
               </Text>
             </View>
-            <If when={!r().session} else={<Text class="text-sm text-muted-foreground">This chat waits for a permission or an answer. Open it to read the request and answer there.</Text>}>
+            <If
+              when={!r().session}
+              else={
+                <Text class="text-sm text-muted-foreground">
+                  This chat waits for a permission or an answer. Open it to read the request and answer there.
+                </Text>
+              }
+            >
               <If
                 when={r().prompt}
                 else={
@@ -125,7 +145,13 @@ export function Triage(props: { open: boolean; start?: string; onClose: () => vo
               >
                 {(prompt) => <AnswerDock machine={r().machine} pane={r().paneId} prompt={prompt()} />}
               </If>
-              <Field label="" placeholder={`Message ${r().agent || r().name}…`} value={message()} onChange={(v) => message.set(v)} onSubmit={() => void send(r())} />
+              <Field
+                label=""
+                placeholder={`Message ${r().agent || r().name}…`}
+                value={message()}
+                onChange={(v) => message.set(v)}
+                onSubmit={() => void send(r())}
+              />
               <Text class="min-h-4 text-xs text-muted-foreground">{sentNote()}</Text>
             </If>
           </View>

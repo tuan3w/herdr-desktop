@@ -1,5 +1,17 @@
 import { keymap, mount, signal, Text, View } from "nsh";
-import { Btn, closeToast, confirmDestructive, focusToasts, Modal, notify, notifyPromise, ThemeRoot, ToastHost, undoLast } from "#kit";
+
+import {
+  Btn,
+  closeToast,
+  confirmDestructive,
+  focusToasts,
+  Modal,
+  notify,
+  notifyPromise,
+  ThemeRoot,
+  ToastHost,
+  undoLast,
+} from "#kit";
 
 /**
  * The entry of `feedback.test.tsx` and of the screenshots of the toasts and dialogs: one button for each thing a toast or a
@@ -22,7 +34,8 @@ function Lab() {
     const sent = new Promise<boolean>((resolve) => setTimeout(() => resolve(ok), 20000));
     void notifyPromise(sent, {
       loading: { text: "Sending message", undo: () => say("send undone") },
-      success: (delivered) => (delivered ? { text: "Message sent" } : { text: "Could not send message", type: "error", lasting: true }),
+      success: (delivered) =>
+        delivered ? { text: "Message sent" } : { text: "Could not send message", type: "error", lasting: true },
       error: () => undefined,
     });
   };
@@ -31,14 +44,28 @@ function Lab() {
       <View class="flex-1 gap-2 bg-background p-4">
         <View class="flex-row flex-wrap gap-2">
           <Btn label="Plain toast" onPress={() => notify("Saved")} />
-          <Btn label="Toast with undo" onPress={() => notify(`Task ${++lines} finished`, { undo: () => undone.update((n) => n + 1) })} />
-          <Btn label="Toast five" onPress={() => ["one", "two", "three", "four", "five"].forEach((n) => notify(`Notice ${n}`))} />
+          <Btn
+            label="Toast with undo"
+            onPress={() => notify(`Task ${++lines} finished`, { undo: () => undone.update((n) => n + 1) })}
+          />
+          <Btn
+            label="Toast five"
+            onPress={() => ["one", "two", "three", "four", "five"].forEach((n) => notify(`Notice ${n}`))}
+          />
           <Btn label="Toast that stays" onPress={() => notify("Read carefully", { timeout: 0 })} />
           <Btn label="Warning toast" onPress={() => notify("Could not save changes", { lasting: true })} />
           <Btn label="Close all" onPress={() => closeToast()} />
           <Btn label="Send message" onPress={() => send(true)} />
           <Btn label="Send failing message" onPress={() => send(false)} />
-          <Btn label="Ask twice" onPress={() => void Promise.all([confirmDestructive({ title: "Delete?", description: "This cannot be undone.", action: "Delete" }), confirmDestructive({ title: "Delete?", description: "This cannot be undone.", action: "Delete" })]).then(([first, second]) => say(`confirm ${first} ${second}`))} />
+          <Btn
+            label="Ask twice"
+            onPress={() =>
+              void Promise.all([
+                confirmDestructive({ title: "Delete?", description: "This cannot be undone.", action: "Delete" }),
+                confirmDestructive({ title: "Delete?", description: "This cannot be undone.", action: "Delete" }),
+              ]).then(([first, second]) => say(`confirm ${first} ${second}`))
+            }
+          />
         </View>
         <View class="flex-row flex-wrap gap-2">
           <Btn label="Open A" onPress={() => a.set(true)} />
@@ -102,7 +129,9 @@ function Lab() {
         actions={<Btn label="Done" onPress={() => long.set(false)} />}
       >
         <View class="gap-2">
-          <Each of={Array.from({ length: 60 }, (_, i) => `Row ${i + 1}`)}>{(line) => <Text class="text-sm text-foreground">{line()}</Text>}</Each>
+          <Each of={Array.from({ length: 60 }, (_, i) => `Row ${i + 1}`)}>
+            {(line) => <Text class="text-sm text-foreground">{line()}</Text>}
+          </Each>
         </View>
       </Modal>
       <ToastHost />

@@ -1,5 +1,7 @@
 import { signal } from "nsh";
+
 import type { EntryView } from "herdr-desktop/native";
+
 import { ageText } from "#lib/sidebar";
 
 /**
@@ -56,7 +58,11 @@ export type LinkRoute = "browser" | "page" | "file" | "address";
  * browser's (nothing to tunnel). Any other http or https address opens in the browser. Anything else (a `file:` or
  * `javascript:` address) is only copied, never opened.
  */
-export function routeLink(kind: "url" | "path", target: string, where: { local: boolean; loopback: boolean }): LinkRoute {
+export function routeLink(
+  kind: "url" | "path",
+  target: string,
+  where: { local: boolean; loopback: boolean },
+): LinkRoute {
   if (kind === "path") return "file";
   if (where.loopback && !where.local) return "page";
   return /^https?:\/\//i.test(target) ? "browser" : "address";
@@ -141,5 +147,13 @@ export const isImageName = (name: string): boolean => IMAGE.test(name);
 /** What a screen reader says of a row: `<name>, folder|file, <size>, <changed>`, and why it cannot be opened. */
 export function entryLabel(entry: EntryView, now: number): string {
   const kind = entry.kind === "dir" ? "folder" : entry.kind === "file" ? "file" : "not a regular file";
-  return [entry.name, entry.link ? `link, ${kind}` : kind, entry.kind === "file" ? sizeText(entry.size) : "", modifiedText(entry.modified, now), entry.readable ? "" : "no permission"].filter(Boolean).join(", ");
+  return [
+    entry.name,
+    entry.link ? `link, ${kind}` : kind,
+    entry.kind === "file" ? sizeText(entry.size) : "",
+    modifiedText(entry.modified, now),
+    entry.readable ? "" : "no permission",
+  ]
+    .filter(Boolean)
+    .join(", ");
 }

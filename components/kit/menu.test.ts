@@ -1,4 +1,5 @@
 import { expect, test } from "nsh/test";
+
 import { type ItemRow, type MenuEntry, type MenuRow, menuRows } from "./menu";
 
 const item = (rows: MenuRow[], i: number) => rows[i] as ItemRow;
@@ -49,7 +50,16 @@ test("exactly the radio whose value the group holds is checked, and choosing one
 
 test("a disabled group disables its radios, and a disabled item stays a row that can be reached", () => {
   const rows = menuRows([
-    { type: "radio", value: "a", disabled: true, onValueChange: () => {}, items: [{ value: "a", label: "A" }, { value: "b", label: "B" }] },
+    {
+      type: "radio",
+      value: "a",
+      disabled: true,
+      onValueChange: () => {},
+      items: [
+        { value: "a", label: "A" },
+        { value: "b", label: "B" },
+      ],
+    },
     { label: "Delete", disabled: true, onSelect: () => {} },
   ]);
   expect(rows.map((r) => (r as ItemRow).disabled)).toEqual([true, true, true]);
@@ -59,7 +69,11 @@ test("a disabled group disables its radios, and a disabled item stays a row that
 test("a heading is a row of its own above its entries, and dividers that would dangle are dropped", () => {
   const entries: MenuEntry[] = [
     "separator",
-    { type: "group", label: "Display", items: [{ label: "Column", onSelect: () => {} }, "separator", "separator", { label: "Row", onSelect: () => {} }] },
+    {
+      type: "group",
+      label: "Display",
+      items: [{ label: "Column", onSelect: () => {} }, "separator", "separator", { label: "Row", onSelect: () => {} }],
+    },
     "separator",
     "separator",
     { label: "Close", onSelect: () => {} },

@@ -1,25 +1,58 @@
-import { announce, computed, effect, keymap, List, Scroll, signal, Text, View } from "nsh";
-import type { JSX } from "nsh";
-import { Button } from "nsh/base";
 import { Herdr } from "herdr-desktop/native";
+import { announce, computed, effect, keymap, List, Scroll, signal, Text, View } from "nsh";
+import { Button } from "nsh/base";
+
 import type { BoardProject, BoardRow, MachineStatus } from "herdr-desktop/native";
-import { machinesOpen, newSession, settingsOpen, sidebarSearch } from "#lib/actions";
-import { BOARD, focused, rowKeyOf, showBoard } from "#lib/dock";
-import { board, projectOf, revision, rowOf, started } from "#lib/herdr";
-import { linkGlyph, linkText } from "#lib/machine-state";
-import { ROW } from "#lib/layout";
-import { ofKind } from "#lib/list-item";
-import { hoverTransition } from "#lib/motion";
-import { openAgent } from "#lib/open-agent";
-import { isSelected, rangeTo, toggle } from "#lib/selection";
-import { sidebarCollapsed } from "#lib/settings";
-import { keyLabel } from "#lib/shortcuts";
-import { ageText, foldedProjects, moreOpen, projectFolder, projectLabel, projectState, rowLabel, type SidebarItem, sidebarItems, toggleMore, toggleProject } from "#lib/sidebar";
-import { stateWord } from "#lib/status";
-import { ActionMenu, Badge, Btn, Clipped, compact, FOCUS_RING_SIDEBAR, Icon, type IconName, IconButton, Kbd, NUM, Popover, PopoverTitle, rail, SearchField, snug, Tipped, usePopover } from "#kit";
+import type { JSX } from "nsh";
+
 import { PickSlot } from "#components/pick-box";
 import { Monogram, ProjectMark } from "#components/project-parts";
 import { StatusGlyph } from "#components/status-glyph";
+import {
+  ActionMenu,
+  Badge,
+  Btn,
+  Clipped,
+  compact,
+  FOCUS_RING_SIDEBAR,
+  Icon,
+  type IconName,
+  IconButton,
+  Kbd,
+  NUM,
+  Popover,
+  PopoverTitle,
+  rail,
+  SearchField,
+  snug,
+  Tipped,
+  usePopover,
+} from "#kit";
+import { machinesOpen, newSession, settingsOpen, sidebarSearch } from "#lib/actions";
+import { BOARD, focused, rowKeyOf, showBoard } from "#lib/dock";
+import { board, projectOf, revision, rowOf, started } from "#lib/herdr";
+import { ROW } from "#lib/layout";
+import { ofKind } from "#lib/list-item";
+import { linkGlyph, linkText } from "#lib/machine-state";
+import { hoverTransition } from "#lib/motion";
+import { openAgent } from "#lib/open-agent";
+import { rangeTo, toggle } from "#lib/selection";
+import { sidebarCollapsed } from "#lib/settings";
+import { keyLabel } from "#lib/shortcuts";
+import {
+  ageText,
+  foldedProjects,
+  moreOpen,
+  projectFolder,
+  projectLabel,
+  projectState,
+  rowLabel,
+  type SidebarItem,
+  sidebarItems,
+  toggleMore,
+  toggleProject,
+} from "#lib/sidebar";
+import { stateWord } from "#lib/status";
 
 /** Hover and the open tab are a quiet fill, nothing else. The focus ring is inset: see `FOCUS_RING_SIDEBAR`. */
 const FILL = `rounded-md hover:bg-sidebar-accent/60 selected:bg-sidebar-accent ${FOCUS_RING_SIDEBAR}`;
@@ -46,7 +79,16 @@ const isOpen = (row: BoardRow) => openRow()?.key === row.key;
 const nameOf = (projectKey: string) => projectOf(projectKey)?.name ?? "";
 
 /** One line of the top group: icon, label, then `children` (a count, a keycap) at the far end; in the rail the icon alone. */
-function NavRow(props: { icon: IconName; label: string; name?: string; shortcut?: string; selected?: boolean; onPress: () => void; mark?: JSX.Element; children?: JSX.Element }) {
+function NavRow(props: {
+  icon: IconName;
+  label: string;
+  name?: string;
+  shortcut?: string;
+  selected?: boolean;
+  onPress: () => void;
+  mark?: JSX.Element;
+  children?: JSX.Element;
+}) {
   return (
     <Tipped label={props.label} shortcut={props.shortcut} class={rail() ? "items-center" : undefined}>
       <Button
@@ -74,7 +116,12 @@ function MachineGlyph(props: { status: MachineStatus }) {
   const label = () => `${props.status.name}, ${linkText(props.status)}`;
   return (
     <Tipped label={label()} class="items-center">
-      <Button onPress={() => machinesOpen.set(true)} accessibilityLabel={label()} style={hoverTransition()} class={`size-11 items-center justify-center ${FILL}`}>
+      <Button
+        onPress={() => machinesOpen.set(true)}
+        accessibilityLabel={label()}
+        style={hoverTransition()}
+        class={`size-11 items-center justify-center ${FILL}`}
+      >
         <StatusGlyph status={linkGlyph(props.status.state)} />
       </Button>
     </Tipped>
@@ -92,7 +139,12 @@ function Host(props: { item: () => Extract<SidebarItem, { kind: "host" }> }) {
   const label = () => `${s().name}, ${line()}`;
   return (
     <View class="mt-4 gap-1">
-      <Button onPress={() => machinesOpen.set(true)} accessibilityLabel={label()} style={hoverTransition()} class={`min-h-8 flex-row items-center gap-2 px-3 py-1 ${FILL}`}>
+      <Button
+        onPress={() => machinesOpen.set(true)}
+        accessibilityLabel={label()}
+        style={hoverTransition()}
+        class={`min-h-8 flex-row items-center gap-2 px-3 py-1 ${FILL}`}
+      >
         <StatusGlyph status={linkGlyph(s().state)} size={12} />
         <Clipped class="min-w-0 flex-1 text-xs font-medium text-muted-foreground">{s().name}</Clipped>
         <Text style={NUM} class="text-xs text-muted-foreground">
@@ -116,8 +168,15 @@ function Host(props: { item: () => Extract<SidebarItem, { kind: "host" }> }) {
 /** What a project's menu offers: pin it, start a chat in it, fold it. */
 function projectEntries(project: BoardProject) {
   return [
-    { label: project.pinned ? "Unpin" : "Pin to the top", onSelect: () => Herdr.pinProject(project.key, !project.pinned) },
-    { label: "New agent session here…", onSelect: () => newSession({ machine: project.machine, folder: projectFolder(project) }), disabled: project.offline },
+    {
+      label: project.pinned ? "Unpin" : "Pin to the top",
+      onSelect: () => Herdr.pinProject(project.key, !project.pinned),
+    },
+    {
+      label: "New agent session here…",
+      onSelect: () => newSession({ machine: project.machine, folder: projectFolder(project) }),
+      disabled: project.offline,
+    },
   ];
 }
 
@@ -141,7 +200,11 @@ function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> 
         <Icon name={props.item().folded ? "chevron-right" : "chevron-down"} size={14} tone="muted-foreground" />
         <Clipped class="min-w-0 flex-1 text-sm font-medium text-sidebar-foreground">{p().name}</Clipped>
         <If when={p().pinned}>
-          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" class="size-1.5 rounded-full bg-sidebar-foreground" />
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            class="size-1.5 rounded-full bg-sidebar-foreground"
+          />
         </If>
         <ProjectMark project={p()} compact onSidebar />
       </View>
@@ -156,7 +219,10 @@ function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> 
 function Checkout(props: { item: () => Extract<SidebarItem, { kind: "checkout" }> }) {
   const c = () => props.item().checkout;
   return (
-    <View class="flex-row items-center gap-2 pl-8 pr-3 pt-2" accessibilityLabel={c().linked ? `${c().name}, worktree` : `${c().name}, main checkout`}>
+    <View
+      class="flex-row items-center gap-2 pl-8 pr-3 pt-2"
+      accessibilityLabel={c().linked ? `${c().name}, worktree` : `${c().name}, main checkout`}
+    >
       <Clipped class="min-w-0 shrink text-xs text-muted-foreground">{c().name}</Clipped>
       <Text class="text-xs text-muted-foreground">{c().linked ? "worktree" : "main"}</Text>
     </View>
@@ -187,7 +253,10 @@ function useRowKeys(row: () => BoardRow) {
 function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
   const row = () => props.item().row;
   const keys = useRowKeys(row);
-  const sub = () => [stateWord(row().status, row().reviewed), row().agent, row().session ? "chat" : "", row().offline ? "offline" : ""].filter(Boolean).join(" · ");
+  const sub = () =>
+    [stateWord(row().status, row().reviewed), row().agent, row().session ? "chat" : "", row().offline ? "offline" : ""]
+      .filter(Boolean)
+      .join(" · ");
   return (
     <View class={`group/row relative ${props.item().nested ? "pl-3" : ""}`}>
       <View
@@ -236,7 +305,14 @@ function More(props: { item: () => Extract<SidebarItem, { kind: "more" }> }) {
 /** The tree: machines, projects, checkouts, agents. Rows are recycled, so each reads its item and holds nothing of its own. */
 function Tree() {
   return (
-    <List each={items()} keyExtractor={(i: SidebarItem) => i.key} estimatedItemSize={ROW.agent.height} class="min-h-0 flex-1" contentClass="gap-1" accessibilityLabel="Projects and agents">
+    <List
+      each={items()}
+      keyExtractor={(i: SidebarItem) => i.key}
+      estimatedItemSize={ROW.agent.height}
+      class="min-h-0 flex-1"
+      contentClass="gap-1"
+      accessibilityLabel="Projects and agents"
+    >
       {(item) => {
         const host = ofKind(item, "host");
         const project = ofKind(item, "project");
@@ -250,7 +326,14 @@ function Tree() {
               <If
                 when={item().kind === "project"}
                 else={
-                  <If when={item().kind === "checkout"} else={<If when={item().kind === "row"} else={<More item={more} />}><Agent item={row} /></If>}>
+                  <If
+                    when={item().kind === "checkout"}
+                    else={
+                      <If when={item().kind === "row"} else={<More item={more} />}>
+                        <Agent item={row} />
+                      </If>
+                    }
+                  >
                     <Checkout item={checkout} />
                   </If>
                 }
@@ -333,7 +416,9 @@ function RailTile(props: { project: BoardProject }) {
       )}
     >
       <PopoverTitle>{p().name}</PopoverTitle>
-      <Text class="text-xs text-muted-foreground">{[p().machineName, projectState(p())].filter(Boolean).join(" · ")}</Text>
+      <Text class="text-xs text-muted-foreground">
+        {[p().machineName, projectState(p())].filter(Boolean).join(" · ")}
+      </Text>
       <Each of={p().rows} key={(r: BoardRow) => r.key}>
         {(row) => <RailAgent row={row()} project={p()} />}
       </Each>
@@ -358,7 +443,13 @@ function Rail() {
  */
 function CollapseButton() {
   return (
-    <IconButton onSidebar icon="panel-left" label={rail() ? "Expand sidebar" : "Collapse sidebar"} shortcut={keyLabel("sidebar")} onPress={() => sidebarCollapsed.set(!rail())} />
+    <IconButton
+      onSidebar
+      icon="panel-left"
+      label={rail() ? "Expand sidebar" : "Collapse sidebar"}
+      shortcut={keyLabel("sidebar")}
+      onPress={() => sidebarCollapsed.set(!rail())}
+    />
   );
 }
 
@@ -367,7 +458,8 @@ function announceNeedsYou() {
   let before: number | undefined;
   effect(() => {
     const n = board().counts.needsYou;
-    if (before !== undefined && n !== before) announce(n === 0 ? "Nothing needs you" : n === 1 ? "1 agent needs you" : `${n} agents need you`);
+    if (before !== undefined && n !== before)
+      announce(n === 0 ? "Nothing needs you" : n === 1 ? "1 agent needs you" : `${n} agents need you`);
     before = n;
   });
 }
@@ -402,7 +494,14 @@ export function Sidebar() {
             </If>
           </NavRow>
         </View>
-        <NavRow icon="list" label="Board" name={needs() > 0 ? `Board, ${needs()} need you` : "Board"} shortcut={keyLabel("board")} selected={focused() === BOARD} onPress={() => void showBoard()}>
+        <NavRow
+          icon="list"
+          label="Board"
+          name={needs() > 0 ? `Board, ${needs()} need you` : "Board"}
+          shortcut={keyLabel("board")}
+          selected={focused() === BOARD}
+          onPress={() => void showBoard()}
+        >
           <Badge onSidebar count={needs()} />
         </NavRow>
       </View>
@@ -414,13 +513,20 @@ export function Sidebar() {
         </View>
       </If>
       <If when={!rail()}>
-        <SearchField value={query()} onChange={(v) => query.set(v)} placeholder="Search projects" inputRef={(ref) => (sidebarSearch.focus = () => ref.focus())} />
+        <SearchField
+          value={query()}
+          onChange={(v) => query.set(v)}
+          placeholder="Search projects"
+          inputRef={(ref) => (sidebarSearch.focus = () => ref.focus())}
+        />
       </If>
       <If when={rail()} else={<Tree />}>
         <Rail />
       </If>
       <If when={!rail() && empty()}>
-        <Text class="px-3 text-xs text-muted-foreground">{query().trim() ? "No project or agent matches" : board().statusLine}</Text>
+        <Text class="px-3 text-xs text-muted-foreground">
+          {query().trim() ? "No project or agent matches" : board().statusLine}
+        </Text>
       </If>
       <NavRow icon="sliders" label="Settings" shortcut={keyLabel("settings")} onPress={() => settingsOpen.set(true)} />
     </View>

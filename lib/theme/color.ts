@@ -34,14 +34,24 @@ const encode = (x: number) => (x <= 0.0031308 ? 12.92 * x : 1.055 * x ** (1 / 2.
 /** `#rrggbb` of an opaque oklch color (alpha ignored): for swatches drawn with inline styles. */
 export function oklchToHex(css: string): string {
   const [r, g, b] = oklchToLinear(parseOklch(css));
-  return `#${[r, g, b].map((x) => Math.round(encode(x) * 255).toString(16).padStart(2, "0")).join("")}`;
+  return `#${[r, g, b]
+    .map((x) =>
+      Math.round(encode(x) * 255)
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("")}`;
 }
 
 /** WCAG relative luminance of linear-light channels. */
 const luminance = ([r, g, b]: [number, number, number]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
 
 /** `top` painted at `alpha` over `under`, in linear light. */
-export function mix(top: [number, number, number], under: [number, number, number], alpha: number): [number, number, number] {
+export function mix(
+  top: [number, number, number],
+  under: [number, number, number],
+  alpha: number,
+): [number, number, number] {
   return [0, 1, 2].map((i) => top[i] * alpha + under[i] * (1 - alpha)) as [number, number, number];
 }
 

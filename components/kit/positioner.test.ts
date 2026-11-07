@@ -1,8 +1,16 @@
 import { expect, test } from "nsh/test";
+
 import type { OverlayPosition, Placement } from "nsh/types";
+
 import { anchorMoved, inSafeZone, type Rect } from "./positioner";
 
-function placed(placement: OverlayPosition["placement"], x: number, y: number, width = 120, height = 24): OverlayPosition {
+function placed(
+  placement: OverlayPosition["placement"],
+  x: number,
+  y: number,
+  width = 120,
+  height = 24,
+): OverlayPosition {
   return { placement, bounds: { origin: { x, y }, size: { width, height } }, available: { width: 400, height: 400 } };
 }
 

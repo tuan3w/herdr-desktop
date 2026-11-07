@@ -1,8 +1,10 @@
 import { expect, test } from "nsh/test";
+
 import { destinationError, fieldOfRejection, portError, sessionError } from "#lib/machine-rules";
 
 test("a destination is a host, user@host, an address or an ssh alias, and anything that ssh or a shell would read otherwise is refused", () => {
-  for (const ok of ["devbox", "me@devbox.example.com", "10.0.0.5", "[fe80::1]", "git-box_2", "u@h:22"]) expect(destinationError(ok)).toBeUndefined();
+  for (const ok of ["devbox", "me@devbox.example.com", "10.0.0.5", "[fe80::1]", "git-box_2", "u@h:22"])
+    expect(destinationError(ok)).toBeUndefined();
   const refused = [
     "",
     "-oProxyCommand=touch/tmp/x",

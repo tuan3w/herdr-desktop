@@ -1,20 +1,61 @@
 import { expect, test } from "nsh/test";
-import type { SessionItem, ToolItem } from "herdr-desktop/native";
-import { composerOff, durationText, itemLabel, oneLine, outputView, shellLine, tailText, toolLine, visibleText, workHead, workParts } from "#lib/session-text";
 
-const tool = (over: Partial<ToolItem>): ToolItem => ({ id: "t", title: "Tool", status: "completed", head: [], tail: [], omitted: 0, diffs: [], locations: [], parts: [], terminal: false, ...over });
+import type { SessionItem, ToolItem } from "herdr-desktop/native";
+
+import {
+  composerOff,
+  durationText,
+  itemLabel,
+  oneLine,
+  outputView,
+  shellLine,
+  tailText,
+  toolLine,
+  visibleText,
+  workHead,
+  workParts,
+} from "#lib/session-text";
+
+const tool = (over: Partial<ToolItem>): ToolItem => ({
+  id: "t",
+  title: "Tool",
+  status: "completed",
+  head: [],
+  tail: [],
+  omitted: 0,
+  diffs: [],
+  locations: [],
+  parts: [],
+  terminal: false,
+  ...over,
+});
 
 test("a tool call is one line a person reads: verb, then what it acted on", () => {
-  expect(toolLine(tool({ toolKind: "execute", subject: "cargo test", status: "inProgress" }))).toMatchObject({ verb: "Running", object: "cargo test" });
+  expect(toolLine(tool({ toolKind: "execute", subject: "cargo test", status: "inProgress" }))).toMatchObject({
+    verb: "Running",
+    object: "cargo test",
+  });
   expect(toolLine(tool({ toolKind: "execute", subject: "cargo test" }))).toMatchObject({ verb: "Ran" });
-  expect(toolLine(tool({ toolKind: "read", subject: "/work/app/src/main.rs" }), "/work/app")).toMatchObject({ verb: "Read", object: "src/main.rs" });
-  const edit = tool({ toolKind: "edit", diffs: [{ path: "/work/app/CHANGELOG.md", new: "a\nb", added: 6, removed: 1 }] });
+  expect(toolLine(tool({ toolKind: "read", subject: "/work/app/src/main.rs" }), "/work/app")).toMatchObject({
+    verb: "Read",
+    object: "src/main.rs",
+  });
+  const edit = tool({
+    toolKind: "edit",
+    diffs: [{ path: "/work/app/CHANGELOG.md", new: "a\nb", added: 6, removed: 1 }],
+  });
   expect(toolLine(edit, "/work/app")).toMatchObject({ verb: "Created", object: "CHANGELOG.md", added: 6, removed: 1 });
 });
 
 test("without a subject the agent's own title is the line, and a kind nobody knows is just its title", () => {
-  expect(toolLine(tool({ title: "Run: ls -la", toolKind: "execute" }))).toMatchObject({ verb: "", object: "Run: ls -la" });
-  expect(toolLine(tool({ title: "Summon", toolKind: "teleport", subject: "x" }))).toMatchObject({ verb: "", object: "Summon" });
+  expect(toolLine(tool({ title: "Run: ls -la", toolKind: "execute" }))).toMatchObject({
+    verb: "",
+    object: "Run: ls -la",
+  });
+  expect(toolLine(tool({ title: "Summon", toolKind: "teleport", subject: "x" }))).toMatchObject({
+    verb: "",
+    object: "Summon",
+  });
 });
 
 test("what an agent sends cannot hide in the text: direction overrides and escapes are shown as code points", () => {
@@ -34,8 +75,23 @@ test("durations read short, and cut text says it was cut", () => {
 
 test("a screen reader hears who spoke and what the row is", () => {
   const user: SessionItem = { id: 1, rev: 1, kind: "message", role: "user", text: "hello", images: [], parts: [] };
-  const agent: SessionItem = { id: 2, rev: 1, kind: "message", role: "agent", text: "x".repeat(300), images: [], parts: [] };
-  const call: SessionItem = { id: 3, rev: 1, kind: "tool", images: [], parts: [], tool: tool({ toolKind: "execute", subject: "ls", status: "failed" }) };
+  const agent: SessionItem = {
+    id: 2,
+    rev: 1,
+    kind: "message",
+    role: "agent",
+    text: "x".repeat(300),
+    images: [],
+    parts: [],
+  };
+  const call: SessionItem = {
+    id: 3,
+    rev: 1,
+    kind: "tool",
+    images: [],
+    parts: [],
+    tool: tool({ toolKind: "execute", subject: "ls", status: "failed" }),
+  };
   expect(itemLabel(user)).toBe("You: hello");
   expect(itemLabel(agent)).toHaveLength("Agent: ".length + 200);
   expect(itemLabel(call)).toBe("Tool: Ran ls, failed");
@@ -44,7 +100,9 @@ test("a screen reader hears who spoke and what the row is", () => {
 test("the composer says why it is off", () => {
   expect(composerOff({ phase: "idle", connectionLost: false })).toBeNull();
   expect(composerOff({ phase: "connecting", connectionLost: false })).toMatch(/Opening/);
-  expect(composerOff({ phase: "ended", connectionLost: false, endedReason: "exited with code 3" })).toBe("Session ended: exited with code 3");
+  expect(composerOff({ phase: "ended", connectionLost: false, endedReason: "exited with code 3" })).toBe(
+    "Session ended: exited with code 3",
+  );
   expect(composerOff({ phase: "working", connectionLost: true })).toMatch(/Reconnect/);
   expect(composerOff({ phase: "authRequired", connectionLost: false })).toMatch(/Sign in/);
 });
@@ -58,14 +116,21 @@ test("a command's output shows how it ended, a read's shows what it found, and S
   expect(outputView(read, false).lines[0]).toBe("line 1");
   expect(outputView(read, true)).toMatchObject({ hidden: 0 });
   expect(outputView(read, true).lines).toHaveLength(20);
-  expect(outputView(tool({ head: ["a"], tail: ["z"], omitted: 4 }), false)).toMatchObject({ lines: ["a", "z"], omitted: 4 });
+  expect(outputView(tool({ head: ["a"], tail: ["z"], omitted: 4 }), false)).toMatchObject({
+    lines: ["a", "z"],
+    omitted: 4,
+  });
 });
 
 test("a group's header says how long and what it did, and says nothing it does not know", () => {
   expect(workHead({ running: false, seconds: 4 })).toBe("Worked for 4s");
   expect(workHead({ running: true, seconds: 6 })).toBe("Working · 6s");
   expect(workHead({ running: false, seconds: null })).toBe("Worked");
-  expect(workParts({ steps: 5, commands: 3, changed: 1, failed: 1 })).toEqual(["3 commands", "1 file changed", "1 failed"]);
+  expect(workParts({ steps: 5, commands: 3, changed: 1, failed: 1 })).toEqual([
+    "3 commands",
+    "1 file changed",
+    "1 failed",
+  ]);
   expect(workParts({ steps: 2, commands: 0, changed: 0, failed: 0 })).toEqual(["2 steps"]);
 });
 

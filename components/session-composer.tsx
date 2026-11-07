@@ -1,20 +1,31 @@
+import { Files, Herdr } from "herdr-desktop/native";
 import { announce, cleanup, computed, effect, keymap, signal, Text, untracked, View } from "nsh";
 import { Button, Input } from "nsh/base";
-import type { InputRef } from "nsh/types";
-import { Files, Herdr } from "herdr-desktop/native";
+
 import type { ActionResult, EntryView, SessionView } from "herdr-desktop/native";
-import { joinPath, sending, sizeText } from "#lib/files";
-import { noteSent, pinCommand, slashMemory } from "#lib/pane-memory";
-import type { SessionPort } from "#lib/session";
-import { applyMention, deliveryNote, fileName, MAX_FILES, mentionAt, rankEntries, restoreText, splitQuery } from "#lib/session-compose";
-import { composerOff } from "#lib/session-text";
-import { commandText, hintFor, isPinned, matchCommands, type SlashCommand, usageKey } from "#lib/slash";
-import { FOCUS_RING, FOCUS_RING_INSET, Icon, IconButton, notify } from "#kit";
+import type { InputRef } from "nsh/types";
+
 import { AttachPicker } from "#components/session-attach";
 import { SessionModeChip, SessionModelPicker } from "#components/session-config";
-import { CHAT_COLUMN } from "#lib/layout";
-import { SessionQueue } from ".\/session-queue";
+import { SessionQueue } from "#components/session-queue";
 import { SlashList } from "#components/slash-list";
+import { FOCUS_RING, FOCUS_RING_INSET, Icon, IconButton, notify } from "#kit";
+import { joinPath, sending, sizeText } from "#lib/files";
+import { CHAT_COLUMN } from "#lib/layout";
+import { noteSent, pinCommand, slashMemory } from "#lib/pane-memory";
+import type { SessionPort } from "#lib/session";
+import {
+  applyMention,
+  deliveryNote,
+  fileName,
+  MAX_FILES,
+  mentionAt,
+  rankEntries,
+  restoreText,
+  splitQuery,
+} from "#lib/session-compose";
+import { composerOff } from "#lib/session-text";
+import { commandText, hintFor, isPinned, matchCommands, type SlashCommand, usageKey } from "#lib/slash";
 
 /** What the chat does with its message box from outside: the open of a tab, `mod+2`, `Reply…`. */
 export interface SessionComposerHandle {
@@ -37,7 +48,12 @@ const refused = (r: ActionResult): boolean => r.kind !== "done" && r.kind !== "q
 const ROW = 32;
 
 /** The files a `@` can mean: the same look as the command list, a listbox the box keeps the focus beside. */
-function MentionList(props: { entries: EntryView[]; dir: string; highlighted: number; onPick: (entry: EntryView) => void }) {
+function MentionList(props: {
+  entries: EntryView[];
+  dir: string;
+  highlighted: number;
+  onPick: (entry: EntryView) => void;
+}) {
   return (
     <View role="listbox" accessibilityLabel="Files" class="overflow-hidden rounded-md border border-border bg-popover">
       <Each of={props.entries} key="index">
@@ -51,7 +67,10 @@ function MentionList(props: { entries: EntryView[]; dir: string; highlighted: nu
             class={`flex-row items-center gap-2 px-3 ${i() === props.highlighted ? "bg-accent" : ""} ${FOCUS_RING_INSET}`}
           >
             <Icon name={entry().kind === "dir" ? "folder" : "file"} size={14} tone="muted-foreground" />
-            <Text class="min-w-0 flex-1 font-mono text-xs text-popover-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
+            <Text
+              class="min-w-0 flex-1 font-mono text-xs text-popover-foreground"
+              style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
+            >
               {`${props.dir}${entry().name}${entry().kind === "dir" ? "/" : ""}`}
             </Text>
             <If when={entry().kind === "file"}>
@@ -108,9 +127,16 @@ export function SessionComposer(props: {
   const cwd = () => view().cwd;
 
   const commands = computed<SlashCommand[]>(() =>
-    view().commands.map((c) => ({ name: c.name, description: c.description, hint: c.hint ?? undefined, source: "builtIn", trigger: "/" })),
+    view().commands.map((c) => ({
+      name: c.name,
+      description: c.description,
+      hint: c.hint ?? undefined,
+      source: "builtIn",
+      trigger: "/",
+    })),
   );
-  const matches = (): SlashCommand[] => (hidden() || off() !== null ? [] : matchCommands(value(), view().agent, commands(), slashMemory()));
+  const matches = (): SlashCommand[] =>
+    hidden() || off() !== null ? [] : matchCommands(value(), view().agent, commands(), slashMemory());
   const ghost = (): string | null => hintFor(value(), commands());
 
   const mention = computed(() => (focused() && off() === null ? mentionAt(value(), caret()) : null));
@@ -290,7 +316,8 @@ export function SessionComposer(props: {
   /** Files dropped or pasted from this computer: attached as they are on this computer, sent to the machine first for another. */
   const fromHere = (uris: string[]) => {
     const paths = uris.map((u) => Files.pathFromUri(u)).filter((p): p is string => typeof p === "string");
-    if (paths.length === 0) return notify("Only files from this computer can be attached by dropping", { type: "error" });
+    if (paths.length === 0)
+      return notify("Only files from this computer can be attached by dropping", { type: "error" });
     if (local()) return attach(paths);
     sending.set({ machine: props.machine, folder: cwd(), paths });
     notify("Send them to the machine, then attach them with +");
@@ -319,19 +346,35 @@ export function SessionComposer(props: {
         />
       </If>
       <If when={listed() === "mention"}>
-        <MentionList entries={files4mention()} dir={query().dir} highlighted={Math.min(picked(), files4mention().length - 1)} onPick={pickMention} />
+        <MentionList
+          entries={files4mention()}
+          dir={query().dir}
+          highlighted={Math.min(picked(), files4mention().length - 1)}
+          onPick={pickMention}
+        />
       </If>
       <View class="gap-2 rounded-2xl border border-input bg-card px-4 pb-3 pt-3 focus-within:border-ring">
         <If when={files().length > 0}>
           <View class="flex-row flex-wrap gap-2 pb-1" role="list" accessibilityLabel="Attached files">
             <Each of={files()} key={(p: string) => p}>
               {(path) => (
-                <View role="group" accessibilityLabel={`Attached: ${fileName(path())}`} class="h-8 flex-row items-center gap-2 rounded-md bg-muted pl-2 pr-1">
+                <View
+                  role="group"
+                  accessibilityLabel={`Attached: ${fileName(path())}`}
+                  class="h-8 flex-row items-center gap-2 rounded-md bg-muted pl-2 pr-1"
+                >
                   <Icon name="file" size={12} tone="muted-foreground" />
-                  <Text class="max-w-[200px] text-xs text-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
+                  <Text
+                    class="max-w-[200px] text-xs text-foreground"
+                    style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
+                  >
                     {fileName(path())}
                   </Text>
-                  <IconButton icon="x" label={`Remove ${fileName(path())}`} onPress={() => files.update((all) => all.filter((p) => p !== path()))} />
+                  <IconButton
+                    icon="x"
+                    label={`Remove ${fileName(path())}`}
+                    onPress={() => files.update((all) => all.filter((p) => p !== path()))}
+                  />
                 </View>
               )}
             </Each>
@@ -346,7 +389,8 @@ export function SessionComposer(props: {
           onSelectionChange={({ start }) => caret.set(start)}
           onPaste={(e) => {
             if (e.uris.length > 0) fromHere(e.uris);
-            else if (e.files.length > 0) notify("A pasted picture cannot be attached yet: save it as a file and attach that", { type: "error" });
+            else if (e.files.length > 0)
+              notify("A pasted picture cannot be attached yet: save it as a file and attach that", { type: "error" });
           }}
           placeholder={placeholder()}
           accessibilityLabel="Message"
@@ -354,7 +398,9 @@ export function SessionComposer(props: {
           multiline
           submitBehavior="submit"
           onSubmit={() => void send()}
-          onContentSizeChange={({ size }) => height.set(Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, Math.ceil(size.height) + 4)))}
+          onContentSizeChange={({ size }) =>
+            height.set(Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, Math.ceil(size.height) + 4)))
+          }
           autoCorrect={false}
           autoCapitalize="none"
           autoComplete="off"
@@ -364,7 +410,11 @@ export function SessionComposer(props: {
           class="bg-transparent px-1 text-sm text-foreground placeholder:text-muted-foreground"
         />
         <View class="flex-row items-center gap-1">
-          <IconButton icon="plus" label="Attach files" onPress={() => (off() === null ? attaching.set(true) : undefined)} />
+          <IconButton
+            icon="plus"
+            label="Attach files"
+            onPress={() => (off() === null ? attaching.set(true) : undefined)}
+          />
           <SessionModeChip machine={props.machine} id={props.id} />
           <View class="flex-1" />
           <SessionModelPicker machine={props.machine} id={props.id} />
@@ -374,8 +424,21 @@ export function SessionComposer(props: {
             accessibilityLabel={showStop() ? "Stop" : running() ? "Queue message" : "Send message"}
             class={`size-8 items-center justify-center rounded-full ${FOCUS_RING} ${off() !== null || (!showStop() && !typed()) ? "bg-muted" : "bg-primary"} ${guarded() ? "opacity-60" : ""}`}
           >
-            <If when={showStop()} else={<Icon name="arrow-up" size={16} tone={typed() && off() === null ? "primary-foreground" : "muted-foreground"} />}>
-              <View class="size-3 rounded-sm bg-primary-foreground" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
+            <If
+              when={showStop()}
+              else={
+                <Icon
+                  name="arrow-up"
+                  size={16}
+                  tone={typed() && off() === null ? "primary-foreground" : "muted-foreground"}
+                />
+              }
+            >
+              <View
+                class="size-3 rounded-sm bg-primary-foreground"
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              />
             </If>
           </Button>
         </View>
@@ -384,7 +447,10 @@ export function SessionComposer(props: {
         <Text class="px-1 text-xs text-muted-foreground">{`${value().trim()} takes ${ghost()}`}</Text>
       </If>
       <If when={note()}>
-        <Text role={error() ? "alert" : "text"} class={`px-1 text-xs ${error() ? "text-destructive" : "text-muted-foreground"}`}>
+        <Text
+          role={error() ? "alert" : "text"}
+          class={`px-1 text-xs ${error() ? "text-destructive" : "text-muted-foreground"}`}
+        >
           {note()}
         </Text>
       </If>

@@ -1,5 +1,7 @@
 import { expect, test } from "nsh/test";
+
 import type { ViewRef } from "nsh/types";
+
 import { CARD_CLOSE_MS, CARD_DELAY_MS, type CardTrigger, createCards } from "./preview-card";
 
 let ids = 0;

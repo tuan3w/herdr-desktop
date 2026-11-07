@@ -1,6 +1,21 @@
 import { expect, test } from "nsh/test";
+
 import type { DockAreaLayout } from "nsh/base";
-import { BOARD, defaultLayout, groupOf, groups, otherGroup, panelsOf, paneKey, parsePaneKey, parseSessionKey, readLayout, rowKeyOf, sessionKey } from "#lib/dock";
+
+import {
+  BOARD,
+  defaultLayout,
+  groupOf,
+  groups,
+  otherGroup,
+  panelsOf,
+  paneKey,
+  parsePaneKey,
+  parseSessionKey,
+  readLayout,
+  rowKeyOf,
+  sessionKey,
+} from "#lib/dock";
 
 const A = paneKey("local", "w1:p1");
 const B = paneKey("m1", "w2:p3");
@@ -85,7 +100,14 @@ test("groups are read through nested splits left to right, top to bottom", () =>
       axis: "horizontal",
       children: [
         { type: "tabs", panels: [BOARD] },
-        { type: "split", axis: "vertical", children: [{ type: "tabs", panels: [A] }, { type: "tabs", panels: [B] }] },
+        {
+          type: "split",
+          axis: "vertical",
+          children: [
+            { type: "tabs", panels: [A] },
+            { type: "tabs", panels: [B] },
+          ],
+        },
       ],
     },
   };

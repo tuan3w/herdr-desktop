@@ -1,5 +1,7 @@
 import { cleanup, context, effect, type JSX, View } from "nsh";
+
 import type { Align, Placement, ViewRef } from "nsh/types";
+
 import { createHover, type Hover, type HoverTrigger } from "./hover";
 import { createOpenState, type OpenChange } from "./popup";
 import { Positioner } from "./positioner";
@@ -126,7 +128,9 @@ export function PreviewCard(props: {
       onMouseLeave={events?.leave}
       class={props.class}
     >
-      <FocusScope.Provider value={events ? { onFocus: events.focus, onBlur: events.blur } : {}}>{props.children}</FocusScope.Provider>
+      <FocusScope.Provider value={events ? { onFocus: events.focus, onBlur: events.blur } : {}}>
+        {props.children}
+      </FocusScope.Provider>
     </View>
   );
 }

@@ -1,5 +1,7 @@
 import { Herdr } from "herdr-desktop/native";
+
 import type { Metrics } from "herdr-desktop/native";
+
 import { registerMetric } from "#lib/perf";
 
 /**

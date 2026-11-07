@@ -1,8 +1,21 @@
 import { expect, test } from "nsh/test";
+
 import type { QuestionFieldView } from "herdr-desktop/native";
+
 import { answerOf, placeRefusal, startState } from "#lib/session-answers";
 
-const field = (over: Partial<QuestionFieldView>): QuestionFieldView => ({ name: "n", label: "N", required: false, secret: false, kind: "text", integer: false, choices: [], text: "", ticked: [], ...over });
+const field = (over: Partial<QuestionFieldView>): QuestionFieldView => ({
+  name: "n",
+  label: "N",
+  required: false,
+  secret: false,
+  kind: "text",
+  integer: false,
+  choices: [],
+  text: "",
+  ticked: [],
+  ...over,
+});
 
 test("each kind of field answers in the shape the engine takes, and a field the app cannot show is left to the agent", () => {
   expect(answerOf(field({ kind: "text" }), { text: "hi", choice: null, ticked: [] })).toEqual({ text: "hi" });

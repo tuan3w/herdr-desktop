@@ -130,7 +130,8 @@ const TILT: Record<string, { shift: number; chroma: number }> = {
 };
 
 const round = (x: number) => Math.round(x * 1000) / 1000;
-const o = (l: number, c: number, h: number, alpha?: number) => `oklch(${round(l)} ${round(c)} ${round(((h % 360) + 360) % 360)}${alpha === undefined ? "" : ` / ${alpha}`})`;
+const o = (l: number, c: number, h: number, alpha?: number) =>
+  `oklch(${round(l)} ${round(c)} ${round(((h % 360) + 360) % 360)}${alpha === undefined ? "" : ` / ${alpha}`})`;
 type Rgb = [number, number, number];
 const linear = (css: string): Rgb => oklchToLinear(parseOklch(css));
 
@@ -148,8 +149,16 @@ export function codeSurfaces(tokens: Record<string, string>): Record<string, Rgb
     remove: over("code-remove-bg"),
     hunk: over("code-hunk-bg"),
     // A changed word is tinted over its line's tint.
-    addWord: mix(oklchToLinear(parseOklch(tokens["code-add-word"])), over("code-add-bg"), parseOklch(tokens["code-add-word"]).a),
-    removeWord: mix(oklchToLinear(parseOklch(tokens["code-remove-word"])), over("code-remove-bg"), parseOklch(tokens["code-remove-word"]).a),
+    addWord: mix(
+      oklchToLinear(parseOklch(tokens["code-add-word"])),
+      over("code-add-bg"),
+      parseOklch(tokens["code-add-word"]).a,
+    ),
+    removeWord: mix(
+      oklchToLinear(parseOklch(tokens["code-remove-word"])),
+      over("code-remove-bg"),
+      parseOklch(tokens["code-remove-word"]).a,
+    ),
   };
 }
 
@@ -163,7 +172,10 @@ function legible(l: number, c: number, h: number, surfaces: Rgb[], dark: boolean
 }
 
 /** The code tokens of one appearance: `code-bg` and the other surfaces, then `code-<role>` for every role. */
-export function codeTokens(spec: { id: string; paper: { hue: number; chroma: number }; ink: { hue: number } }, appearance: "light" | "dark"): Record<string, string> {
+export function codeTokens(
+  spec: { id: string; paper: { hue: number; chroma: number }; ink: { hue: number } },
+  appearance: "light" | "dark",
+): Record<string, string> {
   const dark = appearance === "dark";
   const { paper, ink } = spec;
   const tilt = TILT[spec.id] ?? { shift: 0, chroma: 1 };

@@ -1,6 +1,8 @@
-import { expect, open, test } from "nsh/test";
-import type { App } from "nsh/test";
 import { Herdr } from "herdr-desktop/native";
+import { expect, open, test } from "nsh/test";
+
+import type { App } from "nsh/test";
+
 import { scripted, sentKeys } from "./board-seam";
 
 /** `Answer one by one` against `mixed.json` (2 need you) and `storm.json` (20 need you). */
@@ -67,7 +69,11 @@ test("a message typed in the dialog goes to the agent in view and presses Enter"
   await app.type("label:/^Message /", "use the staging key");
   await app.keyboard.press("enter");
   await app.waitUntil(() => Herdr.testRequests("pane.send_input").length === 1);
-  expect(Herdr.testRequests("pane.send_input")[0].params).toMatchObject({ pane_id: "w1:p1", text: "use the staging key", keys: ["enter"] });
+  expect(Herdr.testRequests("pane.send_input")[0].params).toMatchObject({
+    pane_id: "w1:p1",
+    text: "use the staging key",
+    keys: ["enter"],
+  });
 });
 
 test("twenty waiting agents are twenty steps, and the walk reaches the last", async () => {

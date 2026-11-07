@@ -1,15 +1,23 @@
 import { type JSX, signal, Text, View } from "nsh";
+
 import type { BackgroundRow, ObservedView, SubagentRow } from "herdr-desktop/native";
-import { visibleText } from "#lib/session-text";
-import { Clipped, Icon } from "#kit";
+
 import { Disclosure } from "#components/session-tool";
 import { StatusGlyph } from "#components/status-glyph";
+import { Clipped, Icon } from "#kit";
+import { visibleText } from "#lib/session-text";
 
 const RUNNING = new Set(["running", "inProgress", "in_progress"]);
 
 /** A subagent's state in the vocabulary of the status glyph: running half, finished check, anything not yet started a dashed ring. */
 const glyph = (status: string): "working" | "done" | "unknown" | "blocked" =>
-  RUNNING.has(status) ? "working" : status === "completed" ? "done" : status === "failed" || status === "aborted" ? "blocked" : "unknown";
+  RUNNING.has(status)
+    ? "working"
+    : status === "completed"
+      ? "done"
+      : status === "failed" || status === "aborted"
+        ? "blocked"
+        : "unknown";
 
 /** `2 running of 3`, `3 done`: what the group's line says before it opens. */
 function count(rows: readonly { running: boolean }[]): string {
@@ -26,19 +34,31 @@ function SubagentLine(props: { row: SubagentRow }) {
       class="gap-1 py-1"
     >
       <View class="flex-row items-center gap-2">
-        {failed() ? <Icon name="x" size={12} tone="destructive" /> : <StatusGlyph status={glyph(props.row.status)} size={12} />}
-        <Text class="min-w-0 flex-1 text-sm font-medium text-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
+        {failed() ? (
+          <Icon name="x" size={12} tone="destructive" />
+        ) : (
+          <StatusGlyph status={glyph(props.row.status)} size={12} />
+        )}
+        <Text
+          class="min-w-0 flex-1 text-sm font-medium text-foreground"
+          style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
+        >
           {props.row.name}
         </Text>
         <Text class={`text-xs ${failed() ? "text-destructive" : "text-muted-foreground"}`}>
-          {[props.row.agent, props.row.status, props.row.toolCount > 0 ? `${props.row.toolCount} tools` : ""].filter(Boolean).join(" · ")}
+          {[props.row.agent, props.row.status, props.row.toolCount > 0 ? `${props.row.toolCount} tools` : ""]
+            .filter(Boolean)
+            .join(" · ")}
         </Text>
       </View>
       <Clipped lines={2} class="pl-5 text-xs text-muted-foreground">
         {visibleText(props.row.assignment)}
       </Clipped>
       <If when={props.row.recentTools.length > 0}>
-        <Text class="pl-5 font-mono text-xs text-muted-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
+        <Text
+          class="pl-5 font-mono text-xs text-muted-foreground"
+          style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
+        >
           {props.row.recentTools.map(visibleText).join(" › ")}
         </Text>
       </If>
@@ -48,9 +68,19 @@ function SubagentLine(props: { row: SubagentRow }) {
 
 function BackgroundLine(props: { row: BackgroundRow }) {
   return (
-    <View role="group" accessibilityLabel={`${props.row.kind} ${visibleText(props.row.title)}, ${props.row.status}`} class="flex-row items-center gap-2 py-1">
-      <StatusGlyph status={props.row.active ? "working" : props.row.status === "failed" ? "blocked" : "done"} size={12} />
-      <Text class="min-w-0 flex-1 font-mono text-xs text-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
+    <View
+      role="group"
+      accessibilityLabel={`${props.row.kind} ${visibleText(props.row.title)}, ${props.row.status}`}
+      class="flex-row items-center gap-2 py-1"
+    >
+      <StatusGlyph
+        status={props.row.active ? "working" : props.row.status === "failed" ? "blocked" : "done"}
+        size={12}
+      />
+      <Text
+        class="min-w-0 flex-1 font-mono text-xs text-foreground"
+        style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
+      >
         {visibleText(props.row.title)}
       </Text>
       <Text class="text-xs text-muted-foreground">{props.row.status}</Text>

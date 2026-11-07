@@ -1,5 +1,6 @@
-import { announce, Clipboard, effect, Image, keymap, signal, Text, untracked, View } from "nsh";
 import { Files } from "herdr-desktop/native";
+import { announce, Clipboard, effect, Image, keymap, signal, Text, untracked, View } from "nsh";
+
 import { Btn, Modal, notify, Spinner } from "#kit";
 
 /** One picture of a folder: the machine it is on, its path and its name (also its alt text: a file has no other description). */
@@ -21,7 +22,13 @@ const reason = (e: unknown): string => (e instanceof Error ? e.message : String(
  *
  * `photos` is the pictures of one folder in the order the browser lists them; `null` closes the dialog.
  */
-export function PhotoViewer(props: { photos: Photo[] | null; index: number; machineName: string; onIndex: (index: number) => void; onClose: () => void }) {
+export function PhotoViewer(props: {
+  photos: Photo[] | null;
+  index: number;
+  machineName: string;
+  onIndex: (index: number) => void;
+  onClose: () => void;
+}) {
   const url = signal<string | null>(null);
   const failure = signal<string | null>(null);
   const size = signal("");
@@ -74,9 +81,22 @@ export function PhotoViewer(props: { photos: Photo[] | null; index: number; mach
       description={[where(), size(), props.machineName].filter(Boolean).join(" · ")}
       actions={
         <>
-          <Btn variant="ghost" label="Copy path" onPress={() => void Clipboard.writeText(photo()?.path ?? "").then(() => notify("Path copied"))} />
+          <Btn
+            variant="ghost"
+            label="Copy path"
+            onPress={() => void Clipboard.writeText(photo()?.path ?? "").then(() => notify("Path copied"))}
+          />
           <If when={photo()?.local}>
-            <Btn variant="ghost" label="Reveal" name="Reveal in the file manager" onPress={() => void Files.reveal(photo()!.machine, photo()!.path).catch((e) => notify(`Could not show the file: ${reason(e)}`, { type: "error" }))} />
+            <Btn
+              variant="ghost"
+              label="Reveal"
+              name="Reveal in the file manager"
+              onPress={() =>
+                void Files.reveal(photo()!.machine, photo()!.path).catch((e) =>
+                  notify(`Could not show the file: ${reason(e)}`, { type: "error" }),
+                )
+              }
+            />
           </If>
           <Btn label="Close" hint="Esc" onPress={() => props.onClose()} />
         </>
@@ -108,9 +128,23 @@ export function PhotoViewer(props: { photos: Photo[] | null; index: number; mach
           </If>
         </View>
         <View class="flex-row items-center justify-center gap-3">
-          <Btn small icon="chevron-left" label="Previous" name="Previous photo" disabled={props.index <= 0} onPress={() => move(-1)} />
+          <Btn
+            small
+            icon="chevron-left"
+            label="Previous"
+            name="Previous photo"
+            disabled={props.index <= 0}
+            onPress={() => move(-1)}
+          />
           <Text class="text-sm text-muted-foreground">{where()}</Text>
-          <Btn small icon="chevron-right" label="Next" name="Next photo" disabled={props.index >= count() - 1} onPress={() => move(1)} />
+          <Btn
+            small
+            icon="chevron-right"
+            label="Next"
+            name="Next photo"
+            disabled={props.index >= count() - 1}
+            onPress={() => move(1)}
+          />
         </View>
       </View>
     </Modal>

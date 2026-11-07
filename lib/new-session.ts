@@ -1,4 +1,5 @@
 import { Herdr } from "herdr-desktop/native";
+
 import type { AgentRoute, SessionInfo } from "herdr-desktop/native";
 
 /**
@@ -41,7 +42,8 @@ export function agentChoices(runnable: readonly AgentRoute[]): AgentChoice[] {
 export function sessionFolderError(folder: string): string | undefined {
   const path = folder.trim();
   if (path === "") return "Enter the folder the agent works in.";
-  if (!path.startsWith("/") && path !== "~" && !path.startsWith("~/")) return "Enter an absolute path on that machine, starting with / or ~/.";
+  if (!path.startsWith("/") && path !== "~" && !path.startsWith("~/"))
+    return "Enter an absolute path on that machine, starting with / or ~/.";
   if (/[\0\r\n]/.test(path)) return "A folder path is one line.";
   return undefined;
 }
@@ -59,19 +61,28 @@ export function startFailure(text: string, machineName: string): StartFailure {
   const said = text.trim() || "The session did not start.";
   const next = (() => {
     if (/python3/i.test(said)) return `Install python3 on ${machineName}, then try again.`;
-    if (/isn.t installed/i.test(said) && /helper/i.test(said)) return "Try again: the app installs its helper on first use.";
-    if (/isn.t installed|not installed/i.test(said)) return `Install the agent on ${machineName}, or pick another agent.`;
+    if (/isn.t installed/i.test(said) && /helper/i.test(said))
+      return "Try again: the app installs its helper on first use.";
+    if (/isn.t installed|not installed/i.test(said))
+      return `Install the agent on ${machineName}, or pick another agent.`;
     if (/folder|doesn.t exist|no such/i.test(said)) return `Check the folder: it must exist on ${machineName}.`;
-    if (/exited|failed|initialize/i.test(said)) return `Run the agent once in a terminal on ${machineName} to see why: it may need you to sign in.`;
+    if (/exited|failed|initialize/i.test(said))
+      return `Run the agent once in a terminal on ${machineName} to see why: it may need you to sign in.`;
     if (/sessions are open|close one/i.test(said)) return "End or close one of the open sessions, then start again.";
-    if (/ssh|connect|timed out|refused|unreachable|host/i.test(said)) return `Check ${machineName} in Machines, then try again.`;
+    if (/ssh|connect|timed out|refused|unreachable|host/i.test(said))
+      return `Check ${machineName} in Machines, then try again.`;
     return "Nothing was started. Check the folder and the agent, then try again.";
   })();
   return { text: said, next };
 }
 
 /** The folders offered under the folder field: the one used last, then where sessions and agents already work, without repeats. */
-export function recentFolders(options: { remembered?: string; sessions: readonly SessionInfo[]; agents: readonly string[]; limit?: number }): string[] {
+export function recentFolders(options: {
+  remembered?: string;
+  sessions: readonly SessionInfo[];
+  agents: readonly string[];
+  limit?: number;
+}): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const folder of [options.remembered ?? "", ...options.sessions.map((s) => s.cwd), ...options.agents]) {
@@ -90,7 +101,10 @@ const folderKey = (machine: string) => `newSession.folder.${machine}`;
 export function lastStart(machine: string): { agent?: string; folder?: string } {
   const agent = Herdr.setting(agentKey(machine));
   const folder = Herdr.setting(folderKey(machine));
-  return { agent: typeof agent === "string" ? agent : undefined, folder: typeof folder === "string" ? folder : undefined };
+  return {
+    agent: typeof agent === "string" ? agent : undefined,
+    folder: typeof folder === "string" ? folder : undefined,
+  };
 }
 
 /** Remembers what was started on `machine`, for the next opening of the form. */

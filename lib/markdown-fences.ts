@@ -93,7 +93,15 @@ export function splitFences(source: string): Segment[] {
         body.push(dedent(lines[j]!, indent));
       }
       flush();
-      out.push({ kind: "fence", key: `f:${out.length}`, info, title: titleOf(info), code: body.join("\n"), open: !closed, infoComplete: !last });
+      out.push({
+        kind: "fence",
+        key: `f:${out.length}`,
+        info,
+        title: titleOf(info),
+        code: body.join("\n"),
+        open: !closed,
+        infoComplete: !last,
+      });
       i = j;
       inList = false;
       afterBlank = false;

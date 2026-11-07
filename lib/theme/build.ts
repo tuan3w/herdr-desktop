@@ -1,5 +1,5 @@
-import { oklchToHex } from "#lib/theme/color";
 import { codeTokens } from "#lib/theme/code";
+import { oklchToHex } from "#lib/theme/color";
 import { terminalTokens } from "#lib/theme/terminal";
 
 /**
@@ -137,7 +137,10 @@ export function themeFile(spec: ThemeSpec): { cssVars: { theme: Tokens; light: T
 }
 
 /** Four colors that say what a theme looks like, as hex, for a preview. */
-export function swatches(spec: ThemeSpec, appearance: "light" | "dark"): { page: string; card: string; sidebar: string; primary: string; signal: string; ink: string } {
+export function swatches(
+  spec: ThemeSpec,
+  appearance: "light" | "dark",
+): { page: string; card: string; sidebar: string; primary: string; signal: string; ink: string } {
   const t = buildTheme(spec)[appearance];
   return {
     page: oklchToHex(t.background),

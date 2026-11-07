@@ -1,7 +1,10 @@
 import { expect, test } from "nsh/test";
+
 import type { ViewRef } from "nsh/types";
-import type { TipTrigger } from "./tooltip";
+
 import { createTooltips, GROUP_MS, REST_MS } from "./tooltip";
+
+import type { TipTrigger } from "./tooltip";
 
 let ids = 0;
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

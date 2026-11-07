@@ -1,8 +1,9 @@
-import { announce, computed, effect, signal, Text, untracked, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
+import { announce, computed, effect, signal, Text, untracked, View } from "nsh";
+
+import { Autocomplete, Btn, FieldRow, Icon, Modal, SelectField } from "#kit";
 import { AGENT_KINDS, folderError } from "#lib/agent-kinds";
 import { allRows, board, revision } from "#lib/herdr";
-import { Autocomplete, Btn, FieldRow, Icon, Modal, SelectField } from "#kit";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
@@ -13,7 +14,11 @@ const reason = (e: unknown): string => (e instanceof Error ? e.message : String(
  * folder and agent are remembered between openings, because starting several agents in one folder is the usual case.
  * `onStarted` gets the new pane after the dialog closed, so the caller can open it.
  */
-export function StartAgent(props: { open: boolean; onClose: () => void; onStarted: (machine: string, pane: string) => void }) {
+export function StartAgent(props: {
+  open: boolean;
+  onClose: () => void;
+  onStarted: (machine: string, pane: string) => void;
+}) {
   const machine = signal("");
   const folder = signal("");
   const agent = signal(AGENT_KINDS[0]?.kind ?? "");
@@ -24,10 +29,18 @@ export function StartAgent(props: { open: boolean; onClose: () => void; onStarte
   /** The machines that are switched on, with whether each can be started on now. */
   const choices = computed(() => {
     revision();
-    const online = new Set(Herdr.machineStatuses().filter((s) => s.state === "online").map((s) => s.id));
+    const online = new Set(
+      Herdr.machineStatuses()
+        .filter((s) => s.state === "online")
+        .map((s) => s.id),
+    );
     return Herdr.machines()
       .filter((m) => m.enabled)
-      .map((m) => ({ value: m.id, title: online.has(m.id) ? m.name : `${m.name} (not connected)`, disabled: !online.has(m.id) }));
+      .map((m) => ({
+        value: m.id,
+        title: online.has(m.id) ? m.name : `${m.name} (not connected)`,
+        disabled: !online.has(m.id),
+      }));
   });
   const ready = () => choices().find((c) => c.value === machine() && !c.disabled) !== undefined;
   /** Folders agents already run in on the chosen machine: what the person most likely wants again. */
@@ -82,7 +95,14 @@ export function StartAgent(props: { open: boolean; onClose: () => void; onStarte
       actions={
         <>
           <Btn variant="ghost" label="Cancel" onPress={() => props.onClose()} />
-          <Btn variant="primary" label="Start agent" hint="↵" loading={busy()} disabled={!ready()} onPress={() => void start()} />
+          <Btn
+            variant="primary"
+            label="Start agent"
+            hint="↵"
+            loading={busy()}
+            disabled={!ready()}
+            onPress={() => void start()}
+          />
         </>
       }
     >
@@ -119,7 +139,12 @@ export function StartAgent(props: { open: boolean; onClose: () => void; onStarte
           />
         </FieldRow>
         <FieldRow>
-          <SelectField label="Agent" items={AGENT_KINDS.map((k) => ({ value: k.kind, title: k.title }))} value={agent()} onChange={(kind) => agent.set(kind)} />
+          <SelectField
+            label="Agent"
+            items={AGENT_KINDS.map((k) => ({ value: k.kind, title: k.title }))}
+            value={agent()}
+            onChange={(kind) => agent.set(kind)}
+          />
         </FieldRow>
         <If when={failure()}>
           {(message) => (

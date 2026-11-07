@@ -1,7 +1,8 @@
 import { host, mount, signal, Text, View } from "nsh";
-import { meta, startHerdr } from "#lib/herdr";
+
 import { AnswerDock } from "#components/answer-dock";
 import { ThemeRoot, ToastHost } from "#kit";
+import { meta, startHerdr } from "#lib/herdr";
 
 /**
  * The entry of `answer-dock.test.tsx`: the dock of one pane of the scripted herdr (`fixture` and `pane` come from the
@@ -21,7 +22,9 @@ function Lab() {
         <Text class="text-sm text-foreground">{`Status: ${header()?.status ?? "unknown"}`}</Text>
         <Text class="text-sm text-foreground">{`Reported sent: ${sent()}`}</Text>
         <If when={header()?.prompt} else={<Text class="text-sm text-muted-foreground">No question</Text>}>
-          {(prompt) => <AnswerDock machine={MACHINE} pane={PANE} prompt={prompt()} onSent={() => sent.update((n) => n + 1)} />}
+          {(prompt) => (
+            <AnswerDock machine={MACHINE} pane={PANE} prompt={prompt()} onSent={() => sent.update((n) => n + 1)} />
+          )}
         </If>
       </View>
       <ToastHost />

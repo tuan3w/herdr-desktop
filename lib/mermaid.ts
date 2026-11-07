@@ -35,7 +35,10 @@ export function diagramTitle(code: string): string {
   const named = front ? /^\s*title:\s*["']?(.+?)["']?\s*$/m.exec(front[1]) : null;
   if (named) return `Diagram: ${named[1]}`;
   const body = front ? code.slice(front[0].length) : code;
-  const lines = body.split("\n").map((l) => l.trim()).filter((l) => l !== "" && !l.startsWith("%%"));
+  const lines = body
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l !== "" && !l.startsWith("%%"));
   const titled = lines.find((l) => /^title\s+\S/.test(l));
   if (titled) return `Diagram: ${titled.replace(/^title\s+/, "")}`;
   const word = lines[0]?.split(/[\s;{]/)[0] ?? "";
@@ -46,7 +49,11 @@ export function diagramTitle(code: string): string {
 const escapeHtml = (text: string): string => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** JSON for inside a `<script>`: `<` never appears raw, so no value can close the script or open a comment. */
-const scriptJson = (value: unknown): string => JSON.stringify(value).replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
+const scriptJson = (value: unknown): string =>
+  JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
 
 /** The colours the page takes from the app's theme, as CSS colours. */
 export interface DiagramColors {
@@ -58,7 +65,13 @@ export interface DiagramColors {
 }
 
 /** The page that draws `code`. The source travels as text in a hidden element (escaped), never as script. */
-export function diagramPage(options: { origin: string; code: string; title: string; dark: boolean; colors: DiagramColors }): string {
+export function diagramPage(options: {
+  origin: string;
+  code: string;
+  title: string;
+  dark: boolean;
+  colors: DiagramColors;
+}): string {
   const { origin, code, title, dark, colors } = options;
   const variables = {
     background: colors.background,
@@ -102,7 +115,8 @@ export type DiagramResult = { ok: true; w: number; h: number } | { ok: false; me
 export function parseDiagramResult(data: string): DiagramResult | null {
   try {
     const value = JSON.parse(data) as Record<string, unknown>;
-    if (value.ok === true && typeof value.w === "number" && typeof value.h === "number") return { ok: true, w: value.w, h: value.h };
+    if (value.ok === true && typeof value.w === "number" && typeof value.h === "number")
+      return { ok: true, w: value.w, h: value.h };
     if (value.ok === false && typeof value.message === "string") return { ok: false, message: value.message };
   } catch {
     // not ours

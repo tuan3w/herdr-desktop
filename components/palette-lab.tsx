@@ -1,4 +1,5 @@
 import { mount, signal, Text, View } from "nsh";
+
 import { Palette, type PaletteItem } from "#components/palette";
 import { Btn, ThemeRoot } from "#kit";
 

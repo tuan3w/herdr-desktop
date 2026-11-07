@@ -1,14 +1,16 @@
+import { Files } from "herdr-desktop/native";
 import { Clipboard, effect, signal, Text, View } from "nsh";
 import { Editor } from "nsh/base";
-import { Files } from "herdr-desktop/native";
+
 import type { FileData } from "herdr-desktop/native";
-import { modifiedText, parentOf, sizeText } from "#lib/files";
-import { held } from "#lib/list-item";
-import { registerPane } from "#lib/pane-input";
-import { Btn, Clipped, Empty, notify, Segmented } from "#kit";
+
 import { CodeBlock } from "#components/code-block";
 import { Markdown } from "#components/markdown";
 import { PaneFind } from "#components/pane-find";
+import { Btn, Clipped, Empty, notify, Segmented } from "#kit";
+import { modifiedText, parentOf, sizeText } from "#lib/files";
+import { held } from "#lib/list-item";
+import { registerPane } from "#lib/pane-input";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
@@ -26,7 +28,13 @@ const CODE_VIEW_LIMIT = 512 * 1024;
  * this computer only; `Copy path` is for every machine. A file that changes on disk is not followed: `Back` and
  * open it again.
  */
-export function FileViewer(props: { machine: string; machineName: string; data: FileData; line?: number; onBack: () => void }) {
+export function FileViewer(props: {
+  machine: string;
+  machineName: string;
+  data: FileData;
+  line?: number;
+  onBack: () => void;
+}) {
   const mode = signal<"preview" | "source">("preview");
   const data = held(() => props.data);
   const finding = signal(false);
@@ -37,7 +45,10 @@ export function FileViewer(props: { machine: string; machineName: string; data: 
   // `mod+f` finds in the file while it is open: the newest registration is the one the global shortcut asks (`lib/pane-input.ts`),
   // so the pane behind the dialog does not open its own find bar too.
   effect(() => registerPane({ focusComposer: () => {}, searchInPane: () => finding.set(true) }));
-  const meta = () => [sizeText(data().size), modifiedText(data().modified, Math.floor(Date.now() / 1000)), props.machineName].filter(Boolean).join(" · ");
+  const meta = () =>
+    [sizeText(data().size), modifiedText(data().modified, Math.floor(Date.now() / 1000)), props.machineName]
+      .filter(Boolean)
+      .join(" · ");
   const failed = (what: string) => (e: unknown) => notify(`${what}: ${reason(e)}`, { type: "error" });
   return (
     <View class="gap-3">
@@ -58,10 +69,29 @@ export function FileViewer(props: { machine: string; machineName: string; data: 
             ]}
           />
         </If>
-        <Btn small label="Copy path" icon="copy" onPress={() => void Clipboard.writeText(data().path).then(() => notify("Path copied"))} />
+        <Btn
+          small
+          label="Copy path"
+          icon="copy"
+          onPress={() => void Clipboard.writeText(data().path).then(() => notify("Path copied"))}
+        />
         <If when={data().local}>
-          <Btn small label="Reveal" name="Reveal in the file manager" icon="folder" onPress={() => void Files.reveal(props.machine, data().path).catch(failed("Could not show the file"))} />
-          <Btn small label="Open" name="Open with the system's application" icon="external-link" onPress={() => void Files.openExternally(props.machine, data().path).catch(failed("Could not open the file"))} />
+          <Btn
+            small
+            label="Reveal"
+            name="Reveal in the file manager"
+            icon="folder"
+            onPress={() => void Files.reveal(props.machine, data().path).catch(failed("Could not show the file"))}
+          />
+          <Btn
+            small
+            label="Open"
+            name="Open with the system's application"
+            icon="external-link"
+            onPress={() =>
+              void Files.openExternally(props.machine, data().path).catch(failed("Could not open the file"))
+            }
+          />
         </If>
       </View>
       <If when={data().notice}>
@@ -75,7 +105,12 @@ export function FileViewer(props: { machine: string; machineName: string; data: 
         when={data().text !== null && data().text !== undefined}
         else={
           <View class={`${BODY} items-center justify-center`}>
-            <Empty fill icon="file" title={data().kind === "image" ? "This picture is not shown" : "Not a text file"} hint={`${data().name} · ${sizeText(data().size)}${data().local ? "" : ". Open it from the machine it is on."}`} />
+            <Empty
+              fill
+              icon="file"
+              title={data().kind === "image" ? "This picture is not shown" : "Not a text file"}
+              hint={`${data().name} · ${sizeText(data().size)}${data().local ? "" : ". Open it from the machine it is on."}`}
+            />
           </View>
         }
       >
@@ -84,7 +119,12 @@ export function FileViewer(props: { machine: string; machineName: string; data: 
           else={
             <View class="gap-2">
               <If when={finding()}>
-                <PaneFind what="file" rows={async () => lines()} scrollToRow={(row) => line.set(row + 1)} onClose={() => finding.set(false)} />
+                <PaneFind
+                  what="file"
+                  rows={async () => lines()}
+                  scrollToRow={(row) => line.set(row + 1)}
+                  onClose={() => finding.set(false)}
+                />
               </If>
               <If
                 when={code()}
@@ -121,7 +161,12 @@ export function FileViewer(props: { machine: string; machineName: string; data: 
             </View>
           }
         >
-          <Markdown source={data().text ?? ""} machine={props.machine} folder={parentOf(data().path) ?? "/"} class={`${BODY} rounded-md border border-border bg-card`} />
+          <Markdown
+            source={data().text ?? ""}
+            machine={props.machine}
+            folder={parentOf(data().path) ?? "/"}
+            class={`${BODY} rounded-md border border-border bg-card`}
+          />
         </If>
       </If>
     </View>

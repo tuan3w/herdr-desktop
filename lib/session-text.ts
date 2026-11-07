@@ -1,5 +1,6 @@
-import type { IconName } from "#kit";
 import type { PhaseName, SessionItem, SessionView, ToolItem, ToolStatusName } from "herdr-desktop/native";
+
+import type { IconName } from "#kit";
 import { AGENT_KINDS } from "#lib/agent-kinds";
 
 /**
@@ -28,7 +29,8 @@ export const visibleText = (s: string): string => s.replace(BIDI, hex).replace(C
  * work around it, because what it hands back is a result the person reads, not a step they skim. Agents name these
  * calls `task`, `subagent` or `agent`.
  */
-export const isSubagent = (tool: ToolItem): boolean => tool.toolKind === "task" || tool.toolKind === "subagent" || tool.toolKind === "agent";
+export const isSubagent = (tool: ToolItem): boolean =>
+  tool.toolKind === "task" || tool.toolKind === "subagent" || tool.toolKind === "agent";
 
 /** The first `max` characters on one line, with an ellipsis when it was cut. */
 export function oneLine(text: string, max: number): string {
@@ -141,7 +143,8 @@ export function toolLine(tool: ToolItem, cwd?: string | null): ToolLine {
   const { added, removed } = diffStat(tool);
   const first = tool.diffs[0];
   const target = subject || (kind === "edit" && first ? first.path : "");
-  if (!target || kind === "other") return { kind, verb: "", object: oneLine(visibleText(tool.title), 160), added, removed };
+  if (!target || kind === "other")
+    return { kind, verb: "", object: oneLine(visibleText(tool.title), 160), added, removed };
   const [doing, did] = VERBS[kind];
   const created = kind === "edit" && tool.diffs.length > 0 && tool.diffs.every((d) => d.old == null);
   const verb = live ? doing : created ? "Created" : did;
@@ -183,7 +186,9 @@ export function phaseText(view: Pick<SessionView, "phase" | "connectionLost">): 
 }
 
 /** The status shape a phase wears, in the vocabulary of `StatusGlyph`. */
-export function phaseStatus(view: Pick<SessionView, "phase" | "connectionLost">): "blocked" | "working" | "idle" | "unknown" {
+export function phaseStatus(
+  view: Pick<SessionView, "phase" | "connectionLost">,
+): "blocked" | "working" | "idle" | "unknown" {
   if (view.connectionLost) return "unknown";
   switch (view.phase) {
     case "blockedOnPermission":

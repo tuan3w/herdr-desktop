@@ -1,16 +1,20 @@
 import { announce, effect, type JSX, keymap, signal, View } from "nsh";
 import { Input } from "nsh/base";
+
 import type { InputRef, PasteEvent } from "nsh/types";
+
 import { hoverTransition } from "#lib/motion";
+
 import { IconButton } from "./button";
-import { FieldDescription, FieldError, FieldLabel, type FieldRules, FieldRoot } from "./field-parts";
 import { FieldScope, useFieldControl, type Violation } from "./field";
+import { FieldDescription, FieldError, FieldLabel, type FieldRules, FieldRoot } from "./field-parts";
 import { Icon } from "./icon";
 
 /** Text input look: hover darkens the edge, focus draws the ring color. Errors add `border-destructive`. */
 export const INPUT_CLASS =
   "h-9 rounded-md border border-input bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground hover:border-muted-foreground/50 focus:border-ring focus:outline-2 focus:outline-offset-0 focus:outline-ring/30";
-export const INPUT_ERROR = "border-destructive hover:border-destructive focus:border-destructive focus:outline-destructive/30";
+export const INPUT_ERROR =
+  "border-destructive hover:border-destructive focus:border-destructive focus:outline-destructive/30";
 
 /** The line under a control: the field's error, or the hint while there is none. `reserve` keeps the room of one line. */
 function Footer(props: { hint?: string; reserve?: boolean; errorInLabel?: boolean }) {
@@ -40,14 +44,16 @@ function Footer(props: { hint?: string; reserve?: boolean; errorInLabel?: boolea
  * `errorInLabel` shows the error on the label line instead of below: for fields in a row of bottom-aligned
  * siblings, where an extra line would push the input out of line.
  */
-export function Labeled(props: FieldRules & {
-  label: string;
-  error?: string;
-  hint?: string;
-  reserve?: boolean;
-  errorInLabel?: boolean;
-  children?: JSX.Element;
-}) {
+export function Labeled(
+  props: FieldRules & {
+    label: string;
+    error?: string;
+    hint?: string;
+    reserve?: boolean;
+    errorInLabel?: boolean;
+    children?: JSX.Element;
+  },
+) {
   return (
     <FieldRoot
       name={props.name}
@@ -76,11 +82,16 @@ export function FieldRow(props: { children?: JSX.Element }) {
   return <View class="flex-row items-start gap-3">{props.children}</View>;
 }
 
-const lengthViolations = (text: string, p: { minLength?: number; maxLength?: number; pattern?: RegExp }): Violation[] => {
+const lengthViolations = (
+  text: string,
+  p: { minLength?: number; maxLength?: number; pattern?: RegExp },
+): Violation[] => {
   if (text === "") return [];
   const out: Violation[] = [];
-  if (p.minLength !== undefined && text.length < p.minLength) out.push({ key: "tooShort", message: `Enter at least ${p.minLength} characters.` });
-  if (p.maxLength !== undefined && text.length > p.maxLength) out.push({ key: "tooLong", message: `Enter at most ${p.maxLength} characters.` });
+  if (p.minLength !== undefined && text.length < p.minLength)
+    out.push({ key: "tooShort", message: `Enter at least ${p.minLength} characters.` });
+  if (p.maxLength !== undefined && text.length > p.maxLength)
+    out.push({ key: "tooLong", message: `Enter at most ${p.maxLength} characters.` });
   if (p.pattern && !p.pattern.test(text)) out.push({ key: "patternMismatch" });
   return out;
 };
@@ -195,7 +206,15 @@ export function Field(props: TextProps) {
  * than the live one. Escape clears what was typed while the box has the focus (and does nothing, so the screen's own Escape
  * works, when it is empty).
  */
-export function SearchField(props: { value: string; onChange: (v: string) => void; placeholder: string; onSubmit?: () => void; /** The field's ref, for a shortcut that takes the focus to it (a view cannot take the focus from code, an input can). */ inputRef?: (ref: InputRef) => void }) {
+export function SearchField(props: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  onSubmit?: () => void;
+  /** The field's ref, for a shortcut that takes the focus to it (a view cannot take the focus from code, an input can). */ inputRef?: (
+    ref: InputRef,
+  ) => void;
+}) {
   let field: InputRef | undefined;
   const focused = signal(false);
   const clear = () => {

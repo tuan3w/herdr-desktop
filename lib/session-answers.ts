@@ -38,7 +38,10 @@ export function answerOf(field: QuestionFieldView, state: FieldState): FieldAnsw
  * Where a refusal of the form belongs. The engine words it `<field label>: <why>`; when a field's label starts it, that
  * field gets `why` under it. Anything else (more answers than fields, a message of another kind) has no field.
  */
-export function placeRefusal(message: string, labels: readonly string[]): { field: number; why: string } | { field: null; why: string } {
+export function placeRefusal(
+  message: string,
+  labels: readonly string[],
+): { field: number; why: string } | { field: null; why: string } {
   const at = labels.findIndex((label) => message.startsWith(`${label}: `));
   return at < 0 ? { field: null, why: message } : { field: at, why: message.slice(labels[at]!.length + 2) };
 }

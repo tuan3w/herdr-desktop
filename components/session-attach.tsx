@@ -1,10 +1,12 @@
+import { Files } from "herdr-desktop/native";
 import { announce, computed, effect, signal, Text, untracked, View } from "nsh";
 import { Command, type CommandItem } from "nsh/base";
-import { Files } from "herdr-desktop/native";
+
 import type { FolderView } from "herdr-desktop/native";
+
+import { Btn, Icon, IconButton, Modal } from "#kit";
 import { arrange, joinPath, parentOf, sizeText } from "#lib/files";
 import { fileName, MAX_FILES } from "#lib/session-compose";
-import { Btn, Icon, IconButton, Modal } from "#kit";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
@@ -14,7 +16,14 @@ const reason = (e: unknown): string => (e instanceof Error ? e.message : String(
  * The system's file chooser is not available to the app, so this lists the machine's folder, as the file browser does;
  * a file from this computer for a remote session is first sent to the machine (`Send a file`) and then ticked here.
  */
-export function AttachPicker(props: { open: boolean; machine: string; folder: string; chosen: string[]; onAttach: (paths: string[]) => void; onClose: () => void }) {
+export function AttachPicker(props: {
+  open: boolean;
+  machine: string;
+  folder: string;
+  chosen: string[];
+  onAttach: (paths: string[]) => void;
+  onClose: () => void;
+}) {
   const listing = signal<FolderView | null>(null);
   const failure = signal<string | null>(null);
   const loading = signal(false);
@@ -87,7 +96,11 @@ export function AttachPicker(props: { open: boolean; machine: string; folder: st
           <Btn
             variant="primary"
             label={ticked().length === 0 ? "Attach" : `Attach ${ticked().length}`}
-            name={ticked().length === 0 ? "Attach, nothing ticked" : `Attach ${ticked().length} ${ticked().length === 1 ? "file" : "files"}`}
+            name={
+              ticked().length === 0
+                ? "Attach, nothing ticked"
+                : `Attach ${ticked().length} ${ticked().length === 1 ? "file" : "files"}`
+            }
             disabled={ticked().length === 0}
             onPress={() => props.onAttach(ticked())}
           />
@@ -97,7 +110,10 @@ export function AttachPicker(props: { open: boolean; machine: string; folder: st
       <View class="gap-2">
         <View class="flex-row items-center gap-2">
           <IconButton icon="arrow-up" label="Up one folder" onPress={() => void go(parentOf(here()) ?? here())} />
-          <Text class="min-w-0 flex-1 font-mono text-xs text-muted-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
+          <Text
+            class="min-w-0 flex-1 font-mono text-xs text-muted-foreground"
+            style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
+          >
             {here()}
           </Text>
         </View>
@@ -129,9 +145,15 @@ export function AttachPicker(props: { open: boolean; machine: string; folder: st
               const entry = () => byName().get(item.id);
               const on = () => ticked().includes(joinPath(here(), item.id));
               return (
-                <View class="min-w-0 flex-1 flex-row items-center gap-2" accessibilityLabel={`${item.label}${entry()?.kind === "dir" ? ", folder" : on() ? ", ticked" : ""}`}>
+                <View
+                  class="min-w-0 flex-1 flex-row items-center gap-2"
+                  accessibilityLabel={`${item.label}${entry()?.kind === "dir" ? ", folder" : on() ? ", ticked" : ""}`}
+                >
                   <Icon name={entry()?.kind === "dir" ? "folder" : "file"} size={14} tone="muted-foreground" />
-                  <Text class="min-w-0 flex-1 text-sm text-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
+                  <Text
+                    class="min-w-0 flex-1 text-sm text-foreground"
+                    style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
+                  >
                     {item.label}
                   </Text>
                   <If when={entry()?.kind === "file"}>
@@ -146,7 +168,11 @@ export function AttachPicker(props: { open: boolean; machine: string; folder: st
             onQueryChange={({ query: q }) => query.set(q)}
             onSelect={({ id }) => choose(id)}
             onCancel={props.onClose}
-            empty={<Text class="px-3 py-4 text-sm text-muted-foreground">{query().trim() ? "No file matches" : "This folder is empty"}</Text>}
+            empty={
+              <Text class="px-3 py-4 text-sm text-muted-foreground">
+                {query().trim() ? "No file matches" : "This folder is empty"}
+              </Text>
+            }
           />
         </If>
         <If when={loading() && listing() === null && !failure()}>

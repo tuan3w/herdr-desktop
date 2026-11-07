@@ -1,5 +1,7 @@
 import { expect, test } from "nsh/test";
+
 import type { SessionInfo } from "herdr-desktop/native";
+
 import { agentChoices, recentFolders, sessionFolderError, startFailure } from "#lib/new-session";
 
 test("the agents a machine can run come first, and the ones it lacks follow, marked", () => {
@@ -11,7 +13,11 @@ test("the agents a machine can run come first, and the ones it lacks follow, mar
     ["pi", false],
   ]);
   // An agent the keeper knows and this list does not is still offered.
-  expect(agentChoices([{ id: "newcomer", label: "Newcomer" }])[0]).toEqual({ id: "newcomer", label: "Newcomer", installed: true });
+  expect(agentChoices([{ id: "newcomer", label: "Newcomer" }])[0]).toEqual({
+    id: "newcomer",
+    label: "Newcomer",
+    installed: true,
+  });
 });
 
 test("a folder is an absolute path or the machine's home, on one line", () => {
@@ -46,6 +52,12 @@ test("every way a start fails says what happened in the keeper's words and what 
 
 test("the folders offered are the last one used, then where sessions and agents already work, once each", () => {
   const session = (cwd: string) => ({ cwd }) as SessionInfo;
-  expect(recentFolders({ remembered: "/b", sessions: [session("/a"), session("/b")], agents: ["/c", "/a", " "] })).toEqual(["/b", "/a", "/c"]);
-  expect(recentFolders({ sessions: [], agents: Array.from({ length: 20 }, (_, i) => `/f${i}`), limit: 3 })).toEqual(["/f0", "/f1", "/f2"]);
+  expect(
+    recentFolders({ remembered: "/b", sessions: [session("/a"), session("/b")], agents: ["/c", "/a", " "] }),
+  ).toEqual(["/b", "/a", "/c"]);
+  expect(recentFolders({ sessions: [], agents: Array.from({ length: 20 }, (_, i) => `/f${i}`), limit: 3 })).toEqual([
+    "/f0",
+    "/f1",
+    "/f2",
+  ]);
 });

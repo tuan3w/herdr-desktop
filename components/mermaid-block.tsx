@@ -1,8 +1,9 @@
+import { Diagrams } from "herdr-desktop/native";
 import { colorScheme, computed, signal, Text, token, View, WebView } from "nsh";
 import { Editor } from "nsh/base";
-import { Diagrams } from "herdr-desktop/native";
-import { type DiagramColors, type DiagramResult, diagramPage, diagramTitle, parseDiagramResult } from "#lib/mermaid";
+
 import { Btn, Modal } from "#kit";
+import { type DiagramColors, type DiagramResult, diagramPage, diagramTitle, parseDiagramResult } from "#lib/mermaid";
 
 /** The most height a diagram takes in a document before it scrolls inside its frame; `Open diagram` shows it larger. */
 const INLINE_MAX = 360;
@@ -24,7 +25,13 @@ function origin(): Origin {
 
 /** The theme's colours as CSS the page can use (`token()` follows the theme and the appearance). */
 function colors(): DiagramColors {
-  return { background: token("card"), text: token("card-foreground"), line: token("muted-foreground"), fill: token("muted"), border: token("border") };
+  return {
+    background: token("card"),
+    text: token("card-foreground"),
+    line: token("muted-foreground"),
+    fill: token("muted"),
+    border: token("border"),
+  };
 }
 
 /** The drawing: a web view that loads the page of `diagramPage` and is as tall as the diagram, up to `max`. */
@@ -33,7 +40,11 @@ function Drawing(props: { code: string; max: number; onResult: (result: DiagramR
   const height = signal(120);
   const capped = signal(false);
   const title = diagramTitle(props.code);
-  const page = computed(() => (where.url ? diagramPage({ origin: where.url, code: props.code, title, dark: colorScheme() === "dark", colors: colors() }) : ""));
+  const page = computed(() =>
+    where.url
+      ? diagramPage({ origin: where.url, code: props.code, title, dark: colorScheme() === "dark", colors: colors() })
+      : "",
+  );
   return (
     <If when={where.url}>
       <WebView
@@ -59,7 +70,20 @@ function Drawing(props: { code: string; max: number; onResult: (result: DiagramR
 
 /** The source as the diagram's text alternative: read only, highlighted as text, copyable. */
 function Source(props: { code: string; title: string }) {
-  return <Editor readOnly language="text" value={props.code} lineNumbers={false} folding={false} minRows={1} maxRows={14} fontSize={12} accessibilityLabel={`${props.title}, source`} class="w-full rounded-md border border-border bg-card" />;
+  return (
+    <Editor
+      readOnly
+      language="text"
+      value={props.code}
+      lineNumbers={false}
+      folding={false}
+      minRows={1}
+      maxRows={14}
+      fontSize={12}
+      accessibilityLabel={`${props.title}, source`}
+      class="w-full rounded-md border border-border bg-card"
+    />
+  );
 }
 
 /**
@@ -84,12 +108,20 @@ export function MermaidBlock(props: { code: string }) {
           <Btn small label="Open diagram" onPress={() => opened.set(true)} />
         </If>
         <If when={!why()}>
-          <Btn small label={source() ? "Hide source" : "Show source"} name={source() ? "Hide the diagram's source" : "Show the diagram's source"} onPress={() => source.update((s) => !s)} />
+          <Btn
+            small
+            label={source() ? "Hide source" : "Show source"}
+            name={source() ? "Hide the diagram's source" : "Show the diagram's source"}
+            onPress={() => source.update((s) => !s)}
+          />
         </If>
       </View>
       <If when={why()}>
         {(message) => (
-          <Text role="alert" class="text-xs text-muted-foreground">{`Couldn't draw this diagram · ${message()} · showing the source`}</Text>
+          <Text
+            role="alert"
+            class="text-xs text-muted-foreground"
+          >{`Couldn't draw this diagram · ${message()} · showing the source`}</Text>
         )}
       </If>
       <If when={!why()}>
@@ -98,7 +130,13 @@ export function MermaidBlock(props: { code: string }) {
       <If when={why() || source()}>
         <Source code={props.code} title={title} />
       </If>
-      <Modal open={opened()} huge onClose={() => opened.set(false)} title={title} actions={<Btn label="Close" hint="Esc" onPress={() => opened.set(false)} />}>
+      <Modal
+        open={opened()}
+        huge
+        onClose={() => opened.set(false)}
+        title={title}
+        actions={<Btn label="Close" hint="Esc" onPress={() => opened.set(false)} />}
+      >
         <If when={opened()}>
           <Drawing code={props.code} max={OPEN_MAX} onResult={() => undefined} />
         </If>

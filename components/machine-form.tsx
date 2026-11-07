@@ -1,8 +1,10 @@
-import { announce, effect, signal, Text, untracked, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
+import { announce, effect, signal, Text, untracked, View } from "nsh";
+
 import type { MachineInput, MachineView, TestResult } from "herdr-desktop/native";
-import { destinationError, fieldOfRejection, NAME_MISSING, portError, sessionError } from "#lib/machine-rules";
+
 import { Autocomplete, Btn, Field, FieldRow, Icon, Modal, NumberField, SettingRow, Switch } from "#kit";
+import { destinationError, fieldOfRejection, NAME_MISSING, portError, sessionError } from "#lib/machine-rules";
 
 type FieldName = "name" | "destination" | "port" | "session";
 
@@ -22,7 +24,12 @@ const reason = (e: unknown): string => (e instanceof Error ? e.message : String(
  * (`lib/machine-rules.ts`) mirror the ones Rust enforces, and Rust's own message is shown too. What was typed stays
  * through a failed save or a failed test. `Test connection` connects once without adding anything.
  */
-export function MachineForm(props: { open: boolean; machine?: MachineView; onClose: () => void; onSaved: (machine: MachineView) => void }) {
+export function MachineForm(props: {
+  open: boolean;
+  machine?: MachineView;
+  onClose: () => void;
+  onSaved: (machine: MachineView) => void;
+}) {
   const name = signal("");
   const dest = signal("");
   const port = signal<number | null>(null);
@@ -64,7 +71,8 @@ export function MachineForm(props: { open: boolean; machine?: MachineView; onClo
     const own = touched()[field] ? rules()[field] : undefined;
     return own ?? (rejection()?.field === field ? rejection()?.message : undefined);
   };
-  const touch = (...fields: FieldName[]) => touched.set({ ...touched(), ...Object.fromEntries(fields.map((f) => [f, true])) });
+  const touch = (...fields: FieldName[]) =>
+    touched.set({ ...touched(), ...Object.fromEntries(fields.map((f) => [f, true])) });
   /** An edit makes the last test and the last rejection stale: they described the old values. */
   const edited = () => {
     result.set(undefined);
@@ -115,7 +123,8 @@ export function MachineForm(props: { open: boolean; machine?: MachineView; onClo
     }
   };
 
-  const target = () => (dest().trim() !== "" && destinationError(dest().trim()) === undefined ? dest().trim() : "<destination>");
+  const target = () =>
+    dest().trim() !== "" && destinationError(dest().trim()) === undefined ? dest().trim() : "<destination>";
   const editing = () => props.machine !== undefined;
 
   return (
@@ -210,7 +219,9 @@ export function MachineForm(props: { open: boolean; machine?: MachineView; onClo
           control={<Switch label="Connect to this machine" checked={enabled()} onChange={(v) => enabled.set(v)} />}
         />
         <View class="gap-1 rounded-md bg-muted px-3 py-3">
-          <Text class="text-sm text-foreground">ssh signs you in: it uses your ssh config, keys and agent. There is no password or key to enter here.</Text>
+          <Text class="text-sm text-foreground">
+            ssh signs you in: it uses your ssh config, keys and agent. There is no password or key to enter here.
+          </Text>
           <Text class="text-sm text-muted-foreground">
             {`Password login is not supported. If the host is new to you or asks for a password, run ssh ${target()} once in a terminal to trust the host and log in.`}
           </Text>
@@ -218,8 +229,14 @@ export function MachineForm(props: { open: boolean; machine?: MachineView; onClo
         <If when={result()}>
           {(outcome) => (
             <View class="flex-row items-start gap-2">
-              <Icon name={outcome().ok ? "circle-check" : "alert"} size={16} tone={outcome().ok ? "success" : "destructive"} />
-              <Text class={`min-w-0 flex-1 text-sm ${outcome().ok ? "text-foreground" : "text-destructive"}`}>{outcome().message}</Text>
+              <Icon
+                name={outcome().ok ? "circle-check" : "alert"}
+                size={16}
+                tone={outcome().ok ? "success" : "destructive"}
+              />
+              <Text class={`min-w-0 flex-1 text-sm ${outcome().ok ? "text-foreground" : "text-destructive"}`}>
+                {outcome().message}
+              </Text>
             </View>
           )}
         </If>

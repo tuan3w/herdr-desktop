@@ -1,7 +1,8 @@
-import { keymap, signal } from "nsh";
 import { PaneKeys } from "herdr-desktop/native";
-import { fold } from "#lib/text";
+import { keymap, signal } from "nsh";
+
 import { apple, GLOBAL, keysOf } from "#lib/shortcuts";
+import { fold } from "#lib/text";
 
 /**
  * What the app's global shortcuts and the palette ask of "the tab in front". A `PaneTab` registers itself while it is
@@ -65,7 +66,23 @@ export const chatInFront = (): boolean => front()?.copyReply !== undefined;
 /** Whether a pane is in front: the palette offers pane entries only then. Reactive. */
 export const paneInFront = (): boolean => front() !== undefined;
 
-const NAMED = ["escape", "enter", "tab", "shift+tab", "backspace", "delete", "insert", "up", "down", "left", "right", "home", "end", "pageup", "pagedown"];
+const NAMED = [
+  "escape",
+  "enter",
+  "tab",
+  "shift+tab",
+  "backspace",
+  "delete",
+  "insert",
+  "up",
+  "down",
+  "left",
+  "right",
+  "home",
+  "end",
+  "pageup",
+  "pagedown",
+];
 const LETTERS = "abcdefghijklmnopqrstuvwxyz".split("");
 
 /**
@@ -79,7 +96,9 @@ const LETTERS = "abcdefghijklmnopqrstuvwxyz".split("");
  */
 export function captureKeystrokes(onApple: boolean = apple()): string[] {
   const taken = new Set(
-    Object.values(GLOBAL).flatMap((shortcut) => keysOf(shortcut, onApple).map((k) => (onApple ? k : k.replace(/^mod\b/, "ctrl")))),
+    Object.values(GLOBAL).flatMap((shortcut) =>
+      keysOf(shortcut, onApple).map((k) => (onApple ? k : k.replace(/^mod\b/, "ctrl"))),
+    ),
   );
   const candidates = [
     ...NAMED,
@@ -87,7 +106,9 @@ export function captureKeystrokes(onApple: boolean = apple()): string[] {
     ...LETTERS.map((l) => `ctrl+${l}`),
     ...LETTERS.map((l) => `alt+${l}`),
   ];
-  return candidates.filter((k) => !taken.has(k) && !(!onApple && k === "ctrl+v") && PaneKeys.herdrKey(k) !== null && bindable(k));
+  return candidates.filter(
+    (k) => !taken.has(k) && !(!onApple && k === "ctrl+v") && PaneKeys.herdrKey(k) !== null && bindable(k),
+  );
 }
 
 const probed = new Map<string, boolean>();

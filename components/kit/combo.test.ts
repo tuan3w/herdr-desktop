@@ -1,4 +1,5 @@
 import { expect, test } from "nsh/test";
+
 import {
   chipAfterRemoval,
   chipStep,
@@ -38,7 +39,10 @@ const OPTIONS: Choice[] = [
 function shown(choices: Choice[], query: string, budget = Number.POSITIVE_INFINITY): string[] {
   const words = queryWords(query);
   if (words.length === 0) return choices.map((c) => c.value);
-  const job = startJob(choices.length, wordProbe(words, (i) => choices[i]));
+  const job = startJob(
+    choices.length,
+    wordProbe(words, (i) => choices[i]),
+  );
   while (!stepJob(job, budget)) {}
   return found(queryKey(words), job).order.map((i) => choices[i].value);
 }
@@ -71,7 +75,10 @@ test("a scan cut into slices finds what one pass finds, and every slice moves fo
   for (let i = 0; i < 1000; i++) many.push({ value: `v${i}`, title: i % 7 === 0 ? `Café ${i}` : `Gate ${i}` });
   let tick = 0;
   const clock = () => (tick += 1);
-  const job = startJob(many.length, wordProbe(queryWords("cafe"), (i) => many[i]));
+  const job = startJob(
+    many.length,
+    wordProbe(queryWords("cafe"), (i) => many[i]),
+  );
   let slices = 0;
   while (!stepJob(job, 3, clock)) slices++;
   expect(slices).toBeGreaterThan(1);
@@ -80,7 +87,10 @@ test("a scan cut into slices finds what one pass finds, and every slice moves fo
 });
 
 test("a zero budget still advances, so a scan always ends", () => {
-  const job = startJob(OPTIONS.length, wordProbe(queryWords("ca"), (i) => OPTIONS[i]));
+  const job = startJob(
+    OPTIONS.length,
+    wordProbe(queryWords("ca"), (i) => OPTIONS[i]),
+  );
   expect(stepJob(job, 0, () => 0)).toBe(true);
 });
 
@@ -88,11 +98,18 @@ test("a longer query scans only what the shorter one matched; Backspace scans no
   const refiner = createRefiner();
   const words = (q: string) => queryKey(queryWords(q));
   expect(refiner.lookup(words("ca"))).toEqual({ exact: undefined, source: undefined });
-  const job = startJob(OPTIONS.length, wordProbe(queryWords("ca"), (i) => OPTIONS[i]));
+  const job = startJob(
+    OPTIONS.length,
+    wordProbe(queryWords("ca"), (i) => OPTIONS[i]),
+  );
   stepJob(job, 10);
   refiner.keep(found(words("ca"), job));
   expect(refiner.lookup(words("cafe ag")).source).toEqual([0, 1, 2, 3]);
-  const narrow = startJob(OPTIONS.length, wordProbe(queryWords("cafe ag"), (i) => OPTIONS[i]), [0, 1, 2, 3]);
+  const narrow = startJob(
+    OPTIONS.length,
+    wordProbe(queryWords("cafe ag"), (i) => OPTIONS[i]),
+    [0, 1, 2, 3],
+  );
   stepJob(narrow, 10);
   refiner.keep(found(words("cafe ag"), narrow));
   expect(narrow.matched).toEqual([1]);

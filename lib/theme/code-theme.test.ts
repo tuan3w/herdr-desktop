@@ -1,4 +1,5 @@
 import { expect, test } from "nsh/test";
+
 import { buildTheme } from "#lib/theme/build";
 import { CODE_MIN_CONTRAST, CODE_ROLES, codeSurfaces, PUNCTUATION_MIN_CONTRAST } from "#lib/theme/code";
 import { contrast, oklchToLinear, parseOklch } from "#lib/theme/color";
@@ -34,7 +35,8 @@ for (const spec of THEMES) {
     });
 
     test(`code theme ${spec.id} (${appearance}): line numbers read and whitespace marks show`, () => {
-      for (const ground of Object.values(surfaces)) expect(contrast(rgb(tokens["code-gutter"]), ground)).toBeGreaterThanOrEqual(CODE_MIN_CONTRAST);
+      for (const ground of Object.values(surfaces))
+        expect(contrast(rgb(tokens["code-gutter"]), ground)).toBeGreaterThanOrEqual(CODE_MIN_CONTRAST);
       expect(contrast(rgb(tokens["code-whitespace"]), surfaces.block)).toBeGreaterThanOrEqual(3);
     });
 
@@ -57,7 +59,9 @@ for (const spec of THEMES) {
       ];
       // Graphite is nearly monochrome by design: its pairs differ in lightness only, so the floor is lower.
       const floor = spec.id === "graphite" ? 0.025 : 0.03;
-      const close = pairs.filter(([a, b]) => distance(tokens[`code-${a}`], tokens[`code-${b}`]) < floor).map(([a, b]) => `${a} / ${b}: ${distance(tokens[`code-${a}`], tokens[`code-${b}`]).toFixed(3)}`);
+      const close = pairs
+        .filter(([a, b]) => distance(tokens[`code-${a}`], tokens[`code-${b}`]) < floor)
+        .map(([a, b]) => `${a} / ${b}: ${distance(tokens[`code-${a}`], tokens[`code-${b}`]).toFixed(3)}`);
       expect(close).toEqual([]);
     });
 

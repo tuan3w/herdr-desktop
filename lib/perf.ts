@@ -97,7 +97,14 @@ export function timing(id: string, label: string, budget?: { warn: number; bad: 
     id,
     label,
     read: () => (samples.count === 0 ? "-" : `${ms(samples.last)} ms · p95 ${ms(samples.p(0.95))} · ×${runs}`),
-    health: () => (!budget || samples.count === 0 ? "ok" : samples.p(0.95) > budget.bad ? "bad" : samples.p(0.95) > budget.warn ? "warn" : "ok"),
+    health: () =>
+      !budget || samples.count === 0
+        ? "ok"
+        : samples.p(0.95) > budget.bad
+          ? "bad"
+          : samples.p(0.95) > budget.warn
+            ? "warn"
+            : "ok",
   });
   const record = (millis: number) => {
     samples.push(millis);
@@ -136,7 +143,8 @@ const frameGaps = new Rolling();
 const lags = new Rolling();
 let fps = 0;
 
-const level = (value: number, budget: { warn: number; bad: number }): Health => (value > budget.bad ? "bad" : value > budget.warn ? "warn" : "ok");
+const level = (value: number, budget: { warn: number; bad: number }): Health =>
+  value > budget.bad ? "bad" : value > budget.warn ? "warn" : "ok";
 
 registerMetric({
   id: "frames",
@@ -155,7 +163,13 @@ registerMetric({
 
 /** The registered metrics, read now. */
 export function readMetrics(): Reading[] {
-  return [...registry.values()].map((m) => ({ id: m.id, label: m.label, text: m.read(), brief: m.brief?.(), health: m.health?.() ?? "ok" }));
+  return [...registry.values()].map((m) => ({
+    id: m.id,
+    label: m.label,
+    text: m.read(),
+    brief: m.brief?.(),
+    health: m.health?.() ?? "ok",
+  }));
 }
 
 function refresh(): void {

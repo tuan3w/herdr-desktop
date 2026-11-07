@@ -23,7 +23,8 @@ export function visibleText(text: string): string {
   for (const c of text.replace(/\r\n?/g, "\n").replace(/\t/g, "    ")) {
     const code = c.codePointAt(0) ?? 0;
     const control = (code < 0x20 && c !== "\n") || (code >= 0x7f && code <= 0x9f);
-    out += control || BIDI.test(c) || ZERO_WIDTH.test(c) ? `‹U+${code.toString(16).toUpperCase().padStart(4, "0")}›` : c;
+    out +=
+      control || BIDI.test(c) || ZERO_WIDTH.test(c) ? `‹U+${code.toString(16).toUpperCase().padStart(4, "0")}›` : c;
   }
   const kept: string[] = [];
   let blank = 0;
@@ -65,7 +66,8 @@ export function safeCode(text: string): string {
   for (const c of plain) {
     const code = c.codePointAt(0) ?? 0;
     const control = (code < 0x20 && c !== "\n" && c !== "\t") || (code >= 0x7f && code <= 0x9f);
-    out += control || BIDI.test(c) || ZERO_WIDTH.test(c) ? `‹U+${code.toString(16).toUpperCase().padStart(4, "0")}›` : c;
+    out +=
+      control || BIDI.test(c) || ZERO_WIDTH.test(c) ? `‹U+${code.toString(16).toUpperCase().padStart(4, "0")}›` : c;
   }
   return out;
 }

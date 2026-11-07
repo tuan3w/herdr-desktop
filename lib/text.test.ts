@@ -1,4 +1,5 @@
 import { expect, test } from "nsh/test";
+
 import { fold } from "#lib/text";
 
 test("a search ignores case, diacritics and invisible characters", () => {

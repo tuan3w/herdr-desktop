@@ -1,6 +1,7 @@
 import { open } from "nsh/test";
-import type { App } from "nsh/test";
+
 import type { DockAreaLayout } from "nsh/base";
+import type { App } from "nsh/test";
 
 /** 1280 x 800: a desktop window, wide enough for the full sidebar. */
 export const DESKTOP = { width: 1280, height: 800 };
@@ -25,7 +26,13 @@ export const SECOND = "auth";
 export const DONE = "Fix login flow";
 
 /** The `mixed` fixture's agents by pane id, for reading a saved layout. */
-const NAME: Record<string, string> = { "w1:p1": FIRST, "w1:p2": SECOND, "w1:p3": DONE, "w1:p4": "Refactor ledger", "w1:p5": "upgrade deps" };
+const NAME: Record<string, string> = {
+  "w1:p1": FIRST,
+  "w1:p2": SECOND,
+  "w1:p3": DONE,
+  "w1:p4": "Refactor ledger",
+  "w1:p5": "upgrade deps",
+};
 export const nameOf = (panel: string): string => NAME[panel.slice(panel.indexOf("/") + 1).replace(/^pane:/, "")];
 
 /** The mirror of an agent's pane, which is on screen only while its tab is the displayed one. */

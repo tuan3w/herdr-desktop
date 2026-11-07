@@ -19,5 +19,17 @@
       "unknown"
     ]
   },
-  "ignorePatterns": ["node_modules", "target", ".nsh", ".scratch", "native", "fixtures", "fonts", "assets", "docs", "theme.json", "*.md"]
+  "ignorePatterns": [
+    "node_modules",
+    "target",
+    ".nsh",
+    ".scratch",
+    "native",
+    "fixtures",
+    "fonts",
+    "assets",
+    "docs",
+    "theme.json",
+    "*.md"
+  ]
 }

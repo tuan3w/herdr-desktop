@@ -1,4 +1,5 @@
 import { expect, open, test } from "nsh/test";
+
 import type { App } from "nsh/test";
 
 /**
@@ -14,7 +15,8 @@ async function keeper(): Promise<App> {
   await app.waitFor("Ready");
   return app;
 }
-const scripted = (scene: string) => open("./session-lab.tsx", { ...DESKTOP, host: { params: { mode: "scripted", scene } } });
+const scripted = (scene: string) =>
+  open("./session-lab.tsx", { ...DESKTOP, host: { params: { mode: "scripted", scene } } });
 const model = () => open("./session-lab.tsx", { ...DESKTOP, host: { params: { mode: "model" } } });
 
 const BOX = "label:Message";
@@ -26,7 +28,8 @@ const label = (re: string) => `label:/${re}/`;
 async function pressUntil(app: App, button: string, done: () => boolean): Promise<void> {
   const deadline = Date.now() + 10_000;
   while (!done()) {
-    if (Date.now() > deadline) throw new Error(`pressing "${button}" never did it; on screen: ${JSON.stringify(app.texts())}`);
+    if (Date.now() > deadline)
+      throw new Error(`pressing "${button}" never did it; on screen: ${JSON.stringify(app.texts())}`);
     await app.press(button).catch(() => undefined);
     await app.wait(25);
   }
@@ -307,7 +310,9 @@ test("a request that waits is what the pill says when the person is away from th
 test("the notice that earlier turns are no longer kept sits above the first row", async () => {
   const app = await scripted("earlier");
   await app.waitFor("Earlier messages are no longer kept");
-  expect(app.texts().indexOf("Earlier messages are no longer kept")).toBeLessThan(app.texts().indexOf("Where were we?"));
+  expect(app.texts().indexOf("Earlier messages are no longer kept")).toBeLessThan(
+    app.texts().indexOf("Where were we?"),
+  );
 });
 
 test("an ended session says so at the end of the conversation and in the box, and takes no message", async () => {
@@ -321,7 +326,8 @@ test("an ended session says so at the end of the conversation and in the box, an
 async function keyUntil(app: App, key: string, done: () => boolean): Promise<void> {
   const deadline = Date.now() + 10_000;
   while (!done()) {
-    if (Date.now() > deadline) throw new Error(`pressing ${key} never did it; on screen: ${JSON.stringify(app.texts())}`);
+    if (Date.now() > deadline)
+      throw new Error(`pressing ${key} never did it; on screen: ${JSON.stringify(app.texts())}`);
     await app.keyboard.press(key);
     await app.wait(50);
   }
@@ -340,7 +346,10 @@ test("PageUp scrolls a page back from the message box and PageDown comes forward
 test("files dropped on the tab are attached as chips and can be removed", async () => {
   const app = await scripted("chat");
   await app.waitFor(BOX);
-  const tree = app.texts().find((t) => t.startsWith("Tree: "))!.slice("Tree: ".length);
+  const tree = app
+    .texts()
+    .find((t) => t.startsWith("Tree: "))!
+    .slice("Tree: ".length);
   await app.dropFiles(BOX, [`file://${tree}/notes.txt`]);
   await app.waitFor("label:Attached: notes.txt");
   await app.press("label:Remove notes.txt");
@@ -476,7 +485,10 @@ test("Copy code takes the last block of the last answer, and Copy answer the who
 });
 
 test("an answer that is still being written shows its open fence as it stands, and ends in the same state as the answer whole", async () => {
-  const live = await open("./session-lab.tsx", { ...DESKTOP, host: { params: { mode: "scripted", scene: "code-stream" } } });
+  const live = await open("./session-lab.tsx", {
+    ...DESKTOP,
+    host: { params: { mode: "scripted", scene: "code-stream" } },
+  });
   await live.waitFor("Stream a piece");
   // The prose, the fence's opening line and two lines of code.
   for (let i = 0; i < 4; i++) await live.press("Stream a piece");
@@ -488,7 +500,10 @@ test("an answer that is still being written shows its open fence as it stands, a
   await live.press("Finish the turn");
   await live.waitFor("label:/^Code, TypeScript, 7 lines$/");
 
-  const whole = await open("./session-lab.tsx", { ...DESKTOP, host: { params: { mode: "scripted", scene: "code-stream", instant: true } } });
+  const whole = await open("./session-lab.tsx", {
+    ...DESKTOP,
+    host: { params: { mode: "scripted", scene: "code-stream", instant: true } },
+  });
   await whole.press("Finish the turn");
   await whole.waitFor("label:/^Code, TypeScript, 7 lines$/");
   await live.keyboard.press("mod+shift+c");
@@ -502,7 +517,10 @@ test("an answer that is still being written shows its open fence as it stands, a
 });
 
 test("a long fence being written does not take the end away: the chat keeps following it and never offers a jump", async () => {
-  const app = await open("./session-lab.tsx", { ...DESKTOP, host: { params: { mode: "scripted", scene: "code-stream", lines: 600 } } });
+  const app = await open("./session-lab.tsx", {
+    ...DESKTOP,
+    host: { params: { mode: "scripted", scene: "code-stream", lines: 600 } },
+  });
   await app.waitFor("Stream a piece");
   // The prose, the fence's opening line, then 600 lines in pieces of 20.
   for (let i = 0; i < 2 + 30; i++) {

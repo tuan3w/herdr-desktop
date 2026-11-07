@@ -1,7 +1,9 @@
 import { cleanup, context, type JSX, signal, View } from "nsh";
-import type { Followed } from "./hover";
+
 import { CardLayer, Cards, createCards, type CardTiming } from "./preview-card";
 import { createTooltips, TooltipLayer, Tooltips, type TooltipTiming } from "./tooltip";
+
+import type { Followed } from "./hover";
 
 /**
  * What a root view's hoverable popups register with, so that the root's hover move reaches them while one waits to close
@@ -18,7 +20,12 @@ export const Paths = context<PathWatch | undefined>(undefined);
  * them on any press, and follows the pointer for a hoverable popup that waits to close. Wrap the app, and the content of
  * every dialog (a dialog is a root view of its own). `tooltip` and `card` are the timings (`TooltipTiming`, `CardTiming`).
  */
-export function PopupRoot(props: { class?: string; tooltip?: TooltipTiming; card?: CardTiming; children?: JSX.Element }) {
+export function PopupRoot(props: {
+  class?: string;
+  tooltip?: TooltipTiming;
+  card?: CardTiming;
+  children?: JSX.Element;
+}) {
   const tips = createTooltips(props.tooltip);
   const cards = createCards(props.card);
   const watched = signal<Followed[]>([cards]);

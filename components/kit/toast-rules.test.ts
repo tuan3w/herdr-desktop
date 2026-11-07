@@ -1,13 +1,23 @@
 import { expect, test } from "nsh/test";
+
 import { createToasts, liveUndos, newestUndo, type ToastInput, type Toasts, type UndoEntry } from "./toast-rules";
 
 const EXIT = 160;
 
 function toasts(options: { limit?: number; timeout?: number } = {}): Toasts<string> {
-  return createToasts<string>({ limit: options.limit ?? 3, keep: 30, timeout: options.timeout ?? 5000, exitMs: () => EXIT });
+  return createToasts<string>({
+    limit: options.limit ?? 3,
+    keep: 30,
+    timeout: options.timeout ?? 5000,
+    exitMs: () => EXIT,
+  });
 }
 
-const input = (text: string, rest: Partial<ToastInput<string>> = {}): ToastInput<string> => ({ text, data: text, ...rest });
+const input = (text: string, rest: Partial<ToastInput<string>> = {}): ToastInput<string> => ({
+  text,
+  data: text,
+  ...rest,
+});
 const status = (t: Toasts<string>, id: string) => t.get(id)?.status ?? "gone";
 
 test("a toast closes after its running time, then leaves after the exit", () => {

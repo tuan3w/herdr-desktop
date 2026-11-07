@@ -125,25 +125,39 @@ export function createToasts<D>(config: ToastConfig): Toasts<D> {
 
   /** Brings a timer from the state it was in to the one the new fields ask for. */
   function retimed(old: ToastRecord<D> | undefined, next: ToastRecord<D>, now: number, reset: boolean): ToastRecord<D> {
-    if (next.status === "ending" || !hasTimer(next.type, next.timeout)) return { ...next, remaining: null, since: null };
+    if (next.status === "ending" || !hasTimer(next.type, next.timeout))
+      return { ...next, remaining: null, since: null };
     const keep = old && old.remaining !== null && !reset && old.timeout === next.timeout && old.type !== "loading";
     if (keep) return { ...next, remaining: old.remaining, since: old.since };
     return { ...next, remaining: next.timeout, since: running() ? now : null };
   }
 
   function freeze(now: number) {
-    list = list.map((t) => (t.since === null || t.remaining === null ? t : { ...t, remaining: Math.max(0, t.remaining - (now - t.since)), since: null }));
+    list = list.map((t) =>
+      t.since === null || t.remaining === null
+        ? t
+        : { ...t, remaining: Math.max(0, t.remaining - (now - t.since)), since: null },
+    );
   }
 
   function thaw(now: number) {
-    list = list.map((t) => (t.remaining === null || t.since !== null || t.status === "ending" ? t : { ...t, since: now }));
+    list = list.map((t) =>
+      t.remaining === null || t.since !== null || t.status === "ending" ? t : { ...t, since: now },
+    );
   }
 
   function end(ids: ReadonlySet<string>, now: number): ToastRecord<D>[] {
     const ended: ToastRecord<D>[] = [];
     list = list.map((t) => {
       if (!ids.has(t.id) || t.status === "ending") return t;
-      const next: ToastRecord<D> = { ...t, status: "ending", limited: false, remaining: null, since: null, endedAt: now };
+      const next: ToastRecord<D> = {
+        ...t,
+        status: "ending",
+        limited: false,
+        remaining: null,
+        since: null,
+        endedAt: now,
+      };
       ended.push(next);
       return next;
     });
@@ -157,7 +171,9 @@ export function createToasts<D>(config: ToastConfig): Toasts<D> {
 
   /** Closes what ran out and removes what finished leaving. Every other method starts by calling it. */
   function advance(now: number): Settled<D> {
-    const due = new Set(list.filter((t) => t.since !== null && t.remaining !== null && now - t.since >= t.remaining).map((t) => t.id));
+    const due = new Set(
+      list.filter((t) => t.since !== null && t.remaining !== null && now - t.since >= t.remaining).map((t) => t.id),
+    );
     const closed = end(due, now);
     const exit = config.exitMs();
     const removed = list.filter((t) => t.status === "ending" && t.endedAt !== null && now - t.endedAt >= exit);
@@ -192,7 +208,18 @@ export function createToasts<D>(config: ToastConfig): Toasts<D> {
       const id = input.id ?? `toast-${seq++}`;
       const at = index(id);
       if (at >= 0 && list[at].status === "present") {
-        upsert(list[at], { text: input.text, type: input.type ?? "info", priority: input.priority ?? "low", timeout: input.timeout, data: input.data }, now, true);
+        upsert(
+          list[at],
+          {
+            text: input.text,
+            type: input.type ?? "info",
+            priority: input.priority ?? "low",
+            timeout: input.timeout,
+            data: input.data,
+          },
+          now,
+          true,
+        );
         return { id, replaced: true, settled };
       }
       // A toast that is closing gives its place to the new one, without anyone hearing it was removed.
@@ -215,7 +242,9 @@ export function createToasts<D>(config: ToastConfig): Toasts<D> {
       };
       list = [...list, retimed(undefined, fresh, now, true)];
       relimit();
-      const dropped = list.filter((t) => t.limited && t.priority === "low").slice(0, Math.max(0, list.length - config.keep));
+      const dropped = list
+        .filter((t) => t.limited && t.priority === "low")
+        .slice(0, Math.max(0, list.length - config.keep));
       if (dropped.length > 0) {
         list = list.filter((t) => !dropped.includes(t));
         settled.closed.push(...dropped);
@@ -289,7 +318,11 @@ export interface UndoEntry {
  * The undo that Cmd+Z runs: the newest whose toast is still on screen, or whose time (`until`) has not run out. A toast
  * that is hidden (Escape, a swipe, the limit) does not take the user's way back with it.
  */
-export function newestUndo(entries: readonly UndoEntry[], now: number, onScreen: (id: string) => boolean): UndoEntry | undefined {
+export function newestUndo(
+  entries: readonly UndoEntry[],
+  now: number,
+  onScreen: (id: string) => boolean,
+): UndoEntry | undefined {
   return entries.findLast((e) => onScreen(e.id) || now < e.until);
 }
 

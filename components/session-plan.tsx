@@ -1,8 +1,10 @@
 import { signal, Text, View } from "nsh";
+
 import type { PlanStepView } from "herdr-desktop/native";
-import { Clipped, Icon } from "#kit";
+
 import { Disclosure } from "#components/session-tool";
 import { StatusGlyph } from "#components/status-glyph";
+import { Clipped, Icon } from "#kit";
 
 /** `1 of 3 done` and the step being worked on (else the first still to do): the one line a collapsed plan says. */
 export function planLine(plan: readonly PlanStepView[]): { progress: string; current: string } {
@@ -48,9 +50,18 @@ export function SessionPlan(props: { plan: readonly PlanStepView[]; running: boo
                   class="flex-row items-start gap-2 py-1"
                 >
                   <View class="pt-1">
-                    <StatusGlyph status={step().status === "completed" ? "done" : step().status === "inProgress" ? "working" : "idle"} size={12} />
+                    <StatusGlyph
+                      status={
+                        step().status === "completed" ? "done" : step().status === "inProgress" ? "working" : "idle"
+                      }
+                      size={12}
+                    />
                   </View>
-                  <Text class={`min-w-0 flex-1 text-sm ${step().status === "completed" ? "text-muted-foreground" : "text-foreground"}`}>{step().content}</Text>
+                  <Text
+                    class={`min-w-0 flex-1 text-sm ${step().status === "completed" ? "text-muted-foreground" : "text-foreground"}`}
+                  >
+                    {step().content}
+                  </Text>
                 </View>
               )}
             </Each>

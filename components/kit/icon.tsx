@@ -1,4 +1,5 @@
 import { Image, token } from "nsh";
+
 import alert from "./icons/alert.svg";
 import arrowLeft from "./icons/arrow-left.svg";
 import arrowRight from "./icons/arrow-right.svg";

@@ -1,8 +1,25 @@
-import { expect, test } from "nsh/test";
-import type { App } from "nsh/test";
 import { Herdr } from "herdr-desktop/native";
+import { expect, test } from "nsh/test";
+
+import type { App } from "nsh/test";
+
+import {
+  DONE,
+  ENTRY,
+  FIRST,
+  nameOf,
+  onBoard,
+  openAgents,
+  openTerminals,
+  ready,
+  saved,
+  seeded,
+  SECOND,
+  settle,
+  shown,
+  sidebarRow,
+} from "../app-seam";
 import mixed from "../fixtures/herdr/mixed.json";
-import { DONE, ENTRY, FIRST, nameOf, onBoard, openAgents, openTerminals, ready, saved, seeded, SECOND, settle, shown, sidebarRow } from "../app-seam";
 
 ENTRY.path = "../App.tsx";
 
@@ -20,7 +37,6 @@ test("the layout is saved once the edits go quiet, not on every one", async () =
   const [group] = await saved(app);
   expect(group.panels.map(nameOf).slice(1)).toEqual([FIRST, SECOND]);
 });
-
 
 test("the next start has the same tabs, and a tab for a pane herdr no longer has says so and can be closed", async () => {
   const layout = {
@@ -45,14 +61,12 @@ test("the next start has the same tabs, and a tab for a pane herdr no longer has
   expect(app.shows("Agent gone")).toBe(false);
 });
 
-
 test("an unreadable saved layout opens the board alone", async () => {
   const app = await seeded("mixed", { storage: { "herdr.dock.v1": "{{ not json" } });
   await app.waitFor("label:Board, 2 need you");
   expect(app.count("role:tab")).toBe(1);
   expect(onBoard(app)).toBe(true);
 });
-
 
 test("a tab that is alone in its group cannot split away; with a second tab it moves into a new group beside it", async () => {
   const app = await ready();
@@ -65,7 +79,6 @@ test("a tab that is alone in its group cannot split away; with a second tab it m
   const groups = await saved(app);
   expect(groups.map((g) => g.panels.map((p) => (p === "board" ? p : nameOf(p))))).toEqual([["board"], [FIRST]]);
 });
-
 
 test("every drag has a command: move the tab to another group, down, and back, from the palette", async () => {
   const app = await ready();
@@ -81,7 +94,6 @@ test("every drag has a command: move the tab to another group, down, and back, f
   await run("Move tab to other group");
   expect((await saved(app)).map((g) => g.panels.length)).toEqual([3]);
 });
-
 
 test("closing a pane in herdr asks first, and says what it will stop", async () => {
   const app = await ready();
@@ -100,7 +112,6 @@ test("closing a pane in herdr asks first, and says what it will stop", async () 
   expect(Herdr.testRequests("pane.close")).toEqual([]);
   expect(app.count("role:tab")).toBe(2);
 });
-
 
 test("closing a pane in herdr, once confirmed, closes the pane and removes its tab", async () => {
   const app = await ready();

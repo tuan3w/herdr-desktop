@@ -1,11 +1,12 @@
 import { computed, openUrl, Scroll, Text, View } from "nsh";
 import { Button, TextView, type TextViewCodeBlock, type TextViewCustomNode, type TextViewImage } from "nsh/base";
+
+import { CodeBlock, inlineCodeClasses } from "#components/code-block";
+import { openLink } from "#components/links-dialog";
+import { MermaidBlock } from "#components/mermaid-block";
+import { Icon, notify } from "#kit";
 import { fenceLanguage, type FenceSegment, type ProseSegment, type Segment, splitFences } from "#lib/markdown-fences";
 import { safeCode } from "#lib/visible-text";
-import { Icon, notify } from "#kit";
-import { CodeBlock, inlineCodeClasses } from "#components/code-block";
-import { MermaidBlock } from "#components/mermaid-block";
-import { openLink } from "#components/links-dialog";
 
 /** A mermaid fence inside a list item or a quote is a custom node: the diagram, not a block of code. (Top-level ones are split out by `splitFences`.) */
 const EXTENSIONS = [{ name: "mermaid", language: "mermaid" }];
@@ -37,7 +38,15 @@ export interface Folds {
  * `List` cell too (the crash that once made that look unsafe was a preloaded allocator, not a `TextView`:
  * `docs/upstream/nsh-selectable-textview-in-list.md`).
  */
-export function MarkdownText(props: { source: string; machine: string; folder: string; streaming?: boolean; class?: string; folds?: Folds; foldKey?: string }) {
+export function MarkdownText(props: {
+  source: string;
+  machine: string;
+  folder: string;
+  streaming?: boolean;
+  class?: string;
+  folds?: Folds;
+  foldKey?: string;
+}) {
   const press = (target: string) => {
     const path = target.split("#")[0];
     if (/^https?:\/\//i.test(target)) {
@@ -65,9 +74,15 @@ export function MarkdownText(props: { source: string; machine: string; folder: s
       </Button>
     );
   };
-  const custom = (node: TextViewCustomNode) => (node.name === "mermaid" ? <MermaidBlock code={node.text ?? ""} /> : <Text>{node.text ?? ""}</Text>);
+  const custom = (node: TextViewCustomNode) =>
+    node.name === "mermaid" ? <MermaidBlock code={node.text ?? ""} /> : <Text>{node.text ?? ""}</Text>;
   // Top-level fences are split out below; what reaches the text view's own code block is a fence inside a list item or a quote.
-  const nested = (block: TextViewCodeBlock) => <CodeBlock code={safeCode(block.code)} language={block.language ? `${block.language} ${block.meta ?? ""}`.trim() : undefined} />;
+  const nested = (block: TextViewCodeBlock) => (
+    <CodeBlock
+      code={safeCode(block.code)}
+      language={block.language ? `${block.language} ${block.meta ?? ""}`.trim() : undefined}
+    />
+  );
   const parts = computed(() => splitFences(props.source));
   const last = () => parts().at(-1)?.key;
   const streaming = () => props.streaming ?? false;

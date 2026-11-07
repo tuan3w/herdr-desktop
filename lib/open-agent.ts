@@ -1,6 +1,8 @@
-import { announce } from "nsh";
 import { Sessions } from "herdr-desktop/native";
+import { announce } from "nsh";
+
 import type { BoardRow } from "herdr-desktop/native";
+
 import { openPane, openSession, paneKey, removePanel, sessionKey } from "#lib/dock";
 import { rowOf } from "#lib/herdr";
 
@@ -32,7 +34,9 @@ export function canShowChat(machine: string, pane: string): boolean {
 /** The tab to show for a row now: `chat` or `terminal`. Pure of side effects, so the sidebar can mark rows with it. */
 export function viewOf(row: BoardRow): "chat" | "terminal" {
   if (row.session) return "chat";
-  return !wantTerminal.has(`${row.machine}/${row.paneId}`) && canShowChat(row.machine, row.paneId) ? "chat" : "terminal";
+  return !wantTerminal.has(`${row.machine}/${row.paneId}`) && canShowChat(row.machine, row.paneId)
+    ? "chat"
+    : "terminal";
 }
 
 /** Opens an agent in its view; `reply` (the board's `Reply…`) also puts the keyboard in a terminal's message box. */

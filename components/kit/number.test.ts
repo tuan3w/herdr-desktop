@@ -1,4 +1,5 @@
 import { expect, test } from "nsh/test";
+
 import {
   add,
   canBeNumber,
@@ -182,7 +183,10 @@ test("a typed text commits to empty, a clamped number, or stays unreadable", () 
   expect(commitText("abc", bounds)).toEqual({ kind: "bad" });
   expect(commitText("250", { ...bounds, allowOutOfRange: true })).toEqual({ kind: "value", value: 250 });
   // fraction digits of the format round the stored value
-  expect(commitText("1,23456", { allowOutOfRange: false, format: { maximumFractionDigits: 2 } })).toEqual({ kind: "value", value: 1.23 });
+  expect(commitText("1,23456", { allowOutOfRange: false, format: { maximumFractionDigits: 2 } })).toEqual({
+    kind: "value",
+    value: 1.23,
+  });
 });
 
 test("holding a stepper steps once, then repeats after the delay, and a step that changes nothing ends it", async () => {
@@ -211,10 +215,14 @@ test("holding a stepper steps once, then repeats after the delay, and a step tha
 
   // a first step that changes nothing never starts the repeat
   let calls = 0;
-  const stuck = createHold(() => {
-    calls++;
-    return false;
-  }, 5, 5);
+  const stuck = createHold(
+    () => {
+      calls++;
+      return false;
+    },
+    5,
+    5,
+  );
   stuck.start();
   await wait(30);
   expect(calls).toBe(1);

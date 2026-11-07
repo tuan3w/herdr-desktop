@@ -1,5 +1,7 @@
 import { afterEach, expect, open, test } from "nsh/test";
+
 import type { App } from "nsh/test";
+
 import { endSessions } from "./chat-parts-seam";
 
 /**
@@ -11,7 +13,8 @@ import { endSessions } from "./chat-parts-seam";
 const DESKTOP = { width: 1280, height: 800, clock: {} };
 
 afterEach(() => endSessions());
-const synthetic = (variant: string, platform?: "macos", bare = false) => open("./chat-parts-lab.tsx", { ...DESKTOP, platform, host: { params: { part: "synthetic", variant, bare } } });
+const synthetic = (variant: string, platform?: "macos", bare = false) =>
+  open("./chat-parts-lab.tsx", { ...DESKTOP, platform, host: { params: { part: "synthetic", variant, bare } } });
 const live = () => open("./chat-parts-lab.tsx", { ...DESKTOP, host: { params: { part: "live" } } });
 
 const ALLOW = "label:Allow once";
@@ -34,7 +37,8 @@ async function settle(app: App, shown = "Permission request") {
 async function pressUntil(app: App, button: string, done: string) {
   const deadline = Date.now() + 10_000;
   while (!app.texts().some((t) => t.startsWith(done))) {
-    if (Date.now() > deadline) throw new Error(`pressing ${button} never showed ${done}; on screen: ${JSON.stringify(app.texts())}`);
+    if (Date.now() > deadline)
+      throw new Error(`pressing ${button} never showed ${done}; on screen: ${JSON.stringify(app.texts())}`);
     // The press that went through removes the button before the phase on screen has caught up: wait for it instead.
     if (!app.shows(button)) {
       await app.waitUntil(() => app.texts().some((t) => t.startsWith(done)));

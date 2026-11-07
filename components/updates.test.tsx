@@ -1,5 +1,7 @@
 import { expect, open, test } from "nsh/test";
+
 import type { App } from "nsh/test";
+
 import app from "../nsh.json";
 
 const DESKTOP = { width: 1280, height: 1000 };
@@ -12,14 +14,19 @@ const bump = (patch: number) => {
   return `${major}.${minor}.${current + patch}`;
 };
 
-async function inSettings(network: NonNullable<Parameters<typeof open>[1]>["network"], storage?: Record<string, string>): Promise<App> {
+async function inSettings(
+  network: NonNullable<Parameters<typeof open>[1]>["network"],
+  storage?: Record<string, string>,
+): Promise<App> {
   const a = await open("./machines-lab.tsx", { ...DESKTOP, network, storage });
   await a.press("Open settings");
   return a;
 }
 
 const release = (tag: string, extra: Record<string, unknown> = {}) => ({
-  [LATEST]: { body: { tag_name: tag, html_url: `${REPO}/releases/tag/${tag}`, draft: false, prerelease: false, ...extra } },
+  [LATEST]: {
+    body: { tag_name: tag, html_url: `${REPO}/releases/tag/${tag}`, draft: false, prerelease: false, ...extra },
+  },
 });
 
 test("a newer release is offered in Settings with a way to open its page", async () => {
@@ -42,7 +49,9 @@ test("the same version, an older one and a pre-release show nothing", async () =
 });
 
 test("a release page outside this repository is never offered", async () => {
-  const a = await inSettings({ [LATEST]: { body: { tag_name: `v${bump(1)}`, html_url: "https://example.com/download" } } });
+  const a = await inSettings({
+    [LATEST]: { body: { tag_name: `v${bump(1)}`, html_url: "https://example.com/download" } },
+  });
   await a.waitUntil(() => a.requests().length === 1);
   expect(a.shows("text:Update available")).toBe(false);
 });

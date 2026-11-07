@@ -1,4 +1,5 @@
 import { expect, test } from "nsh/test";
+
 import { rowsOf, safeCode, visibleText } from "#lib/visible-text";
 
 test("a character that hides what a command says is shown as its code point", () => {

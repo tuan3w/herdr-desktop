@@ -54,9 +54,20 @@ export async function checkForUpdate(current: string): Promise<void> {
   try {
     const response = await fetch(LATEST, { headers: { accept: "application/vnd.github+json" } });
     if (!response.ok) throw new Error(`GitHub answered ${response.status}`);
-    const release = (await response.json()) as { tag_name?: unknown; html_url?: unknown; draft?: unknown; prerelease?: unknown };
+    const release = (await response.json()) as {
+      tag_name?: unknown;
+      html_url?: unknown;
+      draft?: unknown;
+      prerelease?: unknown;
+    };
     checked = true;
-    if (typeof release.tag_name !== "string" || typeof release.html_url !== "string" || release.draft === true || release.prerelease === true) return;
+    if (
+      typeof release.tag_name !== "string" ||
+      typeof release.html_url !== "string" ||
+      release.draft === true ||
+      release.prerelease === true
+    )
+      return;
     if (!release.html_url.startsWith(RELEASE_PAGE) || !isNewer(release.tag_name, current)) return;
     availableUpdate.set({ version: release.tag_name.replace(/^v/, ""), url: release.html_url });
   } catch (e) {

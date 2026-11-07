@@ -1,5 +1,7 @@
 import { expect, open, test } from "nsh/test";
+
 import type { App } from "nsh/test";
+
 import { destinationError } from "#lib/machine-rules";
 
 const DESKTOP = { width: 1280, height: 800 };
@@ -85,7 +87,12 @@ test("a connection test that fails says why, keeps what was typed and can be run
   await app.type(DEST, "nosuch.invalid");
   const before = app.texts();
   await app.press("Test connection");
-  await app.waitUntil(() => app.texts().some((t) => !before.includes(t) && !t.startsWith("Connected")) && !app.shows("label:Test connection, busy"), { timeout: 30000 });
+  await app.waitUntil(
+    () =>
+      app.texts().some((t) => !before.includes(t) && !t.startsWith("Connected")) &&
+      !app.shows("label:Test connection, busy"),
+    { timeout: 30000 },
+  );
   const said = app.texts().filter((t) => !before.includes(t));
   expect(said.length).toBe(1);
   expect(said[0]).not.toMatch(/^Connected/);
@@ -158,7 +165,12 @@ test("when herdr refuses a save, its message shows and the form keeps what was t
   await app.press("Save");
   expect(app.shows(NAME)).toBe(true);
   expect(app.value(NAME)).toBe("Renamed");
-  expect(app.texts().filter((t) => !before.includes(t)).some((t) => t.length > 0)).toBe(true);
+  expect(
+    app
+      .texts()
+      .filter((t) => !before.includes(t))
+      .some((t) => t.length > 0),
+  ).toBe(true);
 });
 
 test("the form says that ssh signs in, and has no password or key field", async () => {
@@ -172,7 +184,9 @@ test("a host key that changed needs the person: it says what to do, stops retryi
   const app = await inMachines();
   await app.press("Script ssh failures");
   await addMachine(app, "Vault", "changed.example");
-  await app.waitUntil(() => app.texts().some((t) => t.startsWith("Needs attention: The host key of changed.example has changed")));
+  await app.waitUntil(() =>
+    app.texts().some((t) => t.startsWith("Needs attention: The host key of changed.example has changed")),
+  );
   expect(app.texts().some((t) => t.includes("ssh-keygen -R changed.example"))).toBe(true);
   // No countdown: nothing will happen until the person fixes the key and presses Retry.
   expect(app.texts().some((t) => t.includes("reconnecting in"))).toBe(false);
@@ -187,7 +201,9 @@ test("a host that is not trusted yet says to run ssh once in a terminal, and is 
   await app.press("Script ssh failures");
   await addMachine(app, "Newbox", "unknown.example");
   await app.waitUntil(() => app.texts().some((t) => t.startsWith("Needs attention:")));
-  expect(app.texts().some((t) => t.includes("run `ssh unknown.example` once in a terminal to trust the host"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("run `ssh unknown.example` once in a terminal to trust the host"))).toBe(
+    true,
+  );
   expect(app.texts().some((t) => t.includes("reconnecting in"))).toBe(false);
 });
 
@@ -195,7 +211,11 @@ test("a refused connection is retried: the row says why and counts down to the n
   const app = await inMachines();
   await app.press("Script ssh failures");
   await addMachine(app, "Flaky", "refused.example");
-  await app.waitUntil(() => app.texts().some((t) => t.startsWith("Not connected: ssh: connect to host refused.example port 22: Connection refused")));
+  await app.waitUntil(() =>
+    app
+      .texts()
+      .some((t) => t.startsWith("Not connected: ssh: connect to host refused.example port 22: Connection refused")),
+  );
   expect(app.texts().some((t) => /reconnecting in \d+ s$/.test(t))).toBe(true);
   expect(app.texts().some((t) => t.startsWith("Needs attention"))).toBe(false);
   // A fault in one machine leaves this computer alone.

@@ -1,4 +1,5 @@
 import { View } from "nsh";
+
 import { Swap } from "./swap";
 
 export type BadgeTone = "neutral" | "signal" | "primary" | "danger";
@@ -18,7 +19,11 @@ const PAGE: Record<BadgeTone, Look> = {
 };
 /** On the sidebar only `sidebar-*` tokens apply: a plain grey count, or the theme's signal. */
 const SIDEBAR_NEUTRAL: Look = { fill: "", ink: "text-muted-foreground", dot: "bg-muted-foreground" };
-const SIDEBAR_HOT: Look = { fill: "bg-sidebar-primary", ink: "text-sidebar-primary-foreground", dot: "bg-sidebar-primary" };
+const SIDEBAR_HOT: Look = {
+  fill: "bg-sidebar-primary",
+  ink: "text-sidebar-primary-foreground",
+  dot: "bg-sidebar-primary",
+};
 
 /**
  * How many are waiting, on the thing that holds them: a nav item, a tab, a table cell. By default a plain grey number:
@@ -48,7 +53,11 @@ export function Badge(props: { count?: number; dot?: boolean; tone?: BadgeTone; 
           </View>
         }
       >
-        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" class={`size-2 rounded-full ${look().dot}`} />
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          class={`size-2 rounded-full ${look().dot}`}
+        />
       </If>
     </If>
   );

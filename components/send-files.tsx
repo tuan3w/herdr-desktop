@@ -1,12 +1,14 @@
-import { announce, cleanup, computed, effect, signal, Text, untracked, View } from "nsh";
 import { Files, Herdr } from "herdr-desktop/native";
+import { announce, cleanup, computed, effect, signal, Text, untracked, View } from "nsh";
+
 import type { UploadView } from "herdr-desktop/native";
-import { sending, sizeText } from "#lib/files";
+
 import { Btn, Field, FieldRow, Icon, Modal, notify, Progress } from "#kit";
+import { sending, sizeText } from "#lib/files";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-const baseName = (path: string): string => path.split("/").filter(Boolean).pop() ?? path;
+const baseName = (path: string): string => path.replace(/\/+$/, "").split("/").pop() || path;
 
 /** What a row says about its upload, in words (the bar is only a picture of it). */
 function stateText(u: UploadView): string {
@@ -19,24 +21,49 @@ function stateText(u: UploadView): string {
 function Row(props: { upload: UploadView; onReplace: (upload: UploadView) => void; onForget: (id: number) => void }) {
   const u = () => props.upload;
   return (
-    <View class="gap-2 rounded-md border border-border bg-card p-3" accessibilityLabel={`${u().name}, ${stateText(u())}`}>
+    <View
+      class="gap-2 rounded-md border border-border bg-card p-3"
+      accessibilityLabel={`${u().name}, ${stateText(u())}`}
+    >
       <View class="flex-row items-center gap-2">
-        <Icon name={u().state === "done" ? "circle-check" : u().state === "running" ? "upload" : "alert"} size={16} tone={u().state === "failed" ? "destructive" : "muted-foreground"} />
+        <Icon
+          name={u().state === "done" ? "circle-check" : u().state === "running" ? "upload" : "alert"}
+          size={16}
+          tone={u().state === "failed" ? "destructive" : "muted-foreground"}
+        />
         <Text class="min-w-0 flex-1 text-sm font-medium text-foreground">{u().name}</Text>
         <If when={u().state === "running"}>
           <Btn small label="Stop" name={`Stop sending ${u().name}`} onPress={() => Files.cancelUpload(u().id)} />
         </If>
         <If when={u().state === "failed" && u().existed}>
-          <Btn small variant="danger" label="Replace" name={`Replace ${u().name} on the machine`} onPress={() => props.onReplace(u())} />
+          <Btn
+            small
+            variant="danger"
+            label="Replace"
+            name={`Replace ${u().name} on the machine`}
+            onPress={() => props.onReplace(u())}
+          />
         </If>
         <If when={u().state !== "running"}>
-          <Btn small variant="ghost" label={u().state === "failed" && u().existed ? "Skip" : "Dismiss"} name={`Dismiss ${u().name}`} onPress={() => props.onForget(u().id)} />
+          <Btn
+            small
+            variant="ghost"
+            label={u().state === "failed" && u().existed ? "Skip" : "Dismiss"}
+            name={`Dismiss ${u().name}`}
+            onPress={() => props.onForget(u().id)}
+          />
         </If>
       </View>
       <If when={u().state === "running"}>
-        <Progress value={u().total > 0 ? (u().sent / u().total) * 100 : null} label={`Sending ${u().name}`} valueText={stateText(u())} />
+        <Progress
+          value={u().total > 0 ? (u().sent / u().total) * 100 : null}
+          label={`Sending ${u().name}`}
+          valueText={stateText(u())}
+        />
       </If>
-      <Text class={`text-xs ${u().state === "failed" ? "text-destructive" : "text-muted-foreground"}`}>{stateText(u())}</Text>
+      <Text class={`text-xs ${u().state === "failed" ? "text-destructive" : "text-muted-foreground"}`}>
+        {stateText(u())}
+      </Text>
     </View>
   );
 }
@@ -123,7 +150,8 @@ export function SendFiles() {
   const started = () => mine().length > 0;
   // The end of a send is said once, when the last file arrived.
   effect(() => {
-    if (started() && !running() && rows().length > 0 && rows().every((u) => u.state === "done")) announce(rows().length === 1 ? "Sent 1 file" : `Sent ${rows().length} files`);
+    if (started() && !running() && rows().length > 0 && rows().every((u) => u.state === "done"))
+      announce(rows().length === 1 ? "Sent 1 file" : `Sent ${rows().length} files`);
   });
   const names = () => request()?.paths.map(baseName).join(", ") ?? "";
   return (
@@ -148,7 +176,20 @@ export function SendFiles() {
       <View class="gap-3">
         <If when={!started()}>
           <FieldRow>
-            <Field autoFocus mono reserve label="Into this folder on the machine *" value={folder()} onChange={(v) => { folder.set(v); mistake.set(undefined); }} onSubmit={() => void start()} error={mistake()} hint="An absolute path. A file with the same name is never replaced without asking." />
+            <Field
+              autoFocus
+              mono
+              reserve
+              label="Into this folder on the machine *"
+              value={folder()}
+              onChange={(v) => {
+                folder.set(v);
+                mistake.set(undefined);
+              }}
+              onSubmit={() => void start()}
+              error={mistake()}
+              hint="An absolute path. A file with the same name is never replaced without asking."
+            />
           </FieldRow>
         </If>
         <If when={started() && mistake()}>

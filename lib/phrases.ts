@@ -21,7 +21,12 @@ export const LONGEST_TOKEN = 24;
 /** Learned chips shown beside the person's own. */
 export const MAX_CHIPS = 3;
 
-export const DEFAULT_PHRASES: readonly string[] = ["continue", "yes, go ahead", "run the tests", "explain what you changed"];
+export const DEFAULT_PHRASES: readonly string[] = [
+  "continue",
+  "yes, go ahead",
+  "run the tests",
+  "explain what you changed",
+];
 
 /** One message the person sent: its text, how often, and when last (a sequence number: larger is later). */
 export interface Learned {
@@ -160,13 +165,21 @@ export function quickChips(m: PhraseMemory): string[] {
 export function parsePhrases(json: unknown): PhraseMemory {
   if (typeof json !== "object" || json === null || Array.isArray(json)) return emptyPhrases();
   const raw = json as { own?: unknown; learned?: unknown };
-  const own = Array.isArray(raw.own) ? normalizePhrases(raw.own.filter((p): p is string => typeof p === "string")) : null;
+  const own = Array.isArray(raw.own)
+    ? normalizePhrases(raw.own.filter((p): p is string => typeof p === "string"))
+    : null;
   const learned: Learned[] = [];
   if (Array.isArray(raw.learned)) {
     for (const item of raw.learned) {
       if (typeof item !== "object" || item === null) continue;
       const { t, n, l } = item as Partial<Learned>;
-      if (typeof t === "string" && learnKey(t) !== null && Number.isInteger(n) && (n as number) >= 1 && Number.isInteger(l)) {
+      if (
+        typeof t === "string" &&
+        learnKey(t) !== null &&
+        Number.isInteger(n) &&
+        (n as number) >= 1 &&
+        Number.isInteger(l)
+      ) {
         learned.push({ t, n: n as number, l: l as number });
       }
     }

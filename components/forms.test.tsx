@@ -18,7 +18,14 @@ test("a submit shows each wrong field's message under it, names it for a screen 
   // the hint comes back once there is no error
   expect(app.texts()).toContain("Shown in the sidebar");
   await app.press("Save");
-  expect(JSON.parse(app.texts().find((t) => t.startsWith("done:"))?.slice(5) ?? "null")).toEqual({
+  expect(
+    JSON.parse(
+      app
+        .texts()
+        .find((t) => t.startsWith("done:"))
+        ?.slice(5) ?? "null",
+    ),
+  ).toEqual({
     name: "build-box",
     host: "",
     delay: null,
@@ -114,7 +121,12 @@ test("the stepper buttons step, are named, and a press held repeats", async () =
   await app.press("label:Decrease: Retries");
   expect(app.texts()).toContain("retries:2");
   await app.longPress("label:Increase: Retries");
-  const held = Number(app.texts().find((t) => t.startsWith("retries:"))?.slice(8));
+  const held = Number(
+    app
+      .texts()
+      .find((t) => t.startsWith("retries:"))
+      ?.slice(8),
+  );
   expect(held).toBeGreaterThan(3);
 });
 
@@ -129,13 +141,29 @@ test("Escape in a search box clears it", async () => {
 test("a form of 40 fields mounts at once and typing costs no timer: validation by blur waits for the blur", async () => {
   const app = await lab();
   await app.press("Many fields");
-  const mounted = Number(app.texts().find((t) => t.startsWith("mounted:"))?.slice(8));
+  const mounted = Number(
+    app
+      .texts()
+      .find((t) => t.startsWith("mounted:"))
+      ?.slice(8),
+  );
   expect(mounted).toBeLessThan(500);
   await app.press("Count timers");
-  const before = Number(app.texts().find((t) => t.startsWith("timers:"))?.slice(7));
-  for (const field of ["f0", "f1", "f2", "f3", "f4", "f5"]) await app.type(`label:Field ${field}`, "a fairly long line to type");
+  const before = Number(
+    app
+      .texts()
+      .find((t) => t.startsWith("timers:"))
+      ?.slice(7),
+  );
+  for (const field of ["f0", "f1", "f2", "f3", "f4", "f5"])
+    await app.type(`label:Field ${field}`, "a fairly long line to type");
   await app.press("Count timers");
-  const after = Number(app.texts().find((t) => t.startsWith("timers:"))?.slice(7));
+  const after = Number(
+    app
+      .texts()
+      .find((t) => t.startsWith("timers:"))
+      ?.slice(7),
+  );
   expect(after - before).toBe(0);
   expect(app.texts()).toContain("Field f0");
 });

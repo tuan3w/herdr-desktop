@@ -1,13 +1,15 @@
-import { announce, effect, host, keymap, lifecycle, mount, View, windowSize } from "nsh";
-import { ResizablePanel, ResizablePanelGroup } from "nsh/base";
-import { isAvailable, Menu, Window } from "nsh/desktop";
-import { Herdr } from "herdr-desktop/native";
 import "./fonts/Inter-Regular.ttf";
 import "./fonts/Inter-Medium.ttf";
 import "./fonts/Inter-SemiBold.ttf";
 import "./fonts/Inter-Bold.ttf";
 import "./fonts/IBMPlexMono-Regular.ttf";
 import "./fonts/IBMPlexMono-Medium.ttf";
+
+import { Herdr } from "herdr-desktop/native";
+import { announce, effect, host, keymap, lifecycle, mount, View, windowSize } from "nsh";
+import { ResizablePanel, ResizablePanelGroup } from "nsh/base";
+import { isAvailable, Menu, Window } from "nsh/desktop";
+
 import { BulkBar } from "#components/bulk-bar";
 import { DevPanel } from "#components/dev-panel";
 import { Files } from "#components/files";
@@ -24,17 +26,30 @@ import { StatusBar } from "#components/status-bar";
 import { WebPage } from "#components/web-page";
 import { Workspace } from "#components/workspace";
 import { notify, PopupRoot, rail, Skeleton, snug, ThemeRoot, ToastHost } from "#kit";
-import { actions, appMenu, globalActions, machinesOpen, naming, newAgentOpen, newSessionOpen, newSessionProject, palette, runAction, settingsOpen, shortcutsOpen } from "#lib/actions";
+import {
+  actions,
+  appMenu,
+  globalActions,
+  machinesOpen,
+  naming,
+  newAgentOpen,
+  newSessionOpen,
+  newSessionProject,
+  palette,
+  runAction,
+  settingsOpen,
+  shortcutsOpen,
+} from "#lib/actions";
 import { dockReady, loadDock, openPane, openSession, showBoard } from "#lib/dock";
-import { openTarget } from "#lib/open-agent";
-import { warmCode } from "#lib/highlight";
 import { board, startHerdr } from "#lib/herdr";
+import { warmCode } from "#lib/highlight";
+import { RAIL_WIDTH, SIDEBAR_WIDTH } from "#lib/layout";
 import { hoverTransition, motionReady } from "#lib/motion";
+import { openTarget } from "#lib/open-agent";
 import { saveFailures } from "#lib/save";
 import { loadSettings, settingsReady } from "#lib/settings";
 import { type GlobalShortcut, GLOBAL, keysOf } from "#lib/shortcuts";
 import { loadSidebar, sidebarReady, sidebarWidth } from "#lib/sidebar";
-import { RAIL_WIDTH, SIDEBAR_WIDTH } from "#lib/layout";
 
 // A test opens the app with `host: { params: { fixture } }`: the engine then runs against the scripted herdr (the Rust
 // side honours it only with HERDR_DESKTOP_TEST=1). In the real app `host.params` is empty.
@@ -151,8 +166,17 @@ function App() {
         <Files />
         <WebPage />
         <SendFiles />
-        <StartAgent open={newAgentOpen()} onClose={() => newAgentOpen.set(false)} onStarted={(machine, pane) => void openPane(machine, pane)} />
-        <NewSession open={newSessionOpen()} onClose={() => newSessionOpen.set(false)} onStarted={(machine, id) => void openSession(machine, id)} project={newSessionProject()} />
+        <StartAgent
+          open={newAgentOpen()}
+          onClose={() => newAgentOpen.set(false)}
+          onStarted={(machine, pane) => void openPane(machine, pane)}
+        />
+        <NewSession
+          open={newSessionOpen()}
+          onClose={() => newSessionOpen.set(false)}
+          onStarted={(machine, id) => void openSession(machine, id)}
+          project={newSessionProject()}
+        />
         <NameDialog
           open={naming() !== null}
           title={naming()?.title ?? ""}

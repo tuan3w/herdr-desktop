@@ -1,10 +1,29 @@
-import { announce, cleanup, computed, effect, type JSX, keymap, List, Overlay, Scroll, type Signal, signal, Text, View, windowSize } from "nsh";
+import {
+  announce,
+  cleanup,
+  computed,
+  effect,
+  type JSX,
+  keymap,
+  List,
+  Overlay,
+  Scroll,
+  type Signal,
+  signal,
+  Text,
+  View,
+  windowSize,
+} from "nsh";
+
 import type { Bounds, ListRef, MouseEvent, OverlayPosition, Point, ScrollRef, ViewRef } from "nsh/types";
-import { fold } from "#lib/text";
+
 import { hoverTransition } from "#lib/motion";
+import { fold } from "#lib/text";
+
 import { FOCUS_RING } from "./core";
-import { Icon, type IconName } from "./icon";
+import { dialogDepth } from "./dialog-stack";
 import { Kbd, Tipped } from "./hint";
+import { Icon, type IconName } from "./icon";
 import {
   alignSelected,
   centerOffset,
@@ -21,7 +40,6 @@ import {
   typeahead,
 } from "./navigation";
 import { createOpenState, type OpenChange, type OpenReason } from "./popup";
-import { dialogDepth } from "./dialog-stack";
 import { anchorMoved, type Hung } from "./positioner";
 
 /** What every entry that can be chosen has. */
@@ -104,7 +122,11 @@ export interface SubmenuRow {
   items: MenuEntry[];
 }
 /** What a menu is drawn from, one per row. */
-export type MenuRow = ItemRow | SubmenuRow | { kind: "label"; label: string } | { kind: "separator"; label?: undefined };
+export type MenuRow =
+  | ItemRow
+  | SubmenuRow
+  | { kind: "label"; label: string }
+  | { kind: "separator"; label?: undefined };
 
 const isItem = (row: MenuRow): row is ItemRow => row.kind === "item" || row.kind === "check" || row.kind === "radio";
 const isChecked = (row: MenuRow) => isItem(row) && row.checked;
@@ -152,7 +174,13 @@ export function menuRows(entries: readonly MenuEntry[]): MenuRow[] {
           add(entry.items);
         }
       } else if ("items" in entry) {
-        rows.push({ kind: "submenu", label: entry.label, icon: entry.icon, disabled: !!entry.disabled, items: entry.items });
+        rows.push({
+          kind: "submenu",
+          label: entry.label,
+          icon: entry.icon,
+          disabled: !!entry.disabled,
+          items: entry.items,
+        });
       } else {
         rows.push({
           kind: "item",
@@ -201,7 +229,8 @@ function heightOf(row: MenuRow): number {
 
 /** What a screen reader hears for a row: its label, the submenu it is in, and whether it is the value. */
 function nameOf(row: MenuRow, within?: string): string {
-  const mark = row.kind === "radio" && row.checked ? ", selected" : row.kind === "check" && row.checked ? ", checked" : "";
+  const mark =
+    row.kind === "radio" && row.checked ? ", selected" : row.kind === "check" && row.checked ? ", checked" : "";
   return `${within ? `${within}: ` : ""}${row.label ?? ""}${mark}`;
 }
 
@@ -265,7 +294,8 @@ export function pressTrigger(state: OpenControl, session: Session) {
     return;
   }
   if (session.keyboard) session.levels[session.levels.length - 1]?.activate();
-  else if (session.openedBy !== "trigger-hover" || Date.now() - session.openedAt >= PATIENT_CLICK_MS) state.set(false, "trigger-press");
+  else if (session.openedBy !== "trigger-hover" || Date.now() - session.openedAt >= PATIENT_CLICK_MS)
+    state.set(false, "trigger-press");
 }
 
 /**
@@ -306,7 +336,9 @@ function RowContent(props: { row: () => ItemRow | SubmenuRow; icons: boolean }) 
     <>
       <If when={props.icons}>
         <View class="size-4 items-center justify-center">
-          <If when={props.row().icon}>{(name) => <Icon name={name()} size={14} tone={danger() ? "destructive" : "muted-foreground"} />}</If>
+          <If when={props.row().icon}>
+            {(name) => <Icon name={name()} size={14} tone={danger() ? "destructive" : "muted-foreground"} />}
+          </If>
         </View>
       </If>
       <Text class={`line-clamp-1 min-w-0 flex-1 text-sm ${danger() ? "text-destructive" : "text-popover-foreground"}`}>
@@ -370,8 +402,12 @@ function Panel(props: {
   const virtual = scrolls && !hasSubmenu && first.length > VIRTUAL_ROWS;
   const icons = first.some((r) => r.kind !== "label" && r.kind !== "separator" && !!r.icon);
   const selected = first.findIndex(isChecked);
-  const scroll0 = props.viewport?.scroll ?? (props.start === "selected" && selected >= 0 ? centerOffset(offsets(), selected, height) : 0);
-  const active = signal(props.start === "first" ? stepIndex(skip(), -1, 1, true) : props.start === "selected" ? selected : -1);
+  const scroll0 =
+    props.viewport?.scroll ??
+    (props.start === "selected" && selected >= 0 ? centerOffset(offsets(), selected, height) : 0);
+  const active = signal(
+    props.start === "first" ? stepIndex(skip(), -1, 1, true) : props.start === "selected" ? selected : -1,
+  );
   const open = signal(-1);
   const triggers: ViewRef[] = [];
   let opening: { row: number; timer: number } | undefined;
@@ -408,7 +444,8 @@ function Panel(props: {
     active.set(row);
     open.set(row);
     void triggers[row].measure().then((m) => {
-      if (m && open() === row) hangsFrom.set({ origin: { x: m.pagePosition.x, y: m.pagePosition.y - POPUP_INSET }, size: m.bounds.size });
+      if (m && open() === row)
+        hangsFrom.set({ origin: { x: m.pagePosition.x, y: m.pagePosition.y - POPUP_INSET }, size: m.bounds.size });
     });
   };
   const choose = (index: number, byKey: boolean) => {
@@ -631,14 +668,20 @@ export function Surface(props: {
 }) {
   const { session } = props;
   session.keyboard = false;
-  const config: Config = { loop: props.loop ?? true, hover: props.highlightItemOnHover ?? true, choice: !!props.choice };
+  const config: Config = {
+    loop: props.loop ?? true,
+    hover: props.highlightItemOnHover ?? true,
+    choice: !!props.choice,
+  };
   const windowHeight = windowSize().height;
   const max = Math.max(ITEM_HEIGHT * 3, Math.min(MAX_ROWS_HEIGHT, windowHeight - 2 * MARGIN - CHROME));
   // A choice that closes the menu can remove what the rows were drawn from (a deleted record): from then on they stay as they were.
   let kept: MenuRow[] = [];
   const rowsOf = computed(() => (session.justClosed ? kept : (kept = props.rows())));
   // `undefined` while the trigger is measured, `null` when the list goes under it.
-  const plan = signal<{ viewport: { height: number; scroll: number }; offset: number } | null | undefined>(props.over ? undefined : null);
+  const plan = signal<{ viewport: { height: number; scroll: number }; offset: number } | null | undefined>(
+    props.over ? undefined : null,
+  );
   const over = props.over;
   if (over) {
     const rows = rowsOf();
@@ -660,7 +703,11 @@ export function Surface(props: {
         // One point of slack: a popup that ends exactly at the edge can be put on the other side by rounding.
         area: { top: MARGIN + POPUP_INSET, bottom: windowHeight - MARGIN - POPUP_INSET - 1 },
       });
-      plan.set(aligned ? { viewport: { height: aligned.height, scroll: aligned.scroll }, offset: aligned.top - POPUP_INSET - bottom } : null);
+      plan.set(
+        aligned
+          ? { viewport: { height: aligned.height, scroll: aligned.scroll }, offset: aligned.top - POPUP_INSET - bottom }
+          : null,
+      );
     });
   }
 
@@ -760,7 +807,14 @@ export function Surface(props: {
         style={props.minWidth ? { minWidth: props.minWidth } : undefined}
         class={POPUP}
       >
-        <Panel rows={rowsOf} session={session} config={config} max={max} start={props.start} viewport={plan()?.viewport} />
+        <Panel
+          rows={rowsOf}
+          session={session}
+          config={config}
+          max={max}
+          start={props.start}
+          viewport={plan()?.viewport}
+        />
       </Overlay>
     </If>
   );
@@ -787,7 +841,11 @@ export function ActionMenu(props: {
   loop?: boolean;
   highlightItemOnHover?: boolean;
 }) {
-  const state = createOpenState({ open: () => props.open, defaultOpen: props.defaultOpen, onOpenChange: (o, c) => props.onOpenChange?.(o, c) });
+  const state = createOpenState({
+    open: () => props.open,
+    defaultOpen: props.defaultOpen,
+    onOpenChange: (o, c) => props.onOpenChange?.(o, c),
+  });
   const session = createSession(state);
   const intent = createHoverIntent({
     delay: props.delay ?? 100,
@@ -880,7 +938,9 @@ export function RowMenu(props: {
                 }}
                 style={{ position: "absolute", left: where().x, top: where().y, width: 0, height: 0 }}
               />
-              <If when={point()}>{(anchor) => <Surface rows={() => menuRows(props.entries)} session={session} anchor={anchor()} />}</If>
+              <If when={point()}>
+                {(anchor) => <Surface rows={() => menuRows(props.entries)} session={session} anchor={anchor()} />}
+              </If>
             </>
           );
         }}

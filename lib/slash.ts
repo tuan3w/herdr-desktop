@@ -30,7 +30,12 @@ export const commandText = (c: SlashCommand): string => `${c.trigger}${c.name}`;
 /** What pins and use remember a command under: the bare name for `/`, the name with `$` for a skill. */
 export const usageKey = (c: SlashCommand): string => (c.trigger === "/" ? c.name : `${c.trigger}${c.name}`);
 
-const builtIn = (name: string, description: string): SlashCommand => ({ name, description, source: "builtIn", trigger: "/" });
+const builtIn = (name: string, description: string): SlashCommand => ({
+  name,
+  description,
+  source: "builtIn",
+  trigger: "/",
+});
 
 /** By herdr's agent label. An agent without a table (omp, pi) lists what was pinned or sent. */
 export const BUILT_IN: Record<string, SlashCommand[]> = {
@@ -163,7 +168,9 @@ function prune(uses: Record<string, Use>): Record<string, Use> {
   if (names.length <= MAX_PER_AGENT) return uses;
   const newest = byRecency(uses);
   const kept = newest.slice(0, KEEP_RECENT);
-  const rest = newest.slice(KEEP_RECENT).sort((a, b) => uses[b][0] - uses[a][0] || uses[b][1] - uses[a][1] || (a < b ? -1 : 1));
+  const rest = newest
+    .slice(KEEP_RECENT)
+    .sort((a, b) => uses[b][0] - uses[a][0] || uses[b][1] - uses[a][1] || (a < b ? -1 : 1));
   kept.push(...rest.slice(0, MAX_PER_AGENT - KEEP_RECENT));
   return Object.fromEntries(kept.map((name) => [name, uses[name]]));
 }
@@ -172,7 +179,7 @@ function prune(uses: Record<string, Use>): Record<string, Use> {
 export function recordUse(m: SlashMemory, agent: string, key: string, at: number): SlashMemory {
   const who = agentKey(agent);
   if (!who || !key) return m;
-  const byName = { ...(m.uses[who] ?? {}) };
+  const byName = { ...m.uses[who] };
   byName[key] = [(byName[key]?.[0] ?? 0) + 1, at];
   return { ...m, uses: { ...m.uses, [who]: prune(byName) } };
 }
@@ -194,8 +201,8 @@ export function togglePin(m: SlashMemory, agent: string, key: string): SlashMemo
 // --- The list the composer shows.
 
 const WORD = /^[/$]\S*$/;
-const SENT = /^([/$])(\w[\w:.\-]{0,63})(?:\s|$)/;
-const PICKED = /^([/$])(\w[\w:.\-]{0,63}) $/;
+const SENT = /^([/$])(\w[\w:.-]{0,63})(?:\s|$)/;
+const PICKED = /^([/$])(\w[\w:.-]{0,63}) $/;
 
 /** Commands every agent's terminal takes that its advertised table often lacks: never warned about. */
 const UNLISTED = new Set(["clear", "new", "help", "exit", "quit"]);
@@ -206,7 +213,9 @@ const triggerOf = (key: string): "/" | "$" => (key.startsWith("$") ? "$" : "/");
 function ordered(list: SlashCommand[], uses?: (c: SlashCommand) => number): SlashCommand[] {
   return list
     .map((c, i) => ({ c, i }))
-    .sort((a, b) => SOURCE_ORDER[a.c.source] - SOURCE_ORDER[b.c.source] || (uses ? uses(b.c) - uses(a.c) : 0) || a.i - b.i)
+    .sort(
+      (a, b) => SOURCE_ORDER[a.c.source] - SOURCE_ORDER[b.c.source] || (uses ? uses(b.c) - uses(a.c) : 0) || a.i - b.i,
+    )
     .map((x) => x.c);
 }
 
@@ -218,7 +227,12 @@ function ordered(list: SlashCommand[], uses?: (c: SlashCommand) => number): Slas
  * with it, then names that contain it, then descriptions that do; within a group source order, then use. Names the
  * person pinned or sent that the table lacks are candidates too (an agent without a table lists only those).
  */
-export function matchCommands(input: string, agent: string, commands: readonly SlashCommand[], memory: SlashMemory): SlashCommand[] {
+export function matchCommands(
+  input: string,
+  agent: string,
+  commands: readonly SlashCommand[],
+  memory: SlashMemory,
+): SlashCommand[] {
   if (!WORD.test(input) || !agent.trim()) return [];
   const trigger = input[0] as "/" | "$";
   const mine = commands.filter((c) => c.trigger === trigger);
@@ -260,7 +274,12 @@ export function matchCommands(input: string, agent: string, commands: readonly S
  * the agent lists none. A typo (`/clera`) goes to the model as a message and costs a turn, a real command is run.
  * Only `/` is checked: `$PATH is wrong` is a sentence and a path (`/usr/bin/env`) is not a command at all.
  */
-export function unknownCommand(line: string, agent: string, commands: readonly SlashCommand[], memory: SlashMemory): string | null {
+export function unknownCommand(
+  line: string,
+  agent: string,
+  commands: readonly SlashCommand[],
+  memory: SlashMemory,
+): string | null {
   const m = SENT.exec(line.trim());
   if (!agent.trim() || !m || m[1] !== "/") return null;
   const listed = commands.filter((c) => c.trigger === "/").map((c) => c.name.toLowerCase());

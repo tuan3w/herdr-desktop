@@ -1,5 +1,7 @@
 import { context, type JSX, Text, View } from "nsh";
+
 import { hoverTransition } from "#lib/motion";
+
 import { Badge } from "./badge";
 import { createRoving, RING, type Roving } from "./roving";
 
@@ -13,7 +15,13 @@ const Strip = context<Roving | undefined>(undefined);
  * it. Disabled tabs can be reached (a screen reader finds them) but never chosen. The focus stays on the list and the
  * ring moves (this host cannot move it to a tab: `roving.ts`).
  */
-export function TabBar(props: { activateOnFocus?: boolean; vertical?: boolean; loop?: boolean; label?: string; children?: JSX.Element }) {
+export function TabBar(props: {
+  activateOnFocus?: boolean;
+  vertical?: boolean;
+  loop?: boolean;
+  label?: string;
+  children?: JSX.Element;
+}) {
   const roving = createRoving({
     orientation: props.vertical ? "vertical" : "horizontal",
     loop: props.loop,
@@ -24,7 +32,12 @@ export function TabBar(props: { activateOnFocus?: boolean; vertical?: boolean; l
   });
   return (
     <Strip.Provider value={roving}>
-      <View role="tablist" accessibilityLabel={props.label} {...roving.focus} class={`gap-1 ${props.vertical ? "" : "flex-row"}`}>
+      <View
+        role="tablist"
+        accessibilityLabel={props.label}
+        {...roving.focus}
+        class={`gap-1 ${props.vertical ? "" : "flex-row"}`}
+      >
         {props.children}
       </View>
     </Strip.Provider>
@@ -35,7 +48,14 @@ export function TabBar(props: { activateOnFocus?: boolean; vertical?: boolean; l
  * One tab. Selected is a soft fill and full-strength text: weight and width never change. `count` is a plain grey number;
  * it is hidden from screen readers like every `Badge`, so the tab's name carries it (`spoken` says what it counts).
  */
-export function TabItem(props: { label: string; selected: boolean; onSelect: () => void; count?: number; spoken?: string; disabled?: boolean }) {
+export function TabItem(props: {
+  label: string;
+  selected: boolean;
+  onSelect: () => void;
+  count?: number;
+  spoken?: string;
+  disabled?: boolean;
+}) {
   const roving = Strip();
   if (!roving) throw new Error("TabItem must be inside a TabBar");
   const name = () => (props.count ? `${props.label}, ${props.spoken ?? props.count}` : props.label);
@@ -56,7 +76,9 @@ export function TabItem(props: { label: string; selected: boolean; onSelect: () 
       style={hoverTransition()}
       class={`h-8 flex-row items-center gap-2 rounded-md px-3 hover:bg-accent/60 selected:bg-accent disabled:opacity-50 ${mark.lit() ? "bg-accent/60" : ""} ${mark.ring() ? RING : ""}`}
     >
-      <Text class={`text-sm font-medium ${props.selected ? "text-foreground" : "text-muted-foreground"}`}>{props.label}</Text>
+      <Text class={`text-sm font-medium ${props.selected ? "text-foreground" : "text-muted-foreground"}`}>
+        {props.label}
+      </Text>
       <Badge count={props.count} />
     </View>
   );
@@ -69,7 +91,10 @@ export function TabItem(props: { label: string; selected: boolean; onSelect: () 
 export function TabPanel(props: { selected: boolean; keepMounted?: boolean; class?: string; children?: JSX.Element }) {
   return (
     <If when={props.selected || props.keepMounted}>
-      <View class={`${props.selected ? "" : "hidden"} ${props.class ?? ""}`} importantForAccessibility={props.selected ? "auto" : "no-hide-descendants"}>
+      <View
+        class={`${props.selected ? "" : "hidden"} ${props.class ?? ""}`}
+        importantForAccessibility={props.selected ? "auto" : "no-hide-descendants"}
+      >
         {props.children}
       </View>
     </If>

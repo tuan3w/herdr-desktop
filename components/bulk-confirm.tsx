@@ -1,10 +1,12 @@
-import { computed, signal, Text, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
+import { computed, signal, Text, View } from "nsh";
+
 import type { BoardRow } from "herdr-desktop/native";
+
+import { Btn, Field, Modal, notify, Switch } from "#kit";
 import { agentsText, type BulkAction, planBulk } from "#lib/bulk";
 import { allRows, board } from "#lib/herdr";
 import { clear, selected } from "#lib/selection";
-import { Btn, Field, Modal, notify, Switch } from "#kit";
 
 /** The picked agents as they are now: one that left the board is gone, one that changed shows its new state. */
 export const pickedRows = computed<BoardRow[]>(() => {
@@ -19,7 +21,11 @@ const VERB: Record<BulkAction, { title: string; done: string; what: string }> = 
 };
 
 const act = (action: BulkAction, row: BoardRow, text: string) =>
-  action === "stop" ? Herdr.sendKeys(row.machine, row.paneId, ["esc"]) : action === "message" ? Herdr.sendInput(row.machine, row.paneId, text, ["enter"]) : Herdr.closePane(row.machine, row.paneId);
+  action === "stop"
+    ? Herdr.sendKeys(row.machine, row.paneId, ["esc"])
+    : action === "message"
+      ? Herdr.sendInput(row.machine, row.paneId, text, ["enter"])
+      : Herdr.closePane(row.machine, row.paneId);
 
 function Names(props: { rows: readonly BoardRow[] }) {
   return (
@@ -53,7 +59,11 @@ export function BulkConfirm(props: { action: BulkAction | undefined; onClose: ()
     busy.set(true);
     const results = await Promise.allSettled(targets.map((t) => act(kind, t, text().trim())));
     busy.set(false);
-    const failed = results.flatMap((r, i) => (r.status === "rejected" ? [`${targets[i].name}: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`] : []));
+    const failed = results.flatMap((r, i) =>
+      r.status === "rejected"
+        ? [`${targets[i].name}: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`]
+        : [],
+    );
     const worked = targets.length - failed.length;
     notify(
       failed.length === 0
@@ -82,7 +92,13 @@ export function BulkConfirm(props: { action: BulkAction | undefined; onClose: ()
       actions={
         <>
           <Btn label="Cancel" onPress={cancel} />
-          <Btn variant={action() === "close" ? "danger" : "primary"} label={`${VERB[action()].title} ${agentsText(plan().targets.length)}`} disabled={!ready()} loading={busy()} onPress={() => void run()} />
+          <Btn
+            variant={action() === "close" ? "danger" : "primary"}
+            label={`${VERB[action()].title} ${agentsText(plan().targets.length)}`}
+            disabled={!ready()}
+            loading={busy()}
+            onPress={() => void run()}
+          />
         </>
       }
     >
@@ -90,7 +106,10 @@ export function BulkConfirm(props: { action: BulkAction | undefined; onClose: ()
         <If when={action() === "message"}>
           <Field label="Message" value={text()} onChange={(v) => text.set(v)} multiline />
         </If>
-        <If when={plan().targets.length > 0} else={<Text class="text-sm text-muted-foreground">No agent can be reached with this.</Text>}>
+        <If
+          when={plan().targets.length > 0}
+          else={<Text class="text-sm text-muted-foreground">No agent can be reached with this.</Text>}
+        >
           <View class="gap-1">
             <Text role="header" class="text-xs font-medium text-muted-foreground">
               {`${VERB[action()].title} (${plan().targets.length})`}
@@ -101,11 +120,17 @@ export function BulkConfirm(props: { action: BulkAction | undefined; onClose: ()
         <If when={plan().waiting.length > 0}>
           <View class="gap-1">
             <Text role="header" class="text-xs font-medium text-muted-foreground">
-              {sendAnyway() ? `Waiting for an answer (included, ${plan().waiting.length})` : `Waiting for an answer (skipped)`}
+              {sendAnyway()
+                ? `Waiting for an answer (included, ${plan().waiting.length})`
+                : `Waiting for an answer (skipped)`}
             </Text>
             <Names rows={plan().waiting} />
             <View class="flex-row items-center gap-3 pt-1">
-              <Switch label={action() === "close" ? "Close anyway" : "Send anyway"} checked={sendAnyway()} onChange={(v) => sendAnyway.set(v)} />
+              <Switch
+                label={action() === "close" ? "Close anyway" : "Send anyway"}
+                checked={sendAnyway()}
+                onChange={(v) => sendAnyway.set(v)}
+              />
               <Text class="text-sm text-foreground">{action() === "close" ? "Close anyway" : "Send anyway"}</Text>
             </View>
           </View>

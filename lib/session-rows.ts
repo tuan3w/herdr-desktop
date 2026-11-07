@@ -1,4 +1,5 @@
 import type { SessionItem } from "herdr-desktop/native";
+
 import { diffStat, isSubagent, toolKindOf } from "#lib/session-text";
 
 /**
@@ -76,7 +77,12 @@ export interface RowInput {
  * Whole seconds a run of rows took, from the first row's start to the last row's end: its own `endedMs`, else the next
  * row's start, else `nowMs` (still running). `null` when the agent gave no times (a replay), and under a second.
  */
-export function spanSeconds(first: SessionItem, last: SessionItem, next: SessionItem | undefined, nowMs: number | null): number | null {
+export function spanSeconds(
+  first: SessionItem,
+  last: SessionItem,
+  next: SessionItem | undefined,
+  nowMs: number | null,
+): number | null {
   const start = first.startedMs;
   if (start == null) return null;
   const end = last.endedMs ?? next?.startedMs ?? nowMs;
@@ -95,10 +101,19 @@ export const moreKey = (id: number): string => `more:${id}`;
 export const workKey = (id: number): string => `w:${id}`;
 
 const isWork = (item: SessionItem): boolean =>
-  (item.kind === "tool" && item.tool != null && !isSubagent(item.tool)) || (item.kind === "message" && item.role === "thought");
+  (item.kind === "tool" && item.tool != null && !isSubagent(item.tool)) ||
+  (item.kind === "message" && item.role === "thought");
 
 function summarize(group: readonly SessionItem[]): WorkSummary {
-  const out: WorkSummary = { steps: group.length, commands: 0, changed: 0, failed: 0, unfinished: 0, added: 0, removed: 0 };
+  const out: WorkSummary = {
+    steps: group.length,
+    commands: 0,
+    changed: 0,
+    failed: 0,
+    unfinished: 0,
+    added: 0,
+    removed: 0,
+  };
   const files = new Set<string>();
   for (const item of group) {
     const tool = item.tool;
@@ -121,7 +136,11 @@ function summarize(group: readonly SessionItem[]): WorkSummary {
  * the stream is not touching once and only the last unit again per chunk. The header says `Earlier…` only when the range
  * starts at the top.
  */
-export function buildRows(input: RowInput, prev?: ReadonlyMap<string, Row>, range?: { from: number; to: number }): Row[] {
+export function buildRows(
+  input: RowInput,
+  prev?: ReadonlyMap<string, Row>,
+  range?: { from: number; to: number },
+): Row[] {
   const rows: Row[] = [];
   const keep = (row: Row): void => {
     const old = prev?.get(row.key);
@@ -158,7 +177,14 @@ export function buildRows(input: RowInput, prev?: ReadonlyMap<string, Row>, rang
           const mopen = input.open.get(mkey) ?? false;
           if (member.kind === "message") {
             const secs = spanSeconds(member, member, group[at + 1] ?? after, input.nowMs);
-            keep({ kind: "thought", key: mkey, sig: `${member.rev}|${mopen}|${secs}`, item: member, open: mopen, seconds: secs });
+            keep({
+              kind: "thought",
+              key: mkey,
+              sig: `${member.rev}|${mopen}|${secs}`,
+              item: member,
+              open: mopen,
+              seconds: secs,
+            });
           } else {
             const all = input.open.get(moreKey(member.id)) ?? false;
             keep({ kind: "tool", key: mkey, sig: `${member.rev}|${mopen}|${all}`, item: member, open: mopen, all });

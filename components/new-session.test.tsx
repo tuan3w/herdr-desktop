@@ -1,6 +1,8 @@
-import { afterEach, expect, open, test } from "nsh/test";
-import type { App } from "nsh/test";
 import { Herdr, Sessions } from "herdr-desktop/native";
+import { afterEach, expect, open, test } from "nsh/test";
+
+import type { App } from "nsh/test";
+
 import { endSessions } from "./chat-parts-seam";
 
 /**
@@ -10,13 +12,18 @@ import { endSessions } from "./chat-parts-seam";
 const DESKTOP = { width: 1280, height: 900 };
 
 afterEach(() => endSessions());
-const form = (params: Record<string, unknown> = {}) => open("./chat-parts-lab.tsx", { ...DESKTOP, host: { params: { part: "new-session", ...params } } });
+const form = (params: Record<string, unknown> = {}) =>
+  open("./chat-parts-lab.tsx", { ...DESKTOP, host: { params: { part: "new-session", ...params } } });
 
 const FOLDER = "label:Folder *";
 const OMP = "label:Agent *: omp";
 
 /** The id of the session the lab reports opened, or undefined. */
-const opened = (app: App) => app.texts().find((t) => t.startsWith("Opened local/"))?.slice("Opened local/".length);
+const opened = (app: App) =>
+  app
+    .texts()
+    .find((t) => t.startsWith("Opened local/"))
+    ?.slice("Opened local/".length);
 
 /** Ends a session the test started: a keeper outlives the app by design, so a test must not leave one. */
 async function end(app: App) {
@@ -50,7 +57,9 @@ test("a folder that is not on the machine keeps what was typed and says what to 
   await app.type("label:First message (optional)", "do the thing");
   await app.press("Start");
   await app.waitFor("Check the folder: it must exist on This computer.");
-  expect(app.texts().some((t) => t.includes("the folder does not exist on this host: /nonexistent-herdr-desktop-folder"))).toBe(true);
+  expect(
+    app.texts().some((t) => t.includes("the folder does not exist on this host: /nonexistent-herdr-desktop-folder")),
+  ).toBe(true);
   expect(app.value(FOLDER)).toBe("/nonexistent-herdr-desktop-folder");
   expect(app.value("label:First message (optional)")).toBe("do the thing");
   expect(opened(app)).toBeUndefined();
@@ -68,7 +77,9 @@ test("a session starts, the first message goes to the agent, and the form rememb
     // The agent heard the message and answered it: a session the person did not have to open to get going.
     await app.waitUntil(
       () =>
-        Sessions.items("local", id, 0, 50).some((i) => i.kind === "message" && i.role === "agent" && i.text === "Hello"),
+        Sessions.items("local", id, 0, 50).some(
+          (i) => i.kind === "message" && i.role === "agent" && i.text === "Hello",
+        ),
       { timeout: 20_000 },
     );
     expect(Herdr.setting("newSession.agent.local")).toBe("omp");

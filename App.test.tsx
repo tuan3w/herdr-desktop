@@ -1,9 +1,27 @@
-import { expect, test } from "nsh/test";
-import type { App } from "nsh/test";
 import { Herdr } from "herdr-desktop/native";
-import { DONE, FIRST, front, nameOf, onBoard, openAgents, openTerminals, ready, saved, seeded, SECOND, settle, shown, sidebarRow } from "./app-seam";
-import { sentKeys } from "./components/board-seam";
+import { expect, test } from "nsh/test";
+
+import type { App } from "nsh/test";
+
 import { type GlobalShortcut, GLOBAL, keysOf } from "#lib/shortcuts";
+
+import {
+  DONE,
+  FIRST,
+  front,
+  nameOf,
+  onBoard,
+  openAgents,
+  openTerminals,
+  ready,
+  saved,
+  seeded,
+  SECOND,
+  settle,
+  shown,
+  sidebarRow,
+} from "./app-seam";
+import { sentKeys } from "./components/board-seam";
 
 /**
  * The whole app against the scripted herdr's `mixed` fixture: 2 agents that need you (`payments review`, `auth`), 1 to

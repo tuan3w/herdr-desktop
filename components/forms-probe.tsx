@@ -1,11 +1,12 @@
 import { mount, signal, Text, View } from "nsh";
 import { Button } from "nsh/base";
+
 import { Btn } from "./kit/button";
-import { Field, FieldRow, SearchField } from "./kit/fields";
-import { ThemeRoot } from "./kit/theme-root";
-import { createForm, type FormErrors } from "./kit/form";
 import { Form } from "./kit/field-parts";
+import { Field, FieldRow, SearchField } from "./kit/fields";
+import { createForm, type FormErrors } from "./kit/form";
 import { NumberField } from "./kit/number-field";
+import { ThemeRoot } from "./kit/theme-root";
 
 /** Test entry only (`forms.test.tsx`): a form of a few kinds of field, a form of 40, and counters of what a keystroke costs. */
 
@@ -35,7 +36,14 @@ function MachineForm() {
     <View class="gap-3 p-4">
       <Form form={form}>
         <FieldRow>
-          <Field name="name" required label="Name *" value={name()} onChange={(v) => name.set(v)} hint="Shown in the sidebar" />
+          <Field
+            name="name"
+            required
+            label="Name *"
+            value={name()}
+            onChange={(v) => name.set(v)}
+            hint="Shown in the sidebar"
+          />
         </FieldRow>
         <FieldRow>
           <Field
@@ -48,8 +56,27 @@ function MachineForm() {
           />
         </FieldRow>
         <FieldRow>
-          <NumberField name="delay" label="Delay (s)" unit="s" min={0} max={100000} value={delay()} onChange={(v) => { delay.set(v); changes.set(changes() + 1); }} />
-          <NumberField name="retries" label="Retries" min={0} max={99} snapOnStep value={retries()} onChange={(v) => retries.set(v)} />
+          <NumberField
+            name="delay"
+            label="Delay (s)"
+            unit="s"
+            min={0}
+            max={100000}
+            value={delay()}
+            onChange={(v) => {
+              delay.set(v);
+              changes.set(changes() + 1);
+            }}
+          />
+          <NumberField
+            name="retries"
+            label="Retries"
+            min={0}
+            max={99}
+            snapOnStep
+            value={retries()}
+            onChange={(v) => retries.set(v)}
+          />
         </FieldRow>
         <Btn variant="primary" label="Save" onPress={() => form.submit()} />
       </Form>
@@ -71,7 +98,14 @@ function Many() {
   const view = (
     <Form form={form}>
       <Each of={NAMES}>
-        {(name) => <Field name={name()} label={`Field ${name()}`} value={values[name()]?.() ?? ""} onChange={(v) => values[name()]?.set(v)} />}
+        {(name) => (
+          <Field
+            name={name()}
+            label={`Field ${name()}`}
+            value={values[name()]?.() ?? ""}
+            onChange={(v) => values[name()]?.set(v)}
+          />
+        )}
       </Each>
     </Form>
   );
@@ -94,8 +128,12 @@ function Lab() {
     <ThemeRoot>
       <View class="flex-1 bg-background">
         <View class="flex-row gap-2 p-2">
-          <Button onPress={() => page.set("machine")} accessibilityLabel="Machine"><Text>Machine</Text></Button>
-          <Button onPress={() => page.set("many")} accessibilityLabel="Many fields"><Text>Many fields</Text></Button>
+          <Button onPress={() => page.set("machine")} accessibilityLabel="Machine">
+            <Text>Machine</Text>
+          </Button>
+          <Button onPress={() => page.set("many")} accessibilityLabel="Many fields">
+            <Text>Many fields</Text>
+          </Button>
         </View>
         <If when={page() === "machine"} else={<Many />}>
           <MachineForm />

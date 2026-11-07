@@ -1,10 +1,12 @@
-import { announce, computed, signal, Text, View } from "nsh";
 import { Sessions } from "herdr-desktop/native";
+import { announce, computed, signal, Text, View } from "nsh";
+
 import type { OptionChoiceView, OptionView } from "herdr-desktop/native";
+
+import { Btn, Icon, notify, SelectField } from "#kit";
 import { revision } from "#lib/herdr";
 import { lowersGuard, RISK_WORDS } from "#lib/session-options";
 import { restartable } from "#lib/timer";
-import { Btn, Icon, notify, SelectField } from "#kit";
 
 /** How long a risky mode stays waiting for its confirming press. */
 const ARM_MS = 4000;
@@ -22,7 +24,13 @@ const sessionView = (machine: string, id: string) =>
  * with what it does), and the button that follows, pressed within 4 s, switches. Settings change between turns, so the
  * select is off while one runs. Nothing when the agent does not offer `optionId`.
  */
-export function SessionOption(props: { machine: string; id: string; optionId: string; label?: string; small?: boolean }) {
+export function SessionOption(props: {
+  machine: string;
+  id: string;
+  optionId: string;
+  label?: string;
+  small?: boolean;
+}) {
   const view = sessionView(props.machine, props.id);
   const option = computed(() => view()?.options.find((o) => o.id === props.optionId));
   const pending = signal<OptionChoiceView | null>(null);

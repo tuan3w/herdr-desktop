@@ -1,25 +1,27 @@
-import { announce, cleanup, Clipboard, effect, signal, Text, untracked, View } from "nsh";
 import { Herdr, Sessions } from "herdr-desktop/native";
+import { announce, cleanup, Clipboard, effect, signal, Text, untracked, View } from "nsh";
+
 import type { SessionInfo, SessionView } from "herdr-desktop/native";
-import { openSession, removePanel, sessionKey } from "#lib/dock";
-import { sending } from "#lib/files";
-import { showTerminal } from "#lib/open-agent";
-import { touched } from "#lib/code-blocks";
-import { registerPane } from "#lib/pane-input";
-import { createSessionModel, latest, type SessionPort, sessionPort } from "#lib/session";
-import { oneLine, tailText, visibleText } from "#lib/session-text";
-import { lastCode, lastReply } from "#lib/session-copy";
-import { announceOutput } from "#lib/settings";
-import { Btn, Empty, notify } from "#kit";
+
 import { PermissionDock } from "#components/permission-dock";
-import { SessionComposer, type SessionComposerHandle } from "#components/session-composer";
 import { SessionActivity } from "#components/session-activity";
+import { SessionComposer, type SessionComposerHandle } from "#components/session-composer";
 import { SessionHeader } from "#components/session-header";
 import { SessionOverview } from "#components/session-overview";
 import { SessionPlan } from "#components/session-plan";
 import { SessionQuestion } from "#components/session-question";
 import { createSignin, SessionSignin } from "#components/session-signin";
 import { SessionTranscript } from "#components/session-transcript";
+import { Btn, Empty, notify } from "#kit";
+import { touched } from "#lib/code-blocks";
+import { openSession, removePanel, sessionKey } from "#lib/dock";
+import { sending } from "#lib/files";
+import { showTerminal } from "#lib/open-agent";
+import { registerPane } from "#lib/pane-input";
+import { createSessionModel, latest, type SessionPort, sessionPort } from "#lib/session";
+import { lastCode, lastReply } from "#lib/session-copy";
+import { oneLine, tailText, visibleText } from "#lib/session-text";
+import { announceOutput } from "#lib/settings";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
@@ -41,14 +43,27 @@ type Opening = { state: "opening" } | { state: "ready" } | { state: "failed"; me
  * message box when the tab opens and nowhere else by itself; `mod+2` brings it back. Files dropped on the tab are attached.
  */
 export function SessionTab(props: { machine: string; id: string; active: boolean }) {
-  return <SessionChat machine={props.machine} id={props.id} active={props.active} port={sessionPort(props.machine, props.id)} />;
+  return (
+    <SessionChat
+      machine={props.machine}
+      id={props.id}
+      active={props.active}
+      port={sessionPort(props.machine, props.id)}
+    />
+  );
 }
 
 /**
  * The chat over a `SessionPort`: `SessionTab` gives it the `Sessions` module, a test or a lab its own. The port decides
  * what the data is; opening (`attach` / `observe`) is done by `SessionTab` only when `open` is true.
  */
-export function SessionChat(props: { machine: string; id: string; active: boolean; port: SessionPort; open?: boolean }) {
+export function SessionChat(props: {
+  machine: string;
+  id: string;
+  active: boolean;
+  port: SessionPort;
+  open?: boolean;
+}) {
   const opening = signal<Opening>(props.open === false ? { state: "ready" } : { state: "opening" });
   const resumable = signal<SessionInfo | null>(null);
   const continuing = signal(false);
@@ -117,7 +132,14 @@ export function SessionChat(props: { machine: string; id: string; active: boolea
     if (model.view()) seen = true;
     else if (seen && props.open !== false) {
       seen = false;
-      untracked(() => opening.set({ state: "failed", message: observedPane ? "The agent's pane is gone, or its log can no longer be read." : "The session is not open any more. It may have ended." }));
+      untracked(() =>
+        opening.set({
+          state: "failed",
+          message: observedPane
+            ? "The agent's pane is gone, or its log can no longer be read."
+            : "The session is not open any more. It may have ended.",
+        }),
+      );
     }
   });
   void open();
@@ -128,7 +150,11 @@ export function SessionChat(props: { machine: string; id: string; active: boolea
   const cont = async (info: SessionInfo) => {
     continuing.set(true);
     try {
-      const ref = await Sessions.resume(props.machine, { agent: info.agent, cwd: info.cwd, sessionId: info.sessionId! });
+      const ref = await Sessions.resume(props.machine, {
+        agent: info.agent,
+        cwd: info.cwd,
+        sessionId: info.sessionId!,
+      });
       await openSession(ref.machine, ref.id);
       removePanel(sessionKey(props.machine, props.id));
     } catch (e) {
@@ -165,7 +191,8 @@ export function SessionChat(props: { machine: string; id: string; active: boolea
     return registerPane({
       focusComposer: () => composer?.focus(),
       copyReply: () => copy(lastReply(model.rows()), "Answer copied", "The agent has not answered yet"),
-      copyCode: () => copy(touched.text() ?? lastCode(lastReply(model.rows())), "Code copied", "No code in the last answer"),
+      copyCode: () =>
+        copy(touched.text() ?? lastCode(lastReply(model.rows())), "Code copied", "No code in the last answer"),
     });
   });
 
@@ -213,13 +240,31 @@ export function SessionChat(props: { machine: string; id: string; active: boolea
       <If
         when={model.view()}
         else={
-          <If when={failure()} else={<Empty fill icon="clock" title="Opening the session…" hint={observedPane ? "Reading the agent's log." : "Replaying the conversation."} />}>
+          <If
+            when={failure()}
+            else={
+              <Empty
+                fill
+                icon="clock"
+                title="Opening the session…"
+                hint={observedPane ? "Reading the agent's log." : "Replaying the conversation."}
+              />
+            }
+          >
             {(message) => (
               <Empty fill icon="alert" title="Cannot open this session" hint={message()}>
                 <View class="flex-row gap-2">
                   <Btn label="Try again" onPress={() => void open()} />
                   <If when={resumable()}>
-                    {(info) => <Btn label="Continue" name="Continue the conversation in a new session" variant="primary" loading={continuing()} onPress={() => void cont(info())} />}
+                    {(info) => (
+                      <Btn
+                        label="Continue"
+                        name="Continue the conversation in a new session"
+                        variant="primary"
+                        loading={continuing()}
+                        onPress={() => void cont(info())}
+                      />
+                    )}
                   </If>
                 </View>
               </Empty>
@@ -230,66 +275,82 @@ export function SessionChat(props: { machine: string; id: string; active: boolea
         {(live) => {
           const view = latest(live);
           return (
-          <>
-            <SessionHeader
-              view={view()}
-              machineName={machineName()}
-              onDetails={() => details.set(true)}
-              onShowTerminal={observedPane ? () => void showTerminal(props.machine, observedPane) : undefined}
-            />
-            <If when={view().connectionLost}>
-              <View role="alert" class="flex-row items-center gap-2 border-b border-border bg-muted px-4 py-2">
-                <Text class="min-w-0 flex-1 text-xs text-foreground">{`Not connected to ${machineName()}. The agent keeps running; reconnect to carry on.`}</Text>
-                <Btn small label="Reconnect" loading={reconnecting()} onPress={() => void reconnect()} />
-              </View>
-            </If>
-            <If when={view().observed && view().observed!.link !== "following" && view().observed!.linkText}>
-              <View class="border-b border-border bg-muted px-4 py-2">
-                <Text class="text-xs text-muted-foreground">{view().observed!.linkText}</Text>
-              </View>
-            </If>
-            <If when={view().observed?.problem}>
-              <View role="alert" class="border-b border-border bg-muted px-4 py-2">
-                <Text class="text-xs text-foreground">{view().observed!.problem}</Text>
-              </View>
-            </If>
-            <If when={view().observed}>{(observed) => <SessionActivity observed={observed()} />}</If>
-            <If when={view().phase === "authRequired"}>
-              <SessionSignin view={view()} where={local() ? "this computer" : machineName()} active={props.active} signin={signin} />
-            </If>
-            <If when={view().phase !== "authRequired"}>
-              <SessionPlan plan={view().plan} running={view().running} />
-              <SessionTranscript
-                ctx={ctx}
-                active={props.active}
-                atEnd={atEnd}
-                unseen={unseen}
-                waiting={() => waiting(view())}
-                opening={() => view().phase === "connecting"}
+            <>
+              <SessionHeader
+                view={view()}
+                machineName={machineName()}
+                onDetails={() => details.set(true)}
+                onShowTerminal={observedPane ? () => void showTerminal(props.machine, observedPane) : undefined}
               />
-              <If when={view().waiting[0]?.ask === "permission"}>
-                <PermissionDock machine={props.machine} id={props.id} view={view()} />
+              <If when={view().connectionLost}>
+                <View role="alert" class="flex-row items-center gap-2 border-b border-border bg-muted px-4 py-2">
+                  <Text class="min-w-0 flex-1 text-xs text-foreground">{`Not connected to ${machineName()}. The agent keeps running; reconnect to carry on.`}</Text>
+                  <Btn small label="Reconnect" loading={reconnecting()} onPress={() => void reconnect()} />
+                </View>
               </If>
-              <If when={view().waiting[0]?.ask === "question"}>
-                <SessionQuestion machine={props.machine} id={props.id} view={view()} />
+              <If when={view().observed && view().observed!.link !== "following" && view().observed!.linkText}>
+                <View class="border-b border-border bg-muted px-4 py-2">
+                  <Text class="text-xs text-muted-foreground">{view().observed!.linkText}</Text>
+                </View>
               </If>
-              <SessionComposer
+              <If when={view().observed?.problem}>
+                <View role="alert" class="border-b border-border bg-muted px-4 py-2">
+                  <Text class="text-xs text-foreground">{view().observed!.problem}</Text>
+                </View>
+              </If>
+              <If when={view().observed}>{(observed) => <SessionActivity observed={observed()} />}</If>
+              <If when={view().phase === "authRequired"}>
+                <SessionSignin
+                  view={view()}
+                  where={local() ? "this computer" : machineName()}
+                  active={props.active}
+                  signin={signin}
+                />
+              </If>
+              <If when={view().phase !== "authRequired"}>
+                <SessionPlan plan={view().plan} running={view().running} />
+                <SessionTranscript
+                  ctx={ctx}
+                  active={props.active}
+                  atEnd={atEnd}
+                  unseen={unseen}
+                  waiting={() => waiting(view())}
+                  opening={() => view().phase === "connecting"}
+                />
+                <If when={view().waiting[0]?.ask === "permission"}>
+                  <PermissionDock machine={props.machine} id={props.id} view={view()} />
+                </If>
+                <If when={view().waiting[0]?.ask === "question"}>
+                  <SessionQuestion machine={props.machine} id={props.id} view={view()} />
+                </If>
+                <SessionComposer
+                  machine={props.machine}
+                  id={props.id}
+                  port={props.port}
+                  view={view}
+                  onHandle={(h) => {
+                    composer = h;
+                  }}
+                />
+              </If>
+              <SessionOverview
+                open={details()}
+                onClose={() => details.set(false)}
                 machine={props.machine}
                 id={props.id}
-                port={props.port}
-                view={view}
-                onHandle={(h) => {
-                  composer = h;
-                }}
               />
-            </If>
-            <SessionOverview open={details()} onClose={() => details.set(false)} machine={props.machine} id={props.id} />
-            <If when={dropping()}>
-              <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" class="absolute inset-0 items-center justify-center border-2 border-dashed border-primary bg-background/80">
-                <Text class="text-sm font-medium text-foreground">{local() ? "Drop to attach to the message" : `Drop to send to ${machineName()}`}</Text>
-              </View>
-            </If>
-          </>
+              <If when={dropping()}>
+                <View
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  class="absolute inset-0 items-center justify-center border-2 border-dashed border-primary bg-background/80"
+                >
+                  <Text class="text-sm font-medium text-foreground">
+                    {local() ? "Drop to attach to the message" : `Drop to send to ${machineName()}`}
+                  </Text>
+                </View>
+              </If>
+            </>
           );
         }}
       </If>

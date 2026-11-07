@@ -1,6 +1,7 @@
+import { Herdr } from "herdr-desktop/native";
 import { mount, signal, Text, View } from "nsh";
 import { Button } from "nsh/base";
-import { Herdr } from "herdr-desktop/native";
+
 import { allRows, reviewable } from "#lib/herdr";
 
 /** Test entry only: the engine seam on one page, so `herdr.test.tsx` can drive it against the `mixed` fixture. */
@@ -23,8 +24,7 @@ function Lab() {
     changes.update((n) => n + 1);
   });
 
-  const row = (pane: string) =>
-    allRows(board()).find((r) => r.paneId === pane);
+  const row = (pane: string) => allRows(board()).find((r) => r.paneId === pane);
   const prompt = () => row(BASH_PANE)?.prompt;
 
   const describe = async (p: Promise<{ kind: string }>) => {
@@ -42,12 +42,23 @@ function Lab() {
       <Text>{`To review: ${board().counts.toReview}`}</Text>
       <Text>{`Working: ${board().counts.working}`}</Text>
       <Text>{`Idle: ${board().counts.idle}`}</Text>
-      <Text>{`Needs you rows: ${board().needsYou.map((r) => r.name).join(", ")}`}</Text>
-      <Text>{`Working rows: ${allRows(board()).filter((r) => r.status === "working").map((r) => r.name).join(", ")}`}</Text>
+      <Text>{`Needs you rows: ${board()
+        .needsYou.map((r) => r.name)
+        .join(", ")}`}</Text>
+      <Text>{`Working rows: ${allRows(board())
+        .filter((r) => r.status === "working")
+        .map((r) => r.name)
+        .join(", ")}`}</Text>
       <Text>{`Question: ${prompt()?.question ?? "none yet"}`}</Text>
-      <Text>{`Options: ${prompt()?.options.map((o) => o.label + (o.riskReason ? ` (${o.riskReason})` : "")).join(" | ") ?? "none yet"}`}</Text>
+      <Text>{`Options: ${
+        prompt()
+          ?.options.map((o) => o.label + (o.riskReason ? ` (${o.riskReason})` : ""))
+          .join(" | ") ?? "none yet"
+      }`}</Text>
       <Text>{`Preview: ${row("w1:p4")?.preview.slice(-1)[0]?.trim() ?? "none yet"}`}</Text>
-      <Text>{`Machines: ${Herdr.machines().map((m) => m.name).join(", ")}`}</Text>
+      <Text>{`Machines: ${Herdr.machines()
+        .map((m) => m.name)
+        .join(", ")}`}</Text>
       <Text>{`Link: ${link()}`}</Text>
       <Text>{`Changes heard: ${changes()}`}</Text>
       <Text>{answer()}</Text>

@@ -1,4 +1,5 @@
 import { windowSize } from "nsh";
+
 import { sidebarCollapsed } from "#lib/settings";
 
 /**

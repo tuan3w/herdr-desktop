@@ -5,7 +5,8 @@ import { expect, open, test } from "nsh/test";
  * list itself is empty; what a person needs from this dialog when an agent has nothing to show is tested.
  */
 const DESKTOP = { width: 1280, height: 900 };
-const past = (params: Record<string, unknown> = {}) => open("./chat-parts-lab.tsx", { ...DESKTOP, host: { params: { part: "past", ...params } } });
+const past = (params: Record<string, unknown> = {}) =>
+  open("./chat-parts-lab.tsx", { ...DESKTOP, host: { params: { part: "past", ...params } } });
 
 test("an agent that keeps no list says so, instead of showing an empty list that looks like nothing happened yet", async () => {
   const app = await past({ agent: "omp" });

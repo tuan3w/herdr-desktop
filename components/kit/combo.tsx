@@ -1,8 +1,11 @@
 import { announce, cleanup, computed, effect, keymap, List, type Signal, signal, Text, untracked, View } from "nsh";
 import { Input } from "nsh/base";
+
 import type { Bounds, InputRef, ListRef, ViewRef } from "nsh/types";
+
 import { hoverTransition } from "#lib/motion";
 import { timing } from "#lib/perf";
+
 import {
   type AutoHighlight,
   type AutocompleteMode,
@@ -144,9 +147,13 @@ function createModel(o: {
       return;
     }
     const exact = o.hideExact() ? foldFast(query.trim()) : undefined;
-    const show = (order: readonly number[], key: string) => publish(exact === undefined ? order : order.filter((i) => entryOf(list[i]).lead !== exact), key);
+    const show = (order: readonly number[], key: string) =>
+      publish(exact === undefined ? order : order.filter((i) => entryOf(list[i]).lead !== exact), key);
     if (custom) {
-      scan(startJob(list.length, (i) => (custom(list[i], query) ? 1 : 0)), (job) => show(found("", job).order, `\u0000${query}`));
+      scan(
+        startJob(list.length, (i) => (custom(list[i], query) ? 1 : 0)),
+        (job) => show(found("", job).order, `\u0000${query}`),
+      );
       return;
     }
     const key = queryKey(words);
@@ -155,11 +162,18 @@ function createModel(o: {
       show(known.exact.order, key);
       return;
     }
-    scan(startJob(list.length, wordProbe(words, (i) => list[i]), known.source), (job) => {
-      const answer = found(key, job);
-      refiner.keep(answer);
-      show(answer.order, key);
-    });
+    scan(
+      startJob(
+        list.length,
+        wordProbe(words, (i) => list[i]),
+        known.source,
+      ),
+      (job) => {
+        const answer = found(key, job);
+        refiner.keep(answer);
+        show(answer.order, key);
+      },
+    );
   };
 
   effect(() => {
@@ -205,7 +219,17 @@ interface Model {
 }
 
 /** The highlight: a position in the list as shown, moved by keys and by the pointer, kept in view. */
-function createNav(m: Model, o: { loop: () => boolean; escape: () => boolean; viewport: () => number; announceRow: (c: Choice) => string; picked: (c: Choice) => boolean; onHighlight: (pos: number, reason: HighlightReason) => void }): Nav {
+function createNav(
+  m: Model,
+  o: {
+    loop: () => boolean;
+    escape: () => boolean;
+    viewport: () => number;
+    announceRow: (c: Choice) => string;
+    picked: (c: Choice) => boolean;
+    onHighlight: (pos: number, reason: HighlightReason) => void;
+  },
+): Nav {
   const active = signal(-1);
   let reason: HighlightReason = "none";
   let list: ListRef | undefined;
@@ -234,7 +258,11 @@ function createNav(m: Model, o: { loop: () => boolean; escape: () => boolean; vi
     reason: () => reason,
     set,
     clear: () => set(-1, "none"),
-    move: (dir: 1 | -1) => set(nextHighlight(m.count(), untracked(active), dir, { loop: o.loop(), escape: o.loop() && o.escape(), disabled }), "keyboard"),
+    move: (dir: 1 | -1) =>
+      set(
+        nextHighlight(m.count(), untracked(active), dir, { loop: o.loop(), escape: o.loop() && o.escape(), disabled }),
+        "keyboard",
+      ),
     page: (dir: 1 | -1) => set(pageHighlight(m.count(), untracked(active), dir, PAGE, disabled), "keyboard"),
     /** The list was made again for a new query or new options. */
     published(l: Layout, changed: boolean, fresh: () => number) {
@@ -310,7 +338,8 @@ interface CoreOptions {
   empty: () => string | undefined;
 }
 
-const rowName = (c: Choice, picked: boolean) => `${c.title}${c.hint ? `, ${c.hint}` : ""}${picked ? ", selected" : ""}${c.disabled ? ", disabled" : ""}`;
+const rowName = (c: Choice, picked: boolean) =>
+  `${c.title}${c.hint ? `, ${c.hint}` : ""}${picked ? ", selected" : ""}${c.disabled ? ", disabled" : ""}`;
 
 /** What `Combobox` and `Autocomplete` share: the open state, the list, the highlight, the focus rules, the keys. */
 function createCore(o: CoreOptions, picked: (c: Choice) => boolean): Core {
@@ -352,7 +381,13 @@ function createCore(o: CoreOptions, picked: (c: Choice) => boolean): Core {
       const p = l.order.indexOf(i);
       if (p >= 0 && items[i] !== undefined) chosen.push(p);
     }
-    return initialHighlight({ count: l.order.length, chosen, typing: o.query().trim() !== "", auto: o.auto(), disabled: disabledAt });
+    return initialHighlight({
+      count: l.order.length,
+      chosen,
+      typing: o.query().trim() !== "",
+      auto: o.auto(),
+      disabled: disabledAt,
+    });
   };
   const nav: Nav = createNav(model, {
     loop: o.loop,
@@ -379,11 +414,12 @@ function createCore(o: CoreOptions, picked: (c: Choice) => boolean): Core {
   let wasOpen = state.open();
   effect(() => {
     const now = state.open();
-    if (wasOpen && !now) untracked(() => {
-      nav.clear();
-      composing.set(false);
-      o.closed();
-    });
+    if (wasOpen && !now)
+      untracked(() => {
+        nav.clear();
+        composing.set(false);
+        o.closed();
+      });
     wasOpen = now;
   });
   effect(() => {
@@ -395,7 +431,10 @@ function createCore(o: CoreOptions, picked: (c: Choice) => boolean): Core {
   const navigable = computed(() => visible() && !composing() && model.count() > 0);
   effect(() => {
     if (!navigable()) return;
-    return keymap.bind({ down: () => nav.move(1), up: () => nav.move(-1), pagedown: () => nav.page(1), pageup: () => nav.page(-1) }, { when: "always", repeat: true });
+    return keymap.bind(
+      { down: () => nav.move(1), up: () => nav.move(-1), pagedown: () => nav.page(1), pageup: () => nav.page(-1) },
+      { when: "always", repeat: true },
+    );
   });
   // Down opens the list of a focused field; once it is open the list's own Down moves through it.
   openOnDown(
@@ -452,10 +491,13 @@ function createCore(o: CoreOptions, picked: (c: Choice) => boolean): Core {
       if (!resized) hide("anchor-moved");
     },
     /** A press that starts on a row or a field control: the input loses the focus to it, which must not close the list. */
-    hold: { down: () => holding.set(true), up: () => {
-      holding.set(false);
-      if (!focused()) blurSoon();
-    } },
+    hold: {
+      down: () => holding.set(true),
+      up: () => {
+        holding.set(false);
+        if (!focused()) blurSoon();
+      },
+    },
     blurSoon,
     cancelBlur: () => clearTimeout(blurTimer),
     rows: o.rows,
@@ -527,7 +569,13 @@ function Row(props: { pos: () => number; core: Core; picked: (c: Choice) => bool
 }
 
 /** The list of a combobox: a recycled `List` of rows and group headings, or the one line that says why there are none. */
-function Rows(props: { core: Core; picked: (c: Choice) => boolean; onPick: (pos: number) => void; empty?: string; loading: boolean }) {
+function Rows(props: {
+  core: Core;
+  picked: (c: Choice) => boolean;
+  onPick: (pos: number) => void;
+  empty?: string;
+  loading: boolean;
+}) {
   const { core } = props;
   const l = () => core.model.layout() ?? NONE;
   const height = () => Math.min(contentHeight(l()), core.rows * ROW_H);
@@ -590,8 +638,19 @@ function Rows(props: { core: Core; picked: (c: Choice) => boolean; onPick: (pos:
  * order: a `Popover` makes its trigger a Tab stop of its own), or, `inline`, a box in the page. A press outside
  * closes it, Escape too.
  */
-function ListPopup(props: { core: Core; width: number; inline: boolean; picked: (c: Choice) => boolean; onPick: (pos: number) => void; empty?: string; loading: boolean; onClose: (reason: OpenReason) => void }) {
-  const body = () => <Rows core={props.core} picked={props.picked} onPick={props.onPick} empty={props.empty} loading={props.loading} />;
+function ListPopup(props: {
+  core: Core;
+  width: number;
+  inline: boolean;
+  picked: (c: Choice) => boolean;
+  onPick: (pos: number) => void;
+  empty?: string;
+  loading: boolean;
+  onClose: (reason: OpenReason) => void;
+}) {
+  const body = () => (
+    <Rows core={props.core} picked={props.picked} onPick={props.onPick} empty={props.empty} loading={props.loading} />
+  );
   return (
     <If when={props.core.model.ready() && (props.core.model.count() > 0 || props.loading || props.empty !== undefined)}>
       {props.inline ? (
@@ -727,7 +786,6 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
   });
   const chosenIndices = computed(() => indicesOf(items(), values()));
   const chosenSet = computed(() => new Set(values()));
-  const optionAt = (i: number) => items()[i] as ComboOption<T> | undefined;
   const textOf = (c: Choice) => (props.itemToString ? props.itemToString(c as ComboOption<T>) : c.title);
   const title = () => (multiple() ? "" : (chosenIndices().map((i) => textOf(items()[i]))[0] ?? ""));
   const hasHint = computed(() => items().some((c) => c.hint));
@@ -749,7 +807,12 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
       filter: () => props.filter as ComboFilter<Choice> | undefined,
       limit: () => props.limit ?? -1,
       hideExact: () => false,
-      auto: () => (props.autoHighlight === undefined ? "always" : props.autoHighlight === true ? "input-change" : props.autoHighlight || false),
+      auto: () =>
+        props.autoHighlight === undefined
+          ? "always"
+          : props.autoHighlight === true
+            ? "input-change"
+            : props.autoHighlight || false,
       chosen: () => chosenIndices(),
       loop: () => props.loopFocus ?? true,
       inline: () => props.inline === true,
@@ -764,7 +827,8 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
         chipCursor.set(-1);
         if (was !== undefined) props.onInputChange?.(title(), "reset");
       },
-      onHighlight: (c, reason, pos) => props.onItemHighlighted?.(c as ComboOption<T> | undefined, { reason, index: pos }),
+      onHighlight: (c, reason, pos) =>
+        props.onItemHighlighted?.(c as ComboOption<T> | undefined, { reason, index: pos }),
       loading: () => props.loading === true,
       empty: () => props.empty ?? "No results",
     },
@@ -833,7 +897,12 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
     if (!editable()) return;
     typed.set(v);
     chipCursor.set(-1);
-    const verdict = typingOpens({ text: v, composing: core.composing(), openOnInputClick: props.openOnInputClick ?? true, readOnly: false });
+    const verdict = typingOpens({
+      text: v,
+      composing: core.composing(),
+      openOnInputClick: props.openOnInputClick ?? true,
+      readOnly: false,
+    });
     if (verdict === "open") core.show("none");
     else if (verdict === "close") core.hide("none");
     if (!core.composing()) {
@@ -851,14 +920,22 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
     const cursor = chipCursor();
     if (cursor < 0 && !(caretAtStart() && shown() === "")) return;
     const walk = (dir: 1 | -1) => () => chipCursor.set(chipStep(untracked(chipCursor), dir, count));
-    return keymap.bind(cursor < 0 ? { left: walk(-1) } : { left: walk(-1), right: walk(1), delete: () => removeChip(cursor), backspace: () => removeChip(cursor) }, { when: "always", repeat: true });
+    return keymap.bind(
+      cursor < 0
+        ? { left: walk(-1) }
+        : { left: walk(-1), right: walk(1), delete: () => removeChip(cursor), backspace: () => removeChip(cursor) },
+      { when: "always", repeat: true },
+    );
   });
 
   const invalid = () => props.invalid === true || !!props.error;
   /** The state a screen reader cannot read from the name: nsh has no `required`, `readonly` or `invalid` accessibility state. */
-  const stateHint = () => [props.required && "required", props.readOnly && "read only", invalid() && "invalid"].filter(Boolean).join(", ") || undefined;
+  const stateHint = () =>
+    [props.required && "required", props.readOnly && "read only", invalid() && "invalid"].filter(Boolean).join(", ") ||
+    undefined;
   const hasValue = () => values().length > 0;
-  const clearable = () => editable() && hasValue() && (props.multiple === true ? props.clear === true : !!props.onClear);
+  const clearable = () =>
+    editable() && hasValue() && (props.multiple === true ? props.clear === true : !!props.onClear);
   const small = () => (props.small ? "h-8 text-xs" : "");
 
   const input = (
@@ -893,7 +970,8 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
         }}
         onSelectionChange={(e) => caretAtStart.set(e.start === 0 && e.end === 0)}
         onKeyPress={(e) => {
-          if (e.key !== "Backspace" || !multiple() || !editable() || core.composing() || shown() !== "" || !hasValue()) return;
+          if (e.key !== "Backspace" || !multiple() || !editable() || core.composing() || shown() !== "" || !hasValue())
+            return;
           removeChip(values().length - 1);
         }}
         onFocus={() => {
@@ -989,10 +1067,10 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
     >
       <Each of={chips()} key={(c: { value: string; text: string }) => c.value}>
         {(chip, index) => (
-          <View class={`h-6 flex-row items-center gap-1 rounded bg-muted pl-2 pr-1 ${chipCursor() === index() ? "outline-2 outline-ring" : ""}`}>
-            <Text class="max-w-48 line-clamp-1 text-xs text-foreground">
-              {chip().text}
-            </Text>
+          <View
+            class={`h-6 flex-row items-center gap-1 rounded bg-muted pl-2 pr-1 ${chipCursor() === index() ? "outline-2 outline-ring" : ""}`}
+          >
+            <Text class="max-w-48 line-clamp-1 text-xs text-foreground">{chip().text}</Text>
             <View
               role="button"
               focusable={false}
@@ -1117,13 +1195,25 @@ export function Autocomplete(props: {
 }) {
   const mode = () => props.mode ?? "list";
   const suggestions = computed(() => props.suggestions);
-  const items = computed<readonly Choice[]>(() => suggestions().map((s) => (typeof s === "string" ? { value: s, title: s } : { value: s.text, title: s.text, hint: s.hint, group: s.group, disabled: s.disabled, keywords: s.keywords })));
+  const items = computed<readonly Choice[]>(() =>
+    suggestions().map((s) =>
+      typeof s === "string"
+        ? { value: s, title: s }
+        : { value: s.text, title: s.text, hint: s.hint, group: s.group, disabled: s.disabled, keywords: s.keywords },
+    ),
+  );
   const hasHint = computed(() => items().some((c) => c.hint));
   /** The row text shown in the field while a row is highlighted (`both`, `inline`); `undefined`: what was typed. */
   const completion = signal<string | undefined>(undefined);
   let field: InputRef | undefined;
   let pointerOver = false;
-  const suggestionOf = (c: Choice): Suggestion => ({ text: c.value, hint: c.hint, group: c.group, disabled: c.disabled, keywords: c.keywords });
+  const suggestionOf = (c: Choice): Suggestion => ({
+    text: c.value,
+    hint: c.hint,
+    group: c.group,
+    disabled: c.disabled,
+    keywords: c.keywords,
+  });
 
   const core = createCore(
     {
@@ -1132,7 +1222,12 @@ export function Autocomplete(props: {
       filter: () => (filtersByText(mode()) ? (props.filter as ComboFilter<Choice> | undefined) : null),
       limit: () => props.limit ?? -1,
       hideExact: () => filtersByText(mode()),
-      auto: () => (props.autoHighlight === undefined ? false : props.autoHighlight === true ? "input-change" : props.autoHighlight || false),
+      auto: () =>
+        props.autoHighlight === undefined
+          ? false
+          : props.autoHighlight === true
+            ? "input-change"
+            : props.autoHighlight || false,
       chosen: () => [],
       loop: () => props.loopFocus ?? true,
       inline: () => props.inline === true,
@@ -1158,7 +1253,7 @@ export function Autocomplete(props: {
 
   // The text changed under the field (its owner): a completion in progress is over.
   effect(() => {
-    props.value;
+    void props.value;
     untracked(() => completion.set(undefined));
   });
 
@@ -1174,7 +1269,12 @@ export function Autocomplete(props: {
   };
 
   const typedOpen = (text: string) => {
-    const verdict = typingOpens({ text, composing: core.composing(), openOnInputClick: props.openOnInputClick ?? false, readOnly: !editable() });
+    const verdict = typingOpens({
+      text,
+      composing: core.composing(),
+      openOnInputClick: props.openOnInputClick ?? false,
+      readOnly: !editable(),
+    });
     if (verdict === "open") core.show("none");
     else if (verdict === "close") core.hide("none");
   };
@@ -1206,7 +1306,11 @@ export function Autocomplete(props: {
           role="combobox"
           accessibilityState={{ expanded: core.visible(), disabled: props.disabled }}
           accessibilityLabel={props.label || props.placeholder}
-          accessibilityHint={[props.required && "required", props.readOnly && "read only", invalid() && "invalid"].filter(Boolean).join(", ") || undefined}
+          accessibilityHint={
+            [props.required && "required", props.readOnly && "read only", invalid() && "invalid"]
+              .filter(Boolean)
+              .join(", ") || undefined
+          }
           autoCorrect={false}
           submitBehavior="submit"
           readonly={props.readOnly}
@@ -1225,7 +1329,8 @@ export function Autocomplete(props: {
           onFocus={() => {
             core.focused.set(true);
             core.cancelBlur();
-            if (pointerOver && props.openOnInputClick === true && !state.open() && editable()) core.show("trigger-focus");
+            if (pointerOver && props.openOnInputClick === true && !state.open() && editable())
+              core.show("trigger-focus");
           }}
           onBlur={() => {
             core.focused.set(false);

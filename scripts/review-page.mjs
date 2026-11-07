@@ -5,7 +5,9 @@ import { readdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 
 const root = new URL("..", import.meta.url).pathname;
 const dir = `${root}.scratch/shots`;
-const files = readdirSync(dir).filter((f) => f.endsWith(".png")).sort();
+const files = readdirSync(dir)
+  .filter((f) => f.endsWith(".png"))
+  .sort();
 const WIDTHS = [1280, 960, 760];
 const byScenario = new Map();
 for (const f of files) {
@@ -23,13 +25,16 @@ const names = [...byScenario.keys()].sort((a, b) => (order.indexOf(a) + 1 || 999
 
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const cell = (f, label) =>
-  f ? `<figure><a href="#${esc(f)}"><img loading="lazy" src="${esc(f)}" alt="${esc(label)}"></a><figcaption>${esc(label)}</figcaption></figure><a class="lightbox" id="${esc(f)}" href="#"><img src="${esc(f)}" alt="${esc(label)} (large)"></a>` : `<figure class="missing">no shot</figure>`;
+  f
+    ? `<figure><a href="#${esc(f)}"><img loading="lazy" src="${esc(f)}" alt="${esc(label)}"></a><figcaption>${esc(label)}</figcaption></figure><a class="lightbox" id="${esc(f)}" href="#"><img src="${esc(f)}" alt="${esc(label)} (large)"></a>`
+    : `<figure class="missing">no shot</figure>`;
 
 const sections = names
   .map((name) => {
     const shots = byScenario.get(name);
     const rows = WIDTHS.map(
-      (w) => `<div class="row"><h3>${w} px</h3><div class="pair">${cell(shots.get(`light-${w}`), `${name} light ${w}`)}${cell(shots.get(`dark-${w}`), `${name} dark ${w}`)}</div></div>`,
+      (w) =>
+        `<div class="row"><h3>${w} px</h3><div class="pair">${cell(shots.get(`light-${w}`), `${name} light ${w}`)}${cell(shots.get(`dark-${w}`), `${name} dark ${w}`)}</div></div>`,
     ).join("");
     return `<section id="${esc(name)}"><h2>${esc(name)}</h2>${rows}</section>`;
   })

@@ -1,10 +1,12 @@
 import { announce, Clipboard, effect, Scroll, setAccessibilityFocus, signal, Text, View } from "nsh";
-import type { Accessor, ViewRef } from "nsh";
+
 import type { ActionKind, ActionResult, AuthMethodView, SessionView } from "herdr-desktop/native";
+import type { Accessor, ViewRef } from "nsh";
+
+import { CodeBlock } from "#components/code-block";
+import { Btn, Icon, notify } from "#kit";
 import type { SessionPort } from "#lib/session";
 import { agentName, shellLine, visibleText } from "#lib/session-text";
-import { Btn, Icon, notify } from "#kit";
-import { CodeBlock } from "#components/code-block";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
@@ -87,7 +89,9 @@ function AgentMethod(props: { method: AuthMethodView; signin: Signin; onNode: (i
           onPress={() => void props.signin.authenticate(props.method)}
         />
       </View>
-      <If when={props.method.description}>{(text) => <Text class="text-sm text-muted-foreground">{visibleText(text())}</Text>}</If>
+      <If when={props.method.description}>
+        {(text) => <Text class="text-sm text-muted-foreground">{visibleText(text())}</Text>}
+      </If>
     </View>
   );
 }
@@ -97,7 +101,12 @@ function AgentMethod(props: { method: AuthMethodView; signin: Signin; onNode: (i
  * arguments it gave (the app cannot run them for the person, and never opens a browser or a terminal by itself),
  * `Copy command`, and `I did it, try again`.
  */
-function TerminalMethod(props: { method: AuthMethodView; where: string; signin: Signin; onNode: (id: string, node: ViewRef) => void }) {
+function TerminalMethod(props: {
+  method: AuthMethodView;
+  where: string;
+  signin: Signin;
+  onNode: (id: string, node: ViewRef) => void;
+}) {
   const line = () => shellLine(props.method.terminalArgs ?? []);
   const reopening = () => props.signin.busy() === "reopen";
   return (
@@ -109,10 +118,18 @@ function TerminalMethod(props: { method: AuthMethodView; where: string; signin: 
             {props.method.name}
           </Text>
         </View>
-        <If when={props.method.description}>{(text) => <Text class="text-sm text-muted-foreground">{visibleText(text())}</Text>}</If>
+        <If when={props.method.description}>
+          {(text) => <Text class="text-sm text-muted-foreground">{visibleText(text())}</Text>}
+        </If>
       </View>
       <Text class="text-sm text-foreground">{`In a terminal on ${props.where}, start the agent's program with these arguments, and follow what it asks:`}</Text>
-      <CodeBlock code={line() || "(no arguments)"} language={line() ? "bash" : "text"} title="Arguments" collapsedLines={0} tools={false} />
+      <CodeBlock
+        code={line() || "(no arguments)"}
+        language={line() ? "bash" : "text"}
+        title="Arguments"
+        collapsedLines={0}
+        tools={false}
+      />
       <View class="flex-row flex-wrap gap-2">
         <Btn
           label="Copy command"
@@ -171,20 +188,29 @@ export function SessionSignin(props: { view: SessionView; where: string; active:
   return (
     <Scroll class="min-h-0 flex-1">
       <View class="px-4 py-6">
-        <View role="group" accessibilityLabel={`Sign in to ${agent()}`} class="w-full gap-4 rounded-lg border border-border bg-card p-5">
+        <View
+          role="group"
+          accessibilityLabel={`Sign in to ${agent()}`}
+          class="w-full gap-4 rounded-lg border border-border bg-card p-5"
+        >
           <View role="alert" class="gap-1">
             <Text role="header" class="text-base font-medium text-foreground">{`${agent()} needs you to sign in`}</Text>
             <Text class="text-sm text-muted-foreground">{`It will not open this session until you do. Nothing you typed is lost, and ${agent()} carries on as soon as it accepts.`}</Text>
           </View>
           <Each of={methods()} key={(m: AuthMethodView) => m.id}>
             {(method) => (
-              <If when={method().terminalArgs} else={<AgentMethod method={method()} signin={props.signin} onNode={onNode} />}>
+              <If
+                when={method().terminalArgs}
+                else={<AgentMethod method={method()} signin={props.signin} onNode={onNode} />}
+              >
                 <TerminalMethod method={method()} where={props.where} signin={props.signin} onNode={onNode} />
               </If>
             )}
           </Each>
           <If when={methods().length === 0}>
-            <Text class="text-sm text-foreground">The agent did not say how. Sign in to it outside this app, then press the button.</Text>
+            <Text class="text-sm text-foreground">
+              The agent did not say how. Sign in to it outside this app, then press the button.
+            </Text>
             <View class="flex-row">
               <Btn
                 variant="primary"

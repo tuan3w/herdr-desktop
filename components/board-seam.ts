@@ -1,4 +1,5 @@
 import { Herdr } from "herdr-desktop/native";
+
 import mixed from "../fixtures/herdr/mixed.json";
 import projects from "../fixtures/herdr/projects.json";
 import storm from "../fixtures/herdr/storm.json";
@@ -38,7 +39,12 @@ export function scripted(name: Name) {
     for (let n = 1; n <= extra; n++) {
       const pane_id = `${template.split(":")[0]}:p${100 + n}`;
       snapshot.agents.push({ ...idle, pane_id, terminal_id: `t${pane_id}`, state_change_seq: n });
-      snapshot.panes.push({ ...idlePane, pane_id, terminal_id: `t${pane_id}`, label: `extra idle ${n}` } as typeof idlePane);
+      snapshot.panes.push({
+        ...idlePane,
+        pane_id,
+        terminal_id: `t${pane_id}`,
+        label: `extra idle ${n}`,
+      } as typeof idlePane);
     }
     Herdr.testSetSnapshot(snapshot);
     // Only a status event makes the link read the snapshot again: `state_change_seq` is not on a pane.
@@ -55,7 +61,10 @@ export function scripted(name: Name) {
     /** The agent in `pane` asks about `command` instead (a new episode: its question has a new digest). */
     ask(pane: string, command: string) {
       const rows = (fixture.panes as Record<string, { screen: string[] }>)[pane].screen;
-      this.show(pane, rows.map((r) => r.replace(COMMAND, command)));
+      this.show(
+        pane,
+        rows.map((r) => r.replace(COMMAND, command)),
+      );
     },
     /** The pane shows `rows` from now on, as a new episode of the same state. */
     show(pane: string, rows: string[]) {

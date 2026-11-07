@@ -1,5 +1,6 @@
-import { expect, test } from "nsh/test";
 import { PaneKeys } from "herdr-desktop/native";
+import { expect, test } from "nsh/test";
+
 import { captureKeystrokes, matchRows } from "#lib/pane-input";
 import { GLOBAL, keysOf } from "#lib/shortcuts";
 
@@ -10,7 +11,8 @@ test("on Windows and Linux Ctrl is the app's key, so the app's shortcuts stay th
   for (const letter of ["k", "j", "n", "f", "w", "b", "z"]) expect(keys).not.toContain(`ctrl+${letter}`);
   // Paste stays paste, and the app's own `capture` key is not forwarded.
   expect(keys).not.toContain("ctrl+v");
-  for (const taken of ["ctrl+c", "ctrl+d", "ctrl+a", "ctrl+e", "ctrl+r", "ctrl+l", "ctrl+u"]) expect(keys).toContain(taken);
+  for (const taken of ["ctrl+c", "ctrl+d", "ctrl+a", "ctrl+e", "ctrl+r", "ctrl+l", "ctrl+u"])
+    expect(keys).toContain(taken);
 });
 
 test("on Apple platforms every Ctrl+letter is the pane's, because the app's keys are on Command", () => {
@@ -21,7 +23,22 @@ test("on Apple platforms every Ctrl+letter is the pane's, because the app's keys
 test("Escape, Tab, the arrows and the editing keys are the pane's, and every key bound has a name in herdr", () => {
   for (const onApple of [false, true]) {
     const keys = captureKeystrokes(onApple);
-    for (const key of ["escape", "enter", "tab", "shift+tab", "backspace", "delete", "up", "down", "left", "right", "home", "end", "pageup", "pagedown"]) {
+    for (const key of [
+      "escape",
+      "enter",
+      "tab",
+      "shift+tab",
+      "backspace",
+      "delete",
+      "up",
+      "down",
+      "left",
+      "right",
+      "home",
+      "end",
+      "pageup",
+      "pagedown",
+    ]) {
       expect(keys).toContain(key);
     }
     for (const key of keys) expect(PaneKeys.herdrKey(key)).not.toBeNull();

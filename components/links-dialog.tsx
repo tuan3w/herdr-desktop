@@ -1,9 +1,11 @@
+import { Files, Herdr, Pages } from "herdr-desktop/native";
 import { Clipboard, openUrl, signal, Text, View } from "nsh";
 import { Command, type CommandItem } from "nsh/base";
-import { Files, Herdr, Pages } from "herdr-desktop/native";
+
 import type { PaneLink } from "herdr-desktop/native";
-import { browseFiles, pageRequest, routeLink, viewFile } from "#lib/files";
+
 import { Modal, notify } from "#kit";
+import { browseFiles, pageRequest, routeLink, viewFile } from "#lib/files";
 
 /** Where a pressed link is: the pane's machine, and the folder a relative path is looked for in. */
 export interface LinkContext {
@@ -20,7 +22,13 @@ const message = (e: unknown): string => (e instanceof Error ? e.message : String
  * any other http or https address, opens in the browser. Anything else is copied, never opened. Each says what
  * happened in a toast (which screen readers hear too).
  */
-export async function openLink(kind: PaneLink["kind"], target: string, line?: number | null, col?: number | null, at?: LinkContext): Promise<void> {
+export async function openLink(
+  kind: PaneLink["kind"],
+  target: string,
+  line?: number | null,
+  col?: number | null,
+  at?: LinkContext,
+): Promise<void> {
   const machine = at ? Herdr.machines().find((m) => m.id === at.machine) : undefined;
   const route = routeLink(kind, target, { local: machine?.local ?? true, loopback: Pages.localhost(target) !== null });
   if (route === "file" && at) {
@@ -63,13 +71,23 @@ export async function openLink(kind: PaneLink["kind"], target: string, line?: nu
 export function LinksDialog(props: { open: boolean; links: PaneLink[]; at?: LinkContext; onClose: () => void }) {
   const query = signal("");
   const items = (): CommandItem[] =>
-    props.links.map((l, i) => ({ id: String(i), label: l.text, group: l.kind === "url" ? "Web addresses" : "Files", keywords: [l.target] }));
+    props.links.map((l, i) => ({
+      id: String(i),
+      label: l.text,
+      group: l.kind === "url" ? "Web addresses" : "Files",
+      keywords: [l.target],
+    }));
   const close = () => {
     query.set("");
     props.onClose();
   };
   return (
-    <Modal open={props.open} onClose={close} title="Links in this pane" description="Enter opens a web address or a file.">
+    <Modal
+      open={props.open}
+      onClose={close}
+      title="Links in this pane"
+      description="Enter opens a web address or a file."
+    >
       <View class="gap-2">
         <Command
           items={items()}
@@ -86,7 +104,11 @@ export function LinksDialog(props: { open: boolean; links: PaneLink[]; at?: Link
             if (link) void openLink(link.kind, link.target, link.line, link.col, props.at);
           }}
           onCancel={close}
-          empty={<Text class="px-3 py-4 text-sm text-muted-foreground">{props.links.length === 0 ? "No links in this pane" : "No link matches"}</Text>}
+          empty={
+            <Text class="px-3 py-4 text-sm text-muted-foreground">
+              {props.links.length === 0 ? "No links in this pane" : "No link matches"}
+            </Text>
+          }
         />
       </View>
     </Modal>

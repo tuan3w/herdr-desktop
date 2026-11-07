@@ -1,4 +1,5 @@
 import { expect, open, test } from "nsh/test";
+
 import type { App } from "nsh/test";
 
 const DESKTOP = { width: 1280, height: 800, platform: "linux" as const };

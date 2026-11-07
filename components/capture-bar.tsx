@@ -1,9 +1,10 @@
+import { Herdr, PaneKeys } from "herdr-desktop/native";
 import { announce, effect, keymap, Text, View } from "nsh";
 import { Input } from "nsh/base";
-import { Herdr, PaneKeys } from "herdr-desktop/native";
+
+import { Btn, dialogDepth, notify } from "#kit";
 import { captureKeystrokes } from "#lib/pane-input";
 import { keyLabel } from "#lib/shortcuts";
-import { Btn, dialogDepth, notify } from "#kit";
 
 /**
  * Capture mode, on screen: the persistent hint bar and the field that hears the keyboard. It exists only while the

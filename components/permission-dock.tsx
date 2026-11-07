@@ -1,15 +1,17 @@
-import { announce, computed, effect, keymap, Scroll, signal, Text, token, untracked, View } from "nsh";
-import type { ScrollRef } from "nsh/types";
 import { Code, CodeView, Sessions } from "herdr-desktop/native";
+import { announce, computed, effect, keymap, Scroll, signal, Text, token, untracked, View } from "nsh";
+
 import type { ActionResult, DiffItem, PermissionChoiceView, SessionView, WaitingView } from "herdr-desktop/native";
+import type { ScrollRef } from "nsh/types";
+
+import { AskChip } from "#components/ask-chip";
+import { CodeBlock } from "#components/code-block";
+import { PermissionDiff } from "#components/permission-diff";
+import { PlanSteps } from "#components/plan-steps";
+import { Btn, Clipped, Icon, Modal } from "#kit";
 import { codeLabel, lineCount } from "#lib/highlight";
 import { restartable } from "#lib/timer";
 import { rowsOf, visibleText } from "#lib/visible-text";
-import { AskChip } from "#components/ask-chip";
-import { CodeBlock } from "#components/code-block";
-import { Btn, Clipped, Icon, Modal } from "#kit";
-import { PermissionDiff } from "#components/permission-diff";
-import { PlanSteps } from "#components/plan-steps";
 
 /** How long an answer that just appeared or changed takes no press: a click aimed at the request before it must not land on this one. */
 const GUARD_MS = 400;
@@ -47,7 +49,8 @@ const KIND_WORDS: Record<string, string> = {
 const isAllow = (c: PermissionChoiceView) => !c.kind?.startsWith("reject");
 
 /** Whether pressing `choice` takes two presses: a standing grant, or an allow of a command the rules say deserves a second look. */
-const isRisky = (w: WaitingView, c: PermissionChoiceView) => c.standing || (w.risk !== undefined && w.risk !== null && isAllow(c));
+const isRisky = (w: WaitingView, c: PermissionChoiceView) =>
+  c.standing || (w.risk !== undefined && w.risk !== null && isAllow(c));
 
 /** Why a second press is asked: what the command does, and that the answer outlives this call when it does. */
 function riskText(w: WaitingView, c: PermissionChoiceView): string {
@@ -68,7 +71,15 @@ function lead(machine: string, id: string, view: SessionView, title: string): { 
       break;
     }
   }
-  const open = [...rows].reverse().filter((r) => r.kind === "tool" && r.tool && (r.tool.status === "pending" || r.tool.status === "inProgress") && r.tool.diffs.length > 0);
+  const open = [...rows]
+    .reverse()
+    .filter(
+      (r) =>
+        r.kind === "tool" &&
+        r.tool &&
+        (r.tool.status === "pending" || r.tool.status === "inProgress") &&
+        r.tool.diffs.length > 0,
+    );
   const call = open.find((r) => r.tool?.title === title) ?? open[0];
   return { said, diffs: call?.tool?.diffs ?? [] };
 }
@@ -131,7 +142,12 @@ export function PermissionDock(props: { machine: string; id: string; view: Sessi
     viewport.set(0);
     offset.set(0);
     const w = untracked(request);
-    if (now !== "" && w) announce(`The agent asks: ${visibleText(w.subject ?? w.title ?? "to continue").split("\n")[0]!.slice(0, 200)}`);
+    if (now !== "" && w)
+      announce(
+        `The agent asks: ${visibleText(w.subject ?? w.title ?? "to continue")
+          .split("\n")[0]!
+          .slice(0, 200)}`,
+      );
   });
 
   const text = computed(() => visibleText(request()?.subject ?? request()?.title ?? ""));
@@ -141,7 +157,10 @@ export function PermissionDock(props: { machine: string; id: string; view: Sessi
   const measured = () => contentHeight() > 0 && viewport() > 0;
   const overflow = () => (measured() ? contentHeight() > viewport() + 2 : rowsOf(text(), COLUMNS) > BOX_ROWS);
   const atEnd = () => readAll() || !overflow() || (measured() && offset() + viewport() >= contentHeight() - 2);
-  const below = () => (measured() ? Math.max(1, Math.ceil((contentHeight() - viewport() - offset()) / LINE)) : Math.max(1, rowsOf(text(), COLUMNS) - BOX_ROWS));
+  const below = () =>
+    measured()
+      ? Math.max(1, Math.ceil((contentHeight() - viewport() - offset()) / LINE))
+      : Math.max(1, rowsOf(text(), COLUMNS) - BOX_ROWS);
 
   const around = computed(() => {
     void props.view.revision;
@@ -170,7 +189,10 @@ export function PermissionDock(props: { machine: string; id: string; view: Sessi
         announce(note());
     }
   };
-  const failed = (e: unknown): ActionResult => ({ kind: "stopped", message: e instanceof Error ? e.message : String(e) });
+  const failed = (e: unknown): ActionResult => ({
+    kind: "stopped",
+    message: e instanceof Error ? e.message : String(e),
+  });
 
   async function activate(choice: PermissionChoiceView) {
     const w = request();
@@ -203,7 +225,9 @@ export function PermissionDock(props: { machine: string; id: string; view: Sessi
     armed.set(null);
     sending.set(choice.id);
     note.set("");
-    const result = await Sessions.answerPermission(props.machine, props.id, w.requestId, w.digest, choice.id).catch(failed);
+    const result = await Sessions.answerPermission(props.machine, props.id, w.requestId, w.digest, choice.id).catch(
+      failed,
+    );
     settle(result, `Sent: ${choice.name}`);
   }
 
@@ -233,7 +257,11 @@ export function PermissionDock(props: { machine: string; id: string; view: Sessi
   return (
     <If when={request()}>
       {(w) => (
-        <View role="group" accessibilityLabel="Permission request" class="gap-3 border-t border-border bg-background px-4 py-3">
+        <View
+          role="group"
+          accessibilityLabel="Permission request"
+          class="gap-3 border-t border-border bg-background px-4 py-3"
+        >
           <View class="gap-1">
             <Text role="header" class="text-sm font-medium text-foreground">
               {KIND_WORDS[w().toolKind ?? ""] ?? "Permission request"}
@@ -268,7 +296,9 @@ export function PermissionDock(props: { machine: string; id: string; view: Sessi
             </Scroll>
             <If when={overflow()}>
               <View class="flex-row items-center justify-between gap-2">
-                <Text class="text-xs text-muted-foreground">{atEnd() ? "End of the command" : `More below · ${below()} lines`}</Text>
+                <Text class="text-xs text-muted-foreground">
+                  {atEnd() ? "End of the command" : `More below · ${below()} lines`}
+                </Text>
                 <Btn
                   small
                   variant="ghost"
@@ -299,7 +329,9 @@ export function PermissionDock(props: { machine: string; id: string; view: Sessi
                 <AskChip
                   label={choice().name}
                   risky={isRisky(w(), choice())}
-                  armed={armed() === choice().id ? riskText(w(), choice()) || "this answer cannot be taken back" : undefined}
+                  armed={
+                    armed() === choice().id ? riskText(w(), choice()) || "this answer cannot be taken back" : undefined
+                  }
                   busy={sending() === choice().id}
                   refused={refused() === choice().id ? "The request changed" : undefined}
                   dim={guarded() || busy()}
@@ -309,7 +341,12 @@ export function PermissionDock(props: { machine: string; id: string; view: Sessi
                 />
               )}
             </Each>
-            <Btn variant="ghost" label="Cancel request" loading={sending() === "cancel"} onPress={() => void cancel()} />
+            <Btn
+              variant="ghost"
+              label="Cancel request"
+              loading={sending() === "cancel"}
+              onPress={() => void cancel()}
+            />
           </View>
           <View class="min-h-4 flex-row items-center justify-between gap-3">
             <Text class="min-w-0 flex-1 text-xs text-muted-foreground">{note()}</Text>

@@ -1,6 +1,8 @@
 import { computed, type JSX, signal, View } from "nsh";
 import { DataTable, type DataTableSort } from "nsh/base";
+
 import { fold } from "#lib/text";
+
 import { Clipped } from "./hint";
 
 export interface Column<T> {
@@ -144,7 +146,9 @@ export function Table<T>(props: {
                 return column?.cell && row ? (
                   column.cell(row)
                 ) : (
-                  <Clipped class={`text-sm text-foreground ${column?.mono ? "font-mono text-xs" : ""}`}>{cell.text}</Clipped>
+                  <Clipped class={`text-sm text-foreground ${column?.mono ? "font-mono text-xs" : ""}`}>
+                    {cell.text}
+                  </Clipped>
                 );
               }
             : undefined

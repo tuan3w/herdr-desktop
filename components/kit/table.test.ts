@@ -1,4 +1,5 @@
 import { expect, test } from "nsh/test";
+
 import { type Column, fittingColumns, sortedRows } from "./table";
 
 interface Row {
@@ -33,19 +34,36 @@ test("numbers sort as numbers, not as text", () => {
 });
 
 test("a missing value goes last whichever way the column runs", () => {
-  expect(sortedRows(ROWS, COLUMNS, { key: "started", direction: "ascending" }).map((r) => r.started)).toEqual(["2026-10-18", "2026-10-30", "2026-11-03", ""]);
-  expect(sortedRows(ROWS, COLUMNS, { key: "started", direction: "descending" }).map((r) => r.started)).toEqual(["2026-11-03", "2026-10-30", "2026-10-18", ""]);
+  expect(sortedRows(ROWS, COLUMNS, { key: "started", direction: "ascending" }).map((r) => r.started)).toEqual([
+    "2026-10-18",
+    "2026-10-30",
+    "2026-11-03",
+    "",
+  ]);
+  expect(sortedRows(ROWS, COLUMNS, { key: "started", direction: "descending" }).map((r) => r.started)).toEqual([
+    "2026-11-03",
+    "2026-10-30",
+    "2026-10-18",
+    "",
+  ]);
 });
 
 test("text sorts without regard to accents, and does not change the caller's array", () => {
   const before = names(ROWS);
-  expect(names(sortedRows(ROWS, COLUMNS, { key: "name", direction: "ascending" }))).toEqual(["Ångström", "Édouard", "Hélène", "Mia"]);
+  expect(names(sortedRows(ROWS, COLUMNS, { key: "name", direction: "ascending" }))).toEqual([
+    "Ångström",
+    "Édouard",
+    "Hélène",
+    "Mia",
+  ]);
   expect(names(ROWS)).toEqual(before);
 });
 
 test("a sort asks for each row's key once, however many rows it compares", () => {
   let calls = 0;
-  const counted: Column<Row>[] = [{ key: "open", title: "Tasks", width: 60, text: (r) => String(r.open), sortBy: (r) => (calls++, r.open) }];
+  const counted: Column<Row>[] = [
+    { key: "open", title: "Tasks", width: 60, text: (r) => String(r.open), sortBy: (r) => (calls++, r.open) },
+  ];
   const many = Array.from({ length: 500 }, (_, i) => ({ name: `n${i}`, started: "", open: (i * 37) % 101 }));
   sortedRows(many, counted, { key: "open", direction: "ascending" });
   expect(calls).toBe(500);

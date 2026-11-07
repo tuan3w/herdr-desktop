@@ -1,10 +1,12 @@
+import "#lib/native-metrics";
+
 import { Overlay, Text, View } from "nsh";
 import { Button } from "nsh/base";
+
+import { FOCUS_RING, Icon, IconButton, NUM } from "#kit";
 import { hoverTransition } from "#lib/motion";
-import "#lib/native-metrics";
 import { type Health, perfCollapsed, perfOpen, perfReadings, type Reading } from "#lib/perf";
 import { keyLabel } from "#lib/shortcuts";
-import { FOCUS_RING, Icon, IconButton, NUM } from "#kit";
 
 const VALUE: Record<Health, string> = { ok: "text-popover-foreground", warn: "text-warning", bad: "text-destructive" };
 const SHORTCUT = keyLabel("devPanel");
@@ -37,7 +39,9 @@ export function DevPanel() {
               <Text class="text-xs font-semibold text-popover-foreground">Dev</Text>
               <If when={perfCollapsed()}>
                 <Text style={NUM} class={`font-mono text-xs line-clamp-1 ${VALUE[worst(perfReadings())]}`}>
-                  {summary().map((r) => r.brief).join(" · ")}
+                  {summary()
+                    .map((r) => r.brief)
+                    .join(" · ")}
                 </Text>
               </If>
             </Button>

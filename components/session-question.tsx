@@ -1,9 +1,11 @@
-import { announce, computed, effect, Scroll, signal, Text, untracked, View } from "nsh";
 import { Sessions } from "herdr-desktop/native";
+import { announce, computed, effect, Scroll, signal, Text, untracked, View } from "nsh";
+
 import type { ActionResult, QuestionFieldView, SessionView } from "herdr-desktop/native";
+
+import { Btn, CheckRow, Field, Labeled, RadioGroup, RadioItem, SelectField } from "#kit";
 import { answerOf, type FieldState, placeRefusal, startState } from "#lib/session-answers";
 import { restartable } from "#lib/timer";
-import { Btn, CheckRow, Field, Labeled, RadioGroup, RadioItem, SelectField } from "#kit";
 
 /** How long the form takes no answer after it appears or changes: a keystroke aimed at what was there before must not submit it. */
 const GUARD_MS = 400;
@@ -64,9 +66,11 @@ export function SessionQuestion(props: { machine: string; id: string; view: Sess
 
   // Drafts of this session's questions that are no longer waiting are dropped.
   effect(() => {
-    const live = new Set(props.view.waiting.filter((x) => x.ask === "question").map((x) => `${props.machine}/${props.id}/${x.requestId}`));
+    const live = new Set(
+      props.view.waiting.filter((x) => x.ask === "question").map((x) => `${props.machine}/${props.id}/${x.requestId}`),
+    );
     const mine = `${props.machine}/${props.id}/`;
-    for (const key of [...drafts.keys()]) if (key.startsWith(mine) && !live.has(key)) drafts.delete(key);
+    for (const key of drafts.keys()) if (key.startsWith(mine) && !live.has(key)) drafts.delete(key);
   });
 
   const change = (index: number, patch: Partial<FieldState>) => {
@@ -89,7 +93,10 @@ export function SessionQuestion(props: { machine: string; id: string; view: Sess
       return;
     }
     if (result.kind === "invalid") {
-      const placed = placeRefusal(result.message, fields.map((f) => f.label));
+      const placed = placeRefusal(
+        result.message,
+        fields.map((f) => f.label),
+      );
       if (placed.field !== null) errors.update((e) => ({ ...e, [placed.field]: placed.why }));
       else note.set(`Not sent: ${placed.why}`);
       announce(result.message);
@@ -98,7 +105,10 @@ export function SessionQuestion(props: { machine: string; id: string; view: Sess
     note.set(`Not sent: ${result.message}`);
     announce(note());
   };
-  const failed = (e: unknown): ActionResult => ({ kind: "stopped", message: e instanceof Error ? e.message : String(e) });
+  const failed = (e: unknown): ActionResult => ({
+    kind: "stopped",
+    message: e instanceof Error ? e.message : String(e),
+  });
 
   async function send(how: "accept" | "decline") {
     const w = request();
@@ -113,7 +123,13 @@ export function SessionQuestion(props: { machine: string; id: string; view: Sess
     note.set("");
     const result =
       how === "accept"
-        ? await Sessions.answerQuestion(props.machine, props.id, w.requestId, w.digest, w.fields.map((f, i) => answerOf(f, state(i)))).catch(failed)
+        ? await Sessions.answerQuestion(
+            props.machine,
+            props.id,
+            w.requestId,
+            w.digest,
+            w.fields.map((f, i) => answerOf(f, state(i))),
+          ).catch(failed)
         : await Sessions.dismiss(props.machine, props.id, w.requestId, w.digest).catch(failed);
     sending.set(null);
     if (result.kind === "done") {
@@ -128,7 +144,10 @@ export function SessionQuestion(props: { machine: string; id: string; view: Sess
   /** One field, drawn for what it takes. */
   const field = (f: () => QuestionFieldView, index: () => number) => {
     const label = () => `${f().label}${f().required ? " *" : ""}`;
-    const hint = () => [f().description, f().secret ? "The agent marked this secret. A form is not a safe place for one." : undefined].filter(Boolean).join(" ") || undefined;
+    const hint = () =>
+      [f().description, f().secret ? "The agent marked this secret. A form is not a safe place for one." : undefined]
+        .filter(Boolean)
+        .join(" ") || undefined;
     const error = () => errors()[index()] || undefined;
     const titles = () => f().choices.map((c, i) => ({ value: String(i), title: c.title }));
     // One wrapper without a gap: the `If`s that are not this kind draw nothing, but they still count as children of a gapped parent.
@@ -164,9 +183,23 @@ export function SessionQuestion(props: { machine: string; id: string; view: Sess
               value={state(index()).choice === null ? undefined : String(state(index()).choice)}
               onChange={(v) => change(index(), { choice: Number(v) })}
             >
-              <Each of={f().kind === "bool" ? [{ value: "0", title: "Yes" }, { value: "1", title: "No" }] : titles()} key="index">
+              <Each
+                of={
+                  f().kind === "bool"
+                    ? [
+                        { value: "0", title: "Yes" },
+                        { value: "1", title: "No" },
+                      ]
+                    : titles()
+                }
+                key="index"
+              >
                 {(c) => (
-                  <RadioItem value={c().value} label={c().title} class="h-9 flex-row items-center gap-2 rounded-md px-1 hover:bg-accent">
+                  <RadioItem
+                    value={c().value}
+                    label={c().title}
+                    class="h-9 flex-row items-center gap-2 rounded-md px-1 hover:bg-accent"
+                  >
                     <View class="size-4 items-center justify-center rounded-full border border-input group-checked:border-primary">
                       <View class="size-2 rounded-full bg-transparent group-checked:bg-primary" />
                     </View>
@@ -185,7 +218,13 @@ export function SessionQuestion(props: { machine: string; id: string; view: Sess
                   <CheckRow
                     label={c().title}
                     checked={state(index()).ticked.includes(i())}
-                    onChange={(on) => change(index(), { ticked: on ? [...state(index()).ticked, i()].sort((a, b) => a - b) : state(index()).ticked.filter((t) => t !== i()) })}
+                    onChange={(on) =>
+                      change(index(), {
+                        ticked: on
+                          ? [...state(index()).ticked, i()].sort((a, b) => a - b)
+                          : state(index()).ticked.filter((t) => t !== i()),
+                      })
+                    }
                   >
                     <Text class="text-sm text-foreground">{c().title}</Text>
                   </CheckRow>
@@ -204,7 +243,11 @@ export function SessionQuestion(props: { machine: string; id: string; view: Sess
   return (
     <If when={request()}>
       {(w) => (
-        <View role="group" accessibilityLabel="Question from the agent" class="gap-3 border-t border-border bg-background px-4 py-3">
+        <View
+          role="group"
+          accessibilityLabel="Question from the agent"
+          class="gap-3 border-t border-border bg-background px-4 py-3"
+        >
           <View class="gap-1">
             <Text role="header" class="text-sm font-medium text-foreground">
               The agent asks
@@ -226,8 +269,19 @@ export function SessionQuestion(props: { machine: string; id: string; view: Sess
             </Scroll>
           </If>
           <View class="flex-row flex-wrap items-center gap-2">
-            <Btn variant="primary" label="Accept" disabled={guarded()} loading={sending() === "accept"} onPress={() => void send("accept")} />
-            <Btn label="Decline" disabled={guarded()} loading={sending() === "decline"} onPress={() => void send("decline")} />
+            <Btn
+              variant="primary"
+              label="Accept"
+              disabled={guarded()}
+              loading={sending() === "accept"}
+              onPress={() => void send("accept")}
+            />
+            <Btn
+              label="Decline"
+              disabled={guarded()}
+              loading={sending() === "decline"}
+              onPress={() => void send("decline")}
+            />
           </View>
           <View class="min-h-4 flex-row items-center justify-between gap-3">
             <Text class="min-w-0 flex-1 text-xs text-muted-foreground">{note()}</Text>

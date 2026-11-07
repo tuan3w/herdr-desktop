@@ -1,6 +1,8 @@
-import { expect, open, test } from "nsh/test";
-import type { App } from "nsh/test";
 import { Herdr } from "herdr-desktop/native";
+import { expect, open, test } from "nsh/test";
+
+import type { App } from "nsh/test";
+
 import { scripted, sentKeys } from "./board-seam";
 
 /** Picking agents and acting on them, against `mixed.json`: working `Refactor ledger` (w1:p4) and `upgrade deps` (w1:p5), waiting `payments review` (w1:p1). */
@@ -16,7 +18,13 @@ const has = (app: App, text: string) => app.texts().includes(text);
 const inBar = "label:Selected agents >> ";
 
 /** How many agents the bar says are picked (0 while it is not shown). */
-const picked = (app: App) => Number(app.texts().find((t) => /^\d+ selected$/.test(t))?.split(" ")[0] ?? 0);
+const picked = (app: App) =>
+  Number(
+    app
+      .texts()
+      .find((t) => /^\d+ selected$/.test(t))
+      ?.split(" ")[0] ?? 0,
+  );
 
 /**
  * Picks the named agents one by one. A press made while the cards are still laid out can land on a row
@@ -52,7 +60,12 @@ test("Shift picks everything between the last box toggled and this one", async (
   await app.press("label:Select scripts");
   await app.keyboard.up("shift");
   // Refactor ledger, upgrade deps, then the idle rows down to scripts: more than the two ends.
-  const n = Number(app.texts().find((t) => /^\d+ selected$/.test(t))!.split(" ")[0]);
+  const n = Number(
+    app
+      .texts()
+      .find((t) => /^\d+ selected$/.test(t))!
+      .split(" ")[0],
+  );
   expect(n).toBeGreaterThan(2);
   expect(app.shows("label:Select upgrade deps")).toBe(true);
 });

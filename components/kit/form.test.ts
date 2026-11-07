@@ -1,15 +1,31 @@
-import { expect, test } from "nsh/test";
 import { signal } from "nsh";
+import { expect, test } from "nsh/test";
+
 import { createField, type Field, type Validator } from "./field";
 import { createForm, type FormController, type FormErrors } from "./form";
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** A field in the form, with an input that records the focus it was given. */
-function join(form: FormController, name: string, options: { required?: boolean; validate?: Validator; input?: boolean; disabled?: () => boolean; initial?: unknown } = {}) {
+function join(
+  form: FormController,
+  name: string,
+  options: {
+    required?: boolean;
+    validate?: Validator;
+    input?: boolean;
+    disabled?: () => boolean;
+    initial?: unknown;
+  } = {},
+) {
   const value = signal<unknown>(options.initial ?? "");
   const focused: string[] = [];
-  const field: Field = createField({ name: () => name, form: form.api, validate: () => options.validate, disabled: options.disabled });
+  const field: Field = createField({
+    name: () => name,
+    form: form.api,
+    validate: () => options.validate,
+    disabled: options.disabled,
+  });
   const detach = field.attach({
     value: () => value(),
     required: () => options.required,
@@ -59,7 +75,7 @@ test("a disabled field is neither validated nor submitted, and a field that left
   const off = signal(true);
   const form = createForm();
   const a = join(form, "a", { required: true, disabled: () => off() });
-  const b = join(form, "b", { initial: "keep" });
+  join(form, "b", { initial: "keep" });
   const c = join(form, "c", { required: true });
   c.detach();
   expect(form.values()).toEqual({ b: "keep" });
@@ -130,7 +146,10 @@ test("errors that arrive after a successful submit move to the first field they 
 test("an async rule does not hold a submit back, a sync one does", async () => {
   const submitted: unknown[] = [];
   const form = createForm({ onFormSubmit: (v) => submitted.push(v) });
-  join(form, "slow", { initial: "x", validate: () => new Promise((resolve) => setTimeout(() => resolve("Late."), 20)) });
+  join(form, "slow", {
+    initial: "x",
+    validate: () => new Promise((resolve) => setTimeout(() => resolve("Late."), 20)),
+  });
   expect(form.submit()).toBe(true);
   expect(submitted.length).toBe(1);
   join(form, "quick", { initial: "x", validate: () => "Now." });

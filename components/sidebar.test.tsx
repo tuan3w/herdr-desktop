@@ -1,10 +1,19 @@
 import { expect, open, test } from "nsh/test";
+
 import type { App } from "nsh/test";
+
 import { scripted } from "./board-seam";
 
 /** The sidebar beside lines that say what its buttons did (`sidebar-lab.tsx`), against the scripted herdr's `mixed` fixture: the projects `payments` (5 agents) and `web` (3). */
 const lab = (extra: { width?: number; storage?: Record<string, string> } = {}) =>
-  open("./sidebar-lab.tsx", { width: 1280, height: 800, platform: "linux", clock: {}, host: { params: { fixture: "mixed" } }, ...extra });
+  open("./sidebar-lab.tsx", {
+    width: 1280,
+    height: 800,
+    platform: "linux",
+    clock: {},
+    host: { params: { fixture: "mixed" } },
+    ...extra,
+  });
 
 const row = (name: string) => `label:/^${name}, /`;
 const PAYMENTS = "label:/^payments, This computer, 2 need you/";

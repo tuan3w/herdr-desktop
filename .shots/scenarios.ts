@@ -89,8 +89,20 @@ export const SCENARIOS: Record<string, Scenario> = {
     },
   },
   triage: { fixture: "projects", steps: (app) => pressFirst(app, "text:Answer one by one") },
-  palette: { fixture: "mixed", steps: async (app) => { await app.keyboard.press("ctrl+k"); await app.wait(400); } },
-  settings: { fixture: "mixed", steps: async (app) => { await app.keyboard.press("ctrl+,"); await app.wait(400); } },
+  palette: {
+    fixture: "mixed",
+    steps: async (app) => {
+      await app.keyboard.press("ctrl+k");
+      await app.wait(400);
+    },
+  },
+  settings: {
+    fixture: "mixed",
+    steps: async (app) => {
+      await app.keyboard.press("ctrl+,");
+      await app.wait(400);
+    },
+  },
   // Settings scrolled to the code options of Look (Wrap code, Line numbers in code, Show tabs and spaces, Diffs side by side).
   "settings-code": {
     fixture: "mixed",
@@ -101,8 +113,20 @@ export const SCENARIOS: Record<string, Scenario> = {
       await app.wait(300);
     },
   },
-  shortcuts: { fixture: "mixed", steps: async (app) => { await app.keyboard.press("F1"); await app.wait(400); } },
-  "new-agent": { fixture: "mixed", steps: async (app) => { await app.keyboard.press("ctrl+n"); await app.wait(400); } },
+  shortcuts: {
+    fixture: "mixed",
+    steps: async (app) => {
+      await app.keyboard.press("F1");
+      await app.wait(400);
+    },
+  },
+  "new-agent": {
+    fixture: "mixed",
+    steps: async (app) => {
+      await app.keyboard.press("ctrl+n");
+      await app.wait(400);
+    },
+  },
   machines: {
     fixture: "mixed",
     steps: async (app) => {
@@ -153,9 +177,21 @@ export const SCENARIOS: Record<string, Scenario> = {
   // The file screens run in their lab (`components/files-lab.tsx`): a synthetic folder the test seam copies, opened by the lab's
   // buttons. The file browser, the read-only viewer on code and on Markdown with its diagram, the photo viewer, the send dialog.
   files: { fixture: "mixed", entry: "../components/files-lab.tsx", steps: (app) => lab(app, "Browse files") },
-  "file-code": { fixture: "mixed", entry: "../components/files-lab.tsx", steps: (app) => lab(app, "View main.rs at line 12") },
-  "file-diagram": { fixture: "mixed", entry: "../components/files-lab.tsx", steps: (app) => lab(app, "View the design notes") },
-  "file-markdown": { fixture: "mixed", entry: "../components/files-lab.tsx", steps: (app) => lab(app, "View the readme") },
+  "file-code": {
+    fixture: "mixed",
+    entry: "../components/files-lab.tsx",
+    steps: (app) => lab(app, "View main.rs at line 12"),
+  },
+  "file-diagram": {
+    fixture: "mixed",
+    entry: "../components/files-lab.tsx",
+    steps: (app) => lab(app, "View the design notes"),
+  },
+  "file-markdown": {
+    fixture: "mixed",
+    entry: "../components/files-lab.tsx",
+    steps: (app) => lab(app, "View the readme"),
+  },
   photo: {
     fixture: "mixed",
     entry: "../components/files-lab.tsx",
@@ -168,11 +204,20 @@ export const SCENARIOS: Record<string, Scenario> = {
       await app.wait(1000);
     },
   },
-  "send-files": { fixture: "mixed", entry: "../components/files-lab.tsx", steps: (app) => lab(app, "Send data.bin to docs") },
+  "send-files": {
+    fixture: "mixed",
+    entry: "../components/files-lab.tsx",
+    steps: (app) => lab(app, "Send data.bin to docs"),
+  },
   // The chat's parts run in their lab (`components/chat-parts-lab.tsx`). The permission dock on a risky deploy script with
   // its edits and plan, armed after the first press; the form of a question; the New session dialog before and after a
   // failed start; Past sessions; the session's details.
-  permission: { fixture: "empty", entry: "../components/chat-parts-lab.tsx", params: { part: "synthetic", variant: "full", quiet: true }, steps: (app) => app.wait(900) },
+  permission: {
+    fixture: "empty",
+    entry: "../components/chat-parts-lab.tsx",
+    params: { part: "synthetic", variant: "full", quiet: true },
+    steps: (app) => app.wait(900),
+  },
   "permission-armed": {
     fixture: "empty",
     entry: "../components/chat-parts-lab.tsx",
@@ -183,8 +228,18 @@ export const SCENARIOS: Record<string, Scenario> = {
       await app.wait(300);
     },
   },
-  question: { fixture: "empty", entry: "../components/chat-parts-lab.tsx", params: { part: "synthetic", variant: "question", quiet: true }, steps: (app) => app.wait(900) },
-  "new-session": { fixture: "empty", entry: "../components/chat-parts-lab.tsx", params: { part: "new-session" }, steps: (app) => app.wait(1500) },
+  question: {
+    fixture: "empty",
+    entry: "../components/chat-parts-lab.tsx",
+    params: { part: "synthetic", variant: "question", quiet: true },
+    steps: (app) => app.wait(900),
+  },
+  "new-session": {
+    fixture: "empty",
+    entry: "../components/chat-parts-lab.tsx",
+    params: { part: "new-session" },
+    steps: (app) => app.wait(1500),
+  },
   "new-session-error": {
     fixture: "empty",
     entry: "../components/chat-parts-lab.tsx",
@@ -196,7 +251,12 @@ export const SCENARIOS: Record<string, Scenario> = {
       await app.wait(1500);
     },
   },
-  "past-sessions": { fixture: "empty", entry: "../components/chat-parts-lab.tsx", params: { part: "past", agent: "omp" }, steps: (app) => app.wait(1500) },
+  "past-sessions": {
+    fixture: "empty",
+    entry: "../components/chat-parts-lab.tsx",
+    params: { part: "past", agent: "omp" },
+    steps: (app) => app.wait(1500),
+  },
   "session-overview": {
     fixture: "empty",
     entry: "../components/chat-parts-lab.tsx",
@@ -215,7 +275,12 @@ export const SCENARIOS: Record<string, Scenario> = {
   },
   // The chat tab runs in its lab (`components/session-lab.tsx`, scripted scenes): a finished turn with its answer, a running turn
   // with calls open (a diff, a failed command, a subagent), the plan and the queue with the command list open, and a long chat.
-  chat: { fixture: "empty", entry: "../components/session-lab.tsx", params: { mode: "scripted", scene: "chat", quiet: true }, steps: (app) => app.wait(900) },
+  chat: {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "chat", quiet: true },
+    steps: (app) => app.wait(900),
+  },
   "chat-tools": {
     fixture: "empty",
     entry: "../components/session-lab.tsx",
@@ -243,7 +308,12 @@ export const SCENARIOS: Record<string, Scenario> = {
   },
   // An answer with code of every kind the chat meets: TypeScript, Rust, Python, shell, JSON, a diff, a long line, a block of 300
   // lines (folded), a fence with no language, one inside a list item, inline code. Scrolled so that each part is on screen.
-  "chat-code": { fixture: "empty", entry: "../components/session-lab.tsx", params: { mode: "scripted", scene: "code", quiet: true }, steps: (app) => app.wait(1200) },
+  "chat-code": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "code", quiet: true },
+    steps: (app) => app.wait(1200),
+  },
   // The same answer scrolled up a page at a time: `chat-code-1` is the top, the next two follow it down.
   ...Object.fromEntries(
     [1, 2, 3].map((n): [string, Scenario] => [
@@ -301,7 +371,12 @@ export const SCENARIOS: Record<string, Scenario> = {
       },
     ]),
   ),
-  "chat-long": { fixture: "empty", entry: "../components/session-lab.tsx", params: { mode: "scripted", scene: "long", quiet: true }, steps: (app) => app.wait(1200) },
+  "chat-long": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "long", quiet: true },
+    steps: (app) => app.wait(1200),
+  },
   // An agent that refuses the session until a sign-in: the card in place of the conversation, with a refusal under the buttons.
   "chat-signin": {
     fixture: "empty",

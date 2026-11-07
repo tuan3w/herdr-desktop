@@ -1,12 +1,29 @@
+import { Herdr, Files as MachineFiles } from "herdr-desktop/native";
 import { announce, computed, effect, type Signal, signal, Text, untracked, View } from "nsh";
 import { Command, type CommandItem } from "nsh/base";
-import { Herdr, Files as MachineFiles } from "herdr-desktop/native";
+
 import type { EntryView, FileData, FolderView } from "herdr-desktop/native";
-import { arrange, browsing, type Browse, type Crumb, crumbs, entryLabel, fileSort, isImageName, joinPath, parentOf, showHidden, sizeText, type SortKey, modifiedText } from "#lib/files";
-import { fold } from "#lib/text";
-import { ActionMenu, Btn, Empty, Field, Icon, IconButton, type IconName, Modal, notify, Skeleton } from "#kit";
+
 import { FileViewer } from "#components/file-viewer";
 import { type Photo, PhotoViewer } from "#components/photo-viewer";
+import { ActionMenu, Btn, Empty, Field, Icon, IconButton, type IconName, Modal, notify, Skeleton } from "#kit";
+import {
+  arrange,
+  browsing,
+  type Browse,
+  type Crumb,
+  crumbs,
+  entryLabel,
+  fileSort,
+  isImageName,
+  joinPath,
+  parentOf,
+  showHidden,
+  sizeText,
+  type SortKey,
+  modifiedText,
+} from "#lib/files";
+import { fold } from "#lib/text";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
@@ -19,11 +36,17 @@ function EntryRow(props: { entry: () => EntryView | undefined; now: () => number
     <If when={entry()}>
       {(e) => (
         <View class={`w-full flex-row items-center gap-3 ${e().readable ? "" : "opacity-60"}`}>
-          <Icon name={e().kind === "file" && isImageName(e().name) ? "image" : ICON[e().kind]} size={16} tone="muted-foreground" />
+          <Icon
+            name={e().kind === "file" && isImageName(e().name) ? "image" : ICON[e().kind]}
+            size={16}
+            tone="muted-foreground"
+          />
           <Text class="min-w-0 flex-1 text-sm text-foreground" style={{ numberOfLines: 1 }}>
             {e().name}
           </Text>
-          <Text class="w-20 text-right text-xs text-muted-foreground">{e().kind === "file" ? sizeText(e().size) : e().readable ? "" : "No permission"}</Text>
+          <Text class="w-20 text-right text-xs text-muted-foreground">
+            {e().kind === "file" ? sizeText(e().size) : e().readable ? "" : "No permission"}
+          </Text>
           <Text class="w-24 text-right text-xs text-muted-foreground">{modifiedText(e().modified, props.now())}</Text>
         </View>
       )}
@@ -63,7 +86,7 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null> }
       typed.set(next.path);
       query.set("");
       readAt.set(Math.floor(Date.now() / 1000));
-      announce(`${next.path.split("/").filter(Boolean).pop() ?? "Root"} folder, ${next.entries.length} items`);
+      announce(`${next.path.replace(/\/+$/, "").split("/").pop() || "Root"} folder, ${next.entries.length} items`);
     } catch (e) {
       if (mine !== latest) return;
       failure.set(reason(e));
@@ -93,9 +116,17 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null> }
         // The pictures of this folder in the order they are listed, so Left and Right walk the folder.
         const pictures: Photo[] = shown()
           .filter((e) => e.kind === "file" && isImageName(e.name))
-          .map((e) => ({ machine: machine(), path: joinPath(here(), e.name), name: e.name, local: info()?.local ?? false }));
+          .map((e) => ({
+            machine: machine(),
+            path: joinPath(here(), e.name),
+            name: e.name,
+            local: info()?.local ?? false,
+          }));
         const at = pictures.findIndex((p) => p.path === path);
-        photos.set({ items: at >= 0 ? pictures : [{ machine: machine(), path, name, local: info()?.local ?? false }], at: Math.max(0, at) });
+        photos.set({
+          items: at >= 0 ? pictures : [{ machine: machine(), path, name, local: info()?.local ?? false }],
+          at: Math.max(0, at),
+        });
         return;
       }
       const data = await MachineFiles.open(machine(), path);
@@ -144,20 +175,40 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null> }
       closeOnClick: true,
     },
     "separator" as const,
-    { type: "checkbox" as const, label: "Show hidden files", checked: showHidden(), onCheckedChange: (on: boolean) => showHidden.set(on) },
+    {
+      type: "checkbox" as const,
+      label: "Show hidden files",
+      checked: showHidden(),
+      onCheckedChange: (on: boolean) => showHidden.set(on),
+    },
   ];
 
   const status = () => {
     const l = listing();
     if (!l) return "";
     const hidden = l.entries.length - shown().length;
-    return [`${shown().length} ${shown().length === 1 ? "item" : "items"}`, hidden > 0 ? `${hidden} hidden` : "", l.truncated ? "Only the first 5000 entries are listed" : "", l.skipped > 0 ? `${l.skipped} names are not text and are not listed` : ""].filter(Boolean).join(" · ");
+    return [
+      `${shown().length} ${shown().length === 1 ? "item" : "items"}`,
+      hidden > 0 ? `${hidden} hidden` : "",
+      l.truncated ? "Only the first 5000 entries are listed" : "",
+      l.skipped > 0 ? `${l.skipped} names are not text and are not listed` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
   };
 
   return (
     <>
       <If when={file()} else={<FolderPanel />}>
-        {(data) => <FileViewer machine={machine()} machineName={machineName()} data={data()} line={props.request().line} onBack={() => file.set(null)} />}
+        {(data) => (
+          <FileViewer
+            machine={machine()}
+            machineName={machineName()}
+            data={data()}
+            line={props.request().line}
+            onBack={() => file.set(null)}
+          />
+        )}
       </If>
       <PhotoViewer
         photos={photos()?.items ?? null}
@@ -177,7 +228,14 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null> }
             <IconButton icon="arrow-up" label="Up one folder" onPress={() => void go(parentOf(here()) ?? here())} />
           </View>
           <View class="min-w-0 flex-1">
-            <Field mono label="Folder" value={typed()} onChange={(v) => typed.set(v)} onSubmit={() => void go(typed().trim())} reserve={false} />
+            <Field
+              mono
+              label="Folder"
+              value={typed()}
+              onChange={(v) => typed.set(v)}
+              onSubmit={() => void go(typed().trim())}
+              reserve={false}
+            />
           </View>
           <View class="pt-6">
             <ActionMenu label="Folder options" entries={options()} />
@@ -185,7 +243,15 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null> }
         </View>
         <View class="flex-row flex-wrap items-center gap-1" role="navigation" accessibilityLabel="Folder path">
           <Each of={crumbs(here())} key={(c: Crumb) => c.path}>
-            {(c) => <Btn small variant="ghost" label={c().name} name={`Go to ${c().path}`} onPress={() => void go(c().path)} />}
+            {(c) => (
+              <Btn
+                small
+                variant="ghost"
+                label={c().name}
+                name={`Go to ${c().path}`}
+                onPress={() => void go(c().path)}
+              />
+            )}
           </Each>
         </View>
         <If when={failure()}>
@@ -225,12 +291,14 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null> }
             onQueryChange={({ query: q }) => query.set(q)}
             onSelect={({ id }) => choose(id)}
             onCancel={() => browsing.set(null)}
-            empty={<Text class="px-3 py-4 text-sm text-muted-foreground">{query().trim() ? "No file matches" : "This folder is empty"}</Text>}
+            empty={
+              <Text class="px-3 py-4 text-sm text-muted-foreground">
+                {query().trim() ? "No file matches" : "This folder is empty"}
+              </Text>
+            }
           />
         </If>
-        <Text class="text-xs text-muted-foreground">
-          {status()}
-        </Text>
+        <Text class="text-xs text-muted-foreground">{status()}</Text>
       </View>
     );
   }
@@ -251,7 +319,13 @@ export function Files() {
     browsing.set(null);
   };
   return (
-    <Modal open={browsing() !== null} huge onClose={() => (file() ? file.set(null) : close())} title="Files" actions={<Btn label="Close" hint="Esc" onPress={close} />}>
+    <Modal
+      open={browsing() !== null}
+      huge
+      onClose={() => (file() ? file.set(null) : close())}
+      title="Files"
+      actions={<Btn label="Close" hint="Esc" onPress={close} />}
+    >
       <If when={browsing()}>{(request) => <Browser request={request} file={file} />}</If>
     </Modal>
   );

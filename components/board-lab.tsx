@@ -1,10 +1,11 @@
 import { host, mount, signal, Text, View } from "nsh";
-import { newSessionProject } from "#lib/actions";
-import { startHerdr } from "#lib/herdr";
-import { loadSidebar } from "#lib/sidebar";
+
 import { Board } from "#components/board";
 import { BulkBar } from "#components/bulk-bar";
 import { ThemeRoot, ToastHost } from "#kit";
+import { newSessionProject } from "#lib/actions";
+import { startHerdr } from "#lib/herdr";
+import { loadSidebar } from "#lib/sidebar";
 
 /**
  * The entry of `board.test.tsx`, `triage.test.tsx` and `bulk.test.tsx`: the board and the bulk bar against a scripted
@@ -24,7 +25,9 @@ function Lab() {
         <Text class="px-4 text-xs text-muted-foreground">{machine()}</Text>
         <Text class="px-4 text-xs text-muted-foreground">{`new session in ${newSessionProject()?.folder ?? "nowhere"}`}</Text>
         <Board
-          onOpen={(row, options) => opened.set(`opened ${row.machine}/${row.paneId}${options?.reply ? " to reply" : ""}`)}
+          onOpen={(row, options) =>
+            opened.set(`opened ${row.machine}/${row.paneId}${options?.reply ? " to reply" : ""}`)
+          }
           onAddMachine={() => machine.set("add machine asked")}
         />
         <BulkBar />

@@ -1,4 +1,5 @@
 import { Text, View } from "nsh";
+
 import { Icon, type IconName } from "./icon";
 import { RadioGroup, RadioItem } from "./radio-group";
 
@@ -14,9 +15,20 @@ export interface SegmentOption<T extends string> {
  * option a radio. `iconOnly` drops the text (every option needs an `icon`; the label stays as its accessible name): for a
  * toolbar toggle between two views (list / table), where the icons are universal.
  */
-export function Segmented<T extends string>(props: { value: T; onChange: (value: T) => void; options: SegmentOption<T>[]; iconOnly?: boolean; label?: string }) {
+export function Segmented<T extends string>(props: {
+  value: T;
+  onChange: (value: T) => void;
+  options: SegmentOption<T>[];
+  iconOnly?: boolean;
+  label?: string;
+}) {
   return (
-    <RadioGroup value={props.value} onChange={props.onChange} label={props.label} class="flex-row gap-1 self-start rounded-lg bg-muted p-1">
+    <RadioGroup
+      value={props.value}
+      onChange={props.onChange}
+      label={props.label}
+      class="flex-row gap-1 self-start rounded-lg bg-muted p-1"
+    >
       <Each of={props.options} key={(o: SegmentOption<T>) => o.value}>
         {(o) => (
           <RadioItem

@@ -1,5 +1,19 @@
 import { mount, Scroll, signal, Text, View } from "nsh";
-import { FOCUS_RING, Modal, Popover, PopoverClose, PopoverDescription, PopoverTitle, PopupRoot, PreviewCard, ThemeRoot, Tipped, usePopover, useTriggerFocus } from "#kit";
+
+import {
+  FOCUS_RING,
+  Modal,
+  Popover,
+  PopoverClose,
+  PopoverDescription,
+  PopoverTitle,
+  PopupRoot,
+  PreviewCard,
+  ThemeRoot,
+  Tipped,
+  usePopover,
+  useTriggerFocus,
+} from "#kit";
 
 /** Test entry only: every tooltip, popover and preview-card feature on one page, so `popups.test.tsx` can drive them. */
 const last = signal("");
@@ -41,7 +55,15 @@ function Columns() {
     <Popover
       onOpenChange={(open, change) => last.set(`${open ? "open" : "close"}: ${change.reason}`)}
       trigger={(t) => (
-        <View role="button" accessibilityLabel="Choose columns" accessibilityState={{ expanded: t.expanded() }} onPress={t.onPress} onFocus={t.onFocus} onBlur={t.onBlur} class={BUTTON}>
+        <View
+          role="button"
+          accessibilityLabel="Choose columns"
+          accessibilityState={{ expanded: t.expanded() }}
+          onPress={t.onPress}
+          onFocus={t.onFocus}
+          onBlur={t.onBlur}
+          class={BUTTON}
+        >
           <Text class="text-sm text-foreground">Columns</Text>
         </View>
       )}
@@ -54,7 +76,14 @@ function Columns() {
       <Apply />
       <Popover
         trigger={(t) => (
-          <View role="button" accessibilityLabel="Add column" onPress={t.onPress} onFocus={t.onFocus} onBlur={t.onBlur} class="h-8 justify-center">
+          <View
+            role="button"
+            accessibilityLabel="Add column"
+            onPress={t.onPress}
+            onFocus={t.onFocus}
+            onBlur={t.onBlur}
+            class="h-8 justify-center"
+          >
             <Text class="text-sm">Add</Text>
           </View>
         )}
@@ -87,17 +116,32 @@ function Lab() {
             openOnHover
             delay={100}
             trigger={(t) => (
-              <View role="button" accessibilityLabel="Hover" onPress={t.onPress} onFocus={t.onFocus} onBlur={t.onBlur} class={BUTTON}>
+              <View
+                role="button"
+                accessibilityLabel="Hover"
+                onPress={t.onPress}
+                onFocus={t.onFocus}
+                onBlur={t.onBlur}
+                class={BUTTON}
+              >
                 <Text class="text-sm">Hover</Text>
               </View>
             )}
           >
             <Text class="text-sm">Hover content</Text>
           </Popover>
-          <PreviewCard label="Session preview" card={() => <Text class="text-sm">Session SES-2410-001 · claude on laptop</Text>}>
+          <PreviewCard
+            label="Session preview"
+            card={() => <Text class="text-sm">Session SES-2410-001 · claude on laptop</Text>}
+          >
             <Text class="font-mono text-sm">SES-2410-001</Text>
           </PreviewCard>
-          <View role="button" accessibilityLabel="Open dialog" onPress={() => dialog.set(true)} class="h-8 justify-center">
+          <View
+            role="button"
+            accessibilityLabel="Open dialog"
+            onPress={() => dialog.set(true)}
+            class="h-8 justify-center"
+          >
             <Text class="text-sm">Open dialog</Text>
           </View>
         </View>
@@ -105,7 +149,14 @@ function Lab() {
           <Popover
             onOpenChange={(open, change) => last.set(`${open ? "open" : "close"} in list: ${change.reason}`)}
             trigger={(t) => (
-              <View role="button" accessibilityLabel="Open in list" onPress={t.onPress} onFocus={t.onFocus} onBlur={t.onBlur} class={BUTTON}>
+              <View
+                role="button"
+                accessibilityLabel="Open in list"
+                onPress={t.onPress}
+                onFocus={t.onFocus}
+                onBlur={t.onBlur}
+                class={BUTTON}
+              >
                 <Text class="text-sm">Open in list</Text>
               </View>
             )}

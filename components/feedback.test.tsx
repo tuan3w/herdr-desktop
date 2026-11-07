@@ -1,9 +1,11 @@
 import { expect, open, test } from "nsh/test";
+
 import type { App } from "nsh/test";
 
 const DESKTOP = { width: 1280, height: 800, clock: {} };
 
-const lab = (extra: { reducedMotion?: boolean; platform?: "macos" } = {}) => open("./feedback-lab.tsx", { ...DESKTOP, ...extra });
+const lab = (extra: { reducedMotion?: boolean; platform?: "macos" } = {}) =>
+  open("./feedback-lab.tsx", { ...DESKTOP, ...extra });
 const has = (app: App, text: string) => app.texts().includes(text);
 
 /** Moves the test clock a second at a time until `text` is on screen: a step itself takes a little virtual time. */

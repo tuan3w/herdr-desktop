@@ -1,5 +1,7 @@
 import { expect, test } from "nsh/test";
+
 import { fold } from "#lib/text";
+
 import { TRANSIT_MS } from "./hover";
 import {
   alignSelected,
@@ -153,7 +155,14 @@ test("a list opens over its trigger: the selected row sits on the trigger's cent
 });
 
 test("with little room below the trigger the list is made shorter instead of moved", () => {
-  const short = alignSelected({ target: 424, rowCenter: 16, rowHeight: 32, content: 2560, max: 384, area: { top: 13, bottom: 786 } });
+  const short = alignSelected({
+    target: 424,
+    rowCenter: 16,
+    rowHeight: 32,
+    content: 2560,
+    max: 384,
+    area: { top: 13, bottom: 786 },
+  });
   expect(short).toEqual({ top: 408, height: 378, scroll: 0 });
 });
 
@@ -164,8 +173,12 @@ test("a row near the top of the area scrolls the content instead of leaving the 
 });
 
 test("a trigger too near an edge for its row to stay in view gives no alignment", () => {
-  expect(alignSelected({ target: 780, rowCenter: 16, rowHeight: 32, content: 3200, max: 380, area: AREA })).toBe(undefined);
-  expect(alignSelected({ target: 14, rowCenter: 5000, rowHeight: 32, content: 8000, max: 380, area: AREA })).toBe(undefined);
+  expect(alignSelected({ target: 780, rowCenter: 16, rowHeight: 32, content: 3200, max: 380, area: AREA })).toBe(
+    undefined,
+  );
+  expect(alignSelected({ target: 14, rowCenter: 5000, rowHeight: 32, content: 8000, max: 380, area: AREA })).toBe(
+    undefined,
+  );
 });
 
 test("the pointer is in transit while it is inside the triangle to a submenu, and not once it strays", () => {
@@ -206,7 +219,7 @@ function clock() {
     schedule,
     tick(ms: number) {
       now += ms;
-      for (const [id, t] of [...pending]) {
+      for (const [id, t] of pending) {
         if (t.at <= now) {
           pending.delete(id);
           t.run();

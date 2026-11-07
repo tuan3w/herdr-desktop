@@ -1,10 +1,12 @@
 import { cleanup, effect, keymap, signal, Text, untracked, View } from "nsh";
 import { Input } from "nsh/base";
+
 import type { PressEvent, ViewRef } from "nsh/types";
+
 import { hoverTransition } from "#lib/motion";
+
 import { NUM } from "./core";
 import { useFieldControl } from "./field";
-import type { FieldRules } from "./field-parts";
 import { INPUT_CLASS, INPUT_ERROR, Labeled } from "./fields";
 import {
   canBeNumber,
@@ -16,6 +18,8 @@ import {
   type StepSize,
   stepBy,
 } from "./number";
+
+import type { FieldRules } from "./field-parts";
 
 export interface NumberFieldProps extends FieldRules {
   label: string;
@@ -118,8 +122,10 @@ function NumberControl(props: { p: NumberFieldProps; value: () => number | null;
     violations: (v) => {
       const out: { key: "badInput" | "rangeUnderflow" | "rangeOverflow"; message: string }[] = [];
       if (badText()) out.push({ key: "badInput", message: "Enter a number, for example 1,234.5." });
-      if (typeof v === "number" && p.min !== undefined && v < p.min) out.push({ key: "rangeUnderflow", message: `Enter ${formatNumber(p.min, p.format)} or more.` });
-      if (typeof v === "number" && p.max !== undefined && v > p.max) out.push({ key: "rangeOverflow", message: `Enter ${formatNumber(p.max, p.format)} or less.` });
+      if (typeof v === "number" && p.min !== undefined && v < p.min)
+        out.push({ key: "rangeUnderflow", message: `Enter ${formatNumber(p.min, p.format)} or more.` });
+      if (typeof v === "number" && p.max !== undefined && v > p.max)
+        out.push({ key: "rangeOverflow", message: `Enter ${formatNumber(p.max, p.format)} or less.` });
       return out;
     },
     focus: () => input?.focus(),
@@ -145,13 +151,19 @@ function NumberControl(props: { p: NumberFieldProps; value: () => number | null;
     return next;
   };
 
-  const amountOf = (size: StepSize) => (size === "large" ? (p.largeStep ?? 10) : size === "small" ? (p.smallStep ?? 0.1) : (p.step ?? 1));
+  const amountOf = (size: StepSize) =>
+    size === "large" ? (p.largeStep ?? 10) : size === "small" ? (p.smallStep ?? 0.1) : (p.step ?? 1);
   /** One step from what the field holds (a text still being typed counts first). Whether it changed anything. */
   const stepNow = (dir: 1 | -1, size: StepSize): boolean => {
     if (unavailable()) return false;
     const from = commitDraft();
     draft.set(undefined);
-    const next = stepBy(from, dir, amountOf(size), { min: p.min, max: p.max, snap: !!p.snapOnStep, nearest: size === "small" });
+    const next = stepBy(from, dir, amountOf(size), {
+      min: p.min,
+      max: p.max,
+      snap: !!p.snapOnStep,
+      nearest: size === "small",
+    });
     if (Object.is(next, from)) return false;
     set(next);
     return true;
@@ -255,7 +267,12 @@ function NumberControl(props: { p: NumberFieldProps; value: () => number | null;
         role="spinbutton"
         accessibilityLabel={control.label() ?? (p.label || p.placeholder)}
         accessibilityHint={control.hint()}
-        accessibilityValue={{ min: p.min, max: p.max, now: now(), text: formatNumber(props.value(), p.format) || undefined }}
+        accessibilityValue={{
+          min: p.min,
+          max: p.max,
+          now: now(),
+          text: formatNumber(props.value(), p.format) || undefined,
+        }}
         accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
         onAccessibilityAction={(e) => {
           if (stepNow(e.actionName === "increment" ? 1 : -1, "step")) notifyCommit();

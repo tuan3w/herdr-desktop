@@ -1,6 +1,8 @@
-import { expect, open, test } from "nsh/test";
-import type { App } from "nsh/test";
 import { Herdr } from "herdr-desktop/native";
+import { expect, open, test } from "nsh/test";
+
+import type { App } from "nsh/test";
+
 import { scripted, sentKeys } from "./board-seam";
 
 /**
@@ -27,7 +29,11 @@ test("every agent is under its project, not under its state, and the status line
   expect(app.texts().slice(0, 8)).toContain("2 need you");
   expect(app.texts().filter((t) => t === "Needs you")).toHaveLength(1);
   // The cards, in the board's order: by name.
-  for (const label of ["notes, This computer", "payments-api, This computer, 1 needs you, 1 working, 1 to review", "web, This computer, 1 needs you, 1 working"]) {
+  for (const label of [
+    "notes, This computer",
+    "payments-api, This computer, 1 needs you, 1 working, 1 to review",
+    "web, This computer, 1 needs you, 1 working",
+  ]) {
     expect(app.shows(`label:${label}`)).toBe(true);
   }
   // Both workspaces of the web repository are one card; the worktree of payments-api is a chip of its card.
@@ -156,7 +162,8 @@ test("twenty blocked agents across five projects: the inbox answers one, the res
   expect(app.texts().some((t) => t.startsWith("19 more waiting · ") && t.includes("docs 4"))).toBe(true);
   expect(app.count("label:/^Answer: /")).toBe(20);
   expect(has(app, "Answer one by one")).toBe(true);
-  for (const name of ["docs", "infra", "payments-api", "tools", "web"]) expect(app.shows(`label:/^${name}, This computer, 4 need you/`)).toBe(true);
+  for (const name of ["docs", "infra", "payments-api", "tools", "web"])
+    expect(app.shows(`label:/^${name}, This computer, 4 need you/`)).toBe(true);
 });
 
 test("a changed state moves the agent's chip with the status line, never leaving it counted twice", async () => {

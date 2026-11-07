@@ -14,7 +14,20 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 
 const root = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const check = process.argv.includes("--check");
-const TOP_SKIP = new Set(["node_modules", "target", ".nsh", ".git", ".scratch", "native", "fixtures", "fonts", "assets", "docs", "design", "scripts"]);
+const TOP_SKIP = new Set([
+  "node_modules",
+  "target",
+  ".nsh",
+  ".git",
+  ".scratch",
+  "native",
+  "fixtures",
+  "fonts",
+  "assets",
+  "docs",
+  "design",
+  "scripts",
+]);
 const CODE = /\.(ts|tsx)$/;
 const SPEC = /(\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)(["'])(\.{1,2}\/[^"']*|\.{1,2})\2/g;
 
@@ -42,7 +55,8 @@ function aliasOf(file) {
   const rel = relative(root, file).split(sep).join("/");
   if (rel === "components/kit/index.ts") return "#kit";
   if (rel.startsWith("lib/") && rel.endsWith(".ts")) return `#${rel.slice(0, -3)}`;
-  if (rel.startsWith("components/") && !rel.startsWith("components/kit/") && rel.endsWith(".tsx")) return `#${rel.slice(0, -4)}`;
+  if (rel.startsWith("components/") && !rel.startsWith("components/kit/") && rel.endsWith(".tsx"))
+    return `#${rel.slice(0, -4)}`;
   return null;
 }
 
@@ -65,7 +79,9 @@ for (const file of walk(root)) {
 }
 if (check) {
   if (pending.length) {
-    console.error(`${pending.length} file(s) have relative project imports (run node scripts/absolute-imports.mjs):\n  ${pending.join("\n  ")}`);
+    console.error(
+      `${pending.length} file(s) have relative project imports (run node scripts/absolute-imports.mjs):\n  ${pending.join("\n  ")}`,
+    );
     process.exit(1);
   }
   console.log("imports ok");

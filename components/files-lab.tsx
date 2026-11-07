@@ -1,14 +1,15 @@
-import { host, keymap, mount, signal, Text, View } from "nsh";
 import { Files as MachineFiles } from "herdr-desktop/native";
+import { host, keymap, mount, signal, Text, View } from "nsh";
+
+import { Files } from "#components/files";
+import { openLink } from "#components/links-dialog";
+import { SendFiles } from "#components/send-files";
+import { WebPage } from "#components/web-page";
+import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
 import { browseFiles, pageRequest, sending, viewFile } from "#lib/files";
 import { startHerdr } from "#lib/herdr";
 import { searchInPane } from "#lib/pane-input";
 import { GLOBAL, keysOf } from "#lib/shortcuts";
-import { Files } from "#components/files";
-import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
-import { openLink } from "#components/links-dialog";
-import { SendFiles } from "#components/send-files";
-import { WebPage } from "#components/web-page";
 
 /**
  * The entry of the file tests and of the files screenshots: the scripted herdr, a synthetic folder the test seam copied
@@ -32,10 +33,26 @@ function Lab() {
           <Btn label="View the readme" onPress={() => viewFile("local", `${tree}/README.md`)} />
           <Btn label="View the design notes" onPress={() => viewFile("local", `${tree}/docs/design.md`)} />
           <Btn label="View main.rs at line 12" onPress={() => viewFile("local", `${tree}/src/main.rs`, 12)} />
-          <Btn label="Open link src/ledger.py" onPress={() => void openLink("path", "src/ledger.py", 3, null, { machine: "local", cwd: `${tree}/docs` })} />
-          <Btn label="Open link missing.rs" onPress={() => void openLink("path", "missing.rs", null, null, { machine: "local", cwd: `${tree}/docs` }).then(() => said.set("link done"))} />
-          <Btn label="Send data.bin to docs" onPress={() => sending.set({ machine: "local", folder: `${tree}/docs`, paths: [`${tree}/data.bin`] })} />
-          <Btn label="Open a page of this computer" onPress={() => pageRequest.set({ machine: "local", url: "http://localhost:5173/" })} />
+          <Btn
+            label="Open link src/ledger.py"
+            onPress={() => void openLink("path", "src/ledger.py", 3, null, { machine: "local", cwd: `${tree}/docs` })}
+          />
+          <Btn
+            label="Open link missing.rs"
+            onPress={() =>
+              void openLink("path", "missing.rs", null, null, { machine: "local", cwd: `${tree}/docs` }).then(() =>
+                said.set("link done"),
+              )
+            }
+          />
+          <Btn
+            label="Send data.bin to docs"
+            onPress={() => sending.set({ machine: "local", folder: `${tree}/docs`, paths: [`${tree}/data.bin`] })}
+          />
+          <Btn
+            label="Open a page of this computer"
+            onPress={() => pageRequest.set({ machine: "local", url: "http://localhost:5173/" })}
+          />
           <Text>{said()}</Text>
         </View>
         <Files />

@@ -1,9 +1,11 @@
-import { announce, computed, effect, Scroll, signal, Text, untracked, View } from "nsh";
 import { Herdr, Sessions } from "herdr-desktop/native";
+import { announce, computed, effect, Scroll, signal, Text, untracked, View } from "nsh";
+
 import type { AgentRoute, PastSessionsView, PastSessionView } from "herdr-desktop/native";
+
+import { Btn, CheckRow, Clipped, Empty, Icon, Modal, SelectField, Skeleton } from "#kit";
 import { modifiedText } from "#lib/files";
 import { agentLabel, epochSeconds, startFailure } from "#lib/new-session";
-import { Btn, CheckRow, Clipped, Empty, Icon, Modal, SelectField, Skeleton } from "#kit";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 /** The tallest the list grows before it scrolls inside the dialog, in points. */
@@ -17,7 +19,14 @@ const LIST_HEIGHT = 360;
  * empty list that looks like "nothing happened yet". Listing runs the agent briefly and can take seconds: the list is
  * busy meanwhile, and a failure keeps its reason and a `Try again`.
  */
-export function PastSessions(props: { open: boolean; onClose: () => void; machine: string; agent?: string; cwd?: string; onResumed: (machine: string, id: string) => void }) {
+export function PastSessions(props: {
+  open: boolean;
+  onClose: () => void;
+  machine: string;
+  agent?: string;
+  cwd?: string;
+  onResumed: (machine: string, id: string) => void;
+}) {
   const routes = signal<AgentRoute[]>([]);
   const picked = signal("");
   const everywhere = signal(false);
@@ -100,7 +109,10 @@ export function PastSessions(props: { open: boolean; onClose: () => void; machin
 
   const title = (s: PastSessionView) => s.title?.trim() || "Untitled session";
   const age = (s: PastSessionView) => modifiedText(epochSeconds(s.updatedAt), Math.floor(Date.now() / 1000));
-  const count = (s: PastSessionView) => (s.messageCount === null || s.messageCount === undefined ? "" : `${s.messageCount} ${s.messageCount === 1 ? "message" : "messages"}`);
+  const count = (s: PastSessionView) =>
+    s.messageCount === null || s.messageCount === undefined
+      ? ""
+      : `${s.messageCount} ${s.messageCount === 1 ? "message" : "messages"}`;
 
   return (
     <Modal
@@ -114,7 +126,12 @@ export function PastSessions(props: { open: boolean; onClose: () => void; machin
       <View class="gap-3">
         <View class="flex-row flex-wrap items-center gap-3">
           <If when={!props.agent}>
-            <SelectField label="Agent" items={routes().map((r) => ({ value: r.id, title: r.label }))} value={picked()} onChange={(id) => picked.set(id)} />
+            <SelectField
+              label="Agent"
+              items={routes().map((r) => ({ value: r.id, title: r.label }))}
+              value={picked()}
+              onChange={(id) => picked.set(id)}
+            />
           </If>
           <If when={props.cwd}>
             <CheckRow label="All folders" checked={everywhere()} onChange={(on) => everywhere.set(on)}>
@@ -142,22 +159,40 @@ export function PastSessions(props: { open: boolean; onClose: () => void; machin
           {(past) => (
             <>
               <If when={!past().canList}>
-                <Empty title="This agent cannot list its past sessions" hint={`${agentLabel(past().agent)} keeps no list the app can read.`} />
+                <Empty
+                  title="This agent cannot list its past sessions"
+                  hint={`${agentLabel(past().agent)} keeps no list the app can read.`}
+                />
               </If>
               <If when={past().canList && past().sessions.length === 0}>
-                <Empty title="No past sessions" hint={folder() ? "Nothing was kept for this folder. Try All folders." : "Nothing was kept on this machine yet."} />
+                <Empty
+                  title="No past sessions"
+                  hint={
+                    folder()
+                      ? "Nothing was kept for this folder. Try All folders."
+                      : "Nothing was kept on this machine yet."
+                  }
+                />
               </If>
               <If when={past().sessions.length > 0}>
                 <Scroll style={{ maxHeight: LIST_HEIGHT }}>
                   <View role="group" accessibilityLabel="Past sessions" class="gap-1">
                     <Each of={past().sessions} key={(s: PastSessionView) => s.sessionId}>
                       {(s) => (
-                        <View role="group" accessibilityLabel={[title(s()), agentLabel(past().agent), s().cwd, age(s()), count(s())].filter(Boolean).join(", ")} class="flex-row items-center gap-3 rounded-md px-2 py-2 hover:bg-accent">
+                        <View
+                          role="group"
+                          accessibilityLabel={[title(s()), agentLabel(past().agent), s().cwd, age(s()), count(s())]
+                            .filter(Boolean)
+                            .join(", ")}
+                          class="flex-row items-center gap-3 rounded-md px-2 py-2 hover:bg-accent"
+                        >
                           <View class="min-w-0 flex-1 gap-1">
                             <Clipped class="text-sm font-medium text-foreground">{title(s())}</Clipped>
                             <Clipped class="font-mono text-xs text-muted-foreground">{s().cwd}</Clipped>
                           </View>
-                          <Text class="text-xs text-muted-foreground">{[age(s()), count(s())].filter(Boolean).join(" · ")}</Text>
+                          <Text class="text-xs text-muted-foreground">
+                            {[age(s()), count(s())].filter(Boolean).join(" · ")}
+                          </Text>
                           <Btn
                             small
                             label="Continue"
@@ -175,7 +210,9 @@ export function PastSessions(props: { open: boolean; onClose: () => void; machin
                   <Text class="text-xs text-muted-foreground">{`${agentLabel(past().agent)} cannot reload a conversation, so these can be read but not continued.`}</Text>
                 </If>
                 <If when={past().more}>
-                  <Text class="text-xs text-muted-foreground">There are more than shown. Narrow the list to a folder.</Text>
+                  <Text class="text-xs text-muted-foreground">
+                    There are more than shown. Narrow the list to a folder.
+                  </Text>
                 </If>
               </If>
             </>

@@ -1,6 +1,7 @@
-import { expect, open, test } from "nsh/test";
-import type { App } from "nsh/test";
 import { Herdr } from "herdr-desktop/native";
+import { expect, open, test } from "nsh/test";
+
+import type { App } from "nsh/test";
 
 /**
  * The pane tab against the scripted herdr of `fixtures/herdr/mixed.json`: `w1:p1` is a Claude Code agent waiting on a
@@ -12,9 +13,15 @@ const DONE = "w1:p3";
 const SHELL = "w2:p4";
 
 const lab = (pane: string, extra: Record<string, unknown> = {}) =>
-  open("./pane-lab.tsx", { width: 1280, height: 800, platform: "linux", host: { params: { fixture: "mixed", pane, ...extra } } });
+  open("./pane-lab.tsx", {
+    width: 1280,
+    height: 800,
+    platform: "linux",
+    host: { params: { fixture: "mixed", pane, ...extra } },
+  });
 
-const inputs = () => Herdr.testRequests("pane.send_input").map((r) => r.params as { pane_id: string; text?: string; keys?: string[] });
+const inputs = () =>
+  Herdr.testRequests("pane.send_input").map((r) => r.params as { pane_id: string; text?: string; keys?: string[] });
 const keysSent = () => Herdr.testRequests("pane.send_keys").map((r) => (r.params as { keys: string[] }).keys.join(" "));
 const textsSent = () => Herdr.testRequests("pane.send_text").map((r) => (r.params as { text: string }).text);
 
@@ -349,7 +356,12 @@ test("Duplicating a shell makes a new tab in its folder without starting an agen
   expect((Herdr.testRequests("tab.create")[0].params as { cwd?: string }).cwd).toBe("/home/dev");
 });
 
-const SCREEN = ["building…", "docs at https://example.com/docs and a log in ./logs/build.txt:42", "see https://example.com/second too", "done"];
+const SCREEN = [
+  "building…",
+  "docs at https://example.com/docs and a log in ./logs/build.txt:42",
+  "see https://example.com/second too",
+  "done",
+];
 
 test("the links of the pane are listed for the keyboard: a web address opens, a path is looked for in the pane's folder", async () => {
   const app = await lab(WORKING);

@@ -1,4 +1,5 @@
 import type { LinkStateName, MachineStatus } from "herdr-desktop/native";
+
 import type { AgentStatus } from "#lib/status";
 
 /**
@@ -33,7 +34,9 @@ export function linkText(status: MachineStatus): string {
       return "Switched off";
     case "offline": {
       const why = status.detail ? `Not connected: ${status.detail}` : "Not connected";
-      return status.retryInSecs !== null && status.retryInSecs !== undefined ? `${why} · reconnecting in ${status.retryInSecs} s` : why;
+      return status.retryInSecs !== null && status.retryInSecs !== undefined
+        ? `${why} · reconnecting in ${status.retryInSecs} s`
+        : why;
     }
   }
 }

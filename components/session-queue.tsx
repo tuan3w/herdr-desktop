@@ -1,8 +1,10 @@
 import { Text, View } from "nsh";
+
 import type { QueuedView } from "herdr-desktop/native";
+
+import { Btn, Icon, IconButton } from "#kit";
 import { fileName } from "#lib/session-compose";
 import { oneLine, visibleText } from "#lib/session-text";
-import { Btn, Icon, IconButton } from "#kit";
 
 /** Rows shown before `N more queued`. */
 const SHOWN = 3;
@@ -13,7 +15,11 @@ const SHOWN = 3;
  * or sent again). A held message says why and `Send now` lets it go. The queue is the agent's own order, so there is no
  * reordering.
  */
-export function SessionQueue(props: { queue: readonly QueuedView[]; onTakeBack: (queued: QueuedView) => void; onSendNow: () => void }) {
+export function SessionQueue(props: {
+  queue: readonly QueuedView[];
+  onTakeBack: (queued: QueuedView) => void;
+  onSendNow: () => void;
+}) {
   const held = () => props.queue.find((q) => q.held)?.held ?? null;
   const shown = () => props.queue.slice(0, SHOWN);
   const rest = () => props.queue.length - SHOWN;
@@ -31,9 +37,15 @@ export function SessionQueue(props: { queue: readonly QueuedView[]; onTakeBack: 
               {visibleText(q().text) || q().files.map(fileName).join(", ")}
             </Text>
             <If when={q().files.length > 0 && q().text !== ""}>
-              <Text class="shrink-0 text-xs text-muted-foreground">{q().files.length === 1 ? "1 file" : `${q().files.length} files`}</Text>
+              <Text class="shrink-0 text-xs text-muted-foreground">
+                {q().files.length === 1 ? "1 file" : `${q().files.length} files`}
+              </Text>
             </If>
-            <IconButton icon="x" label={`Take back: ${oneLine(visibleText(q().text) || q().files.map(fileName).join(", "), 60)}`} onPress={() => props.onTakeBack(q())} />
+            <IconButton
+              icon="x"
+              label={`Take back: ${oneLine(visibleText(q().text) || q().files.map(fileName).join(", "), 60)}`}
+              onPress={() => props.onTakeBack(q())}
+            />
           </View>
         )}
       </Each>

@@ -1,5 +1,6 @@
 import { signal } from "nsh";
 import { expect, test } from "nsh/test";
+
 import { createCheckGroup, parentState, pressParent } from "./check-group";
 
 const ALL = ["a", "b", "c", "d"];
@@ -13,17 +14,35 @@ test("the parent is checked on all, mixed on some, and an empty set is not all",
 });
 
 test("from none or all the parent flips between the two", () => {
-  expect(pressParent({ all: ALL, value: [], remembered: [], status: "mixed", disabled: none })).toEqual({ value: ALL, status: "mixed" });
-  expect(pressParent({ all: ALL, value: ALL, remembered: ALL, status: "mixed", disabled: none })).toEqual({ value: [], status: "mixed" });
+  expect(pressParent({ all: ALL, value: [], remembered: [], status: "mixed", disabled: none })).toEqual({
+    value: ALL,
+    status: "mixed",
+  });
+  expect(pressParent({ all: ALL, value: ALL, remembered: ALL, status: "mixed", disabled: none })).toEqual({
+    value: [],
+    status: "mixed",
+  });
 });
 
 test("from a hand-picked set the parent goes to all, then none, then back to that set", () => {
   const picked = ["a", "c"];
   const first = pressParent({ all: ALL, value: picked, remembered: picked, status: "mixed", disabled: none });
   expect(first).toEqual({ value: ALL, status: "on" });
-  const second = pressParent({ all: ALL, value: first.value, remembered: picked, status: first.status, disabled: none });
+  const second = pressParent({
+    all: ALL,
+    value: first.value,
+    remembered: picked,
+    status: first.status,
+    disabled: none,
+  });
   expect(second).toEqual({ value: [], status: "off" });
-  const third = pressParent({ all: ALL, value: second.value, remembered: picked, status: second.status, disabled: none });
+  const third = pressParent({
+    all: ALL,
+    value: second.value,
+    remembered: picked,
+    status: second.status,
+    disabled: none,
+  });
   expect(third).toEqual({ value: picked, status: "mixed" });
 });
 
@@ -32,7 +51,13 @@ test("disabled children keep their state through the parent", () => {
   // a is disabled and selected, b disabled and not: "all" cannot add b, "none" cannot drop a
   const all = pressParent({ all: ALL, value: ["a"], remembered: ["a"], status: "mixed", disabled });
   expect(all.value).toEqual(["a", "c", "d"]);
-  const cleared = pressParent({ all: ALL, value: ["a", "c", "d"], remembered: ["a", "c", "d"], status: "mixed", disabled });
+  const cleared = pressParent({
+    all: ALL,
+    value: ["a", "c", "d"],
+    remembered: ["a", "c", "d"],
+    status: "mixed",
+    disabled,
+  });
   expect(cleared.value).toEqual(["a"]);
 });
 
@@ -62,7 +87,11 @@ test("a group holds its own value, and a cancelled change leaves it alone", () =
 
 test("a vetoed parent press does not advance the cycle", () => {
   let veto = false;
-  const group = createCheckGroup({ all: () => ALL, defaultValue: ["a"], onValueChange: (_, change) => veto && change.cancel() });
+  const group = createCheckGroup({
+    all: () => ALL,
+    defaultValue: ["a"],
+    onValueChange: (_, change) => veto && change.cancel(),
+  });
   group.toggle("c", true);
   veto = true;
   group.parent.press();
@@ -84,7 +113,13 @@ test("a selection of thousands is handled in linear time", () => {
   const many = Array.from({ length: 6000 }, (_, i) => `m${i}`);
   const start = Date.now();
   const picked = many.filter((_, i) => i % 3 === 0);
-  const first = pressParent({ all: many, value: picked, remembered: picked, status: "mixed", disabled: (v) => v === "m1" });
+  const first = pressParent({
+    all: many,
+    value: picked,
+    remembered: picked,
+    status: "mixed",
+    disabled: (v) => v === "m1",
+  });
   expect(first.value.length).toBeGreaterThan(5000);
   expect(Date.now() - start).toBeLessThan(500);
 });

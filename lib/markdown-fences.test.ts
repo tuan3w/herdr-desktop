@@ -1,4 +1,5 @@
 import { expect, test } from "nsh/test";
+
 import { fenceLanguage, splitFences } from "#lib/markdown-fences";
 import type { FenceSegment } from "#lib/markdown-fences";
 

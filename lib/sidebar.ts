@@ -1,5 +1,7 @@
 import { effect, signal, Storage } from "nsh";
+
 import type { BoardCheckout, BoardData, BoardProject, BoardRow, MachineStatus } from "herdr-desktop/native";
+
 import { SIDEBAR_WIDTH } from "#lib/layout";
 import { save } from "#lib/save";
 import { statusText } from "#lib/status";
@@ -51,7 +53,12 @@ export async function loadSidebar(): Promise<void> {
         if ("foldedProjects" in saved && Array.isArray(saved.foldedProjects)) {
           foldedProjects.set(saved.foldedProjects.filter((k): k is string => typeof k === "string"));
         }
-        if ("width" in saved && typeof saved.width === "number" && saved.width >= SIDEBAR_WIDTH.min && saved.width <= SIDEBAR_WIDTH.max) {
+        if (
+          "width" in saved &&
+          typeof saved.width === "number" &&
+          saved.width >= SIDEBAR_WIDTH.min &&
+          saved.width <= SIDEBAR_WIDTH.max
+        ) {
           sidebarWidth.set(saved.width);
         }
       }
@@ -101,7 +108,10 @@ export function projectState(project: Pick<BoardProject, "needsYou" | "working" 
  * other half). `compact` (the sidebar) is the one number that matters: `2` while something waits, else `2 working`, else
  * `1 to review`; the card lists every part: `2 waiting · 2 working · 1 to review`. Empty when all are zero.
  */
-export function projectSummary(project: Pick<BoardProject, "needsYou" | "working" | "toReview">, compact: boolean): string {
+export function projectSummary(
+  project: Pick<BoardProject, "needsYou" | "working" | "toReview">,
+  compact: boolean,
+): string {
   if (compact) {
     if (project.needsYou > 0) return `${project.needsYou}`;
     if (project.working > 0) return `${project.working} working`;
@@ -121,7 +131,15 @@ export function projectTitle(project: Pick<BoardProject, "name" | "machineName">
 
 /** What a screen reader says for a project: `<name>, <machine>, 2 need you, 1 working`, plus `pinned` and `offline`. */
 export function projectLabel(project: BoardProject): string {
-  return [project.name, project.machineName, projectState(project), project.pinned ? "pinned" : "", project.offline ? "offline" : ""].filter(Boolean).join(", ");
+  return [
+    project.name,
+    project.machineName,
+    projectState(project),
+    project.pinned ? "pinned" : "",
+    project.offline ? "offline" : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
 }
 
 /** Whether `row` answers `query`: every word of it appears in the project, name, agent, machine or folder, ignoring case and accents. */
@@ -154,9 +172,15 @@ export function monogram(name: string): { letters: string; tone: number } {
 }
 
 /** The shown rows grouped by checkout, in the project's order of checkouts; rows with none lead. Empty groups are dropped. */
-function byCheckout(project: BoardProject, rows: readonly BoardRow[]): { checkout: BoardCheckout | null; rows: BoardRow[] }[] {
-  const groups: { checkout: BoardCheckout | null; rows: BoardRow[] }[] = [{ checkout: null, rows: rows.filter((r) => !r.checkout) }];
-  for (const checkout of project.checkouts) groups.push({ checkout, rows: rows.filter((r) => r.checkout === checkout.path) });
+function byCheckout(
+  project: BoardProject,
+  rows: readonly BoardRow[],
+): { checkout: BoardCheckout | null; rows: BoardRow[] }[] {
+  const groups: { checkout: BoardCheckout | null; rows: BoardRow[] }[] = [
+    { checkout: null, rows: rows.filter((r) => !r.checkout) },
+  ];
+  for (const checkout of project.checkouts)
+    groups.push({ checkout, rows: rows.filter((r) => r.checkout === checkout.path) });
   return groups.filter((g) => g.rows.length > 0);
 }
 
@@ -166,7 +190,13 @@ function byCheckout(project: BoardProject, rows: readonly BoardRow[]): { checkou
  * match (open, without the idle cut: a hit must not hide behind `22 more idle`) and drops projects and machines with no
  * match; a project that is folded lists only its header, and a search overrides folds.
  */
-export function sidebarItems(data: BoardData, statuses: readonly MachineStatus[], query: string, folds: readonly string[], opened: readonly string[]): SidebarItem[] {
+export function sidebarItems(
+  data: BoardData,
+  statuses: readonly MachineStatus[],
+  query: string,
+  folds: readonly string[],
+  opened: readonly string[],
+): SidebarItem[] {
   const searching = fold(query).trim() !== "";
   const out: SidebarItem[] = [];
   const headers = statuses.length > 1 || statuses.some((s) => s.state !== "online");
@@ -182,11 +212,31 @@ export function sidebarItems(data: BoardData, statuses: readonly MachineStatus[]
       const { shown } = shownRows(rows, all);
       const grouped = project.checkouts.length > 1;
       for (const group of byCheckout(project, shown)) {
-        if (grouped && group.checkout) lines.push({ kind: "checkout", key: `c:${project.key}:${group.checkout.path}`, project: project.key, checkout: group.checkout });
-        for (const row of group.rows) lines.push({ kind: "row", key: row.key, project: project.key, row, nested: grouped && group.checkout !== null });
+        if (grouped && group.checkout)
+          lines.push({
+            kind: "checkout",
+            key: `c:${project.key}:${group.checkout.path}`,
+            project: project.key,
+            checkout: group.checkout,
+          });
+        for (const row of group.rows)
+          lines.push({
+            kind: "row",
+            key: row.key,
+            project: project.key,
+            row,
+            nested: grouped && group.checkout !== null,
+          });
       }
       const quiet = rows.filter(isQuiet).length;
-      if (!searching && quiet > QUIET_SHOWN) lines.push({ kind: "more", key: `m:${project.key}`, project: project.key, count: quiet - QUIET_SHOWN, open: all });
+      if (!searching && quiet > QUIET_SHOWN)
+        lines.push({
+          kind: "more",
+          key: `m:${project.key}`,
+          project: project.key,
+          count: quiet - QUIET_SHOWN,
+          open: all,
+        });
     }
     if (lines.length === 0 && searching) continue;
     if (headers) out.push({ kind: "host", key: `h:${host.id}`, status: host });
@@ -209,5 +259,15 @@ export function ageText(secs: number | null | undefined): string {
  * last state is all we know. `kind` adds nothing: a chat and a terminal are both an agent, and the list says which.
  */
 export function rowLabel(row: BoardRow, projectName: string): string {
-  return [row.name, row.agent, statusText(row.status, row.reviewed), projectName, row.machineName, ageText(row.sinceSecs), row.offline ? "offline" : ""].filter(Boolean).join(", ");
+  return [
+    row.name,
+    row.agent,
+    statusText(row.status, row.reviewed),
+    projectName,
+    row.machineName,
+    ageText(row.sinceSecs),
+    row.offline ? "offline" : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
 }

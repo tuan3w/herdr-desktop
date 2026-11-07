@@ -40,7 +40,11 @@ export function formatNumber(value: number | null, format?: NumberFormat): strin
   if (value === null || !Number.isFinite(value)) return "";
   // "-0" is what Intl prints for a negative zero, and a value that rounds to zero must not show a sign.
   const shown = Object.is(value, -0) ? 0 : value;
-  const plain = !format || ((format.style ?? "decimal") === "decimal" && format.maximumFractionDigits === undefined && format.minimumFractionDigits === undefined);
+  const plain =
+    !format ||
+    ((format.style ?? "decimal") === "decimal" &&
+      format.maximumFractionDigits === undefined &&
+      format.minimumFractionDigits === undefined);
   if (!plain) return formatterOf(format ?? {}).format(shown);
   const digits = Math.min(MAX_FRACTION, Math.max(MIN_FRACTION, decimals(shown)));
   return formatterOf({ ...format, maximumFractionDigits: digits }).format(shown);
@@ -76,10 +80,14 @@ export function canBeNumber(text: string, format?: NumberFormat, negative = true
   let rest = text.replace(BIDI, "");
   for (const label of labelsOf(format)) rest = rest.split(label).join("");
   // A label being typed or deleted letter by letter is still on its way to one.
-  if (format && (format.style === "currency" || format.style === "unit")) rest = rest.replace(/[^\d.,\s'\u2019%+\-\u2212\u2012\u2013\u2014\ufe63\uff0d()]/gu, "");
+  if (format && (format.style === "currency" || format.style === "unit"))
+    rest = rest.replace(/[^\d.,\s'\u2019%+\-\u2212\u2012\u2013\u2014\ufe63\uff0d()]/gu, "");
   const percent = format?.style === "percent" ? "%" : "";
   const sign = negative ? "\\-\\u2212\\u2012\\u2013\\u2014\\ufe63\\uff0d" : "";
-  return new RegExp(`^[\\d.,\\s\\u00a0\\u2007\\u2009\\u202f'\\u2019+${sign}${percent}${negative && format?.currencySign === "accounting" ? "()" : ""}]*$`, "u").test(rest);
+  return new RegExp(
+    `^[\\d.,\\s\\u00a0\\u2007\\u2009\\u202f'\\u2019+${sign}${percent}${negative && format?.currencySign === "accounting" ? "()" : ""}]*$`,
+    "u",
+  ).test(rest);
 }
 
 /**

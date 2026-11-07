@@ -1,11 +1,12 @@
 import { host, keymap, mount, signal, Text, View } from "nsh";
+
+import { Composer } from "#components/composer";
+import { PaneTab } from "#components/pane-tab";
+import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
 import { startHerdr } from "#lib/herdr";
 import { captureActive, paneInFront, searchInPane, showLinks, toggleCapture } from "#lib/pane-input";
 import { loadSettings, paneFit, quickPhrases } from "#lib/settings";
 import { GLOBAL, keysOf } from "#lib/shortcuts";
-import { Composer } from "#components/composer";
-import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
-import { PaneTab } from "#components/pane-tab";
 
 /**
  * The entry of `pane-tab.test.tsx`: one pane tab of the scripted herdr (`fixture` and `pane` come from the launch
@@ -46,7 +47,16 @@ function Lab() {
             />
           }
         >
-          <Composer machine="nowhere" pane="w9:p9" agent="omp" name="Lost agent" blocked={false} disabled={false} onHandle={() => undefined} onSent={() => undefined} />
+          <Composer
+            machine="nowhere"
+            pane="w9:p9"
+            agent="omp"
+            name="Lost agent"
+            blocked={false}
+            disabled={false}
+            onHandle={() => undefined}
+            onSent={() => undefined}
+          />
         </If>
         <ToastHost />
       </PopupRoot>

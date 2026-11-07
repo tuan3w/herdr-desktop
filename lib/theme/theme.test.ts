@@ -1,9 +1,11 @@
 import { expect, open, test } from "nsh/test";
-import theme from "../../theme.json";
+
 import { buildTheme, themeFile } from "#lib/theme/build";
 import { contrast, mix, oklchToHex, oklchToLinear, parseOklch } from "#lib/theme/color";
-import { DEFAULT_THEME_ID, THEMES, themeById } from "#lib/theme/themes";
 import { TERM_MIN_CONTRAST, TERM_REMAPPED } from "#lib/theme/terminal";
+import { DEFAULT_THEME_ID, THEMES, themeById } from "#lib/theme/themes";
+
+import theme from "../../theme.json";
 
 type Rgb = [number, number, number];
 const rgb = (css: string, over?: Rgb): Rgb => {
@@ -18,7 +20,11 @@ function pairs(t: Record<string, string>, dark: boolean): { name: string; ratio:
   const card = rgb(t.card);
   /** `Pill` tints: `bg-x/15` (warning `/20`) in light, `dark:bg-x/10` (warning `/12`) in dark. */
   const tint = (token: string, light: number, darkAlpha: number) => mix(rgb(t[token]), card, dark ? darkAlpha : light);
-  const on = (fg: string, bgToken: string, min = 4.5) => ({ name: `${fg} on ${bgToken}`, ratio: contrast(rgb(t[fg]), rgb(t[bgToken])), min });
+  const on = (fg: string, bgToken: string, min = 4.5) => ({
+    name: `${fg} on ${bgToken}`,
+    ratio: contrast(rgb(t[fg]), rgb(t[bgToken])),
+    min,
+  });
   return [
     on("foreground", "background", 7),
     on("card-foreground", "card", 7),
@@ -80,7 +86,10 @@ for (const spec of THEMES) {
       const tokens = buildTheme(spec)[appearance];
       const ground = rgb(tokens["term-bg"]);
       const remapped: readonly number[] = TERM_REMAPPED[appearance];
-      const failing = Array.from({ length: 16 }, (_, slot) => ({ slot, ratio: contrast(rgb(tokens[`term-${slot}`]), ground) }))
+      const failing = Array.from({ length: 16 }, (_, slot) => ({
+        slot,
+        ratio: contrast(rgb(tokens[`term-${slot}`]), ground),
+      }))
         .filter((p) => !remapped.includes(p.slot) && p.ratio < TERM_MIN_CONTRAST)
         .map((p) => `term-${p.slot}: ${p.ratio.toFixed(2)} < ${TERM_MIN_CONTRAST}`);
       expect(failing).toEqual([]);
@@ -94,7 +103,8 @@ test("the remapped slots are the ones that fall short, so the pane component has
     for (const appearance of ["light", "dark"] as const) {
       const tokens = buildTheme(spec)[appearance];
       const ground = rgb(tokens["term-bg"]);
-      for (const slot of TERM_REMAPPED[appearance]) expect(contrast(rgb(tokens[`term-${slot}`]), ground)).toBeLessThan(TERM_MIN_CONTRAST);
+      for (const slot of TERM_REMAPPED[appearance])
+        expect(contrast(rgb(tokens[`term-${slot}`]), ground)).toBeLessThan(TERM_MIN_CONTRAST);
     }
   }
 });
@@ -116,7 +126,8 @@ test("theme.json is the default theme: the app starts in the theme the generator
 
 test("switching the theme at runtime restyles the app: token() follows every theme in both appearances", async () => {
   const hex = (css: string) => oklchToHex(css).slice(1);
-  const close = (a: string, b: string) => [0, 2, 4].every((i) => Math.abs(parseInt(a.slice(i, i + 2), 16) - parseInt(b.slice(i, i + 2), 16)) <= 2);
+  const close = (a: string, b: string) =>
+    [0, 2, 4].every((i) => Math.abs(parseInt(a.slice(i, i + 2), 16) - parseInt(b.slice(i, i + 2), 16)) <= 2);
   const app = await open("./probe.tsx", { width: 320, height: 400 });
   for (const appearance of ["light", "dark"] as const) {
     await app.setColorScheme(appearance);

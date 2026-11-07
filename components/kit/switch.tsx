@@ -1,6 +1,8 @@
-import { stateHint } from "./check";
 import { View } from "nsh";
+
 import { hoverTransition, moveTransition } from "#lib/motion";
+
+import { stateHint } from "./check";
 import { FOCUS_RING } from "./core";
 
 /**

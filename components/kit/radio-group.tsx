@@ -1,5 +1,7 @@
 import { context, type JSX, View } from "nsh";
+
 import { hoverTransition } from "#lib/motion";
+
 import { stateHint } from "./check";
 import { createRoving, type Orientation, RING, type Roving } from "./roving";
 
@@ -68,7 +70,13 @@ export function RadioGroup<T extends string>(props: {
  * One option of a `RadioGroup`. `class` is its look: `checked:` styles the item itself, `group-checked:` its children
  * (the item is a `group`). `label` is the accessible name. The ring is drawn on it while the group has the focus.
  */
-export function RadioItem<T extends string>(props: { value: T; label: string; disabled?: boolean; class?: string; children?: JSX.Element }) {
+export function RadioItem<T extends string>(props: {
+  value: T;
+  label: string;
+  disabled?: boolean;
+  class?: string;
+  children?: JSX.Element;
+}) {
   const scope = Group();
   if (!scope) throw new Error("RadioItem must be inside a RadioGroup");
   const checked = () => scope.value() === props.value;

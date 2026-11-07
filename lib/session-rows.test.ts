@@ -1,16 +1,39 @@
 import { expect, test } from "nsh/test";
+
 import type { SessionItem, ToolStatusName } from "herdr-desktop/native";
+
 import { buildRows, type Row, type RowInput, spanSeconds, unitStart } from "#lib/session-rows";
 
 let next = 1;
-const say = (role: "user" | "agent" | "thought", text: string): SessionItem => ({ id: next++, rev: 1, kind: "message", role, text, images: [], parts: [] });
+const say = (role: "user" | "agent" | "thought", text: string): SessionItem => ({
+  id: next++,
+  rev: 1,
+  kind: "message",
+  role,
+  text,
+  images: [],
+  parts: [],
+});
 const tool = (title: string, status: ToolStatusName = "completed", toolKind = "execute"): SessionItem => ({
   id: next++,
   rev: 1,
   kind: "tool",
   images: [],
   parts: [],
-  tool: { id: `t${next}`, title, toolKind, status, subject: title, head: [], tail: [], omitted: 0, diffs: [], locations: [], parts: [], terminal: false },
+  tool: {
+    id: `t${next}`,
+    title,
+    toolKind,
+    status,
+    subject: title,
+    head: [],
+    tail: [],
+    omitted: 0,
+    diffs: [],
+    locations: [],
+    parts: [],
+    terminal: false,
+  },
 });
 
 const input = (items: SessionItem[], over: Partial<RowInput> = {}): RowInput => ({

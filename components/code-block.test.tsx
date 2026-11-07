@@ -1,4 +1,5 @@
 import { expect, open, test } from "nsh/test";
+
 import type { App } from "nsh/test";
 
 const DESKTOP = { width: 1280, height: 800, platform: "linux" as const };
@@ -78,7 +79,11 @@ test("a patch is read as one file's change with its hunks", async () => {
 test("a block of thousands of lines scrolls past the rows first mounted, mounting only the rows near the view", async () => {
   const app = await lab({ part: "long", lines: 3000, numbers: true });
   await app.waitFor("label:/^Code, Rust, 3\\d\\d\\d lines$/");
-  const numbers = () => app.texts().filter((t) => /^\d+$/.test(t)).map(Number);
+  const numbers = () =>
+    app
+      .texts()
+      .filter((t) => /^\d+$/.test(t))
+      .map(Number);
   const first = Math.max(...numbers());
   expect(numbers().length).toBeLessThan(150);
   // A recycled cell must follow its row: before the fix the list stopped at the rows it first mounted.

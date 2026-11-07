@@ -1,10 +1,11 @@
+import { Code } from "herdr-desktop/native";
 import { effect, host, mount, signal, Text, View } from "nsh";
 import { DiffView, Editor, TextView } from "nsh/base";
-import { Code } from "herdr-desktop/native";
+
 import { CodeBlock, InlineCode } from "#components/code-block";
 import { DiffBlock } from "#components/diff-block";
-import { codeLineNumbers, codeWrap } from "#lib/settings";
 import { PopupRoot, ThemeRoot } from "#kit";
+import { codeLineNumbers, codeWrap } from "#lib/settings";
 
 /**
  * The entry of the code labs and of the `code-*` screenshots: every synthetic sample, a fence being written, a diff, a
@@ -106,11 +107,22 @@ function Compare(props: { fence: string }) {
     <View class="flex-1 flex-row gap-3">
       <View class="flex-1 gap-1">
         <Text class="text-xs text-muted-foreground">nsh TextView</Text>
-        <View class="flex-1 overflow-hidden"><TextView markdown={md} /></View>
+        <View class="flex-1 overflow-hidden">
+          <TextView markdown={md} />
+        </View>
       </View>
       <View class="flex-1 gap-1">
         <Text class="text-xs text-muted-foreground">nsh Editor</Text>
-        <Editor readOnly language={s.path} value={s.text} lineNumbers folding={false} fontSize={13} accessibilityLabel="Editor" class="flex-1 rounded-md border border-border bg-card" />
+        <Editor
+          readOnly
+          language={s.path}
+          value={s.text}
+          lineNumbers
+          folding={false}
+          fontSize={13}
+          accessibilityLabel="Editor"
+          class="flex-1 rounded-md border border-border bg-card"
+        />
       </View>
       <View class="flex-1 gap-1">
         <Text class="text-xs text-muted-foreground">herdr CodeBlock</Text>
@@ -131,11 +143,24 @@ function Lab() {
         <View class="flex-1 gap-3 overflow-hidden p-4">
           <If when={part === "languages"}>
             <Each of={samples.slice(from, from + count)} key={(s) => s.fence}>
-              {(s) => <CodeBlock code={s().text} language={s().fence} path={s().path} collapsedLines={Number(host.params.fold ?? 8)} />}
+              {(s) => (
+                <CodeBlock
+                  code={s().text}
+                  language={s().fence}
+                  path={s().path}
+                  collapsedLines={Number(host.params.fold ?? 8)}
+                />
+              )}
             </Each>
           </If>
           <If when={part === "one"}>
-            <CodeBlock code={sample(wanted).text} language={sample(wanted).fence} path={sample(wanted).path} collapsedLines={0} maxHeight={720} />
+            <CodeBlock
+              code={sample(wanted).text}
+              language={sample(wanted).fence}
+              path={sample(wanted).path}
+              collapsedLines={0}
+              maxHeight={720}
+            />
           </If>
           <If when={part === "stream"}>
             <Stream fence={wanted} />
@@ -157,7 +182,9 @@ function Lab() {
           </If>
           <If when={part === "inline"}>
             <View class="gap-2">
-              <Text class="text-sm text-foreground">Run <InlineCode>pnpm test --watch</InlineCode> and look at <InlineCode>src/auth.ts:42</InlineCode>.</Text>
+              <Text class="text-sm text-foreground">
+                Run <InlineCode>pnpm test --watch</InlineCode> and look at <InlineCode>src/auth.ts:42</InlineCode>.
+              </Text>
             </View>
           </If>
         </View>

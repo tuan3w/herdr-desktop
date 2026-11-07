@@ -1,6 +1,7 @@
+import { Herdr, Sessions } from "herdr-desktop/native";
 import { mount, signal, Text, View } from "nsh";
 import { Button } from "nsh/base";
-import { Herdr, Sessions } from "herdr-desktop/native";
+
 import type { ActionResult, SessionItem, SessionRef, SessionView } from "herdr-desktop/native";
 
 /** Test entry only: the `Sessions` module on one page, against the scripted agent behind a real keeper (`sessions.test.tsx`). */
@@ -46,9 +47,19 @@ function Lab() {
       <Text>{`Rows: ${view()?.itemCount ?? 0}`}</Text>
       <Text>{`Agent said: ${agentSaid() || "nothing"}`}</Text>
       <Text>{`Title: ${view()?.title ?? "none"}`}</Text>
-      <Text>{`Waiting: ${waiting() ? `${waiting()!.ask} ${waiting()!.title ?? waiting()!.message} [${waiting()!.choices.map((c) => c.name).join(", ")}]` : "nothing"}`}</Text>
+      <Text>{`Waiting: ${
+        waiting()
+          ? `${waiting()!.ask} ${waiting()!.title ?? waiting()!.message} [${waiting()!
+              .choices.map((c) => c.name)
+              .join(", ")}]`
+          : "nothing"
+      }`}</Text>
       <Text>{`Needs you on the board: ${needsYou()}`}</Text>
-      <Text>{`Options: ${view()?.options.map((o) => o.name).join(", ") || "none"}`}</Text>
+      <Text>{`Options: ${
+        view()
+          ?.options.map((o) => o.name)
+          .join(", ") || "none"
+      }`}</Text>
       <Text>{`Changes heard: ${changes() > 0 ? "yes" : "no"}`}</Text>
       <Text>{result()}</Text>
       <Text>{failure()}</Text>
@@ -75,7 +86,9 @@ function Lab() {
         <Button
           onPress={() => {
             const w = waiting()!;
-            return say(Sessions.answerPermission(ref()!.machine, ref()!.id, w.requestId, "0000000000000000", w.choices[0]!.id));
+            return say(
+              Sessions.answerPermission(ref()!.machine, ref()!.id, w.requestId, "0000000000000000", w.choices[0]!.id),
+            );
           }}
         >
           <Text>Allow with an old digest</Text>

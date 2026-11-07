@@ -1,4 +1,5 @@
 import { mount, signal, View } from "nsh";
+
 import { Shortcuts } from "#components/shortcuts";
 import { Btn, ThemeRoot } from "#kit";
 

@@ -1,16 +1,46 @@
-import { colorScheme, computed, effect, openUrl, signal, Text, untracked, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
+import { colorScheme, computed, effect, openUrl, signal, Text, untracked, View } from "nsh";
+
 import type { NotificationSupport } from "herdr-desktop/native";
-import app from "../nsh.json";
+
+import { Machines } from "#components/machines";
+import {
+  Btn,
+  Modal,
+  notify,
+  RadioGroup,
+  RadioItem,
+  Segmented,
+  type SegmentOption,
+  SelectField,
+  SettingRow,
+  SettingsSection,
+  Switch,
+} from "#kit";
 import { revision } from "#lib/herdr";
 import type { PaneFit } from "#lib/settings";
-import { announceOutput, checkUpdates, codeLineNumbers, codeWhitespace, codeWrap, diffSplit, largeTargets, minContrast, paneFit, paneFontSize, quickPhrases, reduceMotionOverride, settingsReady, themeId } from "#lib/settings";
+import {
+  announceOutput,
+  checkUpdates,
+  codeLineNumbers,
+  codeWhitespace,
+  codeWrap,
+  diffSplit,
+  largeTargets,
+  minContrast,
+  paneFit,
+  paneFontSize,
+  quickPhrases,
+  reduceMotionOverride,
+  settingsReady,
+  themeId,
+} from "#lib/settings";
 import { swatches } from "#lib/theme/build";
 import type { ThemeSpec } from "#lib/theme/build";
-import { availableUpdate, checkForUpdate } from "#lib/updates";
 import { THEMES } from "#lib/theme/themes";
-import { Machines } from "#components/machines";
-import { Btn, Modal, notify, RadioGroup, RadioItem, Segmented, type SegmentOption, SelectField, SettingRow, SettingsSection, Switch } from "#kit";
+import { availableUpdate, checkForUpdate } from "#lib/updates";
+
+import app from "../nsh.json";
 
 /** The engine's settings keys of the two notification switches (`native/app/src/engine/alerts.rs`). */
 const NOTIFY_NEEDS_YOU = "notify.needsYou";
@@ -87,10 +117,19 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
   const versions = computed(() => {
     revision();
     const statuses = Herdr.machineStatuses();
-    return { herdr: statuses.find((s) => s.id === "local")?.herdrVersion ?? undefined, newer: statuses.filter((s) => s.newerHerdr).map((s) => s.name) };
+    return {
+      herdr: statuses.find((s) => s.id === "local")?.herdrVersion ?? undefined,
+      newer: statuses.filter((s) => s.newerHerdr).map((s) => s.name),
+    };
   });
-  const contrasts = computed(() => (CONTRASTS.includes(minContrast()) ? CONTRASTS : [...CONTRASTS, minContrast()].sort((a, b) => a - b)));
-  const fontSizes = computed(() => (FONT_SIZES.some((s) => s.value === String(paneFontSize())) ? FONT_SIZES : [...FONT_SIZES, { value: String(paneFontSize()), title: `${paneFontSize()} pt` }]));
+  const contrasts = computed(() =>
+    CONTRASTS.includes(minContrast()) ? CONTRASTS : [...CONTRASTS, minContrast()].sort((a, b) => a - b),
+  );
+  const fontSizes = computed(() =>
+    FONT_SIZES.some((s) => s.value === String(paneFontSize()))
+      ? FONT_SIZES
+      : [...FONT_SIZES, { value: String(paneFontSize()), title: `${paneFontSize()} pt` }],
+  );
   // Whether the desktop has a notification service: asked when Settings opens with notifications on, and when they go on.
   const service = signal<NotificationSupport | undefined>(undefined);
   const notifications = computed(() => {
@@ -98,7 +137,8 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
     return { needsYou: Herdr.setting(NOTIFY_NEEDS_YOU) === true, alsoDone: Herdr.setting(NOTIFY_ALSO_DONE) === true };
   });
   effect(() => {
-    if (props.open && notifications().needsYou) untracked(() => void Herdr.notificationSupport().then((s) => service.set(s)));
+    if (props.open && notifications().needsYou)
+      untracked(() => void Herdr.notificationSupport().then((s) => service.set(s)));
   });
   const setNotify = (key: string, on: boolean) => {
     try {
@@ -114,19 +154,45 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
 
   return (
     <>
-      <Modal open={props.open} onClose={() => props.onClose()} title="Settings" wide actions={<Btn variant="primary" label="Done" onPress={() => props.onClose()} />}>
+      <Modal
+        open={props.open}
+        onClose={() => props.onClose()}
+        title="Settings"
+        wide
+        actions={<Btn variant="primary" label="Done" onPress={() => props.onClose()} />}
+      >
         <View class="gap-8">
           <SettingsSection title="Look">
-            <SettingRow label="Theme" description="Each theme has a light and a dark form that follow your system." stacked control={<ThemePicker />} />
+            <SettingRow
+              label="Theme"
+              description="Each theme has a light and a dark form that follow your system."
+              stacked
+              control={<ThemePicker />}
+            />
             <SettingRow
               label="Pane width"
               description="How a pane's columns meet the window: scaled to fill the width, the font as set, or lines wrapped to fit."
-              control={<Segmented label="Pane width" value={paneFit()} onChange={(v) => paneFit.set(v)} options={FIT_OPTIONS} />}
+              control={
+                <Segmented
+                  label="Pane width"
+                  value={paneFit()}
+                  onChange={(v) => paneFit.set(v)}
+                  options={FIT_OPTIONS}
+                />
+              }
             />
             <SettingRow
               label="Pane font size"
               description="The size terminal text is drawn at. Fit width scales it down to fit the columns, never below 9 pt."
-              control={<SelectField small name="Pane font size" items={fontSizes()} value={String(paneFontSize())} onChange={(v) => paneFontSize.set(Number(v))} />}
+              control={
+                <SelectField
+                  small
+                  name="Pane font size"
+                  items={fontSizes()}
+                  value={String(paneFontSize())}
+                  onChange={(v) => paneFontSize.set(Number(v))}
+                />
+              }
             />
             <SettingRow
               label="Minimum contrast"
@@ -149,12 +215,24 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
             <SettingRow
               label="Line numbers in code"
               description="A muted number beside every line of code."
-              control={<Switch label="Line numbers in code" checked={codeLineNumbers()} onChange={(v) => codeLineNumbers.set(v)} />}
+              control={
+                <Switch
+                  label="Line numbers in code"
+                  checked={codeLineNumbers()}
+                  onChange={(v) => codeLineNumbers.set(v)}
+                />
+              }
             />
             <SettingRow
               label="Show tabs and spaces"
               description="Draws a tab as an arrow and a space at the end of a line as a dot, so a stray one cannot hide."
-              control={<Switch label="Show tabs and spaces" checked={codeWhitespace()} onChange={(v) => codeWhitespace.set(v)} />}
+              control={
+                <Switch
+                  label="Show tabs and spaces"
+                  checked={codeWhitespace()}
+                  onChange={(v) => codeWhitespace.set(v)}
+                />
+              }
             />
             <SettingRow
               label="Diffs side by side"
@@ -173,7 +251,13 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
             <SettingRow
               label="Notify me when an agent needs me"
               description="Shows the question and the command in a desktop notification while this window is not in front. Off until you switch it on; nothing leaves this computer."
-              control={<Switch label="Notify me when an agent needs me" checked={notifications().needsYou} onChange={(on) => setNotify(NOTIFY_NEEDS_YOU, on)} />}
+              control={
+                <Switch
+                  label="Notify me when an agent needs me"
+                  checked={notifications().needsYou}
+                  onChange={(on) => setNotify(NOTIFY_NEEDS_YOU, on)}
+                />
+              }
             />
             <SettingRow
               label="Also when an agent finishes"
@@ -188,10 +272,16 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
               }
             />
             <If when={notifications().needsYou && service() !== undefined && !service()?.available}>
-              <SettingRow label="No notification service" description={`${service()?.detail ?? ""} Notifications will not appear until one is running.`} />
+              <SettingRow
+                label="No notification service"
+                description={`${service()?.detail ?? ""} Notifications will not appear until one is running.`}
+              />
             </If>
             <If when={notifications().needsYou && service()?.available === true && !service()?.buttons}>
-              <SettingRow label="No answer buttons" description="Your desktop's notifications cannot show buttons: a click opens the agent instead." />
+              <SettingRow
+                label="No answer buttons"
+                description="Your desktop's notifications cannot show buttons: a click opens the agent instead."
+              />
             </If>
             <SettingRow
               label="Answering from a notification"
@@ -202,17 +292,31 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
             <SettingRow
               label="Announce agent output"
               description="A screen reader reads new text from the pane you are watching, at most every two seconds. An agent that needs you is always announced."
-              control={<Switch label="Announce agent output" checked={announceOutput()} onChange={(v) => announceOutput.set(v)} />}
+              control={
+                <Switch
+                  label="Announce agent output"
+                  checked={announceOutput()}
+                  onChange={(v) => announceOutput.set(v)}
+                />
+              }
             />
             <SettingRow
               label="Reduce motion"
               description="Turns off the app's own animations, as your system's setting does. Windows the system draws still follow the system."
-              control={<Switch label="Reduce motion" checked={reduceMotionOverride()} onChange={(v) => reduceMotionOverride.set(v)} />}
+              control={
+                <Switch
+                  label="Reduce motion"
+                  checked={reduceMotionOverride()}
+                  onChange={(v) => reduceMotionOverride.set(v)}
+                />
+              }
             />
             <SettingRow
               label="Large hit targets"
               description="44 pt targets for a touch screen. A pointer gets 24 pt targets."
-              control={<Switch label="Large hit targets" checked={largeTargets()} onChange={(v) => largeTargets.set(v)} />}
+              control={
+                <Switch label="Large hit targets" checked={largeTargets()} onChange={(v) => largeTargets.set(v)} />
+              }
             />
           </SettingsSection>
           <SettingsSection title="Machines">
@@ -230,18 +334,25 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
               description={versions().herdr ? `Version ${versions().herdr}` : "Not connected"}
             />
             <If when={versions().newer.length > 0}>
-              <SettingRow label="Newer herdr" description={`${versions().newer.join(", ")} runs a newer herdr than this app was written for. It is used as it is.`} />
+              <SettingRow
+                label="Newer herdr"
+                description={`${versions().newer.join(", ")} runs a newer herdr than this app was written for. It is used as it is.`}
+              />
             </If>
             <SettingRow
               label="Check for updates"
               description="When Settings opens, asks api.github.com for the newest release of Herdr Desktop. Nothing else is sent and nothing is installed."
-              control={<Switch label="Check for updates" checked={checkUpdates()} onChange={(v) => checkUpdates.set(v)} />}
+              control={
+                <Switch label="Check for updates" checked={checkUpdates()} onChange={(v) => checkUpdates.set(v)} />
+              }
             />
             <If when={checkUpdates() && availableUpdate() !== null}>
               <SettingRow
                 label="Update available"
                 description={`Version ${availableUpdate()?.version} is out. This is ${app.version}.`}
-                control={<Btn small label="Open release page" onPress={() => void openUrl(availableUpdate()?.url ?? "")} />}
+                control={
+                  <Btn small label="Open release page" onPress={() => void openUrl(availableUpdate()?.url ?? "")} />
+                }
               />
             </If>
           </SettingsSection>

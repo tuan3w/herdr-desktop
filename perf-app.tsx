@@ -1,11 +1,13 @@
+import "./App";
+
+import { Herdr } from "herdr-desktop/native";
 // The entry of window 1 of `scenarios.test.tsx`: the whole app (`../App.tsx` mounts itself) plus a driver for what a test
 // file cannot do under `nsh test --target linux`: that file runs apart from the host and cannot reach the native module,
 // so the scripted herdr is changed from here, on a key press. Keys are `ctrl+alt+<digit>` (the app's own shortcuts never
 // use alt, `lib/shortcuts.ts`), so pressing one changes nothing on screen. The driver's work is on the app's JS thread
 // and so inside the figures; it logs what it cost (`PERF-NOTE driver`). Not part of the app.
 import { keymap } from "nsh";
-import { Herdr } from "herdr-desktop/native";
-import "./App";
+
 import big from "./fixtures/herdr/big.json";
 import storm from "./fixtures/herdr/storm.json";
 
@@ -24,7 +26,9 @@ function frame(pane: string, tick: number): string[] {
     const time = `12:${String(Math.floor(n / 60) % 60).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
     const text = `worker-${worker} batch ${n * 17} ok in ${(n * 7) % 90} ms`;
     const plain = `${time} INFO  ${text}`;
-    rows.push(`\u001b[90m${time}\u001b[0m \u001b[32mINFO\u001b[0m  ${text}${" ".repeat(Math.max(0, 100 - plain.length))}`);
+    rows.push(
+      `\u001b[90m${time}\u001b[0m \u001b[32mINFO\u001b[0m  ${text}${" ".repeat(Math.max(0, 100 - plain.length))}`,
+    );
   }
   const done = tick % 20;
   rows.push(`\u001b[36m[${"█".repeat(done)}${"░".repeat(20 - done)}]\u001b[0m ${done * 5}%${" ".repeat(70)}`);
@@ -33,7 +37,12 @@ function frame(pane: string, tick: number): string[] {
 }
 
 /** 1000 rows of scrollback with a few different lengths. */
-const history = (): string[] => Array.from({ length: 1000 }, (_, i) => `\u001b[90m${String(i).padStart(4, "0")}\u001b[0m  scrollback row ${i}: \u001b[32mok\u001b[0m ${"abcdef ".repeat((i % 9) + 1)}`);
+const history = (): string[] =>
+  Array.from(
+    { length: 1000 },
+    (_, i) =>
+      `\u001b[90m${String(i).padStart(4, "0")}\u001b[0m  scrollback row ${i}: \u001b[32mok\u001b[0m ${"abcdef ".repeat((i % 9) + 1)}`,
+  );
 
 /** Updates the eight streaming panes 20 times a second for ten seconds. */
 function stream() {
@@ -50,7 +59,9 @@ function stream() {
     if (++tick === 200) {
       clearInterval(timer);
       const wall = performance.now() - start;
-      console.log(`PERF-NOTE driver: ${STREAMING.length} panes, 200 ticks in ${wall.toFixed(0)} ms (${((200 * 1000) / wall).toFixed(1)} Hz), ${(spent / 200).toFixed(2)} ms per tick spent in the driver`);
+      console.log(
+        `PERF-NOTE driver: ${STREAMING.length} panes, 200 ticks in ${wall.toFixed(0)} ms (${((200 * 1000) / wall).toFixed(1)} Hz), ${(spent / 200).toFixed(2)} ms per tick spent in the driver`,
+      );
     }
   }, 50);
 }

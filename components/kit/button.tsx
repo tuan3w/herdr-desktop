@@ -1,7 +1,10 @@
 import { Text, View } from "nsh";
-import type { ViewRef } from "nsh";
 import { Button } from "nsh/base";
+
+import type { ViewRef } from "nsh";
+
 import { hoverTransition, pressFeedback, pressTransition } from "#lib/motion";
+
 import { FOCUS_RING, FOCUS_RING_SIDEBAR } from "./core";
 import { Kbd, Tipped } from "./hint";
 import { Icon, type IconName, type IconTone } from "./icon";
@@ -67,9 +70,17 @@ export function Btn(props: {
         <Spinner size={props.small ? 14 : 16} tone={BTN_ICON[variant()]} />
       </If>
       <If when={props.loading ? undefined : props.icon}>
-        {(name) => <Icon name={name()} size={props.small ? 14 : 16} tone={props.disabled ? "muted-foreground" : BTN_ICON[variant()]} />}
+        {(name) => (
+          <Icon
+            name={name()}
+            size={props.small ? 14 : 16}
+            tone={props.disabled ? "muted-foreground" : BTN_ICON[variant()]}
+          />
+        )}
       </If>
-      <Text class={`font-medium ${props.small ? "text-xs" : "text-sm"} ${props.disabled ? "text-muted-foreground" : BTN_TEXT[variant()]}`}>
+      <Text
+        class={`font-medium ${props.small ? "text-xs" : "text-sm"} ${props.disabled ? "text-muted-foreground" : BTN_TEXT[variant()]}`}
+      >
         {props.label}
       </Text>
       <If when={props.hint && !props.disabled}>
@@ -94,7 +105,8 @@ export function IconButton(props: {
   selected?: boolean;
   shortcut?: string;
 }) {
-  const hover = () => (props.onSidebar ? "hover:bg-sidebar-accent active:bg-sidebar-accent" : "hover:bg-accent active:bg-accent");
+  const hover = () =>
+    props.onSidebar ? "hover:bg-sidebar-accent active:bg-sidebar-accent" : "hover:bg-accent active:bg-accent";
   return (
     <Tipped label={props.label} shortcut={props.shortcut}>
       <Button

@@ -1,8 +1,16 @@
 import { expect, test } from "nsh/test";
+
 import type { EntryView } from "herdr-desktop/native";
+
 import { applyMention, deliveryNote, mentionAt, rankEntries, restoreText, splitQuery } from "#lib/session-compose";
 
-const entry = (name: string, kind: EntryView["kind"] = "file"): EntryView => ({ name, kind, size: 0, readable: true, link: false });
+const entry = (name: string, kind: EntryView["kind"] = "file"): EntryView => ({
+  name,
+  kind,
+  size: 0,
+  readable: true,
+  link: false,
+});
 
 test("an @ starts a mention only at the start of a word, so an address stays typeable", () => {
   expect(mentionAt("look at @src/ma", 15)).toEqual({ start: 8, query: "src/ma" });

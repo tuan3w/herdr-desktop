@@ -179,7 +179,7 @@ export function groupChoices(choices: readonly Choice[]): Groups | undefined {
   if (!any) return undefined;
   const ids = new Map<string, number>();
   const names: string[] = [];
-  const of: number[] = new Array(choices.length);
+  const of: number[] = Array.from({ length: choices.length }, () => 0);
   for (let i = 0; i < choices.length; i++) {
     const name = choices[i].group ?? "";
     let g = ids.get(name);
@@ -221,7 +221,8 @@ export interface Layout {
 export function layout(order: readonly number[], groups: Groups | undefined, limit: number): Layout {
   const hidden = limit >= 0 && order.length > limit ? order.length - limit : 0;
   const taken = hidden > 0 ? order.slice(0, limit) : order;
-  if (groups === undefined) return { order: taken, rows: ids(taken.length), names: [], rowOfPos: undefined, tops: undefined, hidden };
+  if (groups === undefined)
+    return { order: taken, rows: ids(taken.length), names: [], rowOfPos: undefined, tops: undefined, hidden };
   const buckets: number[][] = groups.names.map(() => []);
   for (let p = 0; p < taken.length; p++) buckets[groups.of[taken[p]]].push(taken[p]);
   const out: number[] = [];
@@ -308,7 +309,13 @@ export function nextHighlight(
 }
 
 /** PageUp and PageDown: `page` positions on, stopping at the ends, on the nearest position the keys may land on. */
-export function pageHighlight(count: number, current: number, dir: 1 | -1, page: number, disabled?: (pos: number) => boolean): number {
+export function pageHighlight(
+  count: number,
+  current: number,
+  dir: 1 | -1,
+  page: number,
+  disabled?: (pos: number) => boolean,
+): number {
   if (count === 0) return -1;
   const from = current >= 0 ? current : dir > 0 ? -1 : count;
   const target = Math.max(0, Math.min(count - 1, from + dir * page));
@@ -327,7 +334,13 @@ export type AutoHighlight = false | "input-change" | "always";
  * order shown, for a multiple choice); else, after typing, on the first option when `auto` is on; else on the first
  * only when `auto` is `"always"`; else nowhere, so Enter picks nothing.
  */
-export function initialHighlight(o: { count: number; chosen: readonly number[]; typing: boolean; auto: AutoHighlight; disabled?: (pos: number) => boolean }): number {
+export function initialHighlight(o: {
+  count: number;
+  chosen: readonly number[];
+  typing: boolean;
+  auto: AutoHighlight;
+  disabled?: (pos: number) => boolean;
+}): number {
   if (o.count === 0) return -1;
   if (!o.typing && o.chosen.length > 0) return Math.min(...o.chosen);
   if (o.typing ? o.auto !== false : o.auto === "always") return firstEnabled(o.count, o.disabled);
@@ -344,7 +357,13 @@ export type TypedEvent = "type" | "close" | "pick" | "clear" | "value";
  *   an owner that keeps the list open (`onOpenChange` cancelling an `item-press`) keeps the filter too.
  * - `value` (the chosen value changed under the field): a user in the middle of typing keeps their text.
  */
-export function reconcileTyped(o: { event: TypedEvent; typed: string | undefined; text?: string; multiple: boolean; open: boolean }): string | undefined {
+export function reconcileTyped(o: {
+  event: TypedEvent;
+  typed: string | undefined;
+  text?: string;
+  multiple: boolean;
+  open: boolean;
+}): string | undefined {
   switch (o.event) {
     case "type":
       return o.text;
@@ -365,7 +384,12 @@ export const filterQuery = (typed: string | undefined, settled: string): string 
  * only when a click does not open it (an empty field has nothing to find, but the list is still a menu to browse);
  * half-composed text (Telex, VNI) changes nothing until it is settled.
  */
-export function typingOpens(o: { text: string; composing: boolean; openOnInputClick: boolean; readOnly: boolean }): "open" | "close" | "keep" {
+export function typingOpens(o: {
+  text: string;
+  composing: boolean;
+  openOnInputClick: boolean;
+  readOnly: boolean;
+}): "open" | "close" | "keep" {
   if (o.readOnly) return "keep";
   if (o.text.trim() !== "") return "open";
   return o.composing || o.openOnInputClick ? "keep" : "close";
@@ -381,7 +405,12 @@ export const filtersByText = (mode: AutocompleteMode): boolean => mode === "list
  * The text an Autocomplete shows in place of what was typed while a row is highlighted: the row's text in `both` and
  * `inline`, never for a pointer highlight (the pointer passing over a row must not rewrite the field), never read-only.
  */
-export function inlineText(mode: AutocompleteMode, title: string | undefined, reason: HighlightReason, readOnly: boolean): string | undefined {
+export function inlineText(
+  mode: AutocompleteMode,
+  title: string | undefined,
+  reason: HighlightReason,
+  readOnly: boolean,
+): string | undefined {
   if (readOnly || title === undefined || reason === "pointer") return undefined;
   return mode === "both" || mode === "inline" ? title : undefined;
 }

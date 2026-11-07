@@ -1,7 +1,8 @@
-import { expect, test } from "nsh/test";
 import { Herdr, Sessions } from "herdr-desktop/native";
-import projects from "../fixtures/herdr/projects.json";
+import { expect, test } from "nsh/test";
+
 import { ENTRY, onBoard, seeded, settle } from "../app-seam";
+import projects from "../fixtures/herdr/projects.json";
 
 ENTRY.path = "../App.tsx";
 
@@ -16,7 +17,10 @@ async function withChat() {
   await app.waitFor("heard just now", { timeout: 5000 }).catch(() => undefined);
   // The scripted herdr says the `web` repository is checked out in a folder that exists here, where a session can run.
   const snapshot = JSON.parse(JSON.stringify(projects.snapshot)) as typeof projects.snapshot;
-  for (const ws of snapshot.workspaces as { workspace_id: string; worktree?: { repo_root: string; checkout_path: string } }[]) {
+  for (const ws of snapshot.workspaces as {
+    workspace_id: string;
+    worktree?: { repo_root: string; checkout_path: string };
+  }[]) {
     if (ws.worktree && ws.workspace_id.startsWith("w3")) {
       ws.worktree.repo_root = FOLDER;
       ws.worktree.checkout_path = FOLDER;

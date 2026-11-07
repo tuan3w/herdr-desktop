@@ -1,5 +1,7 @@
 import { cleanup, createMotion, type JSX, keymap, View } from "nsh";
+
 import { DURATION, EASE_OUT, hoverTransition } from "#lib/motion";
+
 import { FOCUS_RING } from "./core";
 import { Icon } from "./icon";
 
@@ -18,7 +20,9 @@ function CheckMark() {
 
 /** What a screen reader hears after the name: nsh has no accessibility state for these, so they ride the hint. */
 export function stateHint(props: { required?: boolean; invalid?: boolean; readOnly?: boolean }): string | undefined {
-  const parts = [props.required && "required", props.invalid && "invalid", props.readOnly && "read only"].filter(Boolean);
+  const parts = [props.required && "required", props.invalid && "invalid", props.readOnly && "read only"].filter(
+    Boolean,
+  );
   return parts.length ? parts.join(", ") : undefined;
 }
 
@@ -70,7 +74,14 @@ export function CheckRow(props: {
       <View
         class={`size-5 items-center justify-center rounded border bg-card group-checked:border-primary group-checked:bg-primary group-indeterminate:border-primary group-indeterminate:bg-primary ${props.invalid ? "border-destructive" : "border-input"}`}
       >
-        <If when={props.indeterminate} else={<If when={props.checked}><CheckMark /></If>}>
+        <If
+          when={props.indeterminate}
+          else={
+            <If when={props.checked}>
+              <CheckMark />
+            </If>
+          }
+        >
           <View class="h-0.5 w-2.5 rounded-full bg-primary-foreground" />
         </If>
       </View>

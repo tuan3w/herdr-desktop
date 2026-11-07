@@ -1,6 +1,14 @@
-import { expect, test } from "nsh/test";
 import { signal } from "nsh";
-import { checkConstraints, createField, createTextSlot, type FieldOptions, type Validator, type Violation } from "./field";
+import { expect, test } from "nsh/test";
+
+import {
+  checkConstraints,
+  createField,
+  createTextSlot,
+  type FieldOptions,
+  type Validator,
+  type Violation,
+} from "./field";
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -43,7 +51,15 @@ test("onSubmit: nothing is checked until the first submit, then every change is"
   let submits = 0;
   const { field, type } = make({
     required: true,
-    form: { mode: () => "onSubmit", submitCount: () => submits, errorsFor: () => [], clearError: () => {}, values: () => ({}), submit: () => true, register: () => () => {} },
+    form: {
+      mode: () => "onSubmit",
+      submitCount: () => submits,
+      errorsFor: () => [],
+      clearError: () => {},
+      values: () => ({}),
+      submit: () => true,
+      register: () => () => {},
+    },
     validate: () => (v) => (v === "taken" ? "Taken." : null),
   });
   type("taken");
@@ -62,7 +78,11 @@ test("onSubmit: nothing is checked until the first submit, then every change is"
 });
 
 test("onBlur: leaving checks it, and an error that shows goes as soon as the value is fixed", async () => {
-  const { field, type } = make({ validationMode: () => "onBlur", required: true, validate: () => (v) => (String(v).length < 3 ? "Too short." : null) });
+  const { field, type } = make({
+    validationMode: () => "onBlur",
+    required: true,
+    validate: () => (v) => (String(v).length < 3 ? "Too short." : null),
+  });
   type("ab");
   expect(field.valid()).toBeNull();
   field.blurred();
@@ -157,7 +177,10 @@ test("an async rule makes the field unknown while it runs; a result superseded b
 });
 
 test("a failed async rule keeps what was published", async () => {
-  const { field, type } = make({ validationMode: () => "onChange", validate: () => (v) => (v === "x" ? "Wrong." : Promise.reject(new Error("offline"))) });
+  const { field, type } = make({
+    validationMode: () => "onChange",
+    validate: () => (v) => (v === "x" ? "Wrong." : Promise.reject(new Error("offline"))),
+  });
   type("x");
   await wait(0);
   expect(field.valid()).toBe(false);
@@ -176,7 +199,15 @@ test("the owner's message beats the form's, which beats the rules'; any of them 
     name: () => "handle",
     error: () => owner(),
     validate: () => () => "Rule",
-    form: { mode: () => "onSubmit", submitCount: () => 0, errorsFor: () => server(), clearError: () => {}, values: () => ({}), submit: () => true, register: () => () => {} },
+    form: {
+      mode: () => "onSubmit",
+      submitCount: () => 0,
+      errorsFor: () => server(),
+      clearError: () => {},
+      values: () => ({}),
+      submit: () => true,
+      register: () => () => {},
+    },
   });
   type("x");
   await wait(0);
@@ -194,7 +225,11 @@ test("the owner's message beats the form's, which beats the rules'; any of them 
 
 test("a disabled field is neither valid nor invalid by its rules, but an owner's error still holds", async () => {
   const off = signal(false);
-  const { field, type } = make({ validationMode: () => "onChange", disabled: () => off(), validate: () => () => "Wrong." });
+  const { field, type } = make({
+    validationMode: () => "onChange",
+    disabled: () => off(),
+    validate: () => () => "Wrong.",
+  });
   type("x");
   await wait(0);
   expect(field.valid()).toBe(false);
@@ -233,7 +268,11 @@ test("dirty and touched given by the owner are not overwritten by the user", () 
 
 test("a control gone takes its pending check with it", async () => {
   const value = signal<unknown>("");
-  const field = createField({ validationMode: () => "onChange", validationDebounceTime: () => 20, validate: () => () => "Wrong." });
+  const field = createField({
+    validationMode: () => "onChange",
+    validationDebounceTime: () => 20,
+    validate: () => () => "Wrong.",
+  });
   const detach = field.attach({ value: () => value() });
   value.set("a");
   field.valueChanged("a");

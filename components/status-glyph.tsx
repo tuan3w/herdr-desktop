@@ -1,8 +1,9 @@
 import { effect, View } from "nsh";
+
+import { Icon } from "#kit";
 import { glyphChanged } from "#lib/motion";
 import { statusText } from "#lib/status";
 import type { AgentStatus } from "#lib/status";
-import { Icon } from "#kit";
 
 /**
  * An agent's status as a shape, so colour is never the only signal: needs you = filled disc with a bar, working =
@@ -29,7 +30,11 @@ export function StatusGlyph(props: { status: AgentStatus; size?: 12 | 14 | 16; l
     switch (props.status) {
       case "blocked":
         return (
-          <View style={props.loud ? box : { width: size - 2, height: size - 2 }} class={`items-center justify-center rounded-full ${props.loud ? "bg-signal" : "bg-muted-foreground"}`} {...hidden}>
+          <View
+            style={props.loud ? box : { width: size - 2, height: size - 2 }}
+            class={`items-center justify-center rounded-full ${props.loud ? "bg-signal" : "bg-muted-foreground"}`}
+            {...hidden}
+          >
             <View style={{ width: 2, height: size * (props.loud ? 0.5 : 0.4) }} class="rounded-full bg-background" />
           </View>
         );
@@ -44,7 +49,13 @@ export function StatusGlyph(props: { status: AgentStatus; size?: 12 | 14 | 16; l
       case "idle":
         return <View style={box} class="rounded-full border-[1.5px] border-muted-foreground opacity-60" {...hidden} />;
       case "unknown":
-        return <View style={{ ...box, borderStyle: "dashed" }} class="rounded-full border-[1.5px] border-muted-foreground opacity-60" {...hidden} />;
+        return (
+          <View
+            style={{ ...box, borderStyle: "dashed" }}
+            class="rounded-full border-[1.5px] border-muted-foreground opacity-60"
+            {...hidden}
+          />
+        );
     }
   };
   return (

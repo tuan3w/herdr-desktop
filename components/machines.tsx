@@ -1,11 +1,13 @@
-import { announce, computed, effect, signal, Text, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
+import { announce, computed, effect, signal, Text, View } from "nsh";
+
 import type { MachineStatus, MachineView } from "herdr-desktop/native";
-import { revision } from "#lib/herdr";
-import { linkGlyph, linkText } from "#lib/machine-state";
+
 import { MachineForm } from "#components/machine-form";
 import { StatusGlyph } from "#components/status-glyph";
 import { Btn, Clipped, confirmDestructive, Empty, Modal, notify, Switch } from "#kit";
+import { revision } from "#lib/herdr";
+import { linkGlyph, linkText } from "#lib/machine-state";
 
 interface Row {
   machine: MachineView;
@@ -56,7 +58,8 @@ export function Machines(props: { open: boolean; onClose: () => void }) {
   effect(() => {
     if (!props.open) return;
     const timer = setInterval(() => {
-      if (rows().some((r) => r.status?.retryInSecs !== null && r.status?.retryInSecs !== undefined)) local.update((n) => n + 1);
+      if (rows().some((r) => r.status?.retryInSecs !== null && r.status?.retryInSecs !== undefined))
+        local.update((n) => n + 1);
     }, 1000);
     return () => clearInterval(timer);
   });
@@ -65,7 +68,14 @@ export function Machines(props: { open: boolean; onClose: () => void }) {
 
   const switchOn = (m: MachineView, on: boolean) => {
     try {
-      Herdr.saveMachine({ id: m.id, name: m.name, dest: m.dest, port: m.port ?? null, session: m.session ?? null, enabled: on });
+      Herdr.saveMachine({
+        id: m.id,
+        name: m.name,
+        dest: m.dest,
+        port: m.port ?? null,
+        session: m.session ?? null,
+        enabled: on,
+      });
       local.update((n) => n + 1);
       announce(`${m.name} switched ${on ? "on" : "off"}`);
     } catch (e) {
@@ -113,7 +123,9 @@ export function Machines(props: { open: boolean; onClose: () => void }) {
                 <StatusGlyph status={row().status ? linkGlyph(row().status!.state) : "unknown"} size={16} />
                 <View class="min-w-0 flex-1 gap-1">
                   <Clipped class="text-sm font-medium text-foreground">{row().machine.name}</Clipped>
-                  <Clipped lines={2} class="text-sm text-muted-foreground">{row().status ? linkText(row().status!) : "Not started"}</Clipped>
+                  <Clipped lines={2} class="text-sm text-muted-foreground">
+                    {row().status ? linkText(row().status!) : "Not started"}
+                  </Clipped>
                   <If when={!row().machine.local}>
                     <Clipped class="text-xs text-muted-foreground">
                       {`${row().machine.dest}${row().machine.port ? `:${row().machine.port}` : ""}${row().machine.session ? ` · session ${row().machine.session}` : ""}`}
@@ -134,16 +146,34 @@ export function Machines(props: { open: boolean; onClose: () => void }) {
                         }}
                       />
                     </If>
-                    <Switch label={`Connect to ${row().machine.name}`} checked={row().machine.enabled} onChange={(on) => switchOn(row().machine, on)} />
-                    <Btn small label="Edit" name={`Edit ${row().machine.name}`} onPress={() => openForm(row().machine)} />
-                    <Btn small variant="danger" label="Remove" name={`Remove ${row().machine.name}`} onPress={() => void remove(row().machine)} />
+                    <Switch
+                      label={`Connect to ${row().machine.name}`}
+                      checked={row().machine.enabled}
+                      onChange={(on) => switchOn(row().machine, on)}
+                    />
+                    <Btn
+                      small
+                      label="Edit"
+                      name={`Edit ${row().machine.name}`}
+                      onPress={() => openForm(row().machine)}
+                    />
+                    <Btn
+                      small
+                      variant="danger"
+                      label="Remove"
+                      name={`Remove ${row().machine.name}`}
+                      onPress={() => void remove(row().machine)}
+                    />
                   </View>
                 </If>
               </View>
             )}
           </Each>
           <If when={rows().length <= 1}>
-            <Empty title="Only this computer" hint="Add a machine to watch agents that run on another computer over ssh." />
+            <Empty
+              title="Only this computer"
+              hint="Add a machine to watch agents that run on another computer over ssh."
+            />
           </If>
         </View>
       </Modal>

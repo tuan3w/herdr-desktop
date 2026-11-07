@@ -1,12 +1,15 @@
-import { expect, open, test } from "nsh/test";
-import type { App } from "nsh/test";
 import { Herdr } from "herdr-desktop/native";
+import { expect, open, test } from "nsh/test";
+
+import type { App } from "nsh/test";
+
 import mixed from "../fixtures/herdr/mixed.json";
 import { scripted, sentKeys } from "./board-seam";
 
 /** The answer dock against the scripted herdr's Claude Code permission question (`fixtures/herdr/mixed.json`, pane `w1:p1`). */
 const DESKTOP = { width: 1280, height: 800, clock: {} };
-const lab = (platform?: "macos") => open("./answer-dock-lab.tsx", { ...DESKTOP, platform, host: { params: { fixture: "mixed", pane: "w1:p1" } } });
+const lab = (platform?: "macos") =>
+  open("./answer-dock-lab.tsx", { ...DESKTOP, platform, host: { params: { fixture: "mixed", pane: "w1:p1" } } });
 const YES = "label:1. Yes";
 const ALWAYS = "label:/^2\\. Yes, and always allow/";
 

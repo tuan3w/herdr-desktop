@@ -1,4 +1,5 @@
 import { computed, effect, signal, Storage } from "nsh";
+
 import { save } from "#lib/save";
 import { themeFile } from "#lib/theme/build";
 import { DEFAULT_THEME_ID, THEMES, themeById } from "#lib/theme/themes";
@@ -64,9 +65,12 @@ export async function loadSettings(): Promise<void> {
       const saved = JSON.parse(raw) as Partial<Saved>;
       if (THEMES.some((t) => t.id === saved.themeId)) themeId.set(saved.themeId!);
       if (typeof saved.sidebarCollapsed === "boolean") sidebarCollapsed.set(saved.sidebarCollapsed);
-      if (saved.paneFit === "width" || saved.paneFit === "actual" || saved.paneFit === "wrap") paneFit.set(saved.paneFit);
-      if (typeof saved.paneFontSize === "number" && saved.paneFontSize >= 9 && saved.paneFontSize <= 24) paneFontSize.set(saved.paneFontSize);
-      if (typeof saved.minContrast === "number" && saved.minContrast >= 1 && saved.minContrast <= 7) minContrast.set(saved.minContrast);
+      if (saved.paneFit === "width" || saved.paneFit === "actual" || saved.paneFit === "wrap")
+        paneFit.set(saved.paneFit);
+      if (typeof saved.paneFontSize === "number" && saved.paneFontSize >= 9 && saved.paneFontSize <= 24)
+        paneFontSize.set(saved.paneFontSize);
+      if (typeof saved.minContrast === "number" && saved.minContrast >= 1 && saved.minContrast <= 7)
+        minContrast.set(saved.minContrast);
       if (typeof saved.announceOutput === "boolean") announceOutput.set(saved.announceOutput);
       if (typeof saved.quickPhrases === "boolean") quickPhrases.set(saved.quickPhrases);
       if (typeof saved.largeTargets === "boolean") largeTargets.set(saved.largeTargets);

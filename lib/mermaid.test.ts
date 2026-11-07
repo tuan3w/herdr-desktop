@@ -1,8 +1,10 @@
 import { expect, test } from "nsh/test";
+
 import { diagramPage, diagramTitle, parseDiagramResult } from "#lib/mermaid";
 
 const colors = { background: "#fff", text: "#111", line: "#555", fill: "#eee", border: "#ccc" };
-const page = (code: string, title = "Diagram: flowchart") => diagramPage({ origin: "http://127.0.0.1:4010", code, title, dark: false, colors });
+const page = (code: string, title = "Diagram: flowchart") =>
+  diagramPage({ origin: "http://127.0.0.1:4010", code, title, dark: false, colors });
 
 test("a diagram is named by its title, else by the kind it declares", () => {
   expect(diagramTitle("flowchart LR\n  A --> B")).toBe("Diagram: flowchart");
@@ -10,7 +12,7 @@ test("a diagram is named by its title, else by the kind it declares", () => {
   expect(diagramTitle("sequenceDiagram\n  A->>B: hi")).toBe("Diagram: sequence diagram");
   expect(diagramTitle("%% a comment first\nstateDiagram-v2\n  [*] --> A")).toBe("Diagram: state diagram");
   expect(diagramTitle('---\ntitle: "Payment flow"\n---\nflowchart LR\n  A --> B')).toBe("Diagram: Payment flow");
-  expect(diagramTitle("pie\n  title Pets\n  \"Dogs\": 3")).toBe("Diagram: Pets");
+  expect(diagramTitle('pie\n  title Pets\n  "Dogs": 3')).toBe("Diagram: Pets");
   expect(diagramTitle("somethingNew\n  x")).toBe("Diagram: diagram");
   expect(diagramTitle("")).toBe("Diagram: diagram");
 });
@@ -33,13 +35,18 @@ test("the page can load its one script and nothing else from anywhere", () => {
   const policy = /Content-Security-Policy" content="([^"]*)"/.exec(html)?.[1] ?? "";
   expect(policy).toContain("default-src 'none'");
   expect(policy).toContain("script-src http://127.0.0.1:4010 'unsafe-inline'");
-  for (const reach of ["connect-src", "frame-src", "img-src http", "form-action", "*"]) expect(policy).not.toContain(reach);
+  for (const reach of ["connect-src", "frame-src", "img-src http", "form-action", "*"])
+    expect(policy).not.toContain(reach);
   expect(html).toContain('securityLevel: "strict"');
   expect(html).toContain('<script src="http://127.0.0.1:4010/mermaid.min.js">');
 });
 
 test("the page's answer is read only when it is one", () => {
   expect(parseDiagramResult('{"ok":true,"w":320,"h":180}')).toEqual({ ok: true, w: 320, h: 180 });
-  expect(parseDiagramResult('{"ok":false,"message":"Parse error on line 2"}')).toEqual({ ok: false, message: "Parse error on line 2" });
-  for (const junk of ["", "not json", '{"ok":true}', '{"ok":"yes","w":1,"h":1}', "[]", "null"]) expect(parseDiagramResult(junk)).toBeNull();
+  expect(parseDiagramResult('{"ok":false,"message":"Parse error on line 2"}')).toEqual({
+    ok: false,
+    message: "Parse error on line 2",
+  });
+  for (const junk of ["", "not json", '{"ok":true}', '{"ok":"yes","w":1,"h":1}', "[]", "null"])
+    expect(parseDiagramResult(junk)).toBeNull();
 });

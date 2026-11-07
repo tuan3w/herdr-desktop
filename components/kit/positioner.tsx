@@ -1,4 +1,5 @@
 import { type JSX, type Motion, Overlay } from "nsh";
+
 import type { Align, Bounds, OverlayPosition, Placement, Point, ViewRef, ViewStyle } from "nsh/types";
 
 /**
@@ -34,7 +35,8 @@ export interface Hung {
 export function anchorMoved(before: Hung | undefined, p: OverlayPosition): { moved: boolean; hung: Hung } {
   const { x, y } = p.bounds.origin;
   const { width, height } = p.bounds.size;
-  const edge = p.placement === "bottom" ? y : p.placement === "top" ? y + height : p.placement === "right" ? x : x + width;
+  const edge =
+    p.placement === "bottom" ? y : p.placement === "top" ? y + height : p.placement === "right" ? x : x + width;
   const along = p.placement === "bottom" || p.placement === "top" ? x : y;
   const hung = { placement: p.placement, edge, along, width, height };
   if (!before || before.placement !== p.placement) return { moved: false, hung };

@@ -104,7 +104,12 @@ export const GLOBAL: Record<GlobalShortcut, Shortcut> = {
   splitRight: { keys: ["mod+\\"], label: "Split right", group: "tabs" },
   splitDown: { keys: ["mod+shift+\\"], label: "Split down", group: "tabs" },
   capture: { keys: ["mod+shift+k"], label: "Type into the pane, or stop typing into it", group: "typing" },
-  copyCode: { keys: ["mod+shift+c"], label: "Copy code (the block under the pointer, else the last one)", group: "chat", always: true },
+  copyCode: {
+    keys: ["mod+shift+c"],
+    label: "Copy code (the block under the pointer, else the last one)",
+    group: "chat",
+    always: true,
+  },
   copyReply: { keys: ["mod+shift+y"], label: "Copy the agent's last answer", group: "chat", always: true },
   devPanel: { keys: ["mod+shift+d"], label: "Developer panel (frame time, latency, data)", group: "dev" },
 };

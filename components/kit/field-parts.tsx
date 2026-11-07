@@ -1,4 +1,5 @@
 import { announce, cleanup, effect, type JSX, Text, untracked, View } from "nsh";
+
 import {
   createField,
   createTextSlot,
@@ -38,14 +39,16 @@ export interface FieldRules {
  * Groups the parts of one field and owns its state (`Field` in field.ts). An error that appears is announced once, as
  * `label: message`, since it appears away from where a screen reader is.
  */
-export function FieldRoot(props: FieldRules & {
-  /** The owner's message for the field: shown before any other, and the field is invalid while it is set. */
-  error?: string;
-  dirty?: boolean;
-  touched?: boolean;
-  class?: string;
-  children?: JSX.Element;
-}) {
+export function FieldRoot(
+  props: FieldRules & {
+    /** The owner's message for the field: shown before any other, and the field is invalid while it is set. */
+    error?: string;
+    dirty?: boolean;
+    touched?: boolean;
+    class?: string;
+    children?: JSX.Element;
+  },
+) {
   const fieldset = FieldsetScope();
   const field = createField({
     name: () => props.name,

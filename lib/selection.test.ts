@@ -1,4 +1,5 @@
 import { expect, test } from "nsh/test";
+
 import { clear, isSelected, rangeTo, select, selected, toggle } from "#lib/selection";
 
 const ORDER = ["a", "b", "c", "d", "e"];

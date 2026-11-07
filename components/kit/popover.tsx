@@ -1,13 +1,17 @@
 import { cleanup, context, effect, type JSX, type Signal, signal, Text, View } from "nsh";
+
 import type { Align, Placement, ViewRef } from "nsh/types";
+
+import { hoverTransition, popupEnter } from "#lib/motion";
+
 import { FOCUS_RING } from "./core";
 import { createHover, type HoverTrigger, POINTER_FOCUS_MS } from "./hover";
 import { Icon } from "./icon";
 import { createOpenState, type OpenChange } from "./popup";
 import { Paths } from "./popup-root";
 import { type AnchorPolicy, Positioner } from "./positioner";
+
 import type { TriggerFocus } from "./tooltip";
-import { hoverTransition, popupEnter } from "#lib/motion";
 
 /**
  * A popover (Base UI's `Popover`, non-modal): content anchored to a trigger that the user presses, for what is too big for a
@@ -35,7 +39,8 @@ import { hoverTransition, popupEnter } from "#lib/motion";
 export const PATIENT_CLICK_MS = 500;
 /** A blur counts as leaving only when no control took the focus within this long. */
 export const FOCUS_SETTLE_MS = 50;
-const POPUP = "min-w-48 max-w-sm gap-1 rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-md";
+const POPUP =
+  "min-w-48 max-w-sm gap-1 rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-md";
 
 /** What `trigger` wires to the control: its press, its focus, and what to show while open. */
 export interface PopoverTrigger {
@@ -163,7 +168,13 @@ export function Popover(props: {
       hover.hide("trigger-press");
     }
   };
-  const handle: PopoverTrigger = { onPress: press, onFocus: focus.onFocus!, onBlur: focus.onBlur!, expanded: state.open, disabled: () => props.disabled ?? false };
+  const handle: PopoverTrigger = {
+    onPress: press,
+    onFocus: focus.onFocus!,
+    onBlur: focus.onBlur!,
+    expanded: state.open,
+    disabled: () => props.disabled ?? false,
+  };
 
   return (
     <View

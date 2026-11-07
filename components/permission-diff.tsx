@@ -1,7 +1,9 @@
 import { Text, View } from "nsh";
+
 import type { DiffItem } from "herdr-desktop/native";
-import { visibleText } from "#lib/visible-text";
+
 import { DiffBlock } from "#components/diff-block";
+import { visibleText } from "#lib/visible-text";
 
 /** The tallest one file's diff grows before it scrolls inside itself, in points. */
 const MAX_HEIGHT = 200;
@@ -18,7 +20,16 @@ export function PermissionDiff(props: { diffs: readonly DiffItem[] }) {
   return (
     <View role="group" accessibilityLabel="Changes this request makes" class="gap-2">
       <Each of={shown()} key={(d: DiffItem) => d.path}>
-        {(diff) => <DiffBlock path={visibleText(diff().path)} oldText={diff().old ?? ""} newText={diff().new} created={diff().old == null} context={2} maxHeight={MAX_HEIGHT} />}
+        {(diff) => (
+          <DiffBlock
+            path={visibleText(diff().path)}
+            oldText={diff().old ?? ""}
+            newText={diff().new}
+            created={diff().old == null}
+            context={2}
+            maxHeight={MAX_HEIGHT}
+          />
+        )}
       </Each>
       <If when={props.diffs.length > MAX_FILES}>
         <Text class="text-xs text-muted-foreground">{`${props.diffs.length - MAX_FILES} more files: see the transcript`}</Text>

@@ -1,6 +1,8 @@
 import { announce, effect, type JSX, Scroll, signal, Text, View } from "nsh";
 import { AlertDialog, Dialog } from "nsh/base";
+
 import { enterScale } from "#lib/motion";
+
 import { newDialogId, topDialog, trackDialog } from "./dialog-stack";
 import { ToastHost } from "./notify";
 import { createOpenState, type OpenChange, type OpenReason } from "./popup";
@@ -82,7 +84,10 @@ export function Modal(props: {
           onPress={() => ask("outside-press")}
           class="absolute inset-0 bg-black/40"
         />
-        <View style={pop} class={`max-h-[94%] max-w-[94%] rounded-lg border border-border bg-card shadow-lg ${props.huge ? "w-[1000px]" : props.wide ? "w-[760px]" : "w-[560px]"}`}>
+        <View
+          style={pop}
+          class={`max-h-[94%] max-w-[94%] rounded-lg border border-border bg-card shadow-lg ${props.huge ? "w-[1000px]" : props.wide ? "w-[760px]" : "w-[560px]"}`}
+        >
           <View class="min-h-0 shrink">
             <View class={`shrink-0 gap-1 border-b px-6 pb-4 pt-6 ${edge()}`}>
               <Text role="header" class="text-lg font-semibold text-card-foreground">
@@ -92,10 +97,16 @@ export function Modal(props: {
                 <Text class="text-sm text-muted-foreground">{props.description}</Text>
               </If>
             </View>
-            <Scroll class="min-h-0 shrink" contentClass="px-6 py-4" onLayout={({ bounds }) => viewport.set(bounds.size.height)}>
+            <Scroll
+              class="min-h-0 shrink"
+              contentClass="px-6 py-4"
+              onLayout={({ bounds }) => viewport.set(bounds.size.height)}
+            >
               <View onLayout={({ bounds }) => content.set(bounds.size.height)}>{props.children}</View>
             </Scroll>
-            <View class={`shrink-0 flex-row items-center justify-end gap-2 border-t px-6 pb-6 pt-4 ${edge()}`}>{props.actions}</View>
+            <View class={`shrink-0 flex-row items-center justify-end gap-2 border-t px-6 pb-6 pt-4 ${edge()}`}>
+              {props.actions}
+            </View>
           </View>
         </View>
         <ToastHost dialog={id} />
@@ -113,7 +124,11 @@ let asking = false;
  * cannot stack alerts or confirm twice. The system alert covers everything, so the toasts wait under it. Resolves true
  * only when the destructive action is chosen.
  */
-export async function confirmDestructive(options: { title: string; description: string; action: string }): Promise<boolean> {
+export async function confirmDestructive(options: {
+  title: string;
+  description: string;
+  action: string;
+}): Promise<boolean> {
   if (asking) return false;
   asking = true;
   try {

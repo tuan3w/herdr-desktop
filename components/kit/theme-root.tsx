@@ -1,4 +1,5 @@
 import { type JSX, View } from "nsh";
+
 import { themeJson } from "#lib/settings";
 
 /**

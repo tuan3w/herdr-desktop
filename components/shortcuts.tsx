@@ -1,15 +1,17 @@
 import { Text, View } from "nsh";
-import { type Group, GROUPS, keysOf, keyText, type Shortcut, SHORTCUTS } from "#lib/shortcuts";
+
 import { Btn, Kbd, Modal } from "#kit";
+import { type Group, GROUPS, keysOf, keyText, type Shortcut, SHORTCUTS } from "#lib/shortcuts";
 
 /** One line: what it does, its keys at the right edge. Read as one sentence ("New agent session: Ctrl+N"), since keycaps are decorative. */
 function Row(props: { shortcut: Shortcut }) {
   const keys = () => keysOf(props.shortcut).map(keyText);
   return (
-    <View accessibilityLabel={`${props.shortcut.label}: ${keys().join(", ")}`} class="h-8 flex-row items-center justify-between gap-3">
-      <Text class="min-w-0 line-clamp-1 flex-1 text-sm text-foreground">
-        {props.shortcut.label}
-      </Text>
+    <View
+      accessibilityLabel={`${props.shortcut.label}: ${keys().join(", ")}`}
+      class="h-8 flex-row items-center justify-between gap-3"
+    >
+      <Text class="min-w-0 line-clamp-1 flex-1 text-sm text-foreground">{props.shortcut.label}</Text>
       <View class="flex-row gap-1">
         <Each of={keys()} key={(k: string) => k}>
           {(k) => <Kbd keys={k()} />}
@@ -26,7 +28,12 @@ function Row(props: { shortcut: Shortcut }) {
  */
 export function Shortcuts(props: { open: boolean; onClose: () => void }) {
   return (
-    <Modal open={props.open} onClose={props.onClose} title="Keyboard shortcuts" actions={<Btn label="Close" hint={keyText("escape")} onPress={props.onClose} />}>
+    <Modal
+      open={props.open}
+      onClose={props.onClose}
+      title="Keyboard shortcuts"
+      actions={<Btn label="Close" hint={keyText("escape")} onPress={props.onClose} />}
+    >
       <View>
         <Each of={GROUPS} key={(g: Group) => g.id}>
           {(g, index) => (

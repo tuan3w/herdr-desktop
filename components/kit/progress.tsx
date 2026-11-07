@@ -1,4 +1,5 @@
 import { cleanup, createMotion, View } from "nsh";
+
 import { reducedMotion } from "#lib/motion";
 
 /** How far along, 0 to 1, clamped; undefined when the extent is unknown (`value` null, or a range with no width). */
@@ -17,7 +18,12 @@ export function progressText(ratio: number | undefined, valueText?: string): str
 function Working() {
   const pulse = createMotion();
   if (!reducedMotion()) {
-    void pulse.play({ keyframes: { opacity: [1, 0.4, 1] }, duration: 1400, easing: "easeInOut", iterations: "infinite" });
+    void pulse.play({
+      keyframes: { opacity: [1, 0.4, 1] },
+      duration: 1400,
+      easing: "easeInOut",
+      iterations: "infinite",
+    });
     cleanup(() => pulse.stop());
   }
   return <View style={pulse.style} class="h-1 w-full rounded-full bg-primary" />;
@@ -29,7 +35,14 @@ function Working() {
  * `valueText` is what a screen reader hears as the value when the percentage is not the point ("2/5 tasks done").
  * The fill is set by width and never animates (`design/motion.md`); the text beside it is the caller's.
  */
-export function Progress(props: { value: number | null; label: string; valueText?: string; min?: number; max?: number; class?: string }) {
+export function Progress(props: {
+  value: number | null;
+  label: string;
+  valueText?: string;
+  min?: number;
+  max?: number;
+  class?: string;
+}) {
   const min = () => props.min ?? 0;
   const max = () => props.max ?? 100;
   const ratio = () => progressRatio(props.value, min(), max());
@@ -37,7 +50,12 @@ export function Progress(props: { value: number | null; label: string; valueText
     <View
       role="progressbar"
       accessibilityLabel={props.label}
-      accessibilityValue={{ min: min(), max: max(), now: props.value === null ? undefined : props.value, text: progressText(ratio(), props.valueText) }}
+      accessibilityValue={{
+        min: min(),
+        max: max(),
+        now: props.value === null ? undefined : props.value,
+        text: progressText(ratio(), props.valueText),
+      }}
       class={`h-1 overflow-hidden rounded-full bg-muted ${props.class ?? ""}`}
     >
       <If when={ratio() !== undefined} else={<Working />}>

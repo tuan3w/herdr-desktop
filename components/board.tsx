@@ -1,15 +1,17 @@
-import { computed, effect, Scroll, signal, Text, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
+import { computed, effect, Scroll, signal, Text, View } from "nsh";
+
 import type { BoardProject, BoardRow } from "herdr-desktop/native";
+
+import { Opener, ProjectCard, Question } from "#components/board-card";
+import { Triage } from "#components/triage";
+import { Btn, Empty, FOCUS_RING, NUM, Swap } from "#kit";
+import { type HomeLine, homeLines, strip } from "#lib/board-items";
 import { allRows, board, projectOf, revision, reviewable } from "#lib/herdr";
+import { COLUMN, GAP, PAD, TWO_COLUMNS_FROM } from "#lib/layout";
 import { animateLayout, hoverTransition } from "#lib/motion";
 import { select } from "#lib/selection";
-import { type HomeLine, homeLines, strip } from "#lib/board-items";
 import { foldedProjects, moreOpen, shownRows } from "#lib/sidebar";
-import { COLUMN, GAP, PAD, TWO_COLUMNS_FROM } from "#lib/layout";
-import { Opener, ProjectCard, Question } from "#components/board-card";
-import { Btn, Empty, FOCUS_RING, NUM, Swap } from "#kit";
-import { Triage } from "#components/triage";
 
 /**
  * The status line, one count for every surface, all in the muted ink (the `Needs you` inbox just under it is the loud
@@ -34,9 +36,7 @@ function StatusLine() {
             </If>
             <If
               when={/^\d+ to review/.test(part())}
-              else={
-                <Swap class="text-sm text-muted-foreground" text={part()} />
-              }
+              else={<Swap class="text-sm text-muted-foreground" text={part()} />}
             >
               <View
                 role="button"
@@ -121,13 +121,20 @@ function NeedsYou(props: { onTriage: () => void; onOpen: (row: BoardRow, options
  * terminal, in its project. Opening an agent does not review it; `Reviewed` does, with one `Undo`. `onAddMachine` offers
  * the first-run pointer when only this computer is known.
  */
-export function Board(props: { onOpen: (row: BoardRow, options?: { reply?: boolean }) => void; onAddMachine?: () => void }) {
+export function Board(props: {
+  onOpen: (row: BoardRow, options?: { reply?: boolean }) => void;
+  onAddMachine?: () => void;
+}) {
   /** Open on the walk of `Answer one by one`, starting at an agent when its own `Answer` was pressed. */
   const triage = signal<{ at?: string } | null>(null);
   const width = signal(0);
   const columns = () => (width() >= TWO_COLUMNS_FROM ? 2 : 1);
   const lines = computed(() => homeLines(board().projects, columns(), moreOpen(), foldedProjects()));
-  const order = computed(() => board().projects.flatMap((p) => (foldedProjects().includes(p.key) ? [] : shownRows(p.rows, moreOpen().includes(p.key)).shown.map((r) => r.key))));
+  const order = computed(() =>
+    board().projects.flatMap((p) =>
+      foldedProjects().includes(p.key) ? [] : shownRows(p.rows, moreOpen().includes(p.key)).shown.map((r) => r.key),
+    ),
+  );
   const machines = computed(() => {
     revision();
     return Herdr.machines().filter((m) => m.enabled);
@@ -146,11 +153,20 @@ export function Board(props: { onOpen: (row: BoardRow, options?: { reply?: boole
             <View class={`${PAD.page} pb-2`}>
               <StatusLine />
             </View>
-          <Empty fill icon="monitor" title={lonely() ? "Add your first machine" : "No agents yet"} hint={lonely() ? "Agents running under herdr on this computer show up here. Add a machine to watch others too." : "Agents running under herdr appear here."}>
-            <If when={lonely() && props.onAddMachine}>
-              <Btn label="Add machine" onPress={() => props.onAddMachine?.()} />
-            </If>
-          </Empty>
+            <Empty
+              fill
+              icon="monitor"
+              title={lonely() ? "Add your first machine" : "No agents yet"}
+              hint={
+                lonely()
+                  ? "Agents running under herdr on this computer show up here. Add a machine to watch others too."
+                  : "Agents running under herdr appear here."
+              }
+            >
+              <If when={lonely() && props.onAddMachine}>
+                <Btn label="Add machine" onPress={() => props.onAddMachine?.()} />
+              </If>
+            </Empty>
           </>
         }
       >
@@ -162,7 +178,15 @@ export function Board(props: { onOpen: (row: BoardRow, options?: { reply?: boole
               {(line) => (
                 <View class={`flex-row items-start ${GAP.section}`}>
                   <Each of={line().projects} key={(p: BoardProject) => p.key}>
-                    {(project) => <ProjectCard project={project()} several={several()} order={order} onAnswer={answer} onOpen={props.onOpen} />}
+                    {(project) => (
+                      <ProjectCard
+                        project={project()}
+                        several={several()}
+                        order={order}
+                        onAnswer={answer}
+                        onOpen={props.onOpen}
+                      />
+                    )}
                   </Each>
                   <If when={columns() === 2 && !line().alone && line().projects.length === 1}>
                     <View class="flex-1" />

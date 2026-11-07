@@ -1,14 +1,26 @@
-import { cleanup, host, keymap, mount, signal, Text, View } from "nsh";
 import { Files as MachineFiles, Sessions } from "herdr-desktop/native";
-import type { AcpView, ActionResult, DiffItem, PlanStepView, QueuedView, SessionItem, SessionRef, SessionView, ToolItem } from "herdr-desktop/native";
-import { warmCode } from "#lib/highlight";
+import { cleanup, host, keymap, mount, signal, Text, View } from "nsh";
+
+import type {
+  AcpView,
+  ActionResult,
+  DiffItem,
+  PlanStepView,
+  QueuedView,
+  SessionItem,
+  SessionRef,
+  SessionView,
+  ToolItem,
+} from "herdr-desktop/native";
+
+import { SessionChat, SessionTab } from "#components/session-tab";
+import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
 import { startHerdr } from "#lib/herdr";
+import { warmCode } from "#lib/highlight";
 import { copyCode, copyReply } from "#lib/pane-input";
 import { createSessionModel, type SessionPort } from "#lib/session";
-import { GLOBAL, keysOf } from "#lib/shortcuts";
 import { loadSettings } from "#lib/settings";
-import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
-import { SessionChat, SessionTab } from "#components/session-tab";
+import { GLOBAL, keysOf } from "#lib/shortcuts";
 
 /**
  * The entry of `session-tab.test.tsx` and the screenshots. Two modes, chosen by the launch parameter `mode`:
@@ -24,7 +36,18 @@ import { SessionChat, SessionTab } from "#components/session-tab";
  *
  * `quiet: true` leaves out the lab's own buttons and lines, for a screenshot of the chat alone. Not part of the app.
  */
-const params = host.params as { mode?: "keeper" | "scripted" | "model"; scene?: string; quiet?: boolean; rows?: number; only?: "user" | "agent"; autostream?: number; upTo?: number; instant?: boolean; fences?: boolean; lines?: number };
+const params = host.params as {
+  mode?: "keeper" | "scripted" | "model";
+  scene?: string;
+  quiet?: boolean;
+  rows?: number;
+  only?: "user" | "agent";
+  autostream?: number;
+  upTo?: number;
+  instant?: boolean;
+  fences?: boolean;
+  lines?: number;
+};
 startHerdr("", "empty");
 void loadSettings();
 warmCode();
@@ -32,23 +55,63 @@ warmCode();
 const tree = MachineFiles.testTree();
 
 /** What ACP says besides the rows, with nothing to say. */
-const ACP: AcpView = { canResume: false, canList: false, canClose: false, canLogout: false, acceptsAudio: false, acceptsEmbedded: false, auth: [] };
+const ACP: AcpView = {
+  canResume: false,
+  canList: false,
+  canClose: false,
+  canLogout: false,
+  acceptsAudio: false,
+  acceptsEmbedded: false,
+  auth: [],
+};
 
 let next = 1;
-const say = (role: "user" | "agent" | "thought", text: string): SessionItem => ({ id: next++, rev: 1, kind: "message", role, text, images: [], parts: [] });
-const note = (text: string): SessionItem => ({ id: next++, rev: 1, kind: "note", text, images: [], parts: [] });
-const done = (text: string, ok = true): SessionItem => ({ id: next++, rev: 1, kind: "done", text, ok, images: [], parts: [] });
+const say = (role: "user" | "agent" | "thought", text: string): SessionItem => ({
+  id: next++,
+  rev: 1,
+  kind: "message",
+  role,
+  text,
+  images: [],
+  parts: [],
+});
+const done = (text: string, ok = true): SessionItem => ({
+  id: next++,
+  rev: 1,
+  kind: "done",
+  text,
+  ok,
+  images: [],
+  parts: [],
+});
 const call = (title: string, over: Partial<ToolItem> = {}): SessionItem => ({
   id: next++,
   rev: 1,
   kind: "tool",
   images: [],
   parts: [],
-  tool: { id: `t${next}`, title, toolKind: "execute", status: "completed", head: [], tail: [], omitted: 0, diffs: [], locations: [], parts: [], terminal: false, ...over },
+  tool: {
+    id: `t${next}`,
+    title,
+    toolKind: "execute",
+    status: "completed",
+    head: [],
+    tail: [],
+    omitted: 0,
+    diffs: [],
+    locations: [],
+    parts: [],
+    terminal: false,
+    ...over,
+  },
 });
 
 /** `item` with the agent's own times, in milliseconds since the session was attached. */
-const timed = (item: SessionItem, startedMs: number, endedMs?: number): SessionItem => ({ ...item, startedMs, endedMs });
+const timed = (item: SessionItem, startedMs: number, endedMs?: number): SessionItem => ({
+  ...item,
+  startedMs,
+  endedMs,
+});
 
 const EDIT: DiffItem = {
   path: `${tree}/src/auth.ts`,
@@ -78,7 +141,11 @@ const ANSWER = [
 ].join("\n");
 
 /** One long synthetic function: a block past the fold of 16 lines, for the look of `Show all 304 lines`. */
-const LONG_FUNCTION = ["fn replay(ledger: &mut Ledger) {", ...Array.from({ length: 300 }, (_, i) => `    ledger.record(${i}, "entry-${i}", ${(i * 7) % 100});`), "}"].join("\n");
+const LONG_FUNCTION = [
+  "fn replay(ledger: &mut Ledger) {",
+  ...Array.from({ length: 300 }, (_, i) => `    ledger.record(${i}, "entry-${i}", ${(i * 7) % 100});`),
+  "}",
+].join("\n");
 
 /** What an agent writes when it explains code: prose, inline code and a fence of every kind the chat meets. */
 const CODE_ANSWER = [
@@ -91,7 +158,7 @@ const CODE_ANSWER = [
   "    if (res.ok || res.status < 500) return res;",
   "    await sleep(2 ** i * 100); // back off",
   "  }",
-  '  throw new Error(`gave up after ${attempts} tries`);',
+  "  throw new Error(`gave up after ${attempts} tries`);",
   "}",
   "```",
   "",
@@ -102,7 +169,7 @@ const CODE_ANSWER = [
   "    for i in 0..attempts {",
   "        match transport::call(req) {",
   "            Ok(res) if res.status() < 500 => return Ok(res),",
-  '            Err(e) if !e.retryable() => return Err(e),',
+  "            Err(e) if !e.retryable() => return Err(e),",
   "            _ => std::thread::sleep(Duration::from_millis(100 << i)),",
   "        }",
   "    }",
@@ -183,17 +250,46 @@ const CODE_ANSWER = [
 const bigPieces = (n: number): string[] => [
   "Writing it out in full:\n\n",
   "```rust\n",
-  ...Array.from({ length: Math.ceil(n / 20) }, (_, p) => Array.from({ length: Math.min(20, n - p * 20) }, (_, i) => `    let value_${p * 20 + i} = ledger.get(${p * 20 + i}).unwrap_or_default();\n`).join("")),
+  ...Array.from({ length: Math.ceil(n / 20) }, (_, p) =>
+    Array.from(
+      { length: Math.min(20, n - p * 20) },
+      (_, i) => `    let value_${p * 20 + i} = ledger.get(${p * 20 + i}).unwrap_or_default();\n`,
+    ).join(""),
+  ),
   "```\n\n",
   "That is all of it.",
 ];
 
 /** The text a streaming reply writes in `code-stream`, in the pieces the lab cuts it into. */
-const SMALL_STREAM = ["Here is the loop, as it is being written:\n\n", "```ts\n", "export async function send(req: Request) {\n", "  for (let i = 0; i < 3; i++) {\n", "    const res = await fetch(req.url);\n", "    if (res.ok) return res;\n", "  }\n", "  throw new Error(\"gave up\");\n", "}\n", "```\n\n", "It tries three times and then gives up."];
+const SMALL_STREAM = [
+  "Here is the loop, as it is being written:\n\n",
+  "```ts\n",
+  "export async function send(req: Request) {\n",
+  "  for (let i = 0; i < 3; i++) {\n",
+  "    const res = await fetch(req.url);\n",
+  "    if (res.ok) return res;\n",
+  "  }\n",
+  '  throw new Error("gave up");\n',
+  "}\n",
+  "```\n\n",
+  "It tries three times and then gives up.",
+];
 
 /** A short and a middling block for the long scene (`fences`): a conversation of code is what the 5,000-row measurement is about. */
-const SMALL_FENCE = ["```ts", "export function total(rows: number[]): number {", "  let sum = 0;", "  for (const r of rows) sum += r;", "  return sum;", "}", "```"].join("\n");
-const MIDDLING_FENCE = ["```rust", ...Array.from({ length: 60 }, (_, i) => `    let value_${i} = ledger.get(${i}).unwrap_or_default();`), "```"].join("\n");
+const SMALL_FENCE = [
+  "```ts",
+  "export function total(rows: number[]): number {",
+  "  let sum = 0;",
+  "  for (const r of rows) sum += r;",
+  "  return sum;",
+  "}",
+  "```",
+].join("\n");
+const MIDDLING_FENCE = [
+  "```rust",
+  ...Array.from({ length: 60 }, (_, i) => `    let value_${i} = ledger.get(${i}).unwrap_or_default();`),
+  "```",
+].join("\n");
 
 const OUTPUT = Array.from({ length: 40 }, (_, i) => `PASS src/case-${i + 1}.test.ts (${12 + i} ms)`);
 
@@ -208,22 +304,48 @@ function scene(name: string): Scene {
       return {
         view: { running: true, phase: "working" },
         items: [
-          say("user", "Fix ACME-412: EU promo codes skip regional tax at checkout. Split the tests off and report back."),
+          say(
+            "user",
+            "Fix ACME-412: EU promo codes skip regional tax at checkout. Split the tests off and report back.",
+          ),
           say("thought", "The tax rules live in src/tax; the promo code path never calls them."),
           call("Read src/tax/rules.ts", { toolKind: "read", subject: `${tree}/src/tax/rules.ts` }),
           call("Edit src/auth.ts", { toolKind: "edit", subject: `${tree}/src/auth.ts`, diffs: [EDIT] }),
-          call("Run: pnpm test", { toolKind: "execute", subject: "pnpm test", status: "failed", head: OUTPUT.slice(0, 6), tail: ["FAIL src/case-9.test.ts", "1 failed, 39 passed", "", "Ran all test suites."], omitted: 20 }),
-          call("tax-rules", { toolKind: "task", subject: "tax-rules", status: "completed", head: ["Fixed. Promo discounts now apply after VAT for EU regions, and 11 tax tests pass."] }),
-          call("Running pnpm test promo-eu", { toolKind: "execute", subject: "pnpm test promo-eu", status: "inProgress" }),
+          call("Run: pnpm test", {
+            toolKind: "execute",
+            subject: "pnpm test",
+            status: "failed",
+            head: OUTPUT.slice(0, 6),
+            tail: ["FAIL src/case-9.test.ts", "1 failed, 39 passed", "", "Ran all test suites."],
+            omitted: 20,
+          }),
+          call("tax-rules", {
+            toolKind: "task",
+            subject: "tax-rules",
+            status: "completed",
+            head: ["Fixed. Promo discounts now apply after VAT for EU regions, and 11 tax tests pass."],
+          }),
+          call("Running pnpm test promo-eu", {
+            toolKind: "execute",
+            subject: "pnpm test promo-eu",
+            status: "inProgress",
+          }),
         ],
       };
     case "code":
       return {
         view: { running: false, phase: "idle" },
-        items: [say("user", "How does the client retry? Show me the three implementations."), say("agent", CODE_ANSWER), done("Done in 12s")],
+        items: [
+          say("user", "How does the client retry? Show me the three implementations."),
+          say("agent", CODE_ANSWER),
+          done("Done in 12s"),
+        ],
       };
     case "code-stream":
-      return { view: { running: true, phase: "working" }, items: [say("user", "Show me the retry loop."), say("agent", "")] };
+      return {
+        view: { running: true, phase: "working" },
+        items: [say("user", "Show me the retry loop."), say("agent", "")],
+      };
     case "plan":
       return {
         view: {
@@ -243,14 +365,21 @@ function scene(name: string): Scene {
             { name: "review", description: "Review the changes on this branch", hint: "<branch>" },
           ],
         },
-        items: [say("user", "Fix the login redirect loop."), call("Read src/auth.ts", { toolKind: "read", subject: `${tree}/src/auth.ts` }), say("agent", "Found it: `login` always redirects to `/callback`.")],
+        items: [
+          say("user", "Fix the login redirect loop."),
+          call("Read src/auth.ts", { toolKind: "read", subject: `${tree}/src/auth.ts` }),
+          say("agent", "Found it: `login` always redirects to `/callback`."),
+        ],
       };
     case "long":
       return {
         view: { running: false, phase: "idle", earlierNotice: "Earlier messages are no longer kept" },
         items: Array.from({ length: params.rows ?? 400 }, (_, i) =>
           params.only === "agent" || (params.only !== "user" && i % 2 === 1)
-            ? say("agent", `Answer ${(i - 1) / 2 + 1}: here is what the code does at that point.${params.fences && i % 8 === 1 ? `\n\n${i % 40 === 1 ? MIDDLING_FENCE : SMALL_FENCE}\n\nThat is the whole of it.` : ""}`)
+            ? say(
+                "agent",
+                `Answer ${(i - 1) / 2 + 1}: here is what the code does at that point.${params.fences && i % 8 === 1 ? `\n\n${i % 40 === 1 ? MIDDLING_FENCE : SMALL_FENCE}\n\nThat is the whole of it.` : ""}`,
+              )
             : say("user", `Question ${i / 2 + 1}`),
         ),
       };
@@ -273,9 +402,18 @@ function scene(name: string): Scene {
           acp: {
             ...ACP,
             auth: [
-              { id: "login", name: "Use existing local credentials", description: "Sign in with the login this machine already has." },
+              {
+                id: "login",
+                name: "Use existing local credentials",
+                description: "Sign in with the login this machine already has.",
+              },
               { id: "account", name: "Sign in with an account", description: "Opens the agent's own sign-in." },
-              { id: "term", name: "Log in in a terminal", description: "The agent signs in in a terminal.", terminalArgs: ["--login", "--provider", "my cloud"] },
+              {
+                id: "term",
+                name: "Log in in a terminal",
+                description: "The agent signs in in a terminal.",
+                terminalArgs: ["--login", "--provider", "my cloud"],
+              },
             ],
           },
         },
@@ -288,7 +426,15 @@ function scene(name: string): Scene {
           say("user", "Fix the login redirect after sign-in; it loops on /callback."),
           timed(say("thought", "Looking at the auth middleware."), 1000, 3000),
           timed(call("Read src/auth.ts", { toolKind: "read", subject: `${tree}/src/auth.ts` }), 3000, 3600),
-          timed(call("Run: grep -rn callback src", { toolKind: "execute", subject: "grep -rn callback src", head: ["src/auth.ts:12: redirect('/callback')", "src/routes.ts:4: route('/callback', handler)"] }), 3600, 7200),
+          timed(
+            call("Run: grep -rn callback src", {
+              toolKind: "execute",
+              subject: "grep -rn callback src",
+              head: ["src/auth.ts:12: redirect('/callback')", "src/routes.ts:4: route('/callback', handler)"],
+            }),
+            3600,
+            7200,
+          ),
           timed(say("agent", ANSWER), 7200, 12_000),
           done("Done in 41s · 1 file +3 −1 · 2 tools"),
         ],
@@ -438,11 +584,64 @@ function Scripted() {
         <View class="flex-row flex-wrap items-center gap-2 border-b border-border p-2">
           <Btn small label="Agent says more" onPress={() => lab.stream(" And more text arrives.")} />
           <Btn small label="Stream a piece" onPress={writeMore} />
-          <Btn small label="Agent starts a message" onPress={() => lab.message("A new answer, started while you were reading.")} />
-          <Btn small label="Add unknown kind" onPress={() => lab.add({ id: next++, rev: 1, kind: "hologram", text: "Something new", images: [], parts: [] } as unknown as SessionItem)} />
-          <Btn small label="Start a call" onPress={() => lab.add(call("Running pnpm lint", { toolKind: "execute", subject: "pnpm lint", status: "inProgress" }))} />
-          <Btn small label="Advance plan" onPress={() => lab.plan([{ content: "Reproduce the redirect loop", status: "completed" }, { content: "Make login honour the requested page", status: "completed" }, { content: "Run the tests", status: "inProgress" }])} />
-          <Btn small label="Request waits" onPress={() => lab.set({ phase: "blockedOnPermission", waiting: [{ requestId: "r1", digest: "d1", ask: "permission", arrivedMs: 0, title: "Run: git push", subject: "git push origin main", choices: [], fields: [] }] })} />
+          <Btn
+            small
+            label="Agent starts a message"
+            onPress={() => lab.message("A new answer, started while you were reading.")}
+          />
+          <Btn
+            small
+            label="Add unknown kind"
+            onPress={() =>
+              lab.add({
+                id: next++,
+                rev: 1,
+                kind: "hologram",
+                text: "Something new",
+                images: [],
+                parts: [],
+              } as unknown as SessionItem)
+            }
+          />
+          <Btn
+            small
+            label="Start a call"
+            onPress={() =>
+              lab.add(call("Running pnpm lint", { toolKind: "execute", subject: "pnpm lint", status: "inProgress" }))
+            }
+          />
+          <Btn
+            small
+            label="Advance plan"
+            onPress={() =>
+              lab.plan([
+                { content: "Reproduce the redirect loop", status: "completed" },
+                { content: "Make login honour the requested page", status: "completed" },
+                { content: "Run the tests", status: "inProgress" },
+              ])
+            }
+          />
+          <Btn
+            small
+            label="Request waits"
+            onPress={() =>
+              lab.set({
+                phase: "blockedOnPermission",
+                waiting: [
+                  {
+                    requestId: "r1",
+                    digest: "d1",
+                    ask: "permission",
+                    arrivedMs: 0,
+                    title: "Run: git push",
+                    subject: "git push origin main",
+                    choices: [],
+                    fields: [],
+                  },
+                ],
+              })
+            }
+          />
           <Btn small label="Finish the turn" onPress={() => lab.finish()} />
           <Btn small label="Lose the connection" onPress={() => lab.set({ connectionLost: true })} />
           <Btn small label="Agent answers" onPress={() => lab.answer()} />

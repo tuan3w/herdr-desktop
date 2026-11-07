@@ -1,17 +1,31 @@
 import { cleanup, View } from "nsh";
 import { DockArea, type DockTab } from "nsh/base";
-import { machinesOpen } from "#lib/actions";
-import { attach, activated, BOARD, closeTab, focused, layout, openPane, parsePaneKey, parseSessionKey, removePanel, rowKeyOf, setLayout } from "#lib/dock";
-import { meta, rowOf } from "#lib/herdr";
-import { appear, hoverTransition } from "#lib/motion";
-import { openAgent } from "#lib/open-agent";
-import { keyLabel } from "#lib/shortcuts";
-import { ROW } from "#lib/layout";
+
 import { Board } from "#components/board";
-import { Btn, Clipped, Empty, FOCUS_RING_INSET, Icon, IconButton } from "#kit";
 import { PaneTab } from "#components/pane-tab";
 import { SessionTab } from "#components/session-tab";
 import { StatusGlyph } from "#components/status-glyph";
+import { Btn, Clipped, Empty, FOCUS_RING_INSET, Icon, IconButton } from "#kit";
+import { machinesOpen } from "#lib/actions";
+import {
+  attach,
+  activated,
+  BOARD,
+  closeTab,
+  focused,
+  layout,
+  openPane,
+  parsePaneKey,
+  parseSessionKey,
+  removePanel,
+  rowKeyOf,
+  setLayout,
+} from "#lib/dock";
+import { meta, rowOf } from "#lib/herdr";
+import { ROW } from "#lib/layout";
+import { appear, hoverTransition } from "#lib/motion";
+import { openAgent } from "#lib/open-agent";
+import { keyLabel } from "#lib/shortcuts";
 
 /**
  * The tab area: splits of tab groups the person arranges. The board is the home tab (never closable); each opened agent
@@ -44,7 +58,12 @@ function PanePanel(props: { id: string }) {
   // A machine the list no longer has reads `null`, a pane herdr dropped reads `gone`: both leave only a tab to close.
   return (
     <If when={info() !== null && info()!.feedState !== "gone"} else={<AgentGone panel={props.id} />}>
-      <PaneTab machine={at.machine} pane={at.pane} active={focused() === props.id} onOpenPane={(machine, pane) => void openPane(machine, pane)} />
+      <PaneTab
+        machine={at.machine}
+        pane={at.pane}
+        active={focused() === props.id}
+        onOpenPane={(machine, pane) => void openPane(machine, pane)}
+      />
     </If>
   );
 }
@@ -62,7 +81,14 @@ function TabFace(props: { tab: DockTab }) {
     return key === null ? undefined : rowOf(key);
   };
   const gone = () => at !== null && (info() === null || info()!.feedState === "gone");
-  const name = () => (props.tab.panel === BOARD ? "Board" : chat ? (row()?.name ?? "Chat") : gone() ? "Agent gone" : (info()?.name ?? at?.pane ?? ""));
+  const name = () =>
+    props.tab.panel === BOARD
+      ? "Board"
+      : chat
+        ? (row()?.name ?? "Chat")
+        : gone()
+          ? "Agent gone"
+          : (info()?.name ?? at?.pane ?? "");
   const status = () => (chat ? (row()?.status ?? "unknown") : gone() ? "unknown" : (info()?.status ?? "unknown"));
   return (
     <View style={appear(props.tab.panel)} class="max-w-56 flex-row items-center gap-2">
@@ -73,7 +99,12 @@ function TabFace(props: { tab: DockTab }) {
       <If when={props.tab.closable}>
         {/* Closing is mod+w and the palette for the keyboard and screen readers: a button inside a tab would be a control within a control. */}
         <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-          <IconButton icon="x" label={`Close tab ${name()}`} shortcut={keyLabel("closeTab")} onPress={() => closeTab(props.tab.panel)} />
+          <IconButton
+            icon="x"
+            label={`Close tab ${name()}`}
+            shortcut={keyLabel("closeTab")}
+            onPress={() => closeTab(props.tab.panel)}
+          />
         </View>
       </If>
     </View>
@@ -92,7 +123,15 @@ export function Workspace() {
         if (active) activated(panel);
       }}
       panels={[{ id: BOARD, closable: false }]}
-      renderPanel={({ id }) => (id === BOARD ? <Board onOpen={(row, options) => void openAgent(row, options)} onAddMachine={() => machinesOpen.set(true)} /> : id.startsWith("session:") ? <SessionPanel id={id} /> : <PanePanel id={id} />)}
+      renderPanel={({ id }) =>
+        id === BOARD ? (
+          <Board onOpen={(row, options) => void openAgent(row, options)} onAddMachine={() => machinesOpen.set(true)} />
+        ) : id.startsWith("session:") ? (
+          <SessionPanel id={id} />
+        ) : (
+          <PanePanel id={id} />
+        )
+      }
       renderTab={(tab) => <TabFace tab={tab} />}
       renderDragPreview={(tab) => (
         <View class="rounded-md border border-border bg-popover px-3 py-1.5 shadow-md">

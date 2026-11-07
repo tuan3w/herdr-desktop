@@ -1,5 +1,7 @@
 import type { Bounds, Point } from "nsh/types";
+
 import { fold } from "#lib/text";
+
 import { TRANSIT_MS } from "./hover";
 
 /**
@@ -103,7 +105,7 @@ export function typeahead(
 
 /** Where each row starts: `heights` summed, one more entry at the end for the content's height. */
 export function offsetsOf(heights: readonly number[]): number[] {
-  const offsets = new Array<number>(heights.length + 1);
+  const offsets: number[] = Array.from({ length: heights.length + 1 }, () => 0);
   let sum = 0;
   for (let i = 0; i < heights.length; i++) {
     offsets[i] = sum;
@@ -114,7 +116,12 @@ export function offsetsOf(heights: readonly number[]): number[] {
 }
 
 /** The scroll offset that brings row `index` fully into a viewport of `height` scrolled to `scroll`; undefined when it already is. */
-export function revealOffset(offsets: readonly number[], index: number, scroll: number, height: number): number | undefined {
+export function revealOffset(
+  offsets: readonly number[],
+  index: number,
+  scroll: number,
+  height: number,
+): number | undefined {
   const top = offsets[index];
   const bottom = offsets[index + 1];
   if (top < scroll) return top;

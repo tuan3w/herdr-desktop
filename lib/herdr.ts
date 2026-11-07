@@ -1,7 +1,9 @@
-import { computed, signal } from "nsh";
-import type { Accessor } from "nsh";
 import { Herdr } from "herdr-desktop/native";
+import { computed, signal } from "nsh";
+
 import type { BoardData, BoardProject, BoardRow, PaneMeta } from "herdr-desktop/native";
+import type { Accessor } from "nsh";
+
 import { notify } from "#kit";
 
 /**
@@ -40,7 +42,10 @@ export const board: Accessor<BoardData> = computed(() => {
 /** The board's projects and rows by key, built once per revision for the screens that look one up. */
 const index = computed(() => {
   const data = board();
-  return { projects: new Map(data.projects.map((p) => [p.key, p])), rows: new Map(allRows(data).map((r) => [r.key, r])) };
+  return {
+    projects: new Map(data.projects.map((p) => [p.key, p])),
+    rows: new Map(allRows(data).map((r) => [r.key, r])),
+  };
 });
 
 /** The project with this key (`BoardRow.project`), `undefined` when the board has none. */
@@ -96,6 +101,8 @@ export function reviewWithUndo(rows: readonly BoardRow[]): number {
   const keys = reviewable(rows).map((r) => r.reviewKey);
   if (keys.length === 0) return 0;
   Herdr.review(keys);
-  notify(keys.length === 1 ? "Marked reviewed" : `Marked ${keys.length} reviewed`, { undo: () => Herdr.unreview(keys) });
+  notify(keys.length === 1 ? "Marked reviewed" : `Marked ${keys.length} reviewed`, {
+    undo: () => Herdr.unreview(keys),
+  });
   return keys.length;
 }

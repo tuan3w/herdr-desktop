@@ -1,4 +1,5 @@
 import { context, type JSX, signal, View } from "nsh";
+
 import { Disclosure, type DisclosureScope } from "./collapsible";
 import { createOpenState, type OpenChange } from "./popup";
 
@@ -64,7 +65,8 @@ export function AccordionItem(props: { value: string; disabled?: boolean; class?
   if (!accordion) throw new Error("AccordionItem must be inside an Accordion");
   const state = createOpenState({
     open: () => accordion.has(props.value),
-    onOpenChange: (open, change) => accordion.commit(accordionValue(accordion.value(), props.value, open, accordion.multiple()), change),
+    onOpenChange: (open, change) =>
+      accordion.commit(accordionValue(accordion.value(), props.value, open, accordion.multiple()), change),
   });
   const disabled = () => accordion.disabled() || props.disabled === true;
   const scope: DisclosureScope = {

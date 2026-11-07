@@ -1,6 +1,8 @@
 import { signal, Text, View } from "nsh";
+
 import type { JSX } from "nsh";
 import type { TextStyle } from "nsh/types";
+
 import { NUM } from "./core";
 import { FocusScope, useTooltip } from "./tooltip";
 
@@ -14,10 +16,19 @@ const letters = (s: string) => s.replace(/\s/g, "").length;
  * children are not one string (nested spans). For what a row can lose: a company name, a route, a preview. What the
  * user must read to act (an error, a page title) gets room instead: wrap it, or widen the column.
  */
-export function Clipped(props: { lines?: number; label?: string; /** `false` where a preview card already shows the whole text (a row of the inbox). */ tip?: boolean; class?: string; style?: TextStyle; children?: JSX.Element }) {
+export function Clipped(props: {
+  lines?: number;
+  label?: string;
+  /** `false` where a preview card already shows the whole text (a row of the inbox). */ tip?: boolean;
+  class?: string;
+  style?: TextStyle;
+  children?: JSX.Element;
+}) {
   const cut = signal(false);
   const full = () => props.label ?? (typeof props.children === "string" ? props.children : "");
-  const tip = useTooltip(() => <Text class="text-xs text-popover-foreground">{full()}</Text>, { disabled: () => !cut() || props.tip === false });
+  const tip = useTooltip(() => <Text class="text-xs text-popover-foreground">{full()}</Text>, {
+    disabled: () => !cut() || props.tip === false,
+  });
   return (
     <Text
       ref={tip.ref}
@@ -54,7 +65,9 @@ export function Tipped(props: {
       <View class="flex-row items-center gap-2">
         <Text class="text-xs font-medium text-popover-foreground">{props.label}</Text>
         <If when={props.shortcut}>
-          <Text style={NUM} class="text-xs text-popover-foreground opacity-60">{props.shortcut}</Text>
+          <Text style={NUM} class="text-xs text-popover-foreground opacity-60">
+            {props.shortcut}
+          </Text>
         </If>
       </View>
     ),
@@ -75,7 +88,11 @@ export function Tipped(props: {
 /** A keycap: the shortcut shown beside a label (`⌘N`). Decorative: the control's label already says what it does. */
 export function Kbd(props: { keys: string; tone?: "muted" | "onPrimary" | "sidebar" }) {
   const box = () =>
-    props.tone === "onPrimary" ? "border-primary-foreground/30" : props.tone === "sidebar" ? "border-sidebar-border" : "border-border bg-muted";
+    props.tone === "onPrimary"
+      ? "border-primary-foreground/30"
+      : props.tone === "sidebar"
+        ? "border-sidebar-border"
+        : "border-border bg-muted";
   const text = () =>
     props.tone === "onPrimary"
       ? "text-primary-foreground opacity-80"
@@ -83,7 +100,11 @@ export function Kbd(props: { keys: string; tone?: "muted" | "onPrimary" | "sideb
         ? "text-sidebar-accent-foreground opacity-70"
         : "text-muted-foreground";
   return (
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" class={`min-w-5 items-center rounded border px-1 py-px ${box()}`}>
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      class={`min-w-5 items-center rounded border px-1 py-px ${box()}`}
+    >
       <Text style={NUM} class={`text-xs ${text()}`}>
         {props.keys}
       </Text>

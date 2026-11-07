@@ -1,19 +1,33 @@
+import { Herdr } from "herdr-desktop/native";
 import { Text, View } from "nsh";
 import { Button } from "nsh/base";
-import { Herdr } from "herdr-desktop/native";
+
 import type { BoardCheckout, BoardProject, BoardRow } from "herdr-desktop/native";
-import { newSession } from "#lib/actions";
-import { reviewWithUndo } from "#lib/herdr";
-import { animateLayout, appear, hoverTransition } from "#lib/motion";
-import { isSelected } from "#lib/selection";
-import { ageText, foldedProjects, moreOpen, projectFolder, projectLabel, projectTitle, QUIET_SHOWN, rowLabel, shownRows, toggleMore, toggleProject } from "#lib/sidebar";
-import { GAP, ROW } from "#lib/layout";
-import { stateWord } from "#lib/status";
+
 import { AnswerDock } from "#components/answer-dock";
-import { Btn, Clipped, FOCUS_RING, FOCUS_RING_INSET, Icon, NUM, Pill } from "#kit";
 import { PickSlot } from "#components/pick-box";
 import { Monogram, ProjectMark } from "#components/project-parts";
 import { StatusGlyph } from "#components/status-glyph";
+import { Btn, Clipped, FOCUS_RING, FOCUS_RING_INSET, Icon, NUM, Pill } from "#kit";
+import { newSession } from "#lib/actions";
+import { reviewWithUndo } from "#lib/herdr";
+import { GAP, ROW } from "#lib/layout";
+import { animateLayout, appear, hoverTransition } from "#lib/motion";
+import { isSelected } from "#lib/selection";
+import {
+  ageText,
+  foldedProjects,
+  moreOpen,
+  projectFolder,
+  projectLabel,
+  projectTitle,
+  QUIET_SHOWN,
+  rowLabel,
+  shownRows,
+  toggleMore,
+  toggleProject,
+} from "#lib/sidebar";
+import { stateWord } from "#lib/status";
 
 /** What a row does when it is opened and what else the home needs to draw it. */
 export interface RowProps {
@@ -35,7 +49,14 @@ function detail(row: BoardRow, project: BoardProject, inbox: boolean): string {
   const named = project.checkouts.length > 1 ? project.checkouts.find((c) => c.path === row.checkout)?.name : undefined;
   // The main checkout is called what the project is: saying it twice adds nothing.
   const checkout = named?.toLowerCase() === project.name.toLowerCase() ? undefined : named;
-  return [inbox ? project.name : stateWord(row.status, row.reviewed), row.agent, checkout, row.session ? "chat" : "terminal"].filter(Boolean).join(" · ");
+  return [
+    inbox ? project.name : stateWord(row.status, row.reviewed),
+    row.agent,
+    checkout,
+    row.session ? "chat" : "terminal",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 /** The part of a row that opens the agent: glyph, name, what it is, how long; a chat adds what the agent said last. `loud` is the inbox's. */
@@ -74,7 +95,10 @@ export function Opener(props: Pick<RowProps, "row" | "project" | "onOpen"> & { l
 export function Question(props: { row: BoardRow; onOpen: RowProps["onOpen"] }) {
   const row = () => props.row;
   return (
-    <If when={!row().session} else={<Text class="pb-2 text-xs text-muted-foreground">Waiting for your answer in the chat</Text>}>
+    <If
+      when={!row().session}
+      else={<Text class="pb-2 text-xs text-muted-foreground">Waiting for your answer in the chat</Text>}
+    >
       <View class="gap-3 pb-2">
         <If
           when={row().prompt}
@@ -89,7 +113,13 @@ export function Question(props: { row: BoardRow; onOpen: RowProps["onOpen"] }) {
           {(prompt) => <AnswerDock machine={row().machine} pane={row().paneId} prompt={prompt()} />}
         </If>
         <View class="flex-row">
-          <Btn small variant="ghost" label="Reply…" name={`Reply…: ${row().name}`} onPress={() => props.onOpen(row(), { reply: true })} />
+          <Btn
+            small
+            variant="ghost"
+            label="Reply…"
+            name={`Reply…: ${row().name}`}
+            onPress={() => props.onOpen(row(), { reply: true })}
+          />
         </View>
       </View>
     </If>
@@ -105,14 +135,29 @@ export function AgentRow(props: RowProps) {
   const row = () => props.row;
   const asking = () => row().status === "blocked" && !row().offline;
   return (
-    <View style={appear(row().key)} class={`group/row relative flex-row items-center gap-2 pr-1 ${row().offline ? "opacity-60" : ""}`}>
+    <View
+      style={appear(row().key)}
+      class={`group/row relative flex-row items-center gap-2 pr-1 ${row().offline ? "opacity-60" : ""}`}
+    >
       <Opener row={props.row} project={props.project} onOpen={props.onOpen} />
       <If when={asking()}>
-        <Btn small variant="ghost" label="Answer" name={`Answer: ${row().name}`} onPress={() => props.onAnswer(row())} />
+        <Btn
+          small
+          variant="ghost"
+          label="Answer"
+          name={`Answer: ${row().name}`}
+          onPress={() => props.onAnswer(row())}
+        />
       </If>
       <If when={row().status === "done" && !row().offline}>
         <View class="opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100">
-          <Btn small variant="ghost" label="Reviewed" name={`Reviewed: ${row().name}`} onPress={() => reviewWithUndo([row()])} />
+          <Btn
+            small
+            variant="ghost"
+            label="Reviewed"
+            name={`Reviewed: ${row().name}`}
+            onPress={() => reviewWithUndo([row()])}
+          />
         </View>
       </If>
       <PickSlot rowKey={row().key} name={row().name} order={props.order} surface="card" />
@@ -142,7 +187,12 @@ export function ProjectCard(props: CardProps) {
   const open = () => moreOpen().includes(p().key);
   const worktrees = () => p().checkouts.length > 1 || p().checkouts.some((c) => c.linked);
   return (
-    <View role="group" accessibilityLabel={projectLabel(p())} style={appear(p().key)} class={`min-w-0 flex-1 rounded-xl border border-border bg-card p-2 ${GAP.rows} ${p().offline ? "opacity-60" : ""}`}>
+    <View
+      role="group"
+      accessibilityLabel={projectLabel(p())}
+      style={appear(p().key)}
+      class={`min-w-0 flex-1 rounded-xl border border-border bg-card p-2 ${GAP.rows} ${p().offline ? "opacity-60" : ""}`}
+    >
       <View class="group flex-row items-center gap-3">
         <View
           role="button"
@@ -169,7 +219,13 @@ export function ProjectCard(props: CardProps) {
           </If>
         </View>
         <View class="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
-          <Btn small variant="ghost" label={p().pinned ? "Unpin" : "Pin"} name={`${p().pinned ? "Unpin" : "Pin"} ${p().name}`} onPress={() => Herdr.pinProject(p().key, !p().pinned)} />
+          <Btn
+            small
+            variant="ghost"
+            label={p().pinned ? "Unpin" : "Pin"}
+            name={`${p().pinned ? "Unpin" : "Pin"} ${p().name}`}
+            onPress={() => Herdr.pinProject(p().key, !p().pinned)}
+          />
         </View>
       </View>
       <If when={!isFolded()}>
@@ -181,7 +237,9 @@ export function ProjectCard(props: CardProps) {
           </View>
         </If>
         <Each of={rows().shown} key={(r: BoardRow) => r.key}>
-          {(row) => <AgentRow row={row()} project={p()} order={props.order} onAnswer={props.onAnswer} onOpen={props.onOpen} />}
+          {(row) => (
+            <AgentRow row={row()} project={p()} order={props.order} onAnswer={props.onAnswer} onOpen={props.onOpen} />
+          )}
         </Each>
         <If when={quiet() > QUIET_SHOWN}>
           <View class="flex-row">
@@ -191,12 +249,16 @@ export function ProjectCard(props: CardProps) {
                 animateLayout();
                 toggleMore(p().key);
               }}
-              accessibilityLabel={open() ? `Show fewer idle in ${p().name}` : `${quiet() - QUIET_SHOWN} more idle in ${p().name}`}
+              accessibilityLabel={
+                open() ? `Show fewer idle in ${p().name}` : `${quiet() - QUIET_SHOWN} more idle in ${p().name}`
+              }
               accessibilityState={{ expanded: open() }}
               style={hoverTransition()}
               class={`rounded-md hover:bg-accent ${ROW.more.class} justify-center ${FOCUS_RING}`}
             >
-              <Text class="text-xs text-muted-foreground">{open() ? "Show fewer idle" : `${quiet() - QUIET_SHOWN} more idle`}</Text>
+              <Text class="text-xs text-muted-foreground">
+                {open() ? "Show fewer idle" : `${quiet() - QUIET_SHOWN} more idle`}
+              </Text>
             </View>
           </View>
         </If>

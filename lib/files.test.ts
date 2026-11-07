@@ -1,8 +1,17 @@
 import { expect, test } from "nsh/test";
+
 import type { EntryView } from "herdr-desktop/native";
+
 import { arrange, crumbs, entryLabel, joinPath, modifiedText, parentOf, routeLink, sizeText } from "#lib/files";
 
-const entry = (name: string, patch: Partial<EntryView> = {}): EntryView => ({ name, kind: "file", size: 0, readable: true, link: false, ...patch });
+const entry = (name: string, patch: Partial<EntryView> = {}): EntryView => ({
+  name,
+  kind: "file",
+  size: 0,
+  readable: true,
+  link: false,
+  ...patch,
+});
 
 test("a link goes where it belongs: files to the viewer, a remote machine's localhost to a page, the rest to the browser", () => {
   const remote = { local: false, loopback: false };
@@ -24,7 +33,8 @@ test("a folder lists folders first, then by the order asked, and hides dotfiles 
     entry("notes.txt", { size: 100, modified: 40 }),
     entry("zeta", { kind: "dir", modified: 50 }),
   ];
-  const names = (sort: "name" | "modified" | "size", hidden = false) => arrange(entries, { sort, hidden }).map((e) => e.name);
+  const names = (sort: "name" | "modified" | "size", hidden = false) =>
+    arrange(entries, { sort, hidden }).map((e) => e.name);
   expect(names("name")).toEqual(["app", "big.log", "notes.txt", "zeta"]);
   expect(names("name", true)).toContain(".env");
   expect(names("modified")).toEqual(["zeta", "app", "notes.txt", "big.log"]);

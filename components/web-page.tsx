@@ -1,9 +1,11 @@
-import { announce, Clipboard, effect, openUrl, signal, untracked, View, WebView } from "nsh";
-import type { WebViewRef } from "nsh";
 import { Herdr, Pages } from "herdr-desktop/native";
+import { announce, Clipboard, effect, openUrl, signal, untracked, View, WebView } from "nsh";
+
 import type { PageView } from "herdr-desktop/native";
-import { pageRequest } from "#lib/files";
+import type { WebViewRef } from "nsh";
+
 import { Btn, Empty, Modal, notify, Spinner } from "#kit";
+import { pageRequest } from "#lib/files";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
@@ -79,12 +81,20 @@ export function WebPage() {
         <>
           <Btn variant="ghost" label="Back" disabled={!canGoBack()} onPress={() => view?.goBack()} />
           <Btn variant="ghost" label="Reload" disabled={!page()} onPress={() => view?.reload()} />
-          <Btn variant="ghost" label="Copy link" onPress={() => void Clipboard.writeText(remote()).then(() => notify("Link copied"))} />
+          <Btn
+            variant="ghost"
+            label="Copy link"
+            onPress={() => void Clipboard.writeText(remote()).then(() => notify("Link copied"))}
+          />
           <Btn
             variant="ghost"
             label="Open in browser"
             disabled={!page()}
-            onPress={() => void openUrl(page()?.url ?? "").catch((e) => notify(`Could not open the address: ${reason(e)}`, { type: "error" }))}
+            onPress={() =>
+              void openUrl(page()?.url ?? "").catch((e) =>
+                notify(`Could not open the address: ${reason(e)}`, { type: "error" }),
+              )
+            }
           />
           <Btn label="Close" hint="Esc" onPress={close} />
         </>
@@ -115,7 +125,11 @@ export function WebPage() {
               )}
             </If>
             <If when={loading()}>
-              <View class="absolute inset-0 items-center justify-center" accessibilityLabel="Opening the page" accessibilityState={{ busy: true }}>
+              <View
+                class="absolute inset-0 items-center justify-center"
+                accessibilityLabel="Opening the page"
+                accessibilityState={{ busy: true }}
+              >
                 <Spinner />
               </View>
             </If>
@@ -125,7 +139,10 @@ export function WebPage() {
         {(message) => (
           <View class="h-[460px] items-center justify-center">
             <Empty fill icon="alert" title="Couldn't open this page" hint={message()}>
-              <Btn label="Try again" onPress={() => void start(pageRequest()?.machine ?? "", pageRequest()?.url ?? "")} />
+              <Btn
+                label="Try again"
+                onPress={() => void start(pageRequest()?.machine ?? "", pageRequest()?.url ?? "")}
+              />
             </Empty>
           </View>
         )}

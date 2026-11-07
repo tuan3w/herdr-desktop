@@ -1,7 +1,10 @@
 import { computed, effect, keymap, signal, Text, View } from "nsh";
+
 import type { ViewRef } from "nsh/types";
-import { fold } from "#lib/text";
+
 import { hoverTransition } from "#lib/motion";
+import { fold } from "#lib/text";
+
 import { FOCUS_RING, openOnDown } from "./core";
 import { Labeled, type Option } from "./fields";
 import { Icon } from "./icon";
@@ -34,7 +37,13 @@ export function toggled<T>(chosen: readonly T[], value: T, equal: (a: T, b: T) =
  */
 export function selectRows<T extends string>(
   items: readonly SelectItem<T>[],
-  options: { chosen: readonly T[]; equal: (a: T, b: T) => boolean; multiple: boolean; readOnly: boolean; pick: (value: T) => void },
+  options: {
+    chosen: readonly T[];
+    equal: (a: T, b: T) => boolean;
+    multiple: boolean;
+    readOnly: boolean;
+    pick: (value: T) => void;
+  },
 ): MenuRow[] {
   const rows: MenuRow[] = [];
   const add = (option: SelectOption<T>) =>
@@ -98,14 +107,22 @@ export type SelectFieldProps<T extends string> = SelectBase<T> &
  * control in one row has one height. For a set that is searched by typing, use a `Combobox`.
  */
 export function SelectField<T extends string>(props: SelectFieldProps<T>) {
-  const state = createOpenState({ open: () => props.open, defaultOpen: props.defaultOpen, onOpenChange: (o, c) => props.onOpenChange?.(o, c) });
+  const state = createOpenState({
+    open: () => props.open,
+    defaultOpen: props.defaultOpen,
+    onOpenChange: (o, c) => props.onOpenChange?.(o, c),
+  });
   const width = signal(0);
   const focused = signal(false);
   const session = createSession(state);
   let trigger: ViewRef | undefined;
   const equal = (a: T, b: T) => (props.isItemEqualToValue ? props.isItemEqualToValue(a, b) : a === b);
   const chosen = (): T[] => (props.multiple ? [...props.value] : props.value === "" ? [] : [props.value]);
-  const options = computed(() => props.items.flatMap((item): SelectOption<T>[] => (item === "separator" ? [] : "items" in item ? item.items : [item])));
+  const options = computed(() =>
+    props.items.flatMap((item): SelectOption<T>[] =>
+      item === "separator" ? [] : "items" in item ? item.items : [item],
+    ),
+  );
   const title = computed(() =>
     options()
       .filter((o) => chosen().some((c) => equal(o.value, c)))
@@ -166,7 +183,9 @@ export function SelectField<T extends string>(props: SelectFieldProps<T>) {
       style={hoverTransition()}
       class={`flex-row items-center justify-between gap-2 rounded-md border bg-card px-3 ${props.invalid ? "border-destructive" : "border-input"} ${props.disabled ? "opacity-50" : "hover:bg-accent"} ${FOCUS_RING} ${props.small ? "h-8" : "h-9"}`}
     >
-      <Text class={`line-clamp-1 min-w-0 flex-1 ${props.small ? "text-xs" : "text-sm"} ${title() ? "text-foreground" : "text-muted-foreground"}`}>
+      <Text
+        class={`line-clamp-1 min-w-0 flex-1 ${props.small ? "text-xs" : "text-sm"} ${title() ? "text-foreground" : "text-muted-foreground"}`}
+      >
         {title() || props.placeholder || "Select…"}
       </Text>
       <Icon name="chevron-down" size={14} tone="muted-foreground" />
@@ -177,7 +196,15 @@ export function SelectField<T extends string>(props: SelectFieldProps<T>) {
       {select}
       <If when={state.open()}>
         <Surface
-          rows={() => selectRows(props.items, { chosen: chosen(), equal, multiple: !!props.multiple, readOnly: !!props.readOnly, pick })}
+          rows={() =>
+            selectRows(props.items, {
+              chosen: chosen(),
+              equal,
+              multiple: !!props.multiple,
+              readOnly: !!props.readOnly,
+              pick,
+            })
+          }
           session={session}
           anchor={trigger!}
           over={props.alignItemWithTrigger === false ? undefined : trigger}

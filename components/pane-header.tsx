@@ -1,11 +1,13 @@
 import { Text, View } from "nsh";
+
 import type { PaneMeta } from "herdr-desktop/native";
+
+import { agentTitle } from "#components/composer";
+import { StatusGlyph } from "#components/status-glyph";
+import { ActionMenu, Btn, Clipped, IconButton, type MenuEntry } from "#kit";
 import { paneFit, type PaneFit } from "#lib/settings";
 import { keyLabel } from "#lib/shortcuts";
 import { statusText } from "#lib/status";
-import { agentTitle } from "#components/composer";
-import { ActionMenu, Btn, Clipped, IconButton, type MenuEntry } from "#kit";
-import { StatusGlyph } from "#components/status-glyph";
 
 /**
  * The top of a pane tab: what the agent is and what it is doing (a shape and words, never colour alone), its machine
@@ -47,7 +49,10 @@ export function PaneHeader(props: {
     { label: "Copy title", onSelect: props.onCopyTitle },
     { label: `Copy pane id ${props.pane}`, onSelect: props.onCopyPaneId },
   ];
-  const where = () => [props.info.agent && agentTitle(props.info.agent), props.info.machineName, props.info.cwd].filter(Boolean).join(" · ");
+  const where = () =>
+    [props.info.agent && agentTitle(props.info.agent), props.info.machineName, props.info.cwd]
+      .filter(Boolean)
+      .join(" · ");
   return (
     <View class="min-h-14 flex-row items-center gap-3 border-b border-border bg-card px-6 py-2">
       <StatusGlyph status={props.info.status} />

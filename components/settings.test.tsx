@@ -1,5 +1,7 @@
 import { expect, open, test } from "nsh/test";
+
 import type { App } from "nsh/test";
+
 import app from "../nsh.json";
 
 const DESKTOP = { width: 1280, height: 1400 };
@@ -48,7 +50,15 @@ test("the pane font size and the minimum contrast are chosen from their lists, a
 });
 
 test("what was chosen before is what the window opens with, and a saved value out of range is ignored", async () => {
-  const stored = { themeId: "graphite", paneFit: "actual", paneFontSize: 17, minContrast: 7, announceOutput: true, quickPhrases: false, reduceMotionOverride: true };
+  const stored = {
+    themeId: "graphite",
+    paneFit: "actual",
+    paneFontSize: 17,
+    minContrast: 7,
+    announceOutput: true,
+    quickPhrases: false,
+    reduceMotionOverride: true,
+  };
   const a = await inSettings({ ...DESKTOP, storage: { [KEY]: JSON.stringify(stored) } });
   await a.waitUntil(() => a.texts().includes("quick=false announce=true motion=true"));
   expect(a.texts().some((t) => t.startsWith("fit=actual font=17 contrast=7 theme=graphite"))).toBe(true);
@@ -56,7 +66,10 @@ test("what was chosen before is what the window opens with, and a saved value ou
   expect(a.shows("label:Pane font size: 17 pt")).toBe(true);
   expect(a.shows("label:Minimum contrast: 7")).toBe(true);
 
-  const bad = await inSettings({ ...DESKTOP, storage: { [KEY]: JSON.stringify({ themeId: "nope", paneFontSize: 99, minContrast: 12, paneFit: "sideways" }) } });
+  const bad = await inSettings({
+    ...DESKTOP,
+    storage: { [KEY]: JSON.stringify({ themeId: "nope", paneFontSize: 99, minContrast: 12, paneFit: "sideways" }) },
+  });
   await bad.waitUntil(() => bad.texts().some((t) => t.startsWith("fit=width")));
   expect(bad.texts().some((t) => t === "fit=width font=13 contrast=4.5 theme=harbor")).toBe(true);
 });
@@ -69,9 +82,18 @@ test("how code is drawn is chosen in Settings, applies at once, is saved, and is
   await a.press("label:Show tabs and spaces");
   await a.press("label:Diffs side by side");
   expect(a.texts()).toContain("code=true/true/true/true");
-  await a.waitUntil(() => saved(a).codeWrap === true && saved(a).codeLineNumbers === true && saved(a).codeWhitespace === true && saved(a).diffSplit === true);
+  await a.waitUntil(
+    () =>
+      saved(a).codeWrap === true &&
+      saved(a).codeLineNumbers === true &&
+      saved(a).codeWhitespace === true &&
+      saved(a).diffSplit === true,
+  );
 
-  const again = await inSettings({ ...DESKTOP, storage: { [KEY]: JSON.stringify({ codeLineNumbers: true, diffSplit: true }) } });
+  const again = await inSettings({
+    ...DESKTOP,
+    storage: { [KEY]: JSON.stringify({ codeLineNumbers: true, diffSplit: true }) },
+  });
   await again.waitUntil(() => again.texts().includes("code=false/true/false/true"));
 });
 

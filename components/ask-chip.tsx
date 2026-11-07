@@ -1,7 +1,8 @@
 import { Text, View } from "nsh";
+
+import { FOCUS_RING, Icon, Spinner } from "#kit";
 import { hoverTransition } from "#lib/motion";
 import { largeTargets } from "#lib/settings";
-import { FOCUS_RING, Icon, Spinner } from "#kit";
 
 /**
  * One answer of an agent's request: a permission option or Accept and Decline of a form. Its name is the agent's own

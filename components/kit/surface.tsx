@@ -1,4 +1,5 @@
 import { type JSX, Text, View } from "nsh";
+
 import { NUM } from "./core";
 import { Icon, type IconName } from "./icon";
 
@@ -57,7 +58,10 @@ export function PageHeader(props: { title: string; subtitle?: string; right?: JS
 export function SectionTitle(props: { text: string; quiet?: boolean; right?: JSX.Element }) {
   return (
     <View class="flex-row items-center justify-between">
-      <Text role="header" class={props.quiet ? "text-xs font-medium text-muted-foreground" : "text-sm font-medium text-foreground"}>
+      <Text
+        role="header"
+        class={props.quiet ? "text-xs font-medium text-muted-foreground" : "text-sm font-medium text-foreground"}
+      >
         {props.text}
       </Text>
       {props.right}
@@ -69,7 +73,13 @@ export function SectionTitle(props: { text: string; quiet?: boolean; right?: JSX
  * Nothing here yet. Title, an optional one-line hint, and children (the action that creates the missing thing).
  * `fill` centers it in the free space of a pane; without it the block sits inside a list or card.
  */
-export function Empty(props: { title: string; hint?: string; icon?: IconName; fill?: boolean; children?: JSX.Element }) {
+export function Empty(props: {
+  title: string;
+  hint?: string;
+  icon?: IconName;
+  fill?: boolean;
+  children?: JSX.Element;
+}) {
   return (
     <View class={`items-center gap-2 px-6 ${props.fill ? "flex-1 justify-center py-12" : "py-12"}`}>
       <If when={props.icon}>

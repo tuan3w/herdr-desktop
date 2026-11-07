@@ -90,7 +90,13 @@ export function createCheckGroup(options: {
       checked: () => parentState(value().length, options.all().length).checked,
       indeterminate: () => parentState(value().length, options.all().length).indeterminate,
       press(): boolean {
-        const next = pressParent({ all: options.all(), value: value(), remembered, status, disabled: options.disabled ?? (() => false) });
+        const next = pressParent({
+          all: options.all(),
+          value: value(),
+          remembered,
+          status,
+          disabled: options.disabled ?? (() => false),
+        });
         if (!commit(next.value)) return false;
         status = next.status;
         return true;

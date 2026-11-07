@@ -1,4 +1,5 @@
 import { effect, keymap } from "nsh";
+
 import type { TextStyle } from "nsh/types";
 
 /**
@@ -21,7 +22,8 @@ export const NUM: TextStyle = { fontVariant: ["tabular-nums"] };
  * the edge: sidebar rows sit 2pt apart, and an outline floating outside a row is painted over by the fill of the row
  * after it (and runs into the sidebar's padding).
  */
-export const FOCUS_RING_SIDEBAR = "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sidebar-ring";
+export const FOCUS_RING_SIDEBAR =
+  "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sidebar-ring";
 
 /**
  * Binds Down to `open` while `armed()`. Only the newest binding of a key runs and it consumes the key, so a field must

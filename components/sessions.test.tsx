@@ -1,4 +1,5 @@
 import { expect, open, test } from "nsh/test";
+
 import type { App } from "nsh/test";
 
 /** The `Sessions` module end to end: a real keeper (herdr-mobile's script) driving its scripted ACP agent, in a home of its own. */
@@ -8,7 +9,8 @@ const DESKTOP = { width: 1280, height: 800 };
 async function pressUntil(app: App, button: string, done: string): Promise<void> {
   const deadline = Date.now() + 10_000;
   while (!app.shows(done)) {
-    if (Date.now() > deadline) throw new Error(`pressing "${button}" never showed "${done}"; on screen: ${JSON.stringify(app.texts())}`);
+    if (Date.now() > deadline)
+      throw new Error(`pressing "${button}" never showed "${done}"; on screen: ${JSON.stringify(app.texts())}`);
     await app.press(button);
     await new Promise((resolve) => setTimeout(resolve, 25));
   }

@@ -1,4 +1,5 @@
 import { expect, test } from "nsh/test";
+
 import { pushDialog, removeDialog } from "./dialog-stack";
 
 test("a dialog that opens goes on top, and one that opens twice is still counted once", () => {

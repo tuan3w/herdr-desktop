@@ -14,6 +14,7 @@
 // logs a line only while GTK draws frames: an idle scenario prints none, which is the behaviour to keep ("an app at rest
 // draws no frames"), and its row says `0` seconds drawn.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+
 import { nshTest, realDisplay } from "./run-linux.mjs";
 
 /** What a scenario without an entry of its own must meet (and what `.perf/budgets.json` `default` overrides). */
@@ -36,7 +37,7 @@ const MEM_SLACK = 1.15;
 const budgetFile = new URL("../.perf/budgets.json", import.meta.url).pathname;
 const budgets = existsSync(budgetFile) ? JSON.parse(readFileSync(budgetFile, "utf8")) : {};
 /** The budget of one scenario: the default, then its own entry over it. */
-const budgetOf = (name) => ({ ...DEFAULTS, ...(budgets.default ?? {}), ...(budgets.scenarios?.[name] ?? {}) });
+const budgetOf = (name) => ({ ...DEFAULTS, ...budgets.default, ...budgets.scenarios?.[name] });
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(`--${name}`);
@@ -49,7 +50,8 @@ const writeBudgets = flag("write-budgets");
 // A check takes the median of three runs unless told otherwise: one run of a CPU-drawn scenario swings more than the slack.
 const runs = Number(option("runs") ?? (check ? 3 : 1));
 const valueOptions = new Set(["runs", "json", "from"]);
-const file = args.find((a, i) => !a.startsWith("--") && !valueOptions.has(args[i - 1]?.slice(2))) ?? ".perf/scenarios.test.tsx";
+const file =
+  args.find((a, i) => !a.startsWith("--") && !valueOptions.has(args[i - 1]?.slice(2))) ?? ".perf/scenarios.test.tsx";
 
 // One monitor line: `nsh::perf fps 39/60 frame mean/p50/p95/max gap ... over 3% update ... layout ... paint ... snapshot ...
 // canvas ... drain ... commits 5 js m/p50/p95/max core m/p50/p95/max items 137 engine 6% cpu 4% rss 316.3 MB` (`cpu -` on the
@@ -72,7 +74,21 @@ async function runOnce() {
   for (const line of output.split("\n")) {
     const marker = line.match(/PERF-SCENARIO (.+)$/);
     if (marker) {
-      current = { name: marker[1].trim(), seconds: 0, cpuSeconds: 0, fpsMin: Infinity, frameP95: 0, over: 0, jsP95: 0, coreP95: 0, cpuSum: 0, cpuMax: 0, memMB: 0, metrics: null, live: null };
+      current = {
+        name: marker[1].trim(),
+        seconds: 0,
+        cpuSeconds: 0,
+        fpsMin: Infinity,
+        frameP95: 0,
+        over: 0,
+        jsP95: 0,
+        coreP95: 0,
+        cpuSum: 0,
+        cpuMax: 0,
+        memMB: 0,
+        metrics: null,
+        live: null,
+      };
       rows.push(current);
       continue;
     }
@@ -206,7 +222,9 @@ const limited = (row, key, column, digits, limit, best = true) => {
   const text = fmt(digits)(row.cell[key]);
   const value = best && row.cell[key].range ? row.cell[key].range[0] : row.cell[key].median;
   if (value === null || limit === undefined || value <= limit) return text;
-  broken.push(`${row.name}: ${column} ${best && results.length > 1 ? "best " : ""}${value.toFixed(digits)} > ${limit} (${text})`);
+  broken.push(
+    `${row.name}: ${column} ${best && results.length > 1 ? "best " : ""}${value.toFixed(digits)} > ${limit} (${text})`,
+  );
   return `${text}!`;
 };
 
@@ -233,7 +251,9 @@ const frames = aggregate.map((row) => {
     limited(row, "memMB", "memory", 0, b.memMB, false),
   ];
 });
-console.log(`Frames and process, from the monitor (${results.length} run${results.length > 1 ? "s, median [min-max]" : ""}):\n`);
+console.log(
+  `Frames and process, from the monitor (${results.length} run${results.length > 1 ? "s, median [min-max]" : ""}):\n`,
+);
 print(["scenario", "s drawn", "fps min", "frame p95", "over %", "js p95", "core p95", "cpu avg/max", "rss MB"], frames);
 
 const rust = aggregate.map((row) => [
@@ -247,12 +267,32 @@ const rust = aggregate.map((row) => [
   fmt(0)(row.cell.fds),
 ]);
 console.log("\nRust metrics (`Herdr.metrics()` at the end of the scenario; reads/s while the stream still ran):\n");
-print(["scenario", "reads/s", "read to paint p50 / p95 ms", "parse us/row", "rebound mean / max", "rss MB", "threads", "fds"], rust);
+print(
+  [
+    "scenario",
+    "reads/s",
+    "read to paint p50 / p95 ms",
+    "parse us/row",
+    "rebound mean / max",
+    "rss MB",
+    "threads",
+    "fds",
+  ],
+  rust,
+);
 
 for (const note of notes) console.log(`\nnote: ${note}`);
-console.log(`\nbudgets (${existsSync(budgetFile) ? ".perf/budgets.json" : "defaults"}): a "!" marks a figure over its budget: the best run for times, the median for memory.`);
-console.log(realDisplay ? "Measured on the display of this session." : "Measured under Xvfb with the cairo renderer (CPU-drawn): frame times are an upper bound, not the GPU's.");
-console.log("A scenario that draws no frame prints no frame readings (`0` seconds drawn): an app at rest should be there.");
+console.log(
+  `\nbudgets (${existsSync(budgetFile) ? ".perf/budgets.json" : "defaults"}): a "!" marks a figure over its budget: the best run for times, the median for memory.`,
+);
+console.log(
+  realDisplay
+    ? "Measured on the display of this session."
+    : "Measured under Xvfb with the cairo renderer (CPU-drawn): frame times are an upper bound, not the GPU's.",
+);
+console.log(
+  "A scenario that draws no frame prints no frame readings (`0` seconds drawn): an app at rest should be there.",
+);
 
 if (writeBudgets) {
   const scenarios = {};
@@ -281,12 +321,19 @@ if (writeBudgets) {
     : "Measured under Xvfb with the cairo renderer on the dev host (unoptimized Rust): CPU-drawn numbers, so the frame budgets are regression guards and not the product target (frame p95 < 8.3 ms at 120 Hz on a real display, unverified). Each time budget is the median of the runs x 1.5 (1.15 broke on this shared machine, whose speed moves by 30% between hours), except memMB (the highest any run reached x 1.15: the resident set has two modes) and a scenario at rest (drawn 0, cpu 1). cpu is checked by scripts/cpu.mjs. A check holds the best of its three runs to a budget (noise on a shared machine only slows a run) and memMB at the median. See docs/PERFORMANCE.md.";
   const out = {
     note,
-    measured: { runs: results.length, slack: SLACK, display: realDisplay ? "real" : "xvfb-cairo", date: new Date().toISOString().slice(0, 10) },
-    default: { ...DEFAULTS, ...(budgets.default ?? {}) },
+    measured: {
+      runs: results.length,
+      slack: SLACK,
+      display: realDisplay ? "real" : "xvfb-cairo",
+      date: new Date().toISOString().slice(0, 10),
+    },
+    default: { ...DEFAULTS, ...budgets.default },
     scenarios,
   };
   writeFileSync(budgetFile, `${JSON.stringify(out, null, 2)}\n`);
-  console.log(`\nwrote ${budgetFile} from the medians of ${results.length} run${results.length > 1 ? "s" : ""} x ${SLACK}.`);
+  console.log(
+    `\nwrote ${budgetFile} from the medians of ${results.length} run${results.length > 1 ? "s" : ""} x ${SLACK}.`,
+  );
 }
 
 if (broken.length) console.log(`\nbroken (${broken.length}):\n  ${broken.join("\n  ")}`);
@@ -297,7 +344,9 @@ if (check) {
   }
   const unbudgeted = aggregate.filter((r) => !budgets.scenarios?.[r.name]).map((r) => r.name);
   if (unbudgeted.length) {
-    console.error(`\nscenarios with no entry in .perf/budgets.json (they only meet the default): ${unbudgeted.join(", ")}`);
+    console.error(
+      `\nscenarios with no entry in .perf/budgets.json (they only meet the default): ${unbudgeted.join(", ")}`,
+    );
     process.exit(1);
   }
   if (broken.length) process.exit(1);

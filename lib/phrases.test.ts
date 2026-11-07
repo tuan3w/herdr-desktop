@@ -1,4 +1,5 @@
 import { expect, test } from "nsh/test";
+
 import {
   addPhrase,
   cleanPhrase,
@@ -53,10 +54,21 @@ test("a phrase that is empty, already there or one too many is refused with its 
   expect(phraseProblem(list, "  ")).toBe("empty");
   expect(phraseProblem(list, "a")).toBe("duplicate");
   expect(phraseProblem(list, "c")).toBeNull();
-  expect(phraseProblem(Array.from({ length: MAX_COUNT }, (_, i) => `p${i}`), "new")).toBe("full");
+  expect(
+    phraseProblem(
+      Array.from({ length: MAX_COUNT }, (_, i) => `p${i}`),
+      "new",
+    ),
+  ).toBe("full");
   // An edit that changes nothing is fine; replacing is allowed in a full list.
   expect(phraseProblem(list, "a", "a")).toBeNull();
-  expect(phraseProblem(Array.from({ length: MAX_COUNT }, (_, i) => `p${i}`), "new", "p3")).toBeNull();
+  expect(
+    phraseProblem(
+      Array.from({ length: MAX_COUNT }, (_, i) => `p${i}`),
+      "new",
+      "p3",
+    ),
+  ).toBeNull();
 
   const memory = { own: ["a"], learned: [] };
   expect(addPhrase(memory, "a")).toBe(memory);
@@ -72,7 +84,14 @@ test("a message sent once is not a chip; sent twice it is", () => {
 });
 
 test("what may never be learned: a command, an address, a secret-looking token, several lines, nearly nothing, a long line", () => {
-  for (const text of ["/compact", "see https://example.com/x", "token ghp_1234567890abcdefghij1234", "two\nlines", "a", "x ".repeat(60)]) {
+  for (const text of [
+    "/compact",
+    "see https://example.com/x",
+    "token ghp_1234567890abcdefghij1234",
+    "two\nlines",
+    "a",
+    "x ".repeat(60),
+  ]) {
     expect(sendTimes(text, 3)).toEqual([]);
   }
 });
@@ -119,7 +138,12 @@ test("while the list is the shipped one a message the person really sends goes f
 
 test("a phrase that is also learned shows once, where the order puts it first", () => {
   const learned = sendTimes("Continue", 3);
-  expect(quickChips({ own: null, learned })).toEqual(["Continue", "yes, go ahead", "run the tests", "explain what you changed"]);
+  expect(quickChips({ own: null, learned })).toEqual([
+    "Continue",
+    "yes, go ahead",
+    "run the tests",
+    "explain what you changed",
+  ]);
   expect(quickChips({ own: ["continue", "x"], learned })).toEqual(["continue", "x"]);
 });
 
@@ -129,7 +153,14 @@ test("what was saved comes back, and what does not fit is dropped", () => {
   expect(parsePhrases({ own: "no", learned: "no" })).toEqual(emptyPhrases());
   const parsed = parsePhrases({
     own: ["ok", 3, "ok", ""],
-    learned: [{ t: "fine one", n: 2, l: 1 }, { t: "/command", n: 9, l: 2 }, { t: "zero", n: 0, l: 3 }, { t: 5, n: 2, l: 4 }, null, "x"],
+    learned: [
+      { t: "fine one", n: 2, l: 1 },
+      { t: "/command", n: 9, l: 2 },
+      { t: "zero", n: 0, l: 3 },
+      { t: 5, n: 2, l: 4 },
+      null,
+      "x",
+    ],
   });
   expect(parsed.own).toEqual(["ok"]);
   expect(parsed.learned).toEqual([{ t: "fine one", n: 2, l: 1 }]);

@@ -54,7 +54,14 @@ export function boardData(projects: BoardProject[], over: Partial<BoardData> = {
   return {
     projects,
     needsYou: rows.filter((r) => r.status === "blocked"),
-    counts: { needsYou: count("blocked"), toReview: count("done"), working: count("working"), idle: count("idle") + count("unknown"), offline: rows.length - live.length, machinesNotConnected: 0 },
+    counts: {
+      needsYou: count("blocked"),
+      toReview: count("done"),
+      working: count("working"),
+      idle: count("idle") + count("unknown"),
+      offline: rows.length - live.length,
+      machinesNotConnected: 0,
+    },
     statusLine: "",
     title: "Herdr Desktop",
     revision: 1,
@@ -64,5 +71,13 @@ export function boardData(projects: BoardProject[], over: Partial<BoardData> = {
 
 /** A machine's status; online unless `over` says otherwise. */
 export function machine(id: string, over: Partial<MachineStatus> = {}): MachineStatus {
-  return { id, name: id === "local" ? "This computer" : id, state: "online", newerHerdr: false, agents: 0, needsYou: 0, ...over };
+  return {
+    id,
+    name: id === "local" ? "This computer" : id,
+    state: "online",
+    newerHerdr: false,
+    agents: 0,
+    needsYou: 0,
+    ...over,
+  };
 }

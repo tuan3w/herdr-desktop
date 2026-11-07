@@ -12,6 +12,8 @@ export const realDisplay = Boolean(process.env.DISPLAY || process.env.WAYLAND_DI
 export function nshTest(file, extra = "") {
   const sysroot = existsSync(`${root}.scratch/sysroot/env.sh`) ? `. ${root}.scratch/sysroot/env.sh && ` : "";
   const test = `HERDR_DESKTOP_TEST=1 exec nsh test ${file} --target linux ${extra}`;
-  const wrapped = realDisplay ? test : `dbus-run-session -- xvfb-run -a env GSK_RENDERER=cairo GTK_A11Y=atspi sh -c '${test}'`;
+  const wrapped = realDisplay
+    ? test
+    : `dbus-run-session -- xvfb-run -a env GSK_RENDERER=cairo GTK_A11Y=atspi sh -c '${test}'`;
   return `cd ${root} && ${sysroot}${wrapped}`;
 }
