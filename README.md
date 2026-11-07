@@ -17,7 +17,7 @@ Feature-by-feature status against the phone app is in [docs/PARITY.md](docs/PARI
 
 ## A look
 
-<p><img src="docs/screenshots/home.png" alt="Home: projects, a Needs you inbox" width="440"> <img src="docs/screenshots/chat.png" alt="Chat with tool rows, a diff and a subagent" width="440"></p>
+<p><img src="docs/screenshots/home.png" alt="Home: projects, a Needs you inbox" width="440"> <img src="docs/screenshots/chat.png" alt="Chat with highlighted code, light" width="440"> <img src="docs/screenshots/chat-dark.png" alt="Chat with highlighted code, dark" width="440"></p>
 
 Illustrations from scripted data, not a gallery: they date. `make shots` takes current ones into `.scratch/shots/` (not committed).
 
