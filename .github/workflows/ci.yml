@@ -51,9 +51,10 @@ jobs:
           if-no-files-found: ignore
 
   macos:
-    # Apple silicon. Intel Macs are not built: nsh 0.4.0 ships its macOS CLI and runtime for arm64 only
+    # Apple silicon (macos-14 is not offered to this repository any more: "configuration macos-14-arm64-us-default is not
+    # supported"; macos-15 is). Intel Macs are not built: nsh 0.4.0 ships its macOS CLI and runtime for arm64 only
     # (nsh-macos-arm64.tar.gz is the one macOS asset of the v0.4.0 release).
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
