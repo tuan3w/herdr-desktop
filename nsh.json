@@ -1,0 +1,13 @@
+{
+  "name": "Herdr Desktop",
+  "id": "dev.herdrmobile.herdr_desktop",
+  "version": "0.1.0",
+  "build": 1,
+  "appearance": "system",
+  "theme": "theme.json",
+  "rust": ["native/app"],
+  "capabilities": {
+    "clipboard": true,
+    "openUrl": { "schemes": ["https", "http", "mailto"] }
+  }
+}

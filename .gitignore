@@ -1,0 +1,5 @@
+.nsh/
+target/
+.scratch/
+.campaign/
+node_modules/

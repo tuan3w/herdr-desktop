@@ -1,0 +1,10 @@
+[profile.dev]
+debug = 0
+
+[build]
+target-dir = "target"
+
+# A foreign `ar` earlier in PATH on some developer machines breaks cc-rs
+# (`ar cq` fails); pin binutils' archiver.
+[env]
+AR = "/usr/bin/ar"
