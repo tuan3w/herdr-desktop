@@ -7,6 +7,9 @@
 //! so the UI thread never waits for a socket or for ssh.
 
 mod hub;
+mod session_acp_views;
+mod session_views;
+mod sessions;
 mod views;
 
 use std::sync::Arc;
@@ -19,12 +22,15 @@ use serde_json::Value;
 use crate::engine::{Config, Engine};
 use crate::feed;
 use crate::fixture::{self, Fixture, TEST_FLAG};
+pub use session_acp_views::*;
+pub use session_views::*;
+pub use sessions::Sessions;
 pub use views::*;
 
 static ENGINE: RwLock<Option<Arc<Engine>>> = RwLock::new(None);
 
 /// The running engine, or why there is none.
-fn engine() -> Result<Arc<Engine>, String> {
+pub(crate) fn engine() -> Result<Arc<Engine>, String> {
     ENGINE
         .read()
         .clone()
@@ -90,6 +96,11 @@ impl Herdr {
     /// The version of the Rust core.
     pub fn core_version() -> String {
         herdr_core::version().to_owned()
+    }
+
+    /// Figures about the live pane path and the process, read now, for the developer panel. Needs no engine.
+    pub fn metrics() -> crate::metrics::Metrics {
+        crate::metrics::read()
     }
 
     /// Starts the engine: opens the data directory, connects to every machine that is switched on and
@@ -197,6 +208,35 @@ impl Herdr {
         Stop::new(move || hub::unsubscribe(id))
     }
 
+    /// Calls `listener` when the person clicks a notification: with the agent it was about, or with
+    /// nothing set for a summary. The app brings its window forward (`Window.orderFront()`) and shows
+    /// what was asked for. Pressing an answer button is not a click: it answers through the same
+    /// checked path as the answer dock and never reaches this listener. Returns the function that
+    /// stops listening.
+    pub fn on_notification_open(
+        #[args(open)] listener: Callback<NotificationOpen>,
+        cx: CallCx<'_>,
+    ) -> Result<Stop, String> {
+        let (id, clicks) = engine()?.notifier().subscribe();
+        cx.start(async move {
+            while let Ok(target) = clicks.recv().await {
+                listener.post(target.into());
+            }
+        });
+        Ok(Stop::new(move || {
+            if let Some(engine) = ENGINE.read().as_ref() {
+                engine.notifier().unsubscribe(id);
+            }
+        }))
+    }
+
+    /// Whether the desktop can show notifications: resolves with what is missing when it cannot (no
+    /// notification service on the session bus), and whether answer buttons will show. Settings asks
+    /// when the person switches notifications on.
+    pub async fn notification_support() -> Result<NotificationSupport, String> {
+        run(|engine| Ok(engine.notification_support().into())).await
+    }
+
     /// Keeps a pane's screen being read (for a header or a prompt) without a `PaneScreen`; the pane is
     /// read when herdr says it changed, at most 20 times a second. Returns the function that stops.
     /// Throws for a machine that is not listed.
@@ -278,6 +318,11 @@ impl Herdr {
     /// Takes the marks back: the `Undo` of a bulk review.
     pub fn unreview(keys: Vec<String>) -> Result<(), String> {
         engine()?.unreview(&review_keys(&keys)?)
+    }
+
+    /// Pins a project (`BoardProject.key`) so it lists first on the home and in the sidebar, or takes the pin back. Persisted.
+    pub fn pin_project(key: String, pinned: bool) -> Result<(), String> {
+        engine()?.pin_project(&key, pinned)
     }
 
     /// A setting, or `null` when it was never set.
@@ -418,6 +463,37 @@ impl Herdr {
     pub fn test_set_screen(pane: String, rows: Vec<String>) -> Result<(), String> {
         let engine = engine()?;
         fixture_of(&engine)?.set_screen(&pane, rows);
+        Ok(())
+    }
+
+    /// Test seam: scripts what ssh prints when the app tries to reach `dest` (for example `REMOTE HOST
+    /// IDENTIFICATION HAS CHANGED!` or `ssh: connect to host x port 22: Connection refused`), instead of
+    /// starting ssh, for machines added afterwards; `null` takes the script away. The text is classified
+    /// like real ssh output. Throws unless a fixture is running.
+    pub fn test_ssh_fault(dest: String, stderr: Option<String>) -> Result<(), String> {
+        let engine = engine()?;
+        fixture_of(&engine)?.set_ssh_fault(&dest, stderr);
+        Ok(())
+    }
+
+    /// Test seam: the notifications the app would have shown, oldest first. Throws unless a fixture is
+    /// running (a real herdr's notifications go to the desktop).
+    pub fn test_notifications() -> Result<Vec<TestNotification>, String> {
+        let engine = engine()?;
+        let sink = engine.recorded_notifications().ok_or_else(|| {
+            format!("The test seam is closed: set {TEST_FLAG}=1 and configure a fixture")
+        })?;
+        Ok(sink.shown().into_iter().map(Into::into).collect())
+    }
+
+    /// Test seam: presses a notification the app "showed": `action` is `default` for its body or
+    /// `answer:0` for its first button. Throws unless a fixture is running.
+    pub fn test_press_notification(id: u64, action: String) -> Result<(), String> {
+        let engine = engine()?;
+        let sink = engine.recorded_notifications().ok_or_else(|| {
+            format!("The test seam is closed: set {TEST_FLAG}=1 and configure a fixture")
+        })?;
+        sink.press(id, &action);
         Ok(())
     }
 }

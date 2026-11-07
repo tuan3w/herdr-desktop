@@ -1,0 +1,4 @@
+Settlement notes
+
+The job reads every payment older than the cut-off, groups them by merchant
+and writes one line per merchant. A retry must never write a second line.

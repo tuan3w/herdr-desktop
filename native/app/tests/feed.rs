@@ -87,6 +87,44 @@ fn a_changed_row_is_new_and_the_others_are_the_same_rows() {
 }
 
 #[test]
+fn a_screen_says_when_the_activity_that_caused_it_was_reported() {
+    let rig = start("mixed");
+    let feed = rig
+        .engine
+        .watch("local", "w1:p5", PaneSource::Visible)
+        .expect("a known machine");
+    wait_for("the first read", || !feed.screen().rows.is_empty());
+    // The first read was asked for by opening the view, not by anything the pane did.
+    assert_eq!(feed.activity_at(), None);
+
+    let reported = std::time::Instant::now();
+    rig.fixture().set_screen(
+        "w1:p5",
+        vec![
+            "  Updating lockfile".to_owned(),
+            "  ⠙ Working (41s)".to_owned(),
+        ],
+    );
+    rig.fixture()
+        .push_event(pane_updated(pane_object(&rig, "w1:p5"), 100));
+    wait_for("the new screen", || {
+        feed.screen()
+            .text_rows()
+            .last()
+            .is_some_and(|r| r == "  ⠙ Working (41s)")
+    });
+    let at = feed.activity_at().expect("the screen has a cause");
+    assert!(
+        at >= reported,
+        "the clock starts when herdr reports, not before"
+    );
+    assert!(at.elapsed() < std::time::Duration::from_secs(10));
+
+    // And the process-wide figures moved: a read was parsed.
+    assert!(herdr_desktop_native::metrics::read().parse_us_per_row > 0.0);
+}
+
+#[test]
 fn views_are_told_when_the_screen_changes() {
     let rig = start("mixed");
     let feed = rig

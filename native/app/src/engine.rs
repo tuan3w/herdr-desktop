@@ -15,15 +15,20 @@
 //! [`Fleet::pane_summary`], ...); nothing here pushes data into TSX. [`Engine`] owns the threads; [`Fleet`]
 //! is the shared state they and the callers use.
 
+mod alerts;
 mod answer;
+mod files;
 mod forward;
 mod machines;
 mod mutate;
+mod names;
+mod observed;
 mod panes;
 mod preview;
+mod sessions;
 mod words;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -32,13 +37,15 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use crossbeam_channel::{Sender, unbounded};
-use herdr_core::board::{Board, FirstSeen};
+use herdr_core::board::{Board, BoardExtras, FirstSeen, LogNames};
 use herdr_core::link::{
-    LinkConfig, LinkNote, LinkState, LocalWire, MachineLink, Profile, Update, default_socket_path,
+    LinkConfig, LinkNote, LinkState, LocalWire, MachineLink, Profile, SystemClock, Update,
+    default_socket_path,
 };
 use herdr_core::prompt::PromptInfo;
 use herdr_core::schema::{AgentStatus, PaneInfo, Snapshot, clean_terminal_title};
-use herdr_core::ssh::{SshClient, SshTarget, SshWire};
+use herdr_core::session::SessionHub;
+use herdr_core::ssh::{SshClient, SshTarget, SshWire, classify_ssh};
 use herdr_core::store::{Machine, MachineId, Machines, ReviewKey, Reviewed, Settings, Store};
 use herdr_core::wire::{Fatal, Wire, WireError};
 use parking_lot::{Mutex, RwLock};
@@ -53,6 +60,9 @@ pub use mutate::{Created, Split, StartAgent};
 pub use panes::WatchHandle;
 pub use preview::Preview;
 pub use words::{compact, status_line, window_title};
+
+/// The setting that holds the pinned projects' keys.
+const PINNED_KEY: &str = "projects.pinned";
 
 /// How long a request to herdr may take before it counts as failed.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
@@ -97,6 +107,9 @@ enum Job {
 pub struct Engine {
     fleet: Arc<Fleet>,
     threads: Vec<JoinHandle<()>>,
+    notifier: crate::notify::Notifier,
+    recording: Option<Arc<crate::notify::RecordingSink>>,
+    desktop: Option<Arc<crate::notify::DesktopSink>>,
 }
 
 impl Deref for Engine {
@@ -137,6 +150,26 @@ impl Engine {
         let (notes, note_rx) = unbounded();
         let (sched, sched_rx) = unbounded();
         let (jobs, job_rx) = unbounded();
+        let (notify_tx, notify_rx) = crate::notify::channel();
+        // A scripted herdr never reaches the owner's desktop: its notifications are recorded.
+        let (sink, recording, desktop): (Arc<dyn crate::notify::Sink>, _, _) =
+            if config.fixture.is_some() {
+                let recording = Arc::new(crate::notify::RecordingSink::new(notify_tx.clone()));
+                (recording.clone(), Some(recording), None)
+            } else {
+                let desktop = Arc::new(crate::notify::DesktopSink::new(notify_tx.clone()));
+                (desktop.clone(), None, Some(desktop))
+            };
+
+        let fleet_cell = sessions::FleetCell::default();
+        let sessions = sessions::build_hub(
+            stored_settings
+                .value
+                .get::<Vec<String>>(sessions::OWNED_KEY)
+                .unwrap_or_default(),
+            notes.clone(),
+            fleet_cell.clone(),
+        );
 
         let fleet = Arc::new(Fleet {
             links: RwLock::new(Vec::new()),
@@ -155,11 +188,21 @@ impl Engine {
             ssh,
             updates,
             notes,
+            notify: notify_tx.clone(),
             sched,
             jobs,
+            sessions,
+            log_names: RwLock::new(LogNames::new()),
+            pane_names: Mutex::new(herdr_core::observed::names::PaneSessionNames::default()),
+            me: fleet_cell.clone(),
             // Last: dropped after the links, whose threads may still be talking to it.
             fixture: config.fixture,
         });
+
+        let _ = fleet_cell.set(Arc::downgrade(&fleet));
+
+        // Copies of remote pictures from an earlier run are only a cache: start empty.
+        let _ = std::fs::remove_dir_all(fleet.files_cache());
 
         let mut threads = Vec::new();
         let spawn = |name: String, body: Box<dyn FnOnce() + Send>| {
@@ -194,8 +237,23 @@ impl Engine {
         let all = fleet.machines.lock().all();
         for machine in &all {
             fleet.start_link(machine);
+            fleet.sync_keeper_host(machine, false);
         }
-        Ok(Engine { fleet, threads })
+        let (notifier, handle) = crate::notify::Notifier::start(
+            notify_tx.clone(),
+            notify_rx,
+            Arc::new(alerts::FleetSource(Arc::downgrade(&fleet))),
+            sink,
+            Arc::new(SystemClock),
+        )?;
+        threads.push(handle);
+        Ok(Engine {
+            fleet,
+            threads,
+            notifier,
+            recording,
+            desktop,
+        })
     }
 
     /// Starts watching a pane (see [`Fleet::watch`]).
@@ -207,10 +265,35 @@ impl Engine {
     pub fn feed_provider(&self) -> Arc<dyn FeedProvider> {
         Arc::new(Provider(Arc::downgrade(&self.fleet)))
     }
+
+    /// Who hears a click on a notification (the UI brings the window forward and shows the agent).
+    pub fn notifier(&self) -> &crate::notify::Notifier {
+        &self.notifier
+    }
+
+    /// The notifications of a scripted herdr, which are recorded instead of shown; `None` for the real
+    /// one.
+    pub fn recorded_notifications(&self) -> Option<&Arc<crate::notify::RecordingSink>> {
+        self.recording.as_ref()
+    }
+
+    /// What the desktop's notification service can do, or why there is none (no session bus, nothing
+    /// owning `org.freedesktop.Notifications`). A scripted herdr reports a full-featured service. Blocks
+    /// on the bus: call it off the UI thread.
+    pub fn notification_support(&self) -> Result<crate::notify::Support, String> {
+        match &self.desktop {
+            Some(desktop) => desktop.support(),
+            None => Ok(crate::notify::Support {
+                actions: true,
+                markup: true,
+            }),
+        }
+    }
 }
 
 impl Drop for Engine {
     fn drop(&mut self) {
+        self.fleet.end_seam_sessions();
         self.fleet.stop();
         for thread in self.threads.drain(..) {
             let _ = thread.join();
@@ -246,8 +329,18 @@ pub struct Fleet {
     store: Store,
     local_socket: PathBuf,
     ssh: Option<SshClient>,
+    /// Agent sessions: each machine's keeper, the listings and the attached conversations.
+    sessions: SessionHub,
+    /// What the agents' own session logs call their panes, for panes whose title says nothing.
+    log_names: RwLock<LogNames>,
+    /// Which panes' session logs are read for a name, and what they said.
+    pane_names: Mutex<herdr_core::observed::names::PaneSessionNames>,
+    /// This fleet, for the threads it starts on its own.
+    me: sessions::FleetCell,
     updates: Sender<Update>,
     notes: Sender<Note>,
+    /// Tells the notifier thread what changed (see [`crate::notify`]).
+    notify: Sender<crate::notify::Input>,
     sched: Sender<panes::Sched>,
     jobs: Sender<Job>,
     fixture: Option<Fixture>,
@@ -311,14 +404,9 @@ pub struct BoardState {
 }
 
 impl BoardState {
-    /// Every row shown, section by section.
+    /// Every row shown, project by project.
     pub fn rows(&self) -> impl Iterator<Item = &herdr_core::board::AgentRow> {
-        let b = &self.board;
-        b.needs_you
-            .iter()
-            .chain(&b.to_review)
-            .chain(&b.working)
-            .chain(&b.idle)
+        self.board.rows()
     }
 }
 
@@ -368,6 +456,7 @@ impl Fleet {
     /// Asks every thread to stop; [`Engine`] joins them.
     fn stop(&self) {
         let _ = self.notes.send(Note::Stop);
+        let _ = self.notify.send(crate::notify::Input::Stop);
         let _ = self.sched.send(panes::Sched::Stop);
         for _ in 0..POOL {
             let _ = self.jobs.send(Job::Stop);
@@ -391,10 +480,7 @@ impl Fleet {
         let wire: Arc<dyn Wire> = if machine.is_local() {
             Arc::new(LocalWire::new(&self.local_socket))
         } else {
-            match self.ssh_wire(machine) {
-                Ok(wire) => Arc::new(wire),
-                Err(message) => Arc::new(RejectedWire(message)),
-            }
+            self.remote_wire(machine)
         };
         let mut config = LinkConfig::new(machine.id.clone(), wire);
         config.enabled = machine.enabled;
@@ -441,6 +527,25 @@ impl Fleet {
         Ok(SshWire::new(client, target))
     }
 
+    /// The wire of a remote machine: the system `ssh`, or what a test scripted for its destination, or
+    /// a rejection that says why the machine cannot be reached at all.
+    pub(crate) fn remote_wire(&self, machine: &Machine) -> Arc<dyn Wire> {
+        if let Some(stderr) = self
+            .fixture
+            .as_ref()
+            .and_then(|f| f.ssh_fault(&machine.dest))
+        {
+            return Arc::new(ScriptedSsh {
+                dest: machine.dest.clone(),
+                stderr,
+            });
+        }
+        match self.ssh_wire(machine) {
+            Ok(wire) => Arc::new(wire),
+            Err(message) => Arc::new(RejectedWire(message)),
+        }
+    }
+
     /// The link of `machine`.
     pub(crate) fn link(&self, machine: &str) -> Option<Arc<MachineLink>> {
         self.links
@@ -478,6 +583,9 @@ impl Fleet {
         for (_, link) in self.links.read().iter() {
             link.set_profile(profile);
         }
+        self.sessions.set_background(background);
+        // The window is away for the person too: notifications are posted only then.
+        let _ = self.notify.send(crate::notify::Input::Away(background));
     }
 
     /// Retries a machine now, leaving `Attention`.
@@ -493,6 +601,7 @@ impl Fleet {
     /// pool (at most a bounded number at a time); when it lands the UI is ticked and pulls again.
     pub fn board(&self) -> BoardState {
         let now = Instant::now();
+        self.sync_log_names();
         let entries = self.entries();
         let inputs: Vec<(MachineId, Arc<Snapshot>, LinkState)> = entries
             .iter()
@@ -501,7 +610,20 @@ impl Fleet {
         let board = {
             let reviewed = self.reviewed.lock();
             let first_seen = self.first_seen.lock();
-            Board::from(&inputs, &reviewed, &first_seen, now)
+            let sessions = self.sessions.rows();
+            let names = self.log_names.read();
+            let pins = self.pinned_projects();
+            Board::from(
+                &inputs,
+                BoardExtras {
+                    sessions: &sessions,
+                    names: &names,
+                    pins: &pins,
+                },
+                &reviewed,
+                &first_seen,
+                now,
+            )
         };
 
         let mut data = BoardState {
@@ -516,7 +638,8 @@ impl Fleet {
             now,
         };
         let mut previews = HashMap::new();
-        for row in data.rows().filter(|row| !row.offline) {
+        // A session is no pane: there is nothing to read for a preview.
+        for row in data.rows().filter(|row| !row.offline && !row.session) {
             let stamp = stamp_of(row);
             if let Some(preview) = self.previews.view(&row.machine, &row.pane_id, stamp) {
                 previews.insert(row.key(), preview);
@@ -635,25 +758,19 @@ impl Fleet {
                     // Online whatever the link says: the row's name and status do not depend on it.
                     Board::from(
                         &[(machine.to_owned(), Arc::new(mini), LinkState::Online)],
+                        herdr_core::board::BoardExtras::NONE,
                         &reviewed,
                         &first_seen,
                         Instant::now(),
                     )
                 };
-                if let Some(row) = row
-                    .needs_you
-                    .into_iter()
-                    .chain(row.to_review)
-                    .chain(row.working)
-                    .chain(row.idle)
-                    .next()
-                {
+                if let Some(row) = row.rows().next() {
                     meta.name = row.name.clone();
                     meta.agent = row.agent.clone();
                     meta.cwd = row.cwd.clone();
                     meta.status = row.status;
                     if feed == FeedState::Live && row.status == AgentStatus::Blocked {
-                        let stamp = stamp_of(&row);
+                        let stamp = stamp_of(row);
                         meta.prompt = self.previews.prompt(machine, pane_id, stamp);
                         if self.previews.claim(machine, pane_id, stamp, Instant::now()) {
                             let _ = self.jobs.send(Job::Preview {
@@ -698,6 +815,24 @@ impl Fleet {
             self.bump();
         }
         Ok(())
+    }
+
+    /// The keys of the projects the person pinned (they list first on the home and in the sidebar).
+    fn pinned_projects(&self) -> BTreeSet<String> {
+        self.setting(PINNED_KEY)
+            .and_then(|v| serde_json::from_value(v).ok())
+            .unwrap_or_default()
+    }
+
+    /// Pins a project (`Project::key`) or takes the pin back. Persisted; the board is rebuilt.
+    pub fn pin_project(&self, key: &str, pinned: bool) -> Result<(), String> {
+        let mut pins = self.pinned_projects();
+        if pinned {
+            pins.insert(key.to_owned());
+        } else {
+            pins.remove(key);
+        }
+        self.set_setting(PINNED_KEY, serde_json::json!(pins))
     }
 
     /// A setting, or `None` when it was never set.
@@ -793,5 +928,22 @@ impl Wire for RejectedWire {
 
     fn events(&self, _: &[Value]) -> Result<Box<dyn herdr_core::wire::EventStream>, WireError> {
         Err(WireError::fatal(Fatal::SshMissing, self.0.clone()))
+    }
+}
+
+/// ssh as a test scripted it for a destination ([`Fixture::set_ssh_fault`]): every attempt ends the way
+/// the text says, classified like real ssh output, and nothing is spawned.
+struct ScriptedSsh {
+    dest: String,
+    stderr: String,
+}
+
+impl Wire for ScriptedSsh {
+    fn request(&self, _: &str, _: Value, _: Duration) -> Result<Value, WireError> {
+        Err(classify_ssh(Some(255), &self.stderr, &self.dest))
+    }
+
+    fn events(&self, _: &[Value]) -> Result<Box<dyn herdr_core::wire::EventStream>, WireError> {
+        Err(classify_ssh(Some(255), &self.stderr, &self.dest))
     }
 }

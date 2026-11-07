@@ -33,7 +33,7 @@ fn with_status(rig: &common::Rig, pane: &str, status: &str) -> Value {
 }
 
 #[test]
-fn the_board_sorts_a_mixed_fleet_by_what_needs_the_person() {
+fn the_board_groups_a_mixed_fleet_by_project_and_counts_what_needs_the_person() {
     let rig = start("mixed");
     let board = rig.engine.board();
     let c = board.board.counts;
@@ -56,7 +56,11 @@ fn the_board_sorts_a_mixed_fleet_by_what_needs_the_person() {
         "{}",
         board.status_line
     );
-    assert_eq!(board.board.more_idle, 0);
+    let in_projects: usize = board.board.projects.iter().map(|p| p.rows.len()).sum();
+    assert_eq!(
+        in_projects, 8,
+        "every agent is in a project, whatever its state"
+    );
 }
 
 #[test]
@@ -120,9 +124,7 @@ fn a_card_shows_the_last_rows_of_a_working_agent() {
     let rig = start("mixed");
     let board = rig.board_with_previews();
     let row = board
-        .board
-        .working
-        .iter()
+        .rows()
         .find(|r| r.pane_id == "w1:p4")
         .expect("working agent");
     let preview = &board.previews[&row.key()];
@@ -254,13 +256,7 @@ fn reviewing_takes_a_finished_agent_off_the_list_and_survives_a_restart() {
         .expect("saved");
     let after = rig.engine.board().board;
     assert_eq!((after.counts.to_review, after.counts.idle), (0, 4));
-    assert!(
-        after
-            .idle
-            .iter()
-            .chain(&after.to_review)
-            .all(|r| r.status != AgentStatus::Done)
-    );
+    assert!(after.rows().all(|r| r.status != AgentStatus::Done));
 
     let Rig { engine, dir, .. } = rig;
     drop(engine);
@@ -276,6 +272,32 @@ fn reviewing_takes_a_finished_agent_off_the_list_and_survives_a_restart() {
         1,
         "undo brings it back"
     );
+}
+
+#[test]
+fn a_pinned_project_lists_first_and_stays_pinned_after_a_restart() {
+    let rig = start("mixed");
+    let names = |rig: &Rig| -> Vec<String> {
+        rig.engine
+            .board()
+            .board
+            .projects
+            .iter()
+            .map(|p| p.name.clone())
+            .collect()
+    };
+    assert_eq!(names(&rig), ["payments", "web"]);
+    let web = rig.engine.board().board.projects[1].key.clone();
+    rig.engine.pin_project(&web, true).expect("saved");
+    assert_eq!(names(&rig), ["web", "payments"]);
+    assert!(rig.engine.board().board.projects[0].pinned);
+
+    let Rig { engine, dir, .. } = rig;
+    drop(engine);
+    let again = start_in("mixed", dir);
+    assert_eq!(names(&again), ["web", "payments"], "the pin was kept");
+    again.engine.pin_project(&web, false).expect("saved");
+    assert_eq!(names(&again), ["payments", "web"]);
 }
 
 #[test]

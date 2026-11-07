@@ -368,18 +368,29 @@ impl From<&PromptInfo> for PromptView {
 /// One agent on the board.
 #[derive(Debug, Clone, PartialEq, Eq, JsObject)]
 pub struct BoardRow {
-    /// Stable across refreshes: `<machine>/<paneId>`.
+    /// Stable across refreshes: `<machine>/<paneId>`, or `<machine>/session:<id>` for a session.
     pub key: String,
     /// The machine's id.
     pub machine: String,
     /// The machine's name.
     pub machine_name: String,
-    /// The pane the agent runs in.
+    /// The pane the agent runs in; for a `session` row, the session's id (open it with `Sessions.attach`).
     pub pane_id: String,
+    /// This row is an agent session (a chat with an ACP agent kept by a keeper on the machine), not a
+    /// terminal pane: it has no preview, no prompt chips and no reviewed mark; answer it in its own tab.
+    pub session: bool,
     /// The pane's workspace.
     pub workspace_id: String,
     /// The pane's tab.
     pub tab_id: String,
+    /// The key of the project it belongs to (`BoardProject.key`).
+    pub project: String,
+    /// The folder of its checkout when the project has checkouts (`BoardCheckout.path`).
+    #[prop(skip_none)]
+    pub checkout: Option<String>,
+    /// For a session: the first line of what the agent said last, when known.
+    #[prop(skip_none)]
+    pub last_message: Option<String>,
     /// The agent's kind (`omp`, `claude`); empty when herdr names none.
     pub agent: String,
     /// What the person calls it: the pane's label, else the terminal title, else the folder.
@@ -417,8 +428,12 @@ impl BoardRow {
             machine: row.machine.clone(),
             machine_name: machine_name.to_owned(),
             pane_id: row.pane_id.clone(),
+            session: row.session,
             workspace_id: row.workspace_id.clone(),
             tab_id: row.tab_id.clone(),
+            project: row.project.clone(),
+            checkout: row.checkout.clone(),
+            last_message: row.last_message.clone(),
             agent: row.agent.clone(),
             name: row.name.clone(),
             status: row.status.into(),
@@ -450,7 +465,7 @@ pub struct BoardCounts {
     pub to_review: usize,
     /// Working.
     pub working: usize,
-    /// Idle or unknown, all of them (the board lists five).
+    /// Idle or unknown.
     pub idle: usize,
     /// On a machine that is not connected: listed dimmed, never counted above.
     pub offline: usize,
@@ -458,21 +473,51 @@ pub struct BoardCounts {
     pub machines_not_connected: usize,
 }
 
-/// The board: every agent on every machine, sorted by what needs the person.
+/// One checkout of a project that has agents: the main one or a linked worktree.
+#[derive(Debug, Clone, PartialEq, Eq, JsObject)]
+pub struct BoardCheckout {
+    /// Its folder; what `BoardRow.checkout` names.
+    pub path: String,
+    /// The folder's own name, which is what a person calls a worktree.
+    pub name: String,
+    /// A linked worktree, not the repository's main checkout.
+    pub linked: bool,
+}
+
+/// A repository or folder the agents work in, with its agents and what needs the person.
+#[derive(Debug, Clone, PartialEq, Eq, JsObject)]
+pub struct BoardProject {
+    /// Stable and unique per machine: what `pinProject` and the folds are saved under.
+    pub key: String,
+    /// What the person calls it.
+    pub name: String,
+    /// The machine's id.
+    pub machine: String,
+    /// The machine's name.
+    pub machine_name: String,
+    /// The person pinned it: pinned projects come first, then by name.
+    pub pinned: bool,
+    /// Its machine is not connected: dim it.
+    pub offline: bool,
+    /// The checkouts that have agents, the main one first. Empty for a project that is only a label or a folder.
+    pub checkouts: Vec<BoardCheckout>,
+    /// Agents blocked on the person (0 while offline).
+    pub needs_you: usize,
+    /// Finished and not reviewed (0 while offline).
+    pub to_review: usize,
+    /// Working (0 while offline).
+    pub working: usize,
+    /// Its agents, chat sessions and terminal agents together: those that need the person first, then newest state first.
+    pub rows: Vec<BoardRow>,
+}
+
+/// The board: every agent on every machine, grouped by project.
 #[derive(Debug, Clone, PartialEq, Eq, JsObject)]
 pub struct BoardData {
-    /// Blocked on the person, longest waiting first; offline ones last.
+    /// The projects: pinned first, then by name. The order never changes with what the agents do.
+    pub projects: Vec<BoardProject>,
+    /// The agents blocked on the person, longest waiting first, offline ones last: the `Needs you` strip and the triage walk. The same rows as in `projects`.
     pub needs_you: Vec<BoardRow>,
-    /// Finished and not reviewed, newest first.
-    pub to_review: Vec<BoardRow>,
-    /// Working, newest first.
-    pub working: Vec<BoardRow>,
-    /// The five newest idle (and unknown) agents.
-    pub idle: Vec<BoardRow>,
-    /// Idle agents beyond the five listed.
-    pub more_idle: usize,
-    /// The idle rows beyond the five, in the same order (`more_idle` is its length): what `N more idle` opens.
-    pub idle_rest: Vec<BoardRow>,
     /// The numbers behind the status line, the window title and notifications.
     pub counts: BoardCounts,
     /// `2 need you · 3 to review · 3 working · heard just now`; `nothing running`; `1 not connected`.
@@ -485,26 +530,50 @@ pub struct BoardData {
 
 impl BoardData {
     pub(super) fn new(state: &BoardState, revision: u64) -> Self {
-        let rows = |rows: &[AgentRow]| -> Vec<BoardRow> {
-            rows.iter()
-                .map(|row| {
-                    let name = state
-                        .machine_names
-                        .get(&row.machine)
-                        .map_or("", String::as_str);
-                    BoardRow::new(row, name, state.previews.get(&row.key()), state.now)
-                })
-                .collect()
+        let name_of = |machine: &str| {
+            state
+                .machine_names
+                .get(machine)
+                .map_or("", String::as_str)
+                .to_owned()
+        };
+        let row = |row: &AgentRow| {
+            BoardRow::new(
+                row,
+                &name_of(&row.machine),
+                state.previews.get(&row.key()),
+                state.now,
+            )
         };
         let b = &state.board;
         let c = b.counts;
         Self {
-            needs_you: rows(&b.needs_you),
-            to_review: rows(&b.to_review),
-            working: rows(&b.working),
-            idle: rows(&b.idle),
-            more_idle: b.more_idle,
-            idle_rest: rows(&b.idle_rest),
+            projects: b
+                .projects
+                .iter()
+                .map(|p| BoardProject {
+                    key: p.key.clone(),
+                    name: p.name.clone(),
+                    machine: p.machine.clone(),
+                    machine_name: name_of(&p.machine),
+                    pinned: p.pinned,
+                    offline: p.offline,
+                    checkouts: p
+                        .checkouts
+                        .iter()
+                        .map(|k| BoardCheckout {
+                            path: k.path.clone(),
+                            name: k.name.clone(),
+                            linked: k.linked,
+                        })
+                        .collect(),
+                    needs_you: p.needs_you,
+                    to_review: p.to_review,
+                    working: p.working,
+                    rows: p.rows.iter().map(row).collect(),
+                })
+                .collect(),
+            needs_you: b.needs_you.iter().map(row).collect(),
             counts: BoardCounts {
                 needs_you: c.needs_you,
                 to_review: c.to_review,
@@ -647,4 +716,95 @@ pub struct TestRequest {
     pub method: String,
     /// The request's parameters as sent.
     pub params: JsonValue,
+}
+
+/// A click on a notification: what to show. Both fields are absent for a summary (`5 agents need you`):
+/// open the board.
+#[derive(Debug, Clone, PartialEq, Eq, JsObject)]
+pub struct NotificationOpen {
+    /// The machine of the agent the notification was about.
+    #[prop(skip_none)]
+    pub machine: Option<String>,
+    /// The agent's pane.
+    #[prop(skip_none)]
+    pub pane: Option<String>,
+}
+
+impl From<crate::notify::Target> for NotificationOpen {
+    fn from(target: crate::notify::Target) -> Self {
+        match target {
+            crate::notify::Target::Agent { machine, pane } => Self {
+                machine: Some(machine),
+                pane: Some(pane),
+            },
+            crate::notify::Target::Board => Self {
+                machine: None,
+                pane: None,
+            },
+        }
+    }
+}
+
+/// Whether the desktop can show notifications.
+#[derive(Debug, Clone, PartialEq, Eq, JsObject)]
+pub struct NotificationSupport {
+    /// A notification service answered on the session bus.
+    pub available: bool,
+    /// When unavailable: what is missing, ready to show. Otherwise empty.
+    pub detail: String,
+    /// The service shows answer buttons; without it a notification only opens the app.
+    pub buttons: bool,
+}
+
+impl From<Result<crate::notify::Support, String>> for NotificationSupport {
+    fn from(support: Result<crate::notify::Support, String>) -> Self {
+        match support {
+            Ok(support) => Self {
+                available: true,
+                detail: String::new(),
+                buttons: support.actions,
+            },
+            Err(detail) => Self {
+                available: false,
+                detail,
+                buttons: false,
+            },
+        }
+    }
+}
+
+/// A notification a scripted herdr's app "showed" (test seam only).
+#[derive(Debug, Clone, PartialEq, Eq, JsObject)]
+pub struct TestNotification {
+    /// Its id; pass it to `testPressNotification`.
+    pub id: u64,
+    /// The headline.
+    pub title: String,
+    /// The question, the command and where the agent runs.
+    pub body: String,
+    /// The words of its answer buttons.
+    pub buttons: Vec<String>,
+    /// The machine of the agent it is about; absent for a summary.
+    #[prop(skip_none)]
+    pub machine: Option<String>,
+    /// The pane it is about; absent for a summary.
+    #[prop(skip_none)]
+    pub pane: Option<String>,
+    /// Still on the desktop (not withdrawn).
+    pub open: bool,
+}
+
+impl From<crate::notify::RecordedNotification> for TestNotification {
+    fn from(n: crate::notify::RecordedNotification) -> Self {
+        let open: NotificationOpen = n.target.into();
+        Self {
+            id: n.id,
+            title: n.title,
+            body: n.body,
+            buttons: n.buttons,
+            machine: open.machine,
+            pane: open.pane,
+            open: n.open,
+        }
+    }
 }

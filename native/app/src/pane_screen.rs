@@ -30,6 +30,7 @@ use self::{
     segments::{Fill, Segment, fills, segments},
 };
 use crate::feed::{self, FeedState, PaneFeed, PaneSource};
+use crate::metrics;
 
 /// How long after a polite output announcement the next one waits.
 const ANNOUNCE_WINDOW: Duration = Duration::from_secs(2);
@@ -512,6 +513,7 @@ fn watch_feed(props: PaneScreenProps, feed: Memo<FeedHandle>, mirror: Mirror) {
         let label = props.label.get_untracked();
         let mut watch = News {
             last: open.screen(),
+            painted_for: None,
             attention: AttentionWatch::starting_at(open.attention().as_deref()),
             gate: Rc::new(RefCell::new(OutputGate::default())),
         };
@@ -531,6 +533,8 @@ fn watch_feed(props: PaneScreenProps, feed: Memo<FeedHandle>, mirror: Mirror) {
 /// What one feed's task remembers between reads.
 struct News {
     last: Arc<Screen>,
+    /// The activity whose screen was last reported to the read-to-paint metric.
+    painted_for: Option<std::time::Instant>,
     attention: AttentionWatch,
     gate: Rc<RefCell<OutputGate>>,
 }
@@ -554,6 +558,14 @@ impl News {
                     announce_for_accessibility(now);
                     close_window_later(self.gate.clone());
                 }
+            }
+            metrics::rows_rebound(metrics::changed_rows(&self.last, &next));
+            // Once per screen: a feed keeps reporting the activity of the screen it still shows.
+            if let Some(activity) = feed.activity_at()
+                && self.painted_for != Some(activity)
+            {
+                self.painted_for = Some(activity);
+                metrics::screen_painted(activity);
             }
             self.last = next.clone();
             mirror.screen.set(ScreenRef(next));

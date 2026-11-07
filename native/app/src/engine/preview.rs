@@ -75,13 +75,22 @@ impl Previews {
         })
     }
 
-    /// The question of the episode `stamp` if one was read for it.
-    pub(super) fn prompt(&self, machine: &str, pane: &str, stamp: Stamp) -> Option<PromptInfo> {
+    /// What the read of episode `stamp` found: `None` while no read of that exact episode has landed,
+    /// `Some(None)` when it landed and the screen shows no question the app understands.
+    pub(super) fn episode(
+        &self,
+        machine: &str,
+        pane: &str,
+        stamp: Stamp,
+    ) -> Option<Option<PromptInfo>> {
         let slots = self.slots.lock();
         let slot = slots.get(&(machine.to_owned(), pane.to_owned()))?;
-        (slot.read_for == Some(stamp))
-            .then(|| slot.prompt.clone())
-            .flatten()
+        (slot.read_for == Some(stamp)).then(|| slot.prompt.clone())
+    }
+
+    /// The question of the episode `stamp` if one was read for it.
+    pub(super) fn prompt(&self, machine: &str, pane: &str, stamp: Stamp) -> Option<PromptInfo> {
+        self.episode(machine, pane, stamp).flatten()
     }
 
     /// Whether the caller should start a read for `stamp` now; when true the read counts as requested.

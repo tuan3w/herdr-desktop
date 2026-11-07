@@ -56,6 +56,7 @@ pub(super) fn run(fleet: &Fleet, updates: &Receiver<Update>, notes: &Receiver<No
             .revision
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         (fleet.on_tick)();
+        let _ = fleet.notify.send(crate::notify::Input::Tick);
     }
 }
 

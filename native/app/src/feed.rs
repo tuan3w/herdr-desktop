@@ -46,6 +46,12 @@ pub trait PaneFeed: Send + Sync {
 
     /// Fires (coalesced: at most one pending message) whenever `screen`, `state` or `attention` changed.
     fn changed(&self) -> Receiver<()>;
+
+    /// When herdr first reported the activity that the current screen shows, for the read-to-paint metric
+    /// (`crate::metrics`); `None` when the screen came from a read nobody's activity asked for.
+    fn activity_at(&self) -> Option<std::time::Instant> {
+        None
+    }
 }
 
 /// Opens feeds. The engine implements it.

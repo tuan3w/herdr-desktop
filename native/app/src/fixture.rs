@@ -77,6 +77,7 @@ struct State {
     snapshot: Mutex<Value>,
     screens: Mutex<HashMap<String, Screen>>,
     revision: AtomicU64,
+    ssh_faults: Mutex<HashMap<String, String>>,
 }
 
 /// A running scripted herdr. Dropping it stops the server and removes its socket directory.
@@ -144,6 +145,7 @@ impl Fixture {
             snapshot: Mutex::new(snapshot),
             screens: Mutex::new(screens),
             revision: AtomicU64::new(1),
+            ssh_faults: Mutex::new(HashMap::new()),
         });
         let script = script(&state, events, answers);
         let dir = socket_dir()?;
@@ -199,6 +201,23 @@ impl Fixture {
                 revision,
             },
         );
+    }
+
+    /// Scripts what `ssh` prints (and exits 255 with) when the engine tries to reach `dest`, instead of
+    /// starting it: `REMOTE HOST IDENTIFICATION HAS CHANGED!` makes the machine need attention, `ssh: connect to
+    /// host x port 22: Connection refused` makes it retry. The text goes through the same classifier as real
+    /// ssh output. `None` takes the script away. Only machines added after the call are affected.
+    pub fn set_ssh_fault(&self, dest: &str, stderr: Option<String>) {
+        let mut faults = lock(&self.state.ssh_faults);
+        match stderr {
+            Some(stderr) => faults.insert(dest.to_owned(), stderr),
+            None => faults.remove(dest),
+        };
+    }
+
+    /// What ssh is scripted to print for `dest`, if anything.
+    pub fn ssh_fault(&self, dest: &str) -> Option<String> {
+        lock(&self.state.ssh_faults).get(dest).cloned()
     }
 }
 

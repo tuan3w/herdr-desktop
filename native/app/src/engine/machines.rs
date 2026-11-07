@@ -115,6 +115,7 @@ impl Fleet {
             }
         }
         drop(machines);
+        self.sync_keeper_host(&machine, moved || before.is_none());
         self.bump();
         Ok(machine)
     }
@@ -133,6 +134,7 @@ impl Fleet {
             .map_err(|e| format!("cannot save the machines: {e}"))?;
         drop(machines);
         self.drop_link(id);
+        self.sessions.remove_host(id);
         self.first_seen.lock().forget_machine(id);
         self.previews.forget_machine(id);
         {
@@ -147,6 +149,14 @@ impl Fleet {
         self.refresh_machine_watches(id);
         self.bump();
         Ok(())
+    }
+
+    /// The PIDs of the ssh processes this machine's link started and that are still running: the only
+    /// processes the app may signal for it (tests cut a connection with them). Empty for this computer.
+    pub fn ssh_children(&self, machine: &str) -> Vec<u32> {
+        self.link(machine)
+            .map(|link| link.wire().child_pids())
+            .unwrap_or_default()
     }
 
     /// Takes a link out and stops it on its own thread: stopping waits for its request in flight, which
@@ -179,10 +189,7 @@ impl Fleet {
                 session: input.session.clone().filter(|s| !s.trim().is_empty()),
                 enabled: true,
             };
-            match self.ssh_wire(&machine) {
-                Ok(wire) => Arc::new(wire),
-                Err(message) => return failure(message),
-            }
+            self.remote_wire(&machine)
         };
         let pong = match wire.request("ping", json!({}), TEST_TIMEOUT) {
             Ok(pong) => pong,

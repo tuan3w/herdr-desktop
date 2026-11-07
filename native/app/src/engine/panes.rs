@@ -23,6 +23,7 @@ use serde_json::json;
 use super::preview::{self, read_of, read_rows};
 use super::{Fleet, Job, REQUEST_TIMEOUT, pane_feed_state, unknown};
 use crate::feed::{FeedState, PaneFeed, PaneSource};
+use crate::metrics;
 
 /// The shortest time between two reads of one pane (20 a second).
 const READ_GAP: Duration = Duration::from_millis(50);
@@ -57,6 +58,8 @@ struct WatchState {
     read_failed: bool,
     feed: FeedState,
     attention: Option<String>,
+    /// When herdr first reported the activity the screen on show was read for (`PaneFeed::activity_at`).
+    activity: Option<Instant>,
 }
 
 /// What every handle of one pane and source shares: the latest screen and the notices about it.
@@ -65,6 +68,9 @@ pub(super) struct Watch {
     /// Rows to read; 0 reads what herdr shows by default.
     lines: AtomicU32,
     state: Mutex<WatchState>,
+    /// When herdr first reported activity that no read has picked up yet: the start of the read-to-paint
+    /// clock. Later activity before the read starts does not move it, so the figure is the worst wait.
+    activity: Mutex<Option<Instant>>,
     /// Held while a read runs, so a read asked for by a caller and the scheduled one never overlap.
     reading: Mutex<()>,
     /// One channel per handle: a notice is delivered to every view of the pane, not to whichever awaits first.
@@ -139,6 +145,10 @@ impl PaneFeed for WatchHandle {
         self.watch.state.lock().attention.clone()
     }
 
+    fn activity_at(&self) -> Option<Instant> {
+        self.watch.state.lock().activity
+    }
+
     fn changed(&self) -> FeedReceiver<()> {
         self.changed.clone()
     }
@@ -184,7 +194,9 @@ impl Fleet {
                     read_failed: false,
                     feed: FeedState::Live,
                     attention: None,
+                    activity: None,
                 }),
+                activity: Mutex::new(None),
                 reading: Mutex::new(()),
                 subscribers: Mutex::new(Vec::new()),
                 next_subscriber: AtomicU64::new(1),
@@ -322,6 +334,7 @@ pub(super) fn schedule(fleet: &Fleet, rx: &Receiver<Sched>) {
                 for entry in entries.values_mut() {
                     let k = &entry.watch.key;
                     if k.machine == machine && k.pane == pane {
+                        entry.watch.activity.lock().get_or_insert(now);
                         entry.want(now);
                     }
                 }
@@ -400,6 +413,8 @@ fn read_screen(fleet: &Fleet, watch: &Watch) -> Result<(), String> {
         refresh(fleet, watch);
         return Err("the machine is not connected".to_owned());
     }
+    // Taken before the request: activity that arrives while it runs belongs to the next read.
+    let activity = watch.activity.lock().take();
     let mut params = json!({
         "pane_id": key.pane,
         "source": key.wire_source(),
@@ -424,9 +439,12 @@ fn read_screen(fleet: &Fleet, watch: &Watch) -> Result<(), String> {
                     return Err(e);
                 }
             };
+            metrics::pane_read();
             let changed = {
                 let mut state = watch.state.lock();
+                let parse_started = Instant::now();
                 let screen = Screen::parse(text, Some(&state.screen));
+                metrics::screen_parsed(screen.rows.len(), parse_started.elapsed());
                 let moved = screen.cols != state.screen.cols
                     || screen.rows.len() != state.screen.rows.len()
                     || screen
@@ -436,6 +454,7 @@ fn read_screen(fleet: &Fleet, watch: &Watch) -> Result<(), String> {
                         .any(|(a, b)| !Arc::ptr_eq(a, b));
                 if moved {
                     state.screen = Arc::new(screen);
+                    state.activity = activity;
                 }
                 let recovered = std::mem::take(&mut state.read_failed);
                 moved || recovered
