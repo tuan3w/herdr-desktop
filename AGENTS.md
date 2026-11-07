@@ -16,7 +16,7 @@ A screen, row, word or animation that answers none of these is noise. Desktop me
 
 ## Principles
 
-1. **Attention is the product.** What needs the person is the loudest thing on any screen and the only loud thing. Nothing moves at rest, and an app at rest draws no frames.
+1. **Attention is the product, and it is calm.** What needs the person is the loudest thing on a screen and the only loud thing, but it is said ONCE per agent per view and never everywhere at once: a screen full of attention marks is stress, not information. Motion is allowed and wanted when it explains a change (something appears, folds, finishes), short, eased out, and never decorative; reduced motion is honoured. An app at rest draws no frames.
 2. **Safe by construction.** Nothing is ever approved silently, by default or on a timeout. The person sees what they approve (the command itself). A risky answer is two-step (press, then press again within 4 s), never a timed hold: holds are not accessible.
 3. **Honest.** Stale is shown as stale, offline says offline, a failure says what happened and what to do. Never fake liveness.
 4. **Accessible first.** Every control has a name, every state is a role or state (not colour), focus is always visible, everything works from the keyboard, and `fontScale()` 2.0 and reduced motion survive. `docs/ACCESSIBILITY.md` is the checklist; `make a11y` is the gate.
