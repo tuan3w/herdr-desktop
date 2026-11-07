@@ -510,7 +510,11 @@ fn a_connection_that_dies_ends_the_session_here_without_blaming_the_agent() {
     eventually("the listing that shows the session", || {
         (!hub.rows().is_empty()).then_some(())
     });
-    let alive = |pid: i32| Path::new(&format!("/proc/{pid}")).exists();
+    // Signal 0 asks whether the process exists, on every unix (macOS has no /proc).
+    let alive = |pid: i32| {
+        rustix::process::Pid::from_raw(pid)
+            .is_some_and(|p| rustix::process::test_kill_process(p).is_ok())
+    };
     let pid = eventually("exactly one ssh to be alive", || {
         let pids: Vec<i32> = std::fs::read_to_string(rig.dir.path().join("ssh-pids"))
             .ok()?

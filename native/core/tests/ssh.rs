@@ -45,7 +45,11 @@ fn eventually(what: &str, condition: impl Fn() -> bool) {
 }
 
 fn process_is_gone(pid: u32) -> bool {
-    !Path::new(&format!("/proc/{pid}")).exists()
+    // Signal 0 asks whether the process exists, on every unix (macOS has no /proc).
+    !i32::try_from(pid)
+        .ok()
+        .and_then(rustix::process::Pid::from_raw)
+        .is_some_and(|p| rustix::process::test_kill_process(p).is_ok())
 }
 
 // ---- validation and quoting ------------------------------------------------------------------

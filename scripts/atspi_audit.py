@@ -59,9 +59,11 @@ def walk(node, depth, rows, group=""):
         showing = states.contains(Atspi.StateType.SHOWING)
     except Exception:
         return
-    rows.append((depth, role, name, focusable, showing, group))
-    # GTK names a text input through the labelled group around it (`grouping 'Search agents'` > `text ''`).
-    inner = name if role == "grouping" and name else group
+    # GTK 4.14 says `push button` where 4.22 says `button`: one name, so the allowances below fit both.
+    rows.append((depth, "button" if role == "push button" else role, name, focusable, showing, group))
+    # GTK names a text input through the labelled group around it (`grouping 'Search agents'` > `text ''`). GTK 4.14
+    # (Ubuntu 24.04, the CI runner) calls that group a `panel`, 4.22 a `grouping`.
+    inner = name if role in ("grouping", "panel") and name else group
     for i in range(node.get_child_count()):
         child = node.get_child_at_index(i)
         if child is not None:
@@ -239,8 +241,9 @@ def main():
     outdir = os.path.join(ROOT, ".scratch/a11y")
     os.makedirs(outdir, exist_ok=True)
     failed = False
-    for name in names:
-        rows, walked = run_scenario(name, args.timeout, args.tabs, args.keep)
+    for index, name in enumerate(names):
+        # The first window of a cold machine (CI) also builds the Linux host and the bundle: it gets the time that takes.
+        rows, walked = run_scenario(name, max(args.timeout, 300) if index == 0 else args.timeout, args.tabs, args.keep)
         if rows is None:
             print(f"FAIL {name}: the app never showed up on the AT-SPI bus")
             failed = True
