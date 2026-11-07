@@ -260,21 +260,40 @@ export function outputView(tool: ToolItem, all: boolean): OutputView {
   return { lines, hidden: kept.length - OUTPUT_LINES, omitted: 0 };
 }
 
-/** What a work group's header counts, as plain parts: `3 commands`, `1 file changed`, `1 failed`. */
-export function workParts(s: { steps: number; commands: number; changed: number; failed: number }): string[] {
-  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+/**
+ * What a folded work group says in one muted line, as a sentence: `Read 8 files, ran 4 commands, edited 3 files`. A zero
+ * count is left out; a group of thoughts only says how many steps it took. Never a time: a replay has none to give.
+ */
+export function workLine(s: {
+  steps: number;
+  reads: number;
+  searches: number;
+  fetches: number;
+  commands: number;
+  changed: number;
+}): string {
+  const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   const parts: string[] = [];
-  if (s.commands > 0) parts.push(plural(s.commands, "command", "commands"));
-  if (s.changed > 0) parts.push(`${plural(s.changed, "file", "files")} changed`);
-  if (s.failed > 0) parts.push(`${s.failed} failed`);
-  if (parts.length === 0) parts.push(plural(s.steps, "step", "steps"));
-  return parts;
+  if (s.reads > 0) parts.push(`read ${count(s.reads, "file", "files")}`);
+  if (s.searches > 0) parts.push(`ran ${count(s.searches, "search", "searches")}`);
+  if (s.fetches > 0) parts.push(`fetched ${count(s.fetches, "page", "pages")}`);
+  if (s.commands > 0) parts.push(`ran ${count(s.commands, "command", "commands")}`);
+  if (s.changed > 0) parts.push(`edited ${count(s.changed, "file", "files")}`);
+  if (parts.length === 0) return `Took ${count(s.steps, "step", "steps")}`;
+  const line = parts.join(", ");
+  return line.charAt(0).toUpperCase() + line.slice(1);
 }
 
-/** The header of a work group: `Worked for 4s`, `Working · 6s`; a replayed group has no time to say. */
-export function workHead(w: { running: boolean; seconds: number | null }): string {
-  if (w.running) return w.seconds === null ? "Working" : `Working · ${durationText(w.seconds)}`;
-  return w.seconds === null ? "Worked" : `Worked for ${durationText(w.seconds)}`;
+/**
+ * The live line of a running turn: what its open calls are doing now (`Running pnpm test`, `Editing lib/ask.ts`,
+ * `Reading 3 files` when several reads run together), or `Thinking` while nothing is open.
+ */
+export function liveLine(open: readonly ToolItem[], cwd?: string | null): string {
+  const last = open.at(-1);
+  if (!last) return "Thinking";
+  if (open.length > 1 && open.every((t) => toolKindOf(t) === "read")) return `Reading ${open.length} files`;
+  const line = toolLine(last, cwd);
+  return [line.verb, line.object].filter(Boolean).join(" ");
 }
 
 /** The tab's name for a session: the agent's own title once it has one, else the agent. */

@@ -1,11 +1,19 @@
 import { Sessions } from "herdr-desktop/native";
 import { cleanup, computed, effect, signal, untracked } from "nsh";
 
-import type { ActionResult, PictureInput, SessionItem, SessionView, UnqueuedView } from "herdr-desktop/native";
+import type {
+  ActionResult,
+  PictureInput,
+  SessionItem,
+  SessionView,
+  ToolItem,
+  UnqueuedView,
+} from "herdr-desktop/native";
 import type { Accessor } from "nsh";
 
 import { revision } from "#lib/herdr";
-import { buildRows, type Row, unitStart } from "#lib/session-rows";
+import { buildRows, type Row, type TurnCarry, unitStart } from "#lib/session-rows";
+import { liveLine } from "#lib/session-text";
 
 /**
  * One chat's data for a screen. The Rust side holds the conversation; this file pulls it the way `docs/ARCHITECTURE.md`
@@ -78,8 +86,8 @@ export interface SessionHooks {
 
 /** What `working` says about a running turn. */
 export interface Working {
-  /** Whole seconds the turn has run; `null` when the agent did not say when it began, or this window has not yet seen a row arrive to tell its clock by. */
-  seconds: number | null;
+  /** What it does now, as the one live line says it: `Running pnpm test`, `Reading 3 files`, `Thinking`. */
+  toolLine: string;
   /** Whole minutes without any event from the agent, once it is a minute or more: the honest stuck signal. */
   quietMinutes: number | null;
 }
@@ -251,8 +259,13 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
   /** The session's own clock now, in the units of `SessionItem.startedMs`; `null` until a live row has paired it with ours. */
   const sessionNow = (): number | null => (offset === null ? null : clock() - offset);
 
-  let committed: { upTo: number; open: ReadonlyMap<string, boolean>; rows: Row[]; keys: Map<string, Row> } | null =
-    null;
+  let committed: {
+    upTo: number;
+    open: ReadonlyMap<string, boolean>;
+    rows: Row[];
+    keys: Map<string, Row>;
+    carry: TurnCarry;
+  } | null = null;
   let tailKeys = new Map<string, Row>();
   const rows = computed<readonly Row[]>(() => {
     version();
@@ -264,19 +277,30 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
     const earlier =
       v?.earlierNotice ??
       (v && v.droppedItems > 0 ? "Earlier messages are not shown here; the machine still has them" : null);
-    const input = { items, earlier, running: v?.running ?? false, open, nowMs: v?.running ? sessionNow() : null };
+    const input = {
+      items,
+      earlier,
+      running: v?.running ?? false,
+      open,
+      nowMs: v?.running ? sessionNow() : null,
+      cwd: v?.cwd,
+    };
     if (!committed || committed.upTo !== tailAt || committed.open !== open || changedFrom < committed.upTo) {
+      const carry: TurnCarry = { groups: [] };
       const built = buildRows({ ...input, earlier: tailAt === 0 ? null : earlier }, committed?.keys, {
         from: 0,
         to: tailAt,
+        carry,
       });
-      committed = { upTo: tailAt, open, rows: built, keys: new Map(built.map((r) => [r.key, r])) };
+      committed = { upTo: tailAt, open, rows: built, keys: new Map(built.map((r) => [r.key, r])), carry };
     }
     changedFrom = Infinity;
     // The notice about earlier turns belongs to the top, which the built part owns (it is empty when the tail is everything).
     const tail = buildRows({ ...input, earlier: tailAt === 0 ? earlier : null }, tailKeys, {
       from: tailAt,
       to: items.length,
+      // A copy: the tail adds its own groups to what the built part left, and the built part must stay as it was.
+      carry: { groups: committed.carry.groups.slice() },
     });
     tailKeys = new Map(tail.map((r) => [r.key, r]));
     return committed.rows.concat(tail);
@@ -288,10 +312,13 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
     version();
     if (!v?.running) return null;
     const quiet = v.waiting.length === 0 ? Math.floor((now - lastEventAt) / 1000) : 0;
-    const began = v.acp.turnStartedMs;
-    const at = sessionNow();
+    const open: ToolItem[] = [];
+    for (const id of [...unfinished].sort((x, y) => x - y)) {
+      const tool = entries.get(id)?.tool;
+      if (tool) open.push(tool);
+    }
     return {
-      seconds: began == null || at === null ? null : Math.max(0, Math.round((at - began) / 1000)),
+      toolLine: liveLine(open, v.cwd),
       quietMinutes: quiet >= QUIET_AFTER ? Math.floor(quiet / 60) : null,
     };
   });

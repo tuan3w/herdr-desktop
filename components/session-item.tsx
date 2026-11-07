@@ -1,19 +1,20 @@
 import { effect, Image, type JSX, Text, View } from "nsh";
 import { Button } from "nsh/base";
 
-import type { ImageView } from "herdr-desktop/native";
+import type { EffectKindName, ImageView } from "herdr-desktop/native";
 
 import { type Folds, MarkdownText } from "#components/markdown";
 import { DiffStat, Disclosure, PartChips, ToolDetails, ToolRow, ToolStatus } from "#components/session-tool";
-import { type CopyEntry, copyMenu, copyText, FOCUS_RING, Icon, IconButton } from "#kit";
+import { type CopyEntry, copyMenu, copyText, FOCUS_RING, Icon, type IconName, IconButton } from "#kit";
+import { openChanges } from "#lib/changes";
 import { CHAT_COLUMN } from "#lib/layout";
 import { ofKind } from "#lib/list-item";
 import { type Arrivals, arrivals, arriving } from "#lib/motion";
 import { plainText } from "#lib/plain-text";
 import type { SessionModel } from "#lib/session";
 import { loadPicture, pictureSize, pictureState } from "#lib/session-pictures";
-import type { Row } from "#lib/session-rows";
-import { durationText, itemLabel, toolLine, toolStatusText, visibleText, workHead, workParts } from "#lib/session-text";
+import type { External, Failure, Row } from "#lib/session-rows";
+import { durationText, itemLabel, oneLine, toolLine, toolStatusText, visibleText, workLine } from "#lib/session-text";
 
 /** The widest a line of the conversation is: past this, text is hard to follow and the window is better left calm. */
 const COLUMN = CHAT_COLUMN;
@@ -153,25 +154,105 @@ function AgentRow(props: { row: Extract<Row, { kind: "agent" }>; ctx: RowContext
   );
 }
 
-/** `Worked for 4s ›`: the header of a group of calls and thoughts; a press opens or folds it. */
+/**
+ * `Read 8 files, ran 4 commands, edited 3 files ›`: a folded group of calls, thoughts and narration as one muted line;
+ * a press opens it to its steps. Nothing here is a link: what the turn did that matters is in the effects row.
+ */
 function WorkRow(props: { row: Extract<Row, { kind: "work" }>; model: SessionModel }) {
   const work = () => props.row.work;
-  const parts = () => workParts(work().summary);
-  const head = () => workHead(work());
+  const line = () => workLine(work().summary);
   return (
     <Line class="pt-1">
       <Disclosure
         onPress={() => props.model.toggle(props.row)}
-        label={`${head()}, ${parts().join(", ")}`}
+        label={line()}
         open={work().open}
         class="-ml-2 min-h-9 flex-row items-center gap-2 self-start rounded-md px-2"
       >
-        <Icon name={work().open ? "chevron-down" : "chevron-right"} size={14} tone="muted-foreground" />
-        <Text class="text-sm text-muted-foreground">{head()}</Text>
-        <Text
-          class={`text-xs ${work().summary.failed > 0 ? "text-destructive" : "text-muted-foreground"}`}
-        >{`· ${parts().join(" · ")}`}</Text>
+        <Text class="text-sm text-muted-foreground">{line()}</Text>
+        <Icon name={work().open ? "chevron-down" : "chevron-right"} size={12} tone="muted-foreground" />
       </Disclosure>
+    </Line>
+  );
+}
+
+/** What the agent said between two calls: muted, inside the fold, so the turn's last message is the only one on the page. */
+function NarrationRow(props: { row: Extract<Row, { kind: "narration" }>; ctx: RowContext }) {
+  return (
+    <Line>
+      <View class="ml-4 border-l border-border pl-3">
+        <MarkdownText
+          source={props.row.item.text ?? ""}
+          machine={props.ctx.machine}
+          folder={props.ctx.cwd}
+          class="text-muted-foreground"
+          folds={foldsOf(props.ctx.model)}
+          foldKey={props.row.key}
+        />
+      </View>
+    </Line>
+  );
+}
+
+const EFFECT_ICONS: Record<EffectKindName, IconName> = {
+  push: "upload",
+  delete: "trash",
+  install: "download",
+  publish: "globe",
+  infra: "monitor",
+  other: "list",
+};
+
+/**
+ * What a finished turn did that must not hide in a fold, in the order that matters: what failed (in the warning colour,
+ * with the last line it printed), what happened outside this machine, then the edits as a link to the changes.
+ */
+function EffectsRow(props: { row: Extract<Row, { kind: "effects" }>; ctx: RowContext }) {
+  const fx = () => props.row.effects;
+  const edited = () => fx().edited;
+  const editedText = () => {
+    const e = edited();
+    return e ? `Edited ${e.files} ${e.files === 1 ? "file" : "files"}` : "";
+  };
+  return (
+    <Line class="gap-1 py-1">
+      <Each of={fx().failures} key={(f: Failure) => f.id}>
+        {(f) => (
+          <View
+            role="group"
+            accessibilityLabel={`Failed: ${f().text}${f().result ? `, ${f().result}` : ""}`}
+            class="flex-row items-center gap-2"
+          >
+            <Icon name="alert" size={14} tone="warning" />
+            <Text class="min-w-0 flex-1 text-sm text-warning" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
+              {`${f().text}${f().result ? ` · ${f().result}` : ""}`}
+            </Text>
+          </View>
+        )}
+      </Each>
+      <Each of={fx().external} key={(x: External) => x.id}>
+        {(x) => (
+          <View role="group" accessibilityLabel={x().text} class="flex-row items-center gap-2">
+            <Icon name={EFFECT_ICONS[x().kind]} size={14} tone="foreground" />
+            <Text class="min-w-0 flex-1 text-sm text-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
+              {x().text}
+            </Text>
+          </View>
+        )}
+      </Each>
+      <If when={edited()}>
+        {(e) => (
+          <Button
+            onPress={() => void openChanges(props.ctx.machine, props.ctx.cwd)}
+            accessibilityLabel={`${editedText()}, ${e().added} added, ${e().removed} removed. Open changes`}
+            class={`-ml-2 min-h-9 flex-row items-center gap-2 self-start rounded-md px-2 hover:bg-accent ${FOCUS_RING}`}
+          >
+            <Icon name="pencil" size={14} tone="muted-foreground" />
+            <Text class="text-sm text-muted-foreground">{editedText()}</Text>
+            <DiffStat added={e().added} removed={e().removed} />
+          </Button>
+        )}
+      </If>
     </Line>
   );
 }
@@ -210,6 +291,13 @@ function ThoughtRow(props: { row: Extract<Row, { kind: "thought" }>; ctx: RowCon
 /** A call, folded into its line, open to its details. */
 function ToolEntry(props: { row: Extract<Row, { kind: "tool" }>; ctx: RowContext }) {
   const tool = () => props.row.item.tool!;
+  // A failed step says how it ended on its own line, in the warning colour, without opening it.
+  const result = (): string | null => {
+    const t = tool();
+    if (t.status !== "failed") return null;
+    const last = [...t.head, ...t.tail].reverse().find((l) => l.trim() !== "");
+    return last === undefined ? null : oneLine(visibleText(last), 160);
+  };
   return (
     <Line>
       <ToolRow
@@ -218,6 +306,13 @@ function ToolEntry(props: { row: Extract<Row, { kind: "tool" }>; ctx: RowContext
         open={props.row.open}
         onToggle={() => props.ctx.model.toggle(props.row)}
       />
+      <If when={result()}>
+        {(text) => (
+          <Text class="ml-8 text-xs text-warning" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
+            {text()}
+          </Text>
+        )}
+      </If>
       <If when={props.row.open}>
         <ToolDetails
           tool={tool()}
@@ -299,6 +394,10 @@ function NoteRow(props: { text: string; title?: string | null; label: string; to
 const toneOf = (severity: string | null | undefined): Tone | undefined =>
   severity === "error" ? "failed" : severity === "warning" ? "warning" : undefined;
 
+/** A note's tone: its own severity; a turn that ended in failure (the agent's `done` with `ok` false) is a failure. */
+const noteTone = (item: { kind: string; ok?: boolean | null; severity?: string | null }): Tone | undefined =>
+  item.kind === "done" ? (item.ok === false ? "failed" : undefined) : toneOf(item.severity);
+
 /** The arrivals of each conversation: one list of seen keys per session model, so a cell asks the list it belongs to. */
 const ARRIVALS = new WeakMap<object, Arrivals>();
 function arrivedIn(model: SessionModel): Arrivals {
@@ -322,7 +421,8 @@ export function SessionRow(props: { row: () => Row; ctx: RowContext }) {
   const thought = ofKind(props.row, "thought");
   const subagent = ofKind(props.row, "subagent");
   const note = ofKind(props.row, "note");
-  const done = ofKind(props.row, "done");
+  const effects = ofKind(props.row, "effects");
+  const narration = ofKind(props.row, "narration");
   const earlier = ofKind(props.row, "earlier");
   const other = ofKind(props.row, "other");
   const kind = () => props.row().kind;
@@ -340,6 +440,12 @@ export function SessionRow(props: { row: () => Row; ctx: RowContext }) {
       <If when={kind() === "work"}>
         <WorkRow row={work()} model={props.ctx.model} />
       </If>
+      <If when={kind() === "narration"}>
+        <NarrationRow row={narration()} ctx={props.ctx} />
+      </If>
+      <If when={kind() === "effects"}>
+        <EffectsRow row={effects()} ctx={props.ctx} />
+      </If>
       <If when={kind() === "tool"}>
         <ToolEntry row={tool()} ctx={props.ctx} />
       </If>
@@ -354,14 +460,7 @@ export function SessionRow(props: { row: () => Row; ctx: RowContext }) {
           text={visibleText(note().item.text ?? "")}
           title={note().item.title ? visibleText(note().item.title!) : null}
           label={itemLabel(note().item)}
-          tone={toneOf(note().item.severity)}
-        />
-      </If>
-      <If when={kind() === "done"}>
-        <NoteRow
-          text={visibleText(done().item.text ?? "")}
-          label={itemLabel(done().item)}
-          tone={done().item.ok === false ? "failed" : undefined}
+          tone={noteTone(note().item)}
         />
       </If>
       <If when={kind() === "earlier"}>

@@ -4,7 +4,7 @@ The parts of an agent session (a chat over ACP, `Sessions`) where a mistake cost
 
 ## The answer dock (`AnswerDock`, one for both sources)
 
-One component answers a terminal agent's menu (`PromptView`, through its pane) and an ACP session's permission request (`WaitingView`, through its keeper). It takes an `Ask` (`lib/ask.ts`: `fromPrompt`, `fromWaiting`, `sessionAsk`), so the rules below are written once. It sits in the message box's place: a flat block with a hairline above it (`inline` drops that inside a card), shown while the first request of `SessionView.waiting` is a permission or a terminal prompt waits. It shows what the agent wants to do, in full, and the agent's own answers.
+One component answers a terminal agent's menu (`PromptView`, through its pane) and an ACP session's permission request (`WaitingView`, through its keeper). It takes an `Ask` (`lib/ask.ts`: `fromPrompt`, `fromWaiting`, `sessionAsk`), so the rules below are written once. It sits in the message box's place: a flat block with a hairline above it (`inline` drops that inside a card), shown while the first request of `SessionView.waiting` is a permission or a terminal prompt waits (a terminal agent's chat feeds it from the pane's prompt, `meta(machine, pane).prompt`, because its `waiting` holds only ask-tool forms). It shows what the agent wants to do, in full, and the agent's own answers.
 
 | Part | Rule |
 |---|---|
@@ -18,6 +18,8 @@ One component answers a terminal agent's menu (`PromptView`, through its pane) a
 | `Cancel request` | ACP only: `Sessions.dismiss`; the agent hears cancelled |
 | `Nothing is sent until you choose` | The footer line while nothing was said; it gives way to the last note |
 | `N more waiting`, `Next` | Others still waiting. After an answer, `Next` visits the next agent that waits through the same function as `mod+j` (`onNext`); it never answers and the dock never moves on by itself |
+
+**Where it stands.** In the chat (`SessionChat`) and the pane tab (`PaneTab`) the dock takes the message box's place: the box is not drawn while the dock or an ask-tool form (`SessionQuestion`) shows, so there is one place to act and no box to type into by mistake. The dock itself stays mounted for the tab's life, because it owns the `Answer sent` line (the note and `Next`) that outlives the question; that line sits above the box, which comes back in the same commit in which the question is gone (the pane's prompt cleared, the session's `waiting` empty). A draft, pictures and the queue survive the swap: the box keeps them in `lib/view-state.ts` and the session queue, and `session-mount.test.tsx` types a draft, lets a real question come and go and finds the draft. The dock never takes the focus by itself and `Next` (and `mod+j`) open an agent without focusing anything. `mod+2` with the dock showing says `Answer the question first. Tab moves to the answers.`: focusing the first answer needs a handle on the dock (unverified: nsh's `ViewRef.focus()` exists, not used yet).
 
 Safety rules, each with a test in `answer-dock.test.tsx`:
 
@@ -57,6 +59,8 @@ A `Modal` (wide: the first message has lines). Machine (enabled ones; a machine 
 
 ## Details (`SessionOverview`)
 
+A popover under the chat's title (the header's one control, `Session details`), not a dialog. It stays until the inspector replaces it. The facts:
+
 Agent, machine, folder, session id (`Copy id`), state, context used (a `Progress`), every setting with its choices (`SessionOption`), the plan, `End session`. Ending asks first, and only for what the app may end: a session it started, or one whose agent exited. For any other the keeper's own refusal is shown as it is and nothing is confirmed. There is no copy of the transcript: the session API has none.
 
 ## Mode and model in the composer (`SessionModeChip`, `SessionModelPicker`)
@@ -67,11 +71,10 @@ Small selects for the composer's bottom row, from the session's options by categ
 
 Owner decisions of 2026-11-07 (prototype: the Herdr Desktop Lab artifact). Each is a cutover: migrate every caller and delete the old drawing in the same change.
 
-- **One answer dock, in the composer's place.** A question is answered in the agent's own conversation, so there is no second list to answer from. The dock replaces the message box while a request waits and shows: the whole command (never cut), the risk line, three options with the keys 1 to 3, a line "Nothing is sent until you choose", and a quiet reply field for "tell it what to do instead". Why one place: two ways to answer is a second set of safety rules to keep equal. Today the permission dock sits above the box and the digits answer only while an answer has the focus.
 - **The second option is the risky one and is two-step**: press, then press again within 4 s. The first press arms and says why; never a timed hold (holds are not accessible).
 - **The sidebar row is the only attention mark.** The dock stays neutral and its one loud thing is the primary answer. Said once per agent per view (`design/attention.md`).
-- **Moving between waiting agents.** `nextAttention` (`mod+j`) opens the next agent that waits, in any project. It never answers and never advances by itself after an answer, so nothing slides under the hand. After an answer the dock says how many still wait and offers Next. Answering many at once is the Board's filtered view (select rows, answer with the count on the button), not this dock.
-- **Details, past sessions and `Read all` are not dialogs.** Facts about the open agent (`SessionOverview`: machine, folder, context used, settings, plan) are an inspector. Browsing past sessions (`PastSessions`) is a region, and reading a long command whole is the dock's own scroll. `NewSession` stays a dialog: it is a short form (`design/dialogs.md`).
+- **Answering many at once** is the Board's filtered view (select rows, answer with the count on the button), not this dock. Not built.
+- **Details and past sessions are not dialogs.** The facts about the open agent (`SessionOverview`) are an inspector, a right panel; until it exists they are the popover under the title. Browsing past sessions (`PastSessions`) is a region. `NewSession` stays a dialog: it is a short form (`design/dialogs.md`).
 
 ## Accessibility
 
@@ -88,4 +91,5 @@ Each part is a `group` with a name (`Permission request`, `Question from the age
 - **External effect** (shown): the kinds `command_risk` knows (pushes, deletes, publishes and merges, infrastructure, `DELETE` requests) and installs (`npm|pnpm|yarn|bun add|install|i`, `pip install`, `cargo install|add`, `brew|apt|apt-get install`, `gem install`, `go install`). A chain takes the most consequential kind in it: publish, push, infrastructure, delete, install.
 - **Read-only** (read, search, think, fetch, `ls`, `cat`, `grep`, `git status|log|diff`) and **local write** (edit, move, build, test) have no effect and fold; TSX counts edits from `diffs`.
 - **The text is built from the command.** It names a remote and a ref, a package or a count of files only when the command states them plainly; otherwise `Pushed to a remote`, `Deleted files`, `Installed packages`. A URL (it may hold a credential), a glob, a variable or a flag it does not know is never quoted.
+- **How TSX shows it** (built): `buildRows` puts failures, then effects, then the edit total into one `effects` row after a finished turn (`design/chat.md`); an effect has an icon by kind (`push` upload, `delete` trash, `install` download, `publish` globe, `infra` monitor, `other` list).
 - **When unsure there is no effect.** `--dry-run` (and `--check`, `git push -n`) is none; text inside quotes (`echo 'git push'`) is not a command; `bash -c '...'` is read through. A missed effect is a folded command, a false `Pushed` is a lie.

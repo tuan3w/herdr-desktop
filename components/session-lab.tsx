@@ -332,13 +332,38 @@ function scene(name: string): Scene {
           }),
         ],
       };
+    case "ranked":
+      // A finished turn ranked by consequence: reads, edits and narration fold into one line; the failed run, the push
+      // and the edits stay in view under the answer.
+      return {
+        view: { running: false, phase: "idle" },
+        items: [
+          say("user", "Fix the login loop, run the tests and push it."),
+          call("Read src/auth.ts", { toolKind: "read", subject: `${tree}/src/auth.ts` }),
+          call("Read src/routes.ts", { toolKind: "read", subject: `${tree}/src/routes.ts` }),
+          say("agent", "Found it. Changing `login` and running the tests."),
+          call("Edit src/auth.ts", { toolKind: "edit", subject: `${tree}/src/auth.ts`, diffs: [EDIT] }),
+          call("Run: pnpm test", {
+            toolKind: "execute",
+            subject: "pnpm test",
+            status: "failed",
+            tail: ["FAIL src/case-9.test.ts", "1 failed, 39 passed"],
+          }),
+          call("Run: pnpm test", { toolKind: "execute", subject: "pnpm test" }),
+          call("Run: git push", {
+            toolKind: "execute",
+            subject: "git push origin main",
+            effect: { kind: "push", text: "Pushed to origin/main" },
+          }),
+          say("agent", "Fixed in `src/auth.ts`: `login` goes back to the page that was asked for. The tests pass and it is pushed."),
+        ],
+      };
     case "code":
       return {
         view: { running: false, phase: "idle" },
         items: [
           say("user", "How does the client retry? Show me the three implementations."),
           say("agent", CODE_ANSWER),
-          done("Done in 12s"),
         ],
       };
     case "code-stream":

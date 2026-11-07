@@ -12,8 +12,8 @@ import {
   tailText,
   toolLine,
   visibleText,
-  workHead,
-  workParts,
+  liveLine,
+  workLine,
 } from "#lib/session-text";
 
 const tool = (over: Partial<ToolItem>): ToolItem => ({
@@ -122,16 +122,28 @@ test("a command's output shows how it ended, a read's shows what it found, and S
   });
 });
 
-test("a group's header says how long and what it did, and says nothing it does not know", () => {
-  expect(workHead({ running: false, seconds: 4 })).toBe("Worked for 4s");
-  expect(workHead({ running: true, seconds: 6 })).toBe("Working · 6s");
-  expect(workHead({ running: false, seconds: null })).toBe("Worked");
-  expect(workParts({ steps: 5, commands: 3, changed: 1, failed: 1 })).toEqual([
-    "3 commands",
-    "1 file changed",
-    "1 failed",
-  ]);
-  expect(workParts({ steps: 2, commands: 0, changed: 0, failed: 0 })).toEqual(["2 steps"]);
+test("a folded group is one sentence of counts: zero counts and times are left out, singular is singular", () => {
+  const none = { steps: 1, reads: 0, searches: 0, fetches: 0, commands: 0, changed: 0 };
+  expect(workLine({ ...none, steps: 15, reads: 8, commands: 4, changed: 3 })).toBe(
+    "Read 8 files, ran 4 commands, edited 3 files",
+  );
+  expect(workLine({ ...none, reads: 1, searches: 1, commands: 1, changed: 1 })).toBe(
+    "Read 1 file, ran 1 search, ran 1 command, edited 1 file",
+  );
+  expect(workLine({ ...none, commands: 2 })).toBe("Ran 2 commands");
+  expect(workLine({ ...none, steps: 2 })).toBe("Took 2 steps");
+});
+
+test("the live line says what the open call does, and Thinking when none is open", () => {
+  const run = tool({ toolKind: "execute", subject: "pnpm test", status: "inProgress" });
+  const read = (n: number) => tool({ toolKind: "read", subject: `/w/a${n}.ts`, status: "inProgress" });
+  expect(liveLine([run])).toBe("Running pnpm test");
+  expect(liveLine([tool({ toolKind: "edit", subject: "/w/lib/ask.ts", status: "inProgress" })], "/w")).toBe(
+    "Editing lib/ask.ts",
+  );
+  expect(liveLine([read(1), read(2), read(3)])).toBe("Reading 3 files");
+  expect(liveLine([read(1), run])).toBe("Running pnpm test");
+  expect(liveLine([])).toBe("Thinking");
 });
 
 test("a command to paste into a terminal never lets an argument become a second command", () => {

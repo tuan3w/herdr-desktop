@@ -10,7 +10,7 @@ import { FOCUS_RING, Icon } from "#kit";
 import { CHAT_COLUMN } from "#lib/layout";
 import { leaving } from "#lib/motion";
 import type { Row } from "#lib/session-rows";
-import { durationText, visibleText } from "#lib/session-text";
+import { visibleText } from "#lib/session-text";
 import { FOLLOW_PT, isAtEnd, pageOffset } from "#lib/transcript-scroll";
 import { anchorOf, setAnchor } from "#lib/view-state";
 
@@ -22,16 +22,9 @@ export interface TranscriptHandle {
   jump(): void;
 }
 
-/** What closes the list: that the session ended and why, or that the agent is working (and for how long, and how quiet). */
+/** What closes the list: that the session ended and why, or the one live line (what the agent does now, and how quiet). */
 function Footer(props: { ctx: RowContext }) {
   const working = () => props.ctx.model.working();
-  const text = () => {
-    const w = working();
-    if (!w) return "";
-    return w.seconds === null ? "Working" : `Working · ${durationText(w.seconds)}`;
-  };
-  // A group that is open and running already says `Working`, line by line: the footer then only speaks when it is quiet.
-  const redundant = () => props.ctx.model.rows().at(-1)?.kind === "tool" && working()?.quietMinutes === null;
   const ended = (): string | null => {
     const v = props.ctx.model.view();
     if (v?.phase !== "ended") return null;
@@ -46,10 +39,10 @@ function Footer(props: { ctx: RowContext }) {
           </View>
         )}
       </If>
-      <If when={redundant() ? null : working()}>
+      <If when={working()}>
         {(w) => (
-          <View role="timer" accessibilityLabel={text()} class="flex-row items-center gap-2 px-2">
-            <Text class="text-sm text-muted-foreground">{text()}</Text>
+          <View role="timer" accessibilityLabel={w().toolLine} class="flex-row items-center gap-2 px-2">
+            <Text class="text-sm text-muted-foreground">{w().toolLine}</Text>
             <If when={w().quietMinutes !== null}>
               <Text class="text-sm font-medium text-foreground">{`Quiet for ${w().quietMinutes}m`}</Text>
             </If>
