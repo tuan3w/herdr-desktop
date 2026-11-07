@@ -4,6 +4,17 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+- **Questions are answered where you type.** When an agent asks for
+  permission, or a terminal agent shows a menu, its chat shows the question
+  and its answers in place of the message box, and the box comes back, with
+  what you had typed, once it is answered. After an answer the line `Answer
+  sent` offers `Next` when other agents are waiting.
+- **`Cmd+J` visits only the agents that wait for you.** Finished agents are
+  no longer on the walk, it opens the chat without moving the keyboard into
+  it, and with nobody waiting it says `Nothing needs you`.
+- **A one-line chat header.** The title, project and branch; the state word
+  and the `Details` button are gone. Press the title for the session's facts
+  and `End session`.
 - Releases are macOS (Apple silicon) only for now and Linux builds are
   paused: the installer on Linux says `no Linux build in this release` and
   points to the source build. `install.sh --edge` installs the newest build of

@@ -1,11 +1,21 @@
 import { Herdr, Sessions } from "herdr-desktop/native";
-import { announce, Clipboard, computed, effect, signal, Text, untracked, View } from "nsh";
+import { announce, Clipboard, computed, effect, type JSX, signal, Text, untracked, View } from "nsh";
 
 import type { PhaseName, SessionInfo } from "herdr-desktop/native";
 
 import { PlanSteps } from "#components/plan-steps";
 import { SessionOption } from "#components/session-config";
-import { Btn, confirmDestructive, Icon, Modal, notify, Progress } from "#kit";
+import {
+  Btn,
+  confirmDestructive,
+  Icon,
+  notify,
+  Popover,
+  PopoverDescription,
+  PopoverTitle,
+  type PopoverTrigger,
+  Progress,
+} from "#kit";
 import { revision } from "#lib/herdr";
 import { agentLabel } from "#lib/new-session";
 
@@ -45,16 +55,31 @@ function Detail(props: {
 }
 
 /**
- * The details of one agent session: what it is (agent, machine, folder, id), where it stands, how full its context
+ * The details of one agent session, in a popover under the chat's title (`trigger` is the title; until the inspector
+ * exists this is where the facts live): what it is (agent, machine, folder, id), where it stands, how full its context
  * is, its settings with their choices (mode, model, thinking level), its plan, and `End session`.
  * Ending is the one irreversible thing here and the app may only end a keeper it started: for one it did not start
  * the machine's own refusal is shown as it is, with nothing confirmed and nothing ended. There is no copy of the
  * transcript: the session API does not offer one.
  */
-export function SessionOverview(props: { open: boolean; onClose: () => void; machine: string; id: string }) {
+export function SessionOverview(props: {
+  machine: string;
+  id: string;
+  /** What opens it: the chat's title. Without one (a lab that opens it by `open`) the popover hangs from nothing. */
+  trigger?: (t: PopoverTrigger) => JSX.Element;
+  /** Controls the popover from outside; omitted, a press on the trigger opens and closes it. */
+  open?: boolean;
+  onClose?: () => void;
+}) {
+  const own = signal(false);
+  const shown = () => props.open ?? own();
+  const close = () => {
+    own.set(false);
+    props.onClose?.();
+  };
   const view = computed(() => {
     revision();
-    return props.open ? (Sessions.view(props.machine, props.id) ?? undefined) : undefined;
+    return shown() ? (Sessions.view(props.machine, props.id) ?? undefined) : undefined;
   });
   const info = signal<SessionInfo | undefined>(undefined);
   const failure = signal<string | undefined>(undefined);
@@ -65,7 +90,7 @@ export function SessionOverview(props: { open: boolean; onClose: () => void; mac
   let latest = 0;
   effect(() => {
     revision();
-    if (!props.open) return;
+    if (!shown()) return;
     const mine = ++latest;
     void Sessions.list(props.machine).then(
       (all) => {
@@ -77,7 +102,7 @@ export function SessionOverview(props: { open: boolean; onClose: () => void; mac
     );
   });
   effect(() => {
-    if (props.open) untracked(() => failure.set(undefined));
+    if (shown()) untracked(() => failure.set(undefined));
   });
 
   async function end() {
@@ -100,7 +125,7 @@ export function SessionOverview(props: { open: boolean; onClose: () => void; mac
       await Sessions.kill(props.machine, props.id);
       announce("Session ended");
       notify("Session ended");
-      props.onClose();
+      close();
     } catch (e) {
       failure.set(reason(e));
       announce(reason(e));
@@ -118,13 +143,19 @@ export function SessionOverview(props: { open: boolean; onClose: () => void; mac
   };
 
   return (
-    <Modal
-      open={props.open}
-      wide
-      onClose={() => props.onClose()}
-      title="Session details"
-      description={view()?.title ?? undefined}
+    <Popover
+      open={shown()}
+      onOpenChange={(open) => {
+        if (open) own.set(true);
+        else close();
+      }}
+      side="bottom"
+      align="start"
+      popupClass="w-96"
+      trigger={props.trigger ?? (() => <View />)}
     >
+      <PopoverTitle>Session details</PopoverTitle>
+      <If when={view()?.title}>{(title) => <PopoverDescription>{title()}</PopoverDescription>}</If>
       <View class="gap-1">
         <Detail label="Agent" value={agentLabel(view()?.agent ?? info()?.agent ?? "")} />
         <Detail label="Machine" value={machineName()} />
@@ -176,6 +207,6 @@ export function SessionOverview(props: { open: boolean; onClose: () => void; mac
           </View>
         </View>
       </View>
-    </Modal>
+    </Popover>
   );
 }

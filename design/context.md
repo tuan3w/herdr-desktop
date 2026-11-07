@@ -34,7 +34,7 @@ The file of the first version (`herdr.dock.v1`, one layout) opens as the Home as
 
 ## Jumping to a waiting agent
 
-`mod+j` (`lib/shortcuts.ts`) goes to the next agent that needs the person, in any project; if it lives in another context it switches the context. It never answers and never advances by itself after an answer. Why: with a stable sidebar order a marked row can sit below the fold, and the jump must not make rows slide under the hand (`design/attention.md`). A project header names its machine, so the same project on two machines is two contexts, each with its own branch and tabs.
+`mod+j` (`lib/shortcuts.ts`) goes to the next agent that waits for the person, in any project (a finished one is not on the walk); if it lives in another context it switches the context. It never answers, takes no focus (the answer dock stands where the box was) and never advances by itself after an answer. Why: with a stable sidebar order a marked row can sit below the fold, and the jump must not make rows slide under the hand (`design/attention.md`). A project header names its machine, so the same project on two machines is two contexts, each with its own branch and tabs.
 
 ## Where a person presses
 

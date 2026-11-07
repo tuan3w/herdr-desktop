@@ -1,5 +1,5 @@
 import { Files, Herdr, PaneScreen } from "herdr-desktop/native";
-import { announce, Clipboard, computed, effect, signal, Text, View } from "nsh";
+import { announce, cleanup, Clipboard, computed, effect, signal, Text, View } from "nsh";
 
 import type { PaneLink, PaneScreenRef } from "herdr-desktop/native";
 
@@ -9,9 +9,10 @@ import { LinksDialog, openLink } from "#components/links-dialog";
 import { PaneFind } from "#components/pane-find";
 import { PaneHeader } from "#components/pane-header";
 import { Empty, notify } from "#kit";
+import { goAttention } from "#lib/actions";
 import { fromPrompt } from "#lib/ask";
 import { browseFiles, sending } from "#lib/files";
-import { meta } from "#lib/herdr";
+import { board, meta } from "#lib/herdr";
 import { canShowChat, showChat } from "#lib/open-agent";
 import { type PaneInput, registerPane } from "#lib/pane-input";
 import { announceOutput, minContrast, paneFontSize } from "#lib/settings";
@@ -50,6 +51,11 @@ export function PaneTab(props: {
   const name = () => info()?.name ?? props.pane;
   const live = () => info()?.feedState === "live";
   const prompt = () => info()?.prompt ?? null;
+  const others = () => board().needsYou.filter((r) => !r.offline && r.key !== `${props.machine}/${props.pane}`).length;
+  const ask = computed(() => {
+    const p = prompt();
+    return p ? fromPrompt(p, { machine: props.machine, pane: props.pane }, others()) : undefined;
+  });
   // Whether the agent's log can be read as a chat is told by the engine; it follows the pane's own changes (the agent is detected late).
   const chat = computed(() => info() !== null && canShowChat(props.machine, props.pane));
 
@@ -69,7 +75,9 @@ export function PaneTab(props: {
 
   const handle: Required<Pick<PaneInput, "focusComposer" | "showLinks" | "searchInPane">> = {
     showLinks: () => void showLinks(),
-    focusComposer: () => composer?.focus(),
+    // With a menu showing there is no message box: say where the answers are instead of doing nothing.
+    focusComposer: () =>
+      composer ? composer.focus() : announce("Answer the question first. Tab moves to the answers."),
     searchInPane: () => finding.set(true),
   };
   effect(() => {
@@ -165,23 +173,25 @@ export function PaneTab(props: {
               announceOutput={announceOutput()}
               onLink={(e) => void openLink(e.kind, e.target, e.line, e.col, { machine: props.machine, cwd: i().cwd })}
             />
-            <If when={prompt()}>
-              {(p) => (
-                <AnswerDock ask={fromPrompt(p(), { machine: props.machine, pane: props.pane })} onSent={refresh} />
-              )}
+            {/* The dock stays mounted (it keeps its `Answer sent` line); the box stands aside while the menu shows and returns, draft kept, once it is gone. */}
+            <AnswerDock ask={ask()} onSent={refresh} onNext={() => goAttention(1)} />
+            <If when={prompt() === null}>
+              <Composer
+                machine={props.machine}
+                pane={props.pane}
+                agent={i().agent}
+                name={i().name}
+                blocked={false}
+                disabled={!live()}
+                onHandle={(h) => {
+                  composer = h;
+                  cleanup(() => {
+                    if (composer === h) composer = undefined;
+                  });
+                }}
+                onSent={refresh}
+              />
             </If>
-            <Composer
-              machine={props.machine}
-              pane={props.pane}
-              agent={i().agent}
-              name={i().name}
-              blocked={prompt() !== null}
-              disabled={!live()}
-              onHandle={(h) => {
-                composer = h;
-              }}
-              onSent={refresh}
-            />
             <LinksDialog
               open={links() !== null}
               links={links() ?? []}

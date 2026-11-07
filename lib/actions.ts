@@ -27,7 +27,7 @@ import {
   showBoard,
 } from "#lib/dock";
 import { browseFiles } from "#lib/files";
-import { allRows, board, meta, reviewable } from "#lib/herdr";
+import { allRows, board, meta } from "#lib/herdr";
 import { back, forward, previousAgent, previousProject, stepProject, switcherKey } from "#lib/nav";
 import { canShowChat, openAgent, showChat, showTerminal } from "#lib/open-agent";
 import { openPalette, paletteKey } from "#lib/palette/controller";
@@ -87,15 +87,12 @@ export const ACCESSIBILITY_GUIDE = "https://github.com/tuan3w/herdr-desktop/blob
 // ---- what the agents need ----
 
 /**
- * The agents to visit with Next and Previous: those that need you (a chat waiting on a permission or a question
- * included), longest waiting first, then finished ones not yet reviewed, newest first. An agent on a machine that is not
- * connected is not in it, as it is not in the counts.
+ * The agents to visit with Next and Previous: those that wait for the person (a chat waiting on a permission or a
+ * question included), longest waiting first. One that only finished is not here: it needs a look, not an answer, and
+ * the board marks it. An agent on a machine that is not connected is not in it, as it is not in the counts.
  */
 export function attentionOrder(data: BoardData): BoardRow[] {
-  const finished = reviewable(allRows(data)).sort(
-    (a, b) => (a.sinceSecs ?? Number.POSITIVE_INFINITY) - (b.sinceSecs ?? Number.POSITIVE_INFINITY),
-  );
-  return [...data.needsYou.filter((r) => !r.offline), ...finished];
+  return data.needsYou.filter((r) => !r.offline);
 }
 
 /** The agent after (`1`) or before (`-1`) the one with row key `current` in `order`, wrapping; from outside the list: the first, or the last going back. */
@@ -106,15 +103,16 @@ export function stepAttention(order: readonly BoardRow[], current: string | null
   return order[(at + step + order.length) % order.length];
 }
 
-function goAttention(step: 1 | -1): void {
+/** `mod+j` (`1`) and `mod+shift+j`: opens the next agent that waits. It never answers and takes no focus: the answer dock stands where the message box would. */
+export function goAttention(step: 1 | -1): void {
   const row = stepAttention(attentionOrder(board()), rowKeyOf(focused()), step);
   if (!row) {
     announce("Nothing needs you");
+    notify("Nothing needs you");
     return;
   }
-  // Opening an agent that waits for an answer puts the cursor in the reply box: the person came to answer.
-  void openAgent(row, { reply: row.status === "blocked" });
-  announce(`${row.name}, ${row.status === "blocked" ? "needs you" : "finished"}, ${row.machineName}`);
+  void openAgent(row);
+  announce(`${row.name}, needs you, ${row.machineName}`);
 }
 
 // ---- where a pane lives ----

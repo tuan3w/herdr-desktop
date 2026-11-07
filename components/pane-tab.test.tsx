@@ -53,20 +53,13 @@ test("Enter sends the text and presses Enter in the pane, a multi-line message g
   expect(app.value(BOX)).toBe("");
 });
 
-test("while the agent waits on a question an empty Enter sends nothing and points at the answers; a typed reply still goes", async () => {
+test("while the agent waits on a question the answers stand where the message box was and nothing is sent", async () => {
   const app = await lab(BLOCKED);
   await ready(app, "payments review");
   await app.waitFor("Do you want to proceed?");
-
-  await app.submit(BOX);
-  expect(app.shows("Pick an answer above")).toBe(true);
+  expect(app.shows(BOX)).toBe(false);
+  expect(app.shows("label:Answers")).toBe(true);
   expect(inputs()).toEqual([]);
-
-  await app.type(BOX, "no, use the other folder");
-  expect(app.shows("Pick an answer above")).toBe(false);
-  await app.submit(BOX);
-  await app.waitUntil(() => inputs().length === 1);
-  expect(inputs()[0].text).toBe("no, use the other folder");
 });
 
 test("a message that could not be sent is back in the box with the reason", async () => {

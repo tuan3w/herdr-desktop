@@ -37,15 +37,16 @@ test("ctrl+tab swaps the two agents visited last, across projects, and a second 
 });
 
 test("ctrl+tab works with the keyboard in a message box, where a text field keeps Tab for itself", async () => {
+  // A waiting agent shows the answer dock in the message box's place, so the box is tried on agents that are not waiting.
   const app = await ready();
-  await openAgents(app, SECOND, FIRST);
+  await openAgents(app, WEB, DONE);
   await app.keyboard.press("mod+2");
   await settle(app);
   await app.waitFor("label:Message");
   await app.keyboard.press("h");
   expect(app.value("label:Message")).toBe("h");
   await tap(app, "ctrl+tab");
-  expect(await front(app)).toBe(SECOND);
+  expect(await front(app)).toBe(WEB);
 });
 
 test("from the board, ctrl+tab goes to the agent visited last, and with nothing visited it says so and opens nothing", async () => {

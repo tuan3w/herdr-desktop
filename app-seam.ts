@@ -48,6 +48,12 @@ export const shown = (app: App, name: string): boolean => app.shows(terminal(nam
 export const onBoard = (app: App): boolean => app.shows("label:Projects");
 export const settle = (app: App): Promise<void> => app.clock!.runFor(400);
 
+/** A chat whose session is open: the message box is there and takes text (while the agent opens it, the box is off). */
+export async function chatReady(app: App): Promise<void> {
+  await app.waitFor("label:Message");
+  await app.waitUntil(() => app.enabled("label:Message"));
+}
+
 /** The `mixed` fixture, once its board has arrived. */
 export async function ready(platform?: "macos" | "windows" | "linux"): Promise<App> {
   const app = await seeded("mixed", platform ? { platform } : {});

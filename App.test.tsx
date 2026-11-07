@@ -70,7 +70,7 @@ test("the board cannot be closed: its tab stays, and mod+w on it does nothing", 
   expect(onBoard(app)).toBe(true);
 });
 
-test("Next and Previous walk the agents that need you, longest waiting first, then the finished ones, and wrap", async () => {
+test("Next and Previous walk the agents that wait for you, longest waiting first, and wrap; a finished agent is not on the walk and nothing is ever sent", async () => {
   const app = await ready();
   const step = async (keys: string, name: string) => {
     await app.keyboard.press(keys);
@@ -79,18 +79,19 @@ test("Next and Previous walk the agents that need you, longest waiting first, th
   };
   await step("mod+j", FIRST);
   await step("mod+j", SECOND);
-  await step("mod+j", DONE);
   await step("mod+j", FIRST);
-  await step("mod+shift+j", DONE);
   await step("mod+shift+j", SECOND);
+  await step("mod+shift+j", FIRST);
+  expect(sentKeys()).toEqual([]);
 });
 
-test("with nothing that needs you, Next opens nothing", async () => {
+test("with nothing that needs you, Next opens nothing and says so", async () => {
   const app = await seeded("empty");
   await app.waitFor("nothing running");
   await app.keyboard.press("mod+j");
   await settle(app);
   expect(app.count("role:tab")).toBe(1);
+  expect(app.shows("Nothing needs you")).toBe(true);
 });
 
 /** What each global shortcut does, checked from a state the check sets up. `press` presses the key under test, or another shortcut's first key. */
@@ -179,16 +180,16 @@ const CHECKS: Record<GlobalShortcut, Check> = {
     expect(onBoard(app)).toBe(true);
   },
   focusPane: async (app, press) => {
-    // From the board, the pane used last comes back with the keyboard in its message box.
+    // From the board, the pane used last comes back.
     await press("board");
     await settle(app);
     expect(onBoard(app)).toBe(true);
     await press();
     await settle(app);
     expect(onBoard(app)).toBe(false);
-    for (const letter of "ok") await app.keyboard.press(letter);
-    expect(app.value("label:/^Message /")).toBe("ok");
-    await app.clear("label:/^Message /");
+    // That pane asks a question, so the answers stand where its message box would be: there is no box to hold the keyboard.
+    expect(app.shows("label:Answer")).toBe(true);
+    expect(app.shows("label:/^Message /")).toBe(false);
   },
   nextAttention: async (app, press) => {
     await press("board");
@@ -199,7 +200,8 @@ const CHECKS: Record<GlobalShortcut, Check> = {
   prevAttention: async (app, press) => {
     await press();
     await settle(app);
-    expect(await front(app)).toBe(DONE);
+    // Previous from the first agent that waits wraps to the last one that waits: a finished agent is not on the walk.
+    expect(await front(app)).toBe(SECOND);
   },
   switcher: async (app, press) => {
     await openAgents(app, FIRST, SECOND);
@@ -209,7 +211,8 @@ const CHECKS: Record<GlobalShortcut, Check> = {
     await app.clock!.runFor(50);
     expect(position(app)).toMatch(/^2 of /);
     await press();
-    expect(position(app)).toMatch(/^3 of /);
+    // Two agents are open: the second press goes past the last row and wraps to the first.
+    expect(position(app)).toMatch(/^1 of 2/);
     await app.clear(FILTER);
     await app.keyboard.press("escape");
     await settle(app);
@@ -414,13 +417,20 @@ test("walking the app with the keyboard: next agent, type to it, take over its k
   await app.keyboard.press("mod+j");
   await settle(app);
   expect(await front(app)).toBe(FIRST);
-  // The agent waits for an answer, so the keyboard is already in its message box, in the chat that opened. The chat opens
-  // when the session's first read arrives (real time, not the manual clock), so wait for the box, then for the focus.
-  await app.waitFor("label:Message");
+  // The agent waits for an answer, so its chat shows the answers where the message box would be. The chat opens when the
+  // session's first read arrives (real time, not the manual clock), so wait for the dock. Opening it answers nothing.
+  await app.waitFor("label:Answer");
   await settle(app);
-  for (const letter of "hi") await app.keyboard.press(letter);
-  expect(app.value("label:Message")).toBe("hi");
-  await app.clear("label:Message");
+  expect(app.shows("label:Message")).toBe(false);
+  expect(sentKeys()).toEqual([]);
+  // Pressing it again goes to the next agent that waits and still answers nothing; going back returns to the first.
+  await app.keyboard.press("mod+j");
+  await settle(app);
+  expect(await front(app)).toBe(SECOND);
+  await app.keyboard.press("mod+shift+j");
+  await settle(app);
+  expect(await front(app)).toBe(FIRST);
+  expect(sentKeys()).toEqual([]);
   // The pane's view is one press away, and has the chips.
   await app.press("Show terminal");
   await settle(app);

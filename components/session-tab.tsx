@@ -1,5 +1,5 @@
 import { Herdr, Sessions } from "herdr-desktop/native";
-import { announce, cleanup, Clipboard, effect, signal, Text, untracked, View } from "nsh";
+import { announce, cleanup, Clipboard, computed, effect, signal, Text, untracked, View } from "nsh";
 
 import type { SessionInfo, SessionView } from "herdr-desktop/native";
 
@@ -7,16 +7,17 @@ import { AnswerDock } from "#components/answer-dock";
 import { SessionActivity } from "#components/session-activity";
 import { SessionComposer, type SessionComposerHandle } from "#components/session-composer";
 import { SessionHeader } from "#components/session-header";
-import { SessionOverview } from "#components/session-overview";
 import { SessionPlan } from "#components/session-plan";
 import { SessionQuestion } from "#components/session-question";
 import { createSignin, SessionSignin } from "#components/session-signin";
 import { SessionTranscript } from "#components/session-transcript";
 import { Btn, Empty, notify } from "#kit";
-import { sessionAsk } from "#lib/ask";
+import { goAttention } from "#lib/actions";
+import { type Ask, fromPrompt, sessionAsk } from "#lib/ask";
 import { touched } from "#lib/code-blocks";
 import { openSession, removePanel, sessionKey } from "#lib/dock";
 import { sending } from "#lib/files";
+import { board, meta } from "#lib/herdr";
 import { showTerminal } from "#lib/open-agent";
 import { registerPane } from "#lib/pane-input";
 import { createSessionModel, latest, type SessionPort, sessionPort } from "#lib/session";
@@ -69,7 +70,6 @@ export function SessionChat(props: {
   const resumable = signal<SessionInfo | null>(null);
   const continuing = signal(false);
   const reconnecting = signal(false);
-  const details = signal(false);
   const dropping = signal(false);
   const atEnd = signal(true);
   const unseen = signal(0);
@@ -190,7 +190,9 @@ export function SessionChat(props: {
       else void Clipboard.writeText(text).then(() => notify(done));
     };
     return registerPane({
-      focusComposer: () => composer?.focus(),
+      // While a question stands there is no message box: the answers are one Tab away, and saying so beats a key that does nothing.
+      focusComposer: () =>
+        composer ? composer.focus() : announce("Answer the question first. Tab moves to the answers."),
       copyReply: () => copy(lastReply(model.rows()), "Answer copied", "The agent has not answered yet"),
       copyCode: () =>
         copy(touched.text() ?? lastCode(lastReply(model.rows())), "Code copied", "No code in the last answer"),
@@ -234,6 +236,20 @@ export function SessionChat(props: {
   };
 
   const waiting = (v: SessionView) => v.waiting.length > 0;
+
+  // The board's row of this agent, and how many other agents wait: what the dock's `Next` offers.
+  const rowKey = observedPane ? `${props.machine}/${observedPane}` : `${props.machine}/session:${props.id}`;
+  const others = () => board().needsYou.filter((r) => !r.offline && r.key !== rowKey).length;
+  const paneInfo = observedPane ? meta(props.machine, observedPane) : undefined;
+  /** What the agent asks the dock: a terminal agent's menu (read from its pane), or the head of an ACP session's permission queue. */
+  const askOf = (v: SessionView): Ask | undefined => {
+    if (observedPane) {
+      const p = paneInfo?.()?.prompt;
+      return p ? fromPrompt(p, { machine: props.machine, pane: observedPane }, others()) : undefined;
+    }
+    const a = sessionAsk(props.machine, props.id, v);
+    return a && { ...a, waitingElsewhere: a.waitingElsewhere + others() };
+  };
 
   return (
     <View
@@ -282,14 +298,15 @@ export function SessionChat(props: {
       >
         {(live) => {
           const view = latest(live);
+          const ask = computed(() => askOf(view()));
+          const question = () => view().waiting[0]?.ask === "question";
           return (
             <>
               <SessionHeader
                 view={view()}
                 machine={props.machine}
+                id={props.id}
                 active={props.active}
-                machineName={machineName()}
-                onDetails={() => details.set(true)}
                 onShowTerminal={observedPane ? () => void showTerminal(props.machine, observedPane) : undefined}
               />
               <If when={view().connectionLost}>
@@ -328,26 +345,27 @@ export function SessionChat(props: {
                   waiting={() => waiting(view())}
                   opening={() => view().phase === "connecting"}
                 />
-                <AnswerDock ask={sessionAsk(props.machine, props.id, view())} />
-                <If when={view().waiting[0]?.ask === "question"}>
+                {/* The dock stays mounted: it keeps its `Answer sent` line after the question is gone. */}
+                <AnswerDock ask={ask()} onNext={() => goAttention(1)} />
+                <If when={question()}>
                   <SessionQuestion machine={props.machine} id={props.id} view={view()} />
                 </If>
-                <SessionComposer
-                  machine={props.machine}
-                  id={props.id}
-                  port={props.port}
-                  view={view}
-                  onHandle={(h) => {
-                    composer = h;
-                  }}
-                />
+                {/* The message box stands aside while the agent asks and comes back, draft and queue as they were, when it does not. */}
+                <If when={!ask() && !question()}>
+                  <SessionComposer
+                    machine={props.machine}
+                    id={props.id}
+                    port={props.port}
+                    view={view}
+                    onHandle={(h) => {
+                      composer = h;
+                      cleanup(() => {
+                        if (composer === h) composer = undefined;
+                      });
+                    }}
+                  />
+                </If>
               </If>
-              <SessionOverview
-                open={details()}
-                onClose={() => details.set(false)}
-                machine={props.machine}
-                id={props.id}
-              />
               <If when={dropping()}>
                 <View
                   accessibilityElementsHidden

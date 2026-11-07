@@ -255,7 +255,8 @@ test("a project's menu and the chat's header open the Changes tab of the checkou
   expect(app.shows("label:/^Changes in /")).toBe(true);
 
   // A chat names the same place: its header has a `Changes` chip.
-  await openAgents(app, FIRST);
+  // (An agent that is not waiting: a waiting one shows the answer dock where the message box would be.)
+  await openAgents(app, DONE);
   await app.waitFor("label:Message");
   await settle(app);
   await app.press("label:Changes");

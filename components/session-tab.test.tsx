@@ -2,6 +2,8 @@ import { expect, open, test } from "nsh/test";
 
 import type { App } from "nsh/test";
 
+import { chatReady } from "../app-seam";
+
 /**
  * The chat tab. Two kinds of test, both through `session-lab.tsx`: a real keeper driving herdr-mobile's scripted ACP agent
  * (what the person types comes back as the agent's words), and a scripted port for the scenes that agent cannot make (a
@@ -12,7 +14,7 @@ const DESKTOP = { width: 1280, height: 800, platform: "linux" as const };
 /** The tab on a real keeper, once the session is open: while it says `Opening` the box refuses a send, and typing before that is lost. */
 async function keeper(): Promise<App> {
   const app = await open("./session-lab.tsx", { ...DESKTOP, host: { params: { mode: "keeper" } } });
-  await app.waitFor("Ready");
+  await chatReady(app);
   return app;
 }
 const scripted = (scene: string) =>
@@ -52,15 +54,15 @@ test("a prompt streams the agent's words onto the page, its work folds into one 
   // A thought and two commands, then the answer: the work is one line, and the answer stays.
   await say_(app, "heavy:2:1:2:A");
   await app.waitFor(label("^Agent: answer A"));
-  await app.waitFor(label("^Worked.*2 commands"));
+  await app.waitFor(label("^Ran 2 commands"));
   expect(app.shows(label("^Tool: "))).toBe(false);
 
-  await app.press(label("^Worked.*2 commands"));
+  await app.press(label("^Ran 2 commands"));
   await app.waitFor(label("^Tool: .*step 0"));
   expect(app.shows(label("^Tool: .*step 1"))).toBe(true);
   expect(app.shows(label("^Thought"))).toBe(true);
 
-  await app.press(label("^Worked.*2 commands"));
+  await app.press(label("^Ran 2 commands"));
   await app.waitUntil(() => !app.shows(label("^Tool: ")));
 });
 
@@ -121,39 +123,57 @@ test("a finished turn reads like a chat: your message, the answer on the page as
   const app = await scripted("chat");
   await app.waitFor(label("^You: Fix the login redirect"));
   expect(app.shows(label("^Agent: The loop came from"))).toBe(true);
-  expect(said(app, "Done in 41s")).toBe(true);
+  // How long it took is not said: a turn is ranked by what it did, and the agent's `done` item draws nothing.
+  expect(said(app, "Done in 41s")).toBe(false);
   // The table and the list are the answer's own; the fence is code, not a sentence.
   expect(said(app, "unit tests")).toBe(true);
-  // The time is the agent's own: thought, read and command ran from 1 s to 7.2 s.
-  expect(app.shows(label("^Worked for 6s, 1 command"))).toBe(true);
+  // The fold is one line of counts, with no time: the thought is not counted, the read and the command are.
+  expect(app.shows(label("^Read 1 file, ran 1 command$"))).toBe(true);
   expect(app.shows(label("^Tool: "))).toBe(false);
 
-  await app.press(label("^Worked for 6s, 1 command"));
+  await app.press(label("^Read 1 file, ran 1 command$"));
   await app.waitFor(label("^Tool: Read src/auth.ts, done"));
   expect(app.shows(label("^Tool: Ran grep -rn callback src, done"))).toBe(true);
   expect(app.shows(label("^Thought"))).toBe(true);
 });
 
-test("while the turn runs the group it works in is open with its calls; earlier groups are folded; when the turn ends the open one folds too", async () => {
+test("while the turn runs every group is one folded line and one live line says what it does now; when it ends, a failure stays in view", async () => {
   const app = await scripted("tools");
-  await app.waitFor(label("^Working, 1 command"));
-  await app.waitFor(label("^Tool: Running pnpm test promo-eu, running"));
-  // What came before the subagent is folded; the subagent stands outside any fold, as its own line.
-  expect(app.shows(label("^Worked, 1 command, 1 file changed, 1 failed"))).toBe(true);
-  expect(app.shows(label("^Tool: Ran pnpm test, failed"))).toBe(false);
+  await app.waitFor(label("^Running pnpm test promo-eu$"));
+  // Nothing is open on its own: the calls are behind their lines, the subagent stands outside any fold.
+  expect(app.shows(label("^Read 1 file, ran 1 command, edited 1 file$"))).toBe(true);
+  expect(app.shows(label("^Tool: "))).toBe(false);
   expect(app.shows(label("^Subagent: tax-rules, done"))).toBe(true);
+  expect(app.shows(label("^Failed: "))).toBe(false);
 
   await app.press("Finish the turn");
-  await app.waitUntil(() => !app.shows(label("^Tool: Running pnpm test promo-eu")));
+  await app.waitUntil(() => !app.shows(label("^Running pnpm test promo-eu$")));
   expect(app.shows(label("^Subagent: tax-rules"))).toBe(true);
+  // The failed run is folded, and still said, with the last line it printed and no exit code of our own.
+  await app.waitFor(label("^Failed: Ran pnpm test, Ran all test suites\\.$"));
+  expect(app.shows(label("^Edited 1 file, 3 added, 1 removed. Open changes$"))).toBe(true);
 
-  await app.press(label("^Worked, 1 command, 1 file changed, 1 failed"));
+  await app.press(label("^Read 1 file, ran 1 command, edited 1 file$"));
   await app.waitFor(label("^Tool: Ran pnpm test, failed"));
+});
+
+test("a finished turn is ranked by consequence: the narration and reads fold, the failure, the push and the edits stay", async () => {
+  const app = await scripted("ranked");
+  await app.waitFor(label("^Agent: Fixed in"));
+  expect(app.shows(label("^Read 2 files, ran 3 commands, edited 1 file$"))).toBe(true);
+  expect(app.shows(label("^Agent: Found it"))).toBe(false);
+  expect(app.shows(label("^Failed: Ran pnpm test, 1 failed, 39 passed$"))).toBe(true);
+  expect(app.shows(label("^Pushed to origin/main$"))).toBe(true);
+  expect(app.shows(label("^Edited 1 file, 3 added, 1 removed. Open changes$"))).toBe(true);
+  // Opening the fold shows the narration with the steps, and a failed step says how it ended.
+  await app.press(label("^Read 2 files, ran 3 commands, edited 1 file$"));
+  await app.waitFor(label("^Tool: Read src/auth.ts, done"));
+  expect(said(app, "Found it. Changing")).toBe(true);
 });
 
 test("a call opens to what it did: the edit as a diff, the command whole, the output with Show all, the lines the machine did not keep", async () => {
   const app = await scripted("tools");
-  await app.press(label("^Worked, 1 command, 1 file changed, 1 failed"));
+  await app.press(label("^Read 1 file, ran 1 command, edited 1 file$"));
   await app.waitFor(label("^Tool: Edited src/auth.ts"));
   await app.press(label("^Tool: Edited src/auth.ts"));
   await app.waitFor("label:/^Diff of src\\/auth\\.ts, 2 added, 1 removed$/");
@@ -373,7 +393,6 @@ test("an agent that refuses the session until a sign-in takes the place of the c
   expect(app.shows("Sign in with an account")).toBe(true);
   expect(said(app, "Sign in with the login this machine already has.")).toBe(true);
   expect(app.shows(BOX)).toBe(false);
-  expect(app.shows("Sign in needed")).toBe(true);
   expect(logged(app, "authenticate")).toBe(false);
 
   // A way done in a terminal gives the exact arguments, quoted for a shell, and never opens anything.

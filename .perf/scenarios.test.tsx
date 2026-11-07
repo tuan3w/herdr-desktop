@@ -203,7 +203,8 @@ test(
   "chat of 5,000 items",
   async () => {
     const app = await open("../perf-chat.tsx", { ...DESKTOP, host: { params: { mode: "keeper" } } });
-    await app.waitFor("Ready", { timeout: 30_000 });
+    await app.waitFor("label:Message", { timeout: 30_000 });
+    await app.waitUntil(() => app.enabled("label:Message"), { timeout: 30_000 });
     const box = "label:Message";
 
     await mark(app, "chat idle, empty");
