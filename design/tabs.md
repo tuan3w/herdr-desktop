@@ -19,4 +19,4 @@ The first bar had tabs `flex-row` with the title's width and no clip: nine long 
 
 ## Looked at
 
-`tabs-few`, `tabs-many`, `tabs-twenty` and `tabs-hover` of `.shots/scenarios.ts` (the `tabs` fixture: one project, twenty agents with long names, each opened with `mod+j`) at 1280, 960 and 760, light and dark; `make a11y` lists each tab as a `page tab` with its full name and no unnamed control.
+`tabs-few`, `tabs-many` and `tabs-twenty` of `.shots/scenarios.ts` (the `tabs` fixture: one project, twenty agents with long names, each opened with `mod+j`) at 1280, 960 and 760, light and dark, and the hover of a tab in `components/tabs.test.tsx` on the headless harness and on a GTK window (a hover in an audited scenario made the AT-SPI audit lose the app); `make a11y` lists each tab as a `page tab` with its full name and no unnamed control.

@@ -557,15 +557,14 @@ export const CHANGES_SCENARIOS: Record<string, Scenario> = {
 Object.assign(SCENARIOS, CHANGES_SCENARIOS);
 
 // The tab bar (`design/tabs.md`): one project of twenty agents with long names, each opened as a tab by `mod+j` (the next
-// agent that needs you; all of them wait in this fixture). Two tabs, nine, twenty, and the pointer over a tab that is not in front.
-const tabs = (count: number, hover = false): Scenario => ({
+// agent that needs you; all of them wait in this fixture). Two tabs, nine and twenty. (A scenario that hovers a tab stops the AT-SPI audit finding the app, so the hover is only in `components/tabs.test.tsx`.)
+const tabs = (count: number): Scenario => ({
   fixture: "tabs",
   steps: async (app) => {
     for (let i = 0; i < count; i++) {
       await app.keyboard.press("ctrl+j");
       await app.wait(250);
     }
-    if (hover) await app.hover("label:/^Reconcile.*tab 1 of 5$/");
     await app.wait(500);
   },
 });
@@ -573,6 +572,5 @@ export const TAB_SCENARIOS: Record<string, Scenario> = {
   "tabs-few": { ...tabs(2) },
   "tabs-many": { ...tabs(9) },
   "tabs-twenty": { ...tabs(20) },
-  "tabs-hover": { ...tabs(5, true) },
 };
 Object.assign(SCENARIOS, TAB_SCENARIOS);
