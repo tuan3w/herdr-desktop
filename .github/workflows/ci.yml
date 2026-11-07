@@ -16,8 +16,9 @@ name: ci
 #     of compiling).
 #   - scripts/ci-mtimes.sh: cargo decides a path crate is up to date by mtimes, and a checkout makes every file newer than
 #     the cache, so every run recompiled the app crates. Now a run that changed only TSX or docs recompiles no Rust.
-# The caches are restored by every run and saved by main only, after the job, even when it failed (a cache that only a green
-# run could save was never saved while the build was still being fixed).
+# The caches are restored by every run and saved by main only, after a failure too (a cache that only a green run could save
+# was never saved while the build was still being fixed) but never after a cancel: a run cancelled by a newer push is
+# half-way through compiling, and a half-filled cache saved under the key of a full one would stay there for good.
 on:
   push:
     branches: [main]
@@ -144,10 +145,10 @@ jobs:
           if-no-files-found: error
 
       - name: Record what target/ was built from
-        if: always()
+        if: ${{ !cancelled() }}
         run: scripts/ci-mtimes.sh after
-      - name: Save the cache (main only, even after a failure)
-        if: always() && github.ref == 'refs/heads/main' && steps.cargo-cache.outputs.cache-hit != 'true'
+      - name: Save the cache (main only; after a failure too, never after a cancel)
+        if: ${{ !cancelled() && github.ref == 'refs/heads/main' && steps.cargo-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
         with:
           path: |
@@ -225,10 +226,10 @@ jobs:
       - name: nsh check (tsc, and cargo check of the app crate)
         run: nsh check
       - name: Record what target/ was built from
-        if: always()
+        if: ${{ !cancelled() }}
         run: scripts/ci-mtimes.sh after
-      - name: Save the cache (main only, even after a failure)
-        if: always() && github.ref == 'refs/heads/main' && steps.cargo-cache.outputs.cache-hit != 'true'
+      - name: Save the cache (main only; after a failure too, never after a cancel)
+        if: ${{ !cancelled() && github.ref == 'refs/heads/main' && steps.cargo-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
         with:
           path: |

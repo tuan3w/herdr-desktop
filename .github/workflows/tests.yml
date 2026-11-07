@@ -85,10 +85,10 @@ jobs:
         run: make test
 
       - name: Record what target/ was built from
-        if: always()
+        if: ${{ !cancelled() }}
         run: scripts/ci-mtimes.sh after
-      - name: Save the cache (main only, even after a failure)
-        if: always() && github.ref == 'refs/heads/main' && steps.cargo-cache.outputs.cache-hit != 'true'
+      - name: Save the cache (main only; after a failure too, never after a cancel)
+        if: ${{ !cancelled() && github.ref == 'refs/heads/main' && steps.cargo-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
         with:
           path: |
