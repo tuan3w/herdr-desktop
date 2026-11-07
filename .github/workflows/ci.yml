@@ -129,7 +129,10 @@ jobs:
           hit: ${{ steps.setup.outputs.cache-hit }}
 
   macos-package:
-    # nsh signs the .app ad hoc (no Apple developer account): Gatekeeper wants a first right-click, Open.
+    # nsh signs the .app ad hoc; scripts/sign-macos.sh then signs it with the repository's self-signed identity (secrets
+    # HERDR_SIGN_P12 and HERDR_SIGN_PASSWORD), so the designated requirement is the same in every build. A pull request
+    # from a fork has no secrets and keeps the ad hoc signature; the job still passes. Gatekeeper wants a first
+    # right-click, Open either way (no Apple developer account: docs/MACOS.md).
     runs-on: macos-15
     timeout-minutes: 25
     steps:
@@ -138,14 +141,21 @@ jobs:
         id: setup
         with:
           cache: macos-package
-      - run: make package
-      - name: The .app is a bundle with its executable
+      - name: make package (signs the .app)
+        run: make package
+        env:
+          HERDR_SIGN_P12: ${{ secrets.HERDR_SIGN_P12 }}
+          HERDR_SIGN_PASSWORD: ${{ secrets.HERDR_SIGN_PASSWORD }}
+      - name: The .app is a bundle with its executable and its signature
+        env:
+          HERDR_SIGN_P12: ${{ secrets.HERDR_SIGN_P12 }}
+          HERDR_SIGN_PASSWORD: ${{ secrets.HERDR_SIGN_PASSWORD }}
         run: |
           app=".scratch/dist/Herdr Desktop.app"
           ls -la "$app/Contents" "$app/Contents/MacOS"
           test -x "$app/Contents/MacOS/"*
           plutil -p "$app/Contents/Info.plist" | grep -E 'CFBundle(Identifier|ShortVersionString)'
-          codesign --verify --deep --strict "$app"
+          scripts/check-macos-signature.sh "$app"
       - name: Zip the app (ditto keeps permissions and the signature; upload-artifact would not)
         run: ditto -c -k --keepParent ".scratch/dist/Herdr Desktop.app" Herdr-Desktop-macos-arm64.zip
       - uses: actions/upload-artifact@v4

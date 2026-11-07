@@ -54,6 +54,9 @@ run:
 
 package:
 	nsh package . --target $(HOST_TARGET) -o .scratch/dist
+ifeq ($(HOST_TARGET),macos)
+	scripts/sign-macos.sh ".scratch/dist/Herdr Desktop.app"
+endif
 
 # Only after the default theme's spec changes.
 theme:

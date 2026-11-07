@@ -63,7 +63,7 @@ xattr -dr com.apple.quarantine "Herdr Desktop.app"
 `make package` runs `nsh package . --target <linux|macos> -o .scratch/dist` for the system it runs on.
 
 - **Linux:** a directory `Herdr Desktop/` with the executable `HerdrDesktop`, `nsh/` (the bundle, assets, `app.json`, `capabilities.json`), `dev.herdrmobile.herdr_desktop.desktop` and `.png` (the icon, `icon.png` named in `nsh.json`), and the same as `Herdr Desktop.tar.gz`. `icon.svg` is the vector source of the icon; `local/install.sh` also installs it as the scalable icon.
-- **macOS:** `Herdr Desktop.app`, signed ad hoc by nsh.
+- **macOS:** `Herdr Desktop.app`, signed ad hoc by nsh and then with the project's self-signed identity by `scripts/sign-macos.sh` (secrets `HERDR_SIGN_P12`, `HERDR_SIGN_PASSWORD`; `docs/MACOS.md`, "Signing", has rotation and notarization). `release.yml` refuses to build the macOS app without the secrets and fails if the result is ad hoc. Compare `designated =>` in the job summaries of two releases: it must be identical.
 
 The app's declared reach is `nsh.json` `capabilities`: the clipboard, `openUrl` for `https`, `http` and `mailto`, one network rule (GET `https://api.github.com/repos/tuan3w/herdr-desktop/releases/latest`, for the update check) and a web view for `127.0.0.1`. Rust code (ssh, sockets, files) runs with the process's own permissions and needs no capability. Adding a capability is a change to the app's audit surface: say why in the commit.
 

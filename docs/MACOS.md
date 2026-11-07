@@ -9,13 +9,29 @@ unzip Herdr-Desktop-<version>-macos-arm64.zip           # contains "Herdr Deskto
 xattr -dr com.apple.quarantine "Herdr Desktop.app"      # then drag it to Applications
 ```
 
-`nsh package --target macos` signs the app **ad hoc** (no Apple developer account, no notarization). A copy downloaded with a browser carries the quarantine flag and Gatekeeper refuses it ("cannot be opened because the developer cannot be verified", or "is damaged"). Three ways through, any one is enough:
+`nsh package --target macos` signs the app ad hoc, and `scripts/sign-macos.sh` then signs it again with this project's own **self-signed** identity (`Herdr Desktop (self-signed)`, see "Signing"). Neither is an Apple Developer ID and neither is notarized, so a copy downloaded with a browser carries the quarantine flag and Gatekeeper refuses it ("cannot be opened because the developer cannot be verified", or "is damaged"). Three ways through, any one is enough:
 
 1. `xattr -dr com.apple.quarantine "Herdr Desktop.app"` before the first start (works on every version).
 2. Open it once, then System Settings > Privacy & Security > `Open Anyway` (macOS 15 and later: right-click > Open no longer bypasses Gatekeeper there).
 3. On macOS 14: right-click the app > `Open` > `Open`.
 
-An ad hoc signature is identified by the hash of the code, so it changes with every build. Anything that trusts the app by signature (a keychain item, a firewall rule) asks again after an update. Herdr Desktop stores no secrets in the keychain, and ssh keys stay with ssh and its agent.
+Anything that trusts the app by its signature (a keychain item, a granted permission) keeps trusting it after an update, because the designated requirement is the same in every release (see "Signing"). Herdr Desktop stores no secrets in the keychain, and ssh keys stay with ssh and its agent.
+
+## Signing
+
+| | |
+|---|---|
+| Identity | a self-signed RSA 3072 certificate, `CN=Herdr Desktop (self-signed), O=herdr-desktop`, valid 10 years, `keyUsage=digitalSignature`, `extendedKeyUsage=codeSigning`, `CA:false` |
+| Where the key lives | `~/.herdr-desktop-signing/` of the owner (`identity.p12`, `p12.pass`, `cert.pem`, mode 0600 in a 0700 directory) and the GitHub Actions secrets `HERDR_SIGN_P12` (base64) and `HERDR_SIGN_PASSWORD`. Never in the repository (`*.p12`, `*.pem`, `*.key` are ignored) |
+| Designated requirement | `identifier "dev.herdrmobile.herdr_desktop" and certificate leaf = H"<hash of the certificate>"`: it names the certificate, not the code, so it is **identical in every build signed with it** |
+| Why | an ad hoc signature is the hash of the code (`cdhash`) and changes with every build, so the system asked again about anything tied to the app after each update. With one certificate it does not |
+| What it does not do | Gatekeeper does not know the certificate: the first launch still needs `xattr -dr com.apple.quarantine` or `Open Anyway`. It is not notarization |
+
+`make package` on a Mac runs `nsh package`, then `scripts/sign-macos.sh` (an own temporary keychain, `codesign --force --deep --timestamp=none --identifier dev.herdrmobile.herdr_desktop`, `codesign --verify --deep --strict`, the keychain deleted on exit). Without the secrets or the local files it keeps the ad hoc signature, says so, and exits 0, so a fork's pull request still builds. CI and the release run `scripts/check-macos-signature.sh`, which prints `codesign -dvv` and the designated requirement (also in the job summary, to compare two builds) and **fails when the identity is configured but the app is still ad hoc**; the release workflow also refuses to build without the secrets.
+
+**Rotating the identity.** `scripts/make-signing-identity.sh --force` makes a new one, then (the script's header has the exact lines) `base64 -w0 < ~/.herdr-desktop-signing/identity.p12 | gh secret set HERDR_SIGN_P12` and `gh secret set HERDR_SIGN_PASSWORD < ~/.herdr-desktop-signing/p12.pass`. A new identity is a new app to the keychain: everyone is asked once more. Losing the local copy has the same effect (the secrets cannot be read back), so keep a backup of that directory off the machine. Rotate when the key is lost or leaked or the certificate nears its end (2036).
+
+**Notarization, later.** It needs an Apple Developer Program membership (US$99 a year) and a **Developer ID Application** certificate; none exists. When there is one: export it as a .p12 and add secrets `APPLE_DEVELOPER_ID_P12`, `APPLE_DEVELOPER_ID_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID` and an app-specific password `APPLE_APP_PASSWORD`; sign with `codesign --force --deep --options runtime --timestamp --sign "Developer ID Application: <name> (<team>)"` (the hardened runtime and a secure timestamp are required); `ditto -c -k --keepParent` the app, `xcrun notarytool submit <zip> --apple-id ... --team-id ... --password ... --wait`, then `xcrun stapler staple "Herdr Desktop.app"` and zip again. Whether nsh's runner works under the hardened runtime (it loads QuickJS and bundles code) is **unverified**: it may need entitlements. The designated requirement would change once, to the Developer ID, so the keychain asks once more at that update.
 
 ## What differs from Linux
 

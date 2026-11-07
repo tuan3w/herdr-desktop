@@ -4,6 +4,8 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+- **macOS: one signature for every release.** The app is signed with the project's own certificate instead of a new ad hoc signature per build, so the keychain and permissions macOS remembers survive updates. It is still not notarized: the first launch needs `xattr -dr com.apple.quarantine "Herdr Desktop.app"` or `Open Anyway`.
+
 ## [0.1.0-alpha.1] - 2026-11-07
 
 The first alpha of Herdr Desktop: the desktop counterpart of the Herdr phone app, for the people who run coding agents under [herdr](https://herdr.dev) and want one window for all of them. It is for trying, not for relying on: read "Known issues" first. Linux (x86_64) and macOS (Apple silicon) packages are built from the same commit by the same checks, but the author has only ever run it on Linux; **the macOS build is brand new and has never been run on a Mac by the author**, so tell us what breaks there.

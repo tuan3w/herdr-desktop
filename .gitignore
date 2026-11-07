@@ -5,3 +5,6 @@ target/
 node_modules/
 __pycache__/
 *.pyc
+*.p12
+*.pem
+*.key

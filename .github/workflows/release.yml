@@ -99,8 +99,17 @@ jobs:
         if: runner.os == 'macOS'
         run: make verify-mac
 
-      - name: make package
+      - name: The macOS release is signed with our identity or not built
+        if: runner.os == 'macOS'
+        env:
+          HERDR_SIGN_P12: ${{ secrets.HERDR_SIGN_P12 }}
+        run: '[ -n "$HERDR_SIGN_P12" ] || { echo "::error::secrets HERDR_SIGN_P12 and HERDR_SIGN_PASSWORD are missing: a release must not fall back to an ad hoc signature"; exit 1; }'
+
+      - name: make package (on macOS it signs the app, see scripts/sign-macos.sh)
         run: make package
+        env:
+          HERDR_SIGN_P12: ${{ secrets.HERDR_SIGN_P12 }}
+          HERDR_SIGN_PASSWORD: ${{ secrets.HERDR_SIGN_PASSWORD }}
 
       - name: Name the Linux tarball
         if: runner.os == 'Linux'
@@ -113,10 +122,13 @@ jobs:
 
       - name: Name the macOS zip
         if: runner.os == 'macOS'
+        env:
+          HERDR_SIGN_P12: ${{ secrets.HERDR_SIGN_P12 }}
+          HERDR_SIGN_PASSWORD: ${{ secrets.HERDR_SIGN_PASSWORD }}
         run: |
           app=".scratch/dist/Herdr Desktop.app"
           test -x "$app/Contents/MacOS/"*
-          codesign --verify --deep --strict "$app"
+          scripts/check-macos-signature.sh "$app"
           name="Herdr-Desktop-${{ needs.prepare.outputs.version }}-macos-arm64.zip"
           mkdir -p release
           # ditto keeps permissions, symlinks and the signature; `zip` would not.
