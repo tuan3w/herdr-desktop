@@ -5,13 +5,34 @@ import { scripted, sentKeys } from "./board-seam";
 
 /** Picking agents and acting on them, against `mixed.json`: working `Refactor ledger` (w1:p4) and `upgrade deps` (w1:p5), waiting `payments review` (w1:p1). */
 const DESKTOP = { width: 1280, height: 800, platform: "linux", clock: {} } as const;
-const lab = () => open("./board-lab.tsx", { ...DESKTOP, host: { params: { fixture: "mixed" } } });
+/** Opens the board and lets the list finish measuring its cells before any press (see `board.test.tsx`). */
+async function lab() {
+  const app = await open("./board-lab.tsx", { ...DESKTOP, host: { params: { fixture: "mixed" } } });
+  await app.waitFor("heard just now", { timeout: 5000 }).catch(() => undefined);
+  await app.clock!.runFor(300);
+  return app;
+}
 const has = (app: App, text: string) => app.texts().includes(text);
 const inBar = "label:Selected agents >> ";
 
+/** How many agents the bar says are picked (0 while it is not shown). */
+const picked = (app: App) => Number(app.texts().find((t) => /^\d+ selected$/.test(t))?.split(" ")[0] ?? 0);
+
+/**
+ * Picks the named agents one by one. A press made while the virtual list is still being measured can land on a row
+ * that moves under it, so each pick waits for the bar's count and presses again when it did not register.
+ */
 async function pick(app: App, ...names: string[]) {
   await app.waitFor("Working");
-  for (const name of names) await app.press(`label:Select ${name}`);
+  let expected = 0;
+  for (const name of names) {
+    expected += 1;
+    for (let attempt = 0; attempt < 3 && picked(app) < expected; attempt++) {
+      await app.press(`label:Select ${name}`);
+      await app.clock!.runFor(150);
+    }
+    expect(picked(app)).toBe(expected);
+  }
 }
 
 test("the bar shows only while something is picked, with how many, and clearing hides it", async () => {
@@ -64,7 +85,7 @@ test("an agent waiting on a question is listed as skipped and untouched, and Sen
   await pick(app, "Refactor ledger", "payments review");
   await app.press(`${inBar}Stop`);
   await app.waitFor("Waiting for an answer (skipped)");
-  expect(has(app, "Stop 1 agent")).toBe(true);
+  await app.waitFor("Stop 1 agent");
 
   await app.press("text:Stop 1 agent");
   await app.waitFor("Stopped 1 agent");

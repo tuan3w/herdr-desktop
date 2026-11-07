@@ -7,7 +7,7 @@ export HERDR_DESKTOP_TEST := 1
 CORE := native/core/Cargo.toml
 APP  := native/app/Cargo.toml
 
-.PHONY: verify check test core docs a11y run package theme perf cpu schema
+.PHONY: verify check test core docs a11y run package theme perf cpu schema shots
 
 verify: check test core docs a11y
 
@@ -53,3 +53,9 @@ cpu:
 # Refresh the protocol schema from the installed herdr.
 schema:
 	scripts/sync-schema.sh
+
+# Screenshots of the real GTK window at 1280/960/760, light and dark, into .scratch/shots (needs xvfb, dbus; the
+# GTK dev files from the system or `. .scratch/sysroot/env.sh`).
+shots:
+	mkdir -p .scratch/shots
+	dbus-run-session -- xvfb-run -a env GSK_RENDERER=cairo GTK_A11Y=atspi nsh test .shots/screens.test.tsx --target linux

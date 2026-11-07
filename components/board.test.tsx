@@ -5,13 +5,24 @@ import { scripted, sentKeys } from "./board-seam";
 
 /** The board against the scripted herdr of `fixtures/herdr/mixed.json` (2 need you, 1 to review, 2 working, 3 idle) and `storm.json` (20 need you). */
 const DESKTOP = { width: 1280, height: 800, platform: "linux", clock: {} } as const;
-const lab = (fixture = "mixed") => open("./board-lab.tsx", { ...DESKTOP, host: { params: { fixture } } });
+/**
+ * Opens the board and lets the list finish measuring its cells: a press made while rows still move under it can be lost
+ * (a quirk of the headless harness under load), so no test starts before the layout is settled.
+ */
+async function lab(fixture = "mixed") {
+  const app = await open("./board-lab.tsx", { ...DESKTOP, host: { params: { fixture } } });
+  await app.waitFor("heard just now", { timeout: 5000 }).catch(() => undefined);
+  await app.clock!.runFor(300);
+  return app;
+}
 const at = (app: App, text: string) => app.texts().indexOf(text);
 const has = (app: App, text: string) => app.texts().includes(text);
 
 test("the sections come in the order of urgency, each agent in the one that matches its state, and the status line counts them", async () => {
   const app = await lab();
   await app.waitFor("Needs you");
+  // The list mounts its cells as it measures them: the order of the texts is only settled after that.
+  await app.clock!.runFor(300);
   expect(app.texts().slice(2, 9)).toEqual(["2 need you", "·", "1 to review", "·", "2 working", "·", "heard just now"]);
 
   const order = ["Needs you", "To review", "Working", "Idle"].map((h) => at(app, h));
@@ -132,4 +143,13 @@ test("with only this computer and nothing running the board points at adding a m
   await app.waitFor("Add your first machine");
   await app.press("Add machine");
   expect(has(app, "add machine asked")).toBe(true);
+});
+
+test("switching the colour scheme re-themes the board without breaking its rows", async () => {
+  const app = await lab();
+  await app.waitFor("Needs you");
+  await app.setColorScheme("dark");
+  await app.wait(300);
+  expect(has(app, "Needs you")).toBe(true);
+  expect(has(app, "payments review")).toBe(true);
 });

@@ -1,6 +1,6 @@
-import { announce, signal, Text, View } from "nsh";
+import { announce, computed, signal, Text, View } from "nsh";
 import { Command, type CommandItem, type CommandRef } from "nsh/base";
-import { Modal } from "./kit";
+import { Kbd, Modal } from "./kit";
 
 /** One thing the palette can run. `shortcut` is a `keymap` key shown beside it (the app binds it elsewhere). */
 export type PaletteItem = CommandItem;
@@ -14,6 +14,11 @@ export type PaletteItem = CommandItem;
  */
 export function Palette(props: { open: boolean; onClose: () => void; items: PaletteItem[]; onRun: (id: string) => void }) {
   const query = signal("");
+  // The list shows a heading where the group changes, so one group must be one run: groups keep the order they first appear in.
+  const grouped = computed(() => {
+    const order = [...new Set(props.items.map((i) => i.group ?? ""))];
+    return [...props.items].sort((a, b) => order.indexOf(a.group ?? "") - order.indexOf(b.group ?? ""));
+  });
   let command: CommandRef | undefined;
   const count = async () => {
     const n = await command?.matchedCount();
@@ -24,13 +29,25 @@ export function Palette(props: { open: boolean; onClose: () => void; items: Pale
       <View class="gap-2">
         <Command
           ref={(ref) => (command = ref)}
-          items={props.items}
+          items={grouped()}
           query={query()}
           autoFocus
           accessibilityLabel="Commands"
           searchAccessibilityLabel="Search commands"
           placeholder="Type a command"
+          searchBarClass="mb-2 rounded-md border border-border px-3"
+          searchClass="h-9 text-sm"
           listClass="max-h-[320px]"
+          itemClass="group flex-row items-center rounded-md px-3 py-2 focus:bg-accent hover:bg-accent disabled:opacity-50"
+          groupClass="px-3 pb-1 pt-3 text-xs font-medium text-muted-foreground"
+          renderItem={(item) => (
+            <View class="flex-1 flex-row items-center gap-3">
+              <Text class="flex-1 text-sm text-foreground">{item.label}</Text>
+              <If when={item.shortcutLabel}>
+                <Kbd keys={item.shortcutLabel ?? ""} />
+              </If>
+            </View>
+          )}
           onQueryChange={({ query: q }) => {
             query.set(q);
             void count();

@@ -7,6 +7,7 @@ import { machinesOpen, newAgentOpen, settingsOpen, sidebarSearch } from "../lib/
 import { focused, openPane, paneKey, showBoard, BOARD } from "../lib/dock";
 import { board, revision } from "../lib/herdr";
 import { linkGlyph, linkText } from "../lib/machine-state";
+import { ofKind } from "../lib/list-item";
 import { hoverTransition } from "../lib/motion";
 import { isSelected, rangeTo, toggle } from "../lib/selection";
 import { sidebarCollapsed } from "../lib/settings";
@@ -194,19 +195,6 @@ function More(props: { item: () => Extract<SidebarItem, { kind: "more" }> }) {
       </View>
     </If>
   );
-}
-
-/**
- * What a recycled cell shows when its item changes kind (a row becomes a header after a fold): the old view is told the
- * new item before the `If` swaps it out, so a view reads the last item of its own kind and never `undefined`.
- */
-function ofKind<K extends SidebarItem["kind"]>(item: () => SidebarItem, kind: K): () => Extract<SidebarItem, { kind: K }> {
-  let last: Extract<SidebarItem, { kind: K }> | undefined;
-  return () => {
-    const now = item();
-    if (now.kind === kind) last = now as Extract<SidebarItem, { kind: K }>;
-    return last!;
-  };
 }
 
 /** The agents, grouped as the board groups them. Rows are recycled, so each reads its item and holds nothing of its own. */

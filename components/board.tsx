@@ -6,6 +6,7 @@ import { board, revision, reviewable } from "../lib/herdr";
 import { hoverTransition } from "../lib/motion";
 import { select } from "../lib/selection";
 import { type BoardItem, boardItems } from "../lib/board-items";
+import { ofKind } from "../lib/list-item";
 import { folded, idleOpen, toggleFold } from "../lib/sidebar";
 import { AgentCard, AgentRow } from "./board-card";
 import { Btn, Empty, FOCUS_RING, Icon, NUM } from "./kit";
@@ -128,37 +129,40 @@ export function Board(props: { onOpenPane: (machine: string, pane: string, optio
         }
       >
         <List each={items()} keyExtractor={(i: BoardItem) => i.key} estimatedItemSize={72} class="min-h-0 flex-1" contentClass="gap-1 pb-6" accessibilityLabel="Agents">
-          {(item) => (
-            <If
-              when={item().kind === "header"}
-              else={
-                <If
-                  when={item().kind === "more"}
-                  else={
-                    <If
-                      when={item().kind === "card"}
-                      else={<AgentRow row={(item() as BoardItem & { kind: "row" }).row} several={several()} order={order} onOpen={open} />}
-                    >
-                      <AgentCard row={(item() as BoardItem & { kind: "card" }).row} several={several()} order={order} onOpen={open} />
-                    </If>
-                  }
-                >
-                  <View class="px-1 py-1">
-                    <Button
-                      onPress={() => idleOpen.set(!idleOpen())}
-                      accessibilityLabel={(item() as BoardItem & { kind: "more" }).text}
-                      style={hoverTransition()}
-                      class={`self-start rounded-md px-2 py-1.5 hover:bg-accent ${FOCUS_RING}`}
-                    >
-                      <Text class="text-sm text-muted-foreground">{(item() as BoardItem & { kind: "more" }).text}</Text>
-                    </Button>
-                  </View>
-                </If>
-              }
-            >
-              <Header item={item() as BoardItem & { kind: "header" }} onTriage={() => triage.set(true)} triageable={board().counts.needsYou > 1} />
-            </If>
-          )}
+          {(item) => {
+            const header = ofKind(item, "header");
+            const more = ofKind(item, "more");
+            const card = ofKind(item, "card");
+            const line = ofKind(item, "row");
+            return (
+              <If
+                when={item().kind === "header"}
+                else={
+                  <If
+                    when={item().kind === "more"}
+                    else={
+                      <If when={item().kind === "card"} else={<AgentRow row={line().row} several={several()} order={order} onOpen={open} />}>
+                        <AgentCard row={card().row} several={several()} order={order} onOpen={open} />
+                      </If>
+                    }
+                  >
+                    <View class="px-1 py-1">
+                      <Button
+                        onPress={() => idleOpen.set(!idleOpen())}
+                        accessibilityLabel={more().text}
+                        style={hoverTransition()}
+                        class={`self-start rounded-md px-2 py-1.5 hover:bg-accent ${FOCUS_RING}`}
+                      >
+                        <Text class="text-sm text-muted-foreground">{more().text}</Text>
+                      </Button>
+                    </View>
+                  </If>
+                }
+              >
+                <Header item={header()} onTriage={() => triage.set(true)} triageable={board().counts.needsYou > 1} />
+              </If>
+            );
+          }}
         </List>
       </If>
       <Triage open={triage()} onClose={() => triage.set(false)} onOpenPane={(machine, pane) => props.onOpenPane(machine, pane)} />
