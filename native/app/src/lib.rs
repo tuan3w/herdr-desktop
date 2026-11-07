@@ -11,6 +11,7 @@
 //! * [`metrics`] is what the dev panel shows about the live pane path.
 //! * [`files`] is the `Files` and `Pages` modules: the file browser, viewers, `Send a file` and tunnels to a machine's pages.
 //! * [`notify`] tells the person, while the window is away, that an agent needs them (desktop notifications).
+//! * [`search`] is the `Search` module: the command palette's ranking over a catalog frozen when it opens.
 //! * [`git`] is the `Git` module: the files an agent changed in a checkout, their patches, revert and undo.
 //! * [`fixture`] is the scripted herdr the tests run against.
 //! * `preload_guard` (Linux, glibc) starts the process again without an `LD_PRELOAD` allocator that breaks GTK 4.22 (before `main`).
@@ -31,6 +32,7 @@ pub mod notify;
 pub mod pane_screen;
 #[cfg(all(target_os = "linux", target_env = "gnu"))]
 pub mod preload_guard;
+pub mod search;
 
 /// The crate's UI set (`nsh.json` `"rust"`).
 #[native_module("herdr-desktop/native")]
@@ -47,6 +49,7 @@ fn native(registry: &mut Registry) {
         .module::<files::Pages>()
         .module::<git::Git>()
         .module::<keys::PaneKeys>()
+        .module::<search::Search>()
         .register::<highlight::view::CodeDiff>()
         .register::<highlight::view::CodeView>()
         .register::<pane_screen::PaneScreen>();

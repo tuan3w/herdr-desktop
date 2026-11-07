@@ -23,6 +23,9 @@ rustix = { version = "1", features = ["process", "fs"] }
 regex = "1"
 fancy-regex = "0.16"
 parking_lot = "0.12"
+# The palette's search (src/search): fzf-style fuzzy scoring (MPL-2.0, listed in NOTICE) and the one-character-at-a-time fold.
+nucleo-matcher = "0.3"
+unicode-normalization = "0.1"
 # Quick open of files (src/files/quick.rs): the walk that reads .gitignore the way git does (MIT or Unlicense).
 ignore = "0.4"
 
@@ -31,6 +34,10 @@ tempfile = "3"
 
 [[bench]]
 name = "parse"
+harness = false
+
+[[bench]]
+name = "search"
 harness = false
 
 [[bench]]

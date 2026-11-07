@@ -12,6 +12,7 @@ pub mod prompt;
 pub mod recents;
 pub mod schema;
 pub mod screen;
+pub mod search;
 pub mod session;
 pub mod ssh;
 pub mod store;

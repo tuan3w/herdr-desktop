@@ -68,3 +68,7 @@ copyright line in its `LICENSE`, and the copyright holders are the authors of th
 The folder, file, arrow, globe, upload and external-link icons in `components/kit/icons/` follow the
 shapes of Lucide, https://lucide.dev, licensed under the ISC License (Copyright (c) for Lucide
 contributors).
+
+The command palette's ranking (`native/core/src/search`) links `nucleo-matcher` (https://github.com/helix-editor/nucleo,
+Mozilla Public License 2.0; used unmodified, as a dependency) for fzf-style fuzzy scoring, and `unicode-normalization`
+(MIT or Apache-2.0) to fold diacritics.

@@ -895,6 +895,11 @@ impl Fleet {
             .collect()
     }
 
+    /// The visited destinations as stored (newest first): the palette's ranking weighs each kind's visits its own way.
+    pub fn recent_entries(&self) -> Vec<herdr_core::recents::Entry> {
+        self.recents.lock().entries().to_vec()
+    }
+
     // ---- the test seam ----------------------------------------------------------------------------
 
     /// The scripted herdr, when the engine was started with one.
