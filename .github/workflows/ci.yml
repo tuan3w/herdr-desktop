@@ -72,6 +72,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Rust toolchain of rust-toolchain.toml, minimal profile (starts now, finishes while the caches restore)
+        # `RUSTUP_TOOLCHAIN` makes rustup ignore the file's `components` (clippy, rustfmt): a build needs neither.
+        run: scripts/ci-toolchain.sh start
+
       - name: Where nsh goes
         run: echo "NSH_INSTALL_DIR=$RUNNER_TEMP/nsh" >> "$GITHUB_ENV"
       - name: nsh from the cache
@@ -87,13 +91,6 @@ jobs:
         run: |
           echo "$NSH_INSTALL_DIR/bin" >> "$GITHUB_PATH"
           "$NSH_INSTALL_DIR/bin/nsh" -V
-
-      - name: Rust toolchain of rust-toolchain.toml, minimal profile
-        # `RUSTUP_TOOLCHAIN` makes rustup ignore the file's `components` (clippy, rustfmt): a build needs neither.
-        run: |
-          channel="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)"
-          rustup toolchain install "$channel" --profile minimal --no-self-update
-          echo "RUSTUP_TOOLCHAIN=$channel" >> "$GITHUB_ENV"
 
       - name: Cargo registry and target/ from the cache
         id: cargo-cache
@@ -113,6 +110,8 @@ jobs:
             package-${{ runner.os }}-${{ runner.arch }}-
       - name: Files that did not change keep the age of the cache
         run: scripts/ci-mtimes.sh before
+      - name: The Rust toolchain is installed
+        run: scripts/ci-toolchain.sh wait
 
       - name: make package (nsh package, then the signature)
         run: make package
@@ -166,6 +165,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Rust toolchain, minimal with rustfmt (starts now, finishes while the checks run)
+        run: scripts/ci-toolchain.sh start rustfmt
 
       - uses: oven-sh/setup-bun@v2
       - name: Dev tools (oxlint, oxfmt)
@@ -181,11 +182,8 @@ jobs:
       - name: Docs (every name in DESIGN.md and design/ exists)
         run: node scripts/check-docs.mjs
 
-      - name: Rust toolchain, minimal with rustfmt
-        run: |
-          channel="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)"
-          rustup toolchain install "$channel" --profile minimal --component rustfmt --no-self-update
-          echo "RUSTUP_TOOLCHAIN=$channel" >> "$GITHUB_ENV"
+      - name: The Rust toolchain is installed
+        run: scripts/ci-toolchain.sh wait
       - name: cargo fmt
         run: |
           cargo fmt --manifest-path native/core/Cargo.toml --check
