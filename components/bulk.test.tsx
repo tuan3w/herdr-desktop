@@ -3,6 +3,7 @@ import { expect, open, test } from "nsh/test";
 
 import type { App } from "nsh/test";
 
+import { quiet } from "../app-seam";
 import { scripted, sentKeys } from "./board-seam";
 
 /** Picking agents and acting on them, against `mixed.json`: working `Refactor ledger` (w1:p4) and `upgrade deps` (w1:p5), waiting `payments review` (w1:p1). */
@@ -10,8 +11,7 @@ const DESKTOP = { width: 1280, height: 800, platform: "linux", clock: {} } as co
 /** Opens the home and lets it finish laying out before any press (see `board.test.tsx`). */
 async function lab() {
   const app = await open("./board-lab.tsx", { ...DESKTOP, host: { params: { fixture: "mixed" } } });
-  await app.waitFor("heard just now", { timeout: 5000 }).catch(() => undefined);
-  await app.clock!.runFor(300);
+  await quiet(app);
   return app;
 }
 const has = (app: App, text: string) => app.texts().includes(text);

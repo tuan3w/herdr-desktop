@@ -2,6 +2,7 @@ import { expect, open, test } from "nsh/test";
 
 import type { App } from "nsh/test";
 
+import { pressSettled, quiet } from "../app-seam";
 import { scripted } from "./board-seam";
 
 /** The sidebar beside lines that say what its buttons did (`sidebar-lab.tsx`), against the scripted herdr's `mixed` fixture: the projects `payments` (5 agents) and `web` (3). */
@@ -21,8 +22,8 @@ const FOLD_PAYMENTS = "label:Fold payments";
 const ready = async (extra: Parameters<typeof lab>[0] = {}) => {
   const app = await lab(extra);
   await app.waitFor("label:Board, 2 need you");
-  // The list measures its rows for a moment; a press made meanwhile can land on a row that moves.
-  await app.clock!.runFor(300);
+  // The engine goes on reading panes after the board shows, and each answer re-renders the rows a press would target.
+  await quiet(app);
   return app;
 };
 
@@ -33,14 +34,6 @@ async function menu(app: App, options: string, entry: string) {
     await app.clock!.runFor(150);
   }
   await app.press(entry);
-}
-/** Presses `label` until `done` shows (a press made while the list still measures can land on a row that moves; a press that took is not repeated). */
-async function pressUntil(app: App, label: string, done: string) {
-  for (let attempt = 0; attempt < 5 && !app.shows(done); attempt++) {
-    await app.press(label);
-    await app.clock!.runFor(300);
-  }
-  await app.waitFor(done);
 }
 const picked = (app: App) => app.texts().find((t) => t.startsWith("picked "));
 
@@ -60,11 +53,11 @@ test("an expanded project header shows no count, a folded one shows how many wai
   const twos = () => app.texts().filter((t) => t === "2").length;
   expect(twos()).toBe(1);
   expect(app.texts().some((t) => /working|to review/.test(t))).toBe(false);
-  await pressUntil(app, FOLD_PAYMENTS, "label:Unfold payments");
+  await pressSettled(app, FOLD_PAYMENTS, "label:Unfold payments");
   await app.waitUntil(() => twos() === 2);
   expect(app.texts().some((t) => /working|to review/.test(t))).toBe(false);
   // web waits for nothing: folded, it says nothing at all.
-  await pressUntil(app, "label:Fold web", "label:Unfold web");
+  await pressSettled(app, "label:Fold web", "label:Unfold web");
   expect(twos()).toBe(2);
 });
 
@@ -111,7 +104,7 @@ test("a search narrows to the projects and agents that match every word, ignorin
 
 test("a folded project hides its agents, keeps its header and chips, and stays folded after a restart", async () => {
   const app = await ready();
-  await pressUntil(app, FOLD_PAYMENTS, "label:Unfold payments");
+  await pressSettled(app, FOLD_PAYMENTS, "label:Unfold payments");
   expect(app.shows(row("Refactor ledger"))).toBe(false);
   expect(app.shows(PAYMENTS)).toBe(true);
   await app.clock!.runFor(100);
@@ -122,7 +115,7 @@ test("a folded project hides its agents, keeps its header and chips, and stays f
   expect(again.shows(row("Refactor ledger"))).toBe(false);
   expect(again.shows(row("Weekly notes"))).toBe(false);
   expect(again.shows("label:/^web, This computer/")).toBe(true);
-  await pressUntil(again, "label:Unfold payments", "label:Fold payments");
+  await pressSettled(again, "label:Unfold payments", "label:Fold payments");
   await again.waitFor(row("Refactor ledger"));
 });
 

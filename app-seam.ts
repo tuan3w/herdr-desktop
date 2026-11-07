@@ -1,3 +1,4 @@
+import { Herdr } from "herdr-desktop/native";
 import { open } from "nsh/test";
 
 import type { DockAreaLayout } from "nsh/base";
@@ -54,11 +55,43 @@ export async function chatReady(app: App): Promise<void> {
   await app.waitUntil(() => app.enabled("label:Message"));
 }
 
-/** The `mixed` fixture, once its board has arrived. */
+/**
+ * Waits until the engine has finished its start-up reads, then lets the app draw what they changed. The board appears
+ * with the first snapshot, but the engine goes on reading every agent's pane (`pane.read`, one per agent row) from its
+ * own thread and each answer is one more revision that re-pulls the board and re-renders the lists. A press resolved in
+ * between lands on a row that is replaced a moment later (the view ids of a failing run differ from a passing one's),
+ * which is what made presses right after `ready()` flaky under load. The reads are counted in the scripted herdr's
+ * request log, so this waits for a fact, never for a duration: the clock only moves while it waits.
+ */
+export async function quiet(app: App): Promise<void> {
+  const reads = () => Herdr.testRequests("pane.read").length;
+  const rows = () => Herdr.board().projects.reduce((n, p) => n + p.rows.length, 0);
+  // `revision` is 0 until the first snapshot (a board with no agents has no reads to wait for).
+  await app.waitUntil(() => Herdr.board().revision > 0 && reads() >= rows(), { timeout: 10_000 });
+  // The last answer's revision and the draw it causes come after the request is logged.
+  await app.clock!.runFor(300);
+}
+
+/** The `mixed` fixture, once its board has arrived and the engine is done reading. */
 export async function ready(platform?: "macos" | "windows" | "linux"): Promise<App> {
   const app = await seeded("mixed", platform ? { platform } : {});
   await app.waitFor("label:Board, 2 need you");
+  await quiet(app);
   return app;
+}
+
+/**
+ * Presses `selector` until `done` holds (a selector that shows, or a condition for a result no selector names), then
+ * waits for it. A press that took is not repeated: the repeat is only for a press the headless harness lost or aimed at
+ * a row that moved. Each repeat runs the clock, never the real time.
+ */
+export async function pressSettled(app: App, selector: string, done: string | (() => boolean)): Promise<void> {
+  const holds = typeof done === "string" ? () => app.shows(done) : done;
+  for (let attempt = 0; attempt < 5 && !holds(); attempt++) {
+    await app.press(selector);
+    await app.clock!.runFor(300);
+  }
+  await app.waitUntil(holds);
 }
 
 /**
