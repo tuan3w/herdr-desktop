@@ -2,7 +2,7 @@
 
 A native desktop client for [herdr](https://herdr.dev), the terminal multiplexer for coding agents. It is the desktop counterpart of `herdr-mobile`: one window shows every agent on every machine, says the moment one needs you, lets you answer safely, and lets you look away.
 
-Built with [nsh](https://github.com/longbridge/nsh) (Rust + TSX, native widgets: GTK 4 on Linux, AppKit on macOS; no web view for the UI). Linux first; macOS (Apple silicon) builds are new and untried on a real Mac ([docs/MACOS.md](docs/MACOS.md)). License: GPL-3.0-or-later.
+Built with [nsh](https://github.com/longbridge/nsh) (Rust + TSX, native widgets: GTK 4 on Linux, AppKit on macOS; no web view for the UI). macOS (Apple silicon) is the focus and the only platform releases are built for right now; Linux builds are paused (it still builds from source). Neither has been verified on a real Mac by the author yet ([docs/MACOS.md](docs/MACOS.md)). License: GPL-3.0-or-later.
 
 ## What it does
 

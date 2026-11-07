@@ -99,6 +99,7 @@ perf-app.tsx, perf-chat.tsx  entries of those scenarios (the app plus a driver f
 | accessibility, screen readers, keyboard | `docs/ACCESSIBILITY.md` |
 | how nsh 0.4.0 behaves on this host (quirks that bit us) | `docs/DEVELOPMENT.md`, "nsh host quirks" |
 | threads, links, data flow, herdr protocol facts | `docs/ARCHITECTURE.md` |
+| CI, a release, release notes, the `edge` build, installing a build | `docs/RELEASING.md`, `.agents/skills/herdr-changelog/SKILL.md` |
 
 ## Code rules
 
@@ -137,6 +138,8 @@ Semantic (Conventional Commits): `type(scope): subject`, imperative, lower case,
 - **Body** says why and what was measured or left unverified. One logical change per commit.
 - The remote is `origin` = `https://github.com/tuan3w/herdr-desktop.git`. Do not rewrite or force-push published history.
 - Release commits are `chore(release): x.y.z, <headline>`; the tag is what `release.yml` reads.
+- **Release notes are `CHANGELOG.md`, written for the person using the app.** A feat or fix commit adds a bullet under `## [Unreleased]`; a release rewrites it into `## [x.y.z] - date` in the outcome-card format of `.agents/skills/herdr-changelog/SKILL.md` (a `###` headline, a short paragraph, at most 3 `> [!TIP]` Try-it cards, bullets, `**Fixed**`, `**Not checked**`) and checks it with `node scripts/check-changelog.mjs x.y.z`. `release.yml` refuses a tag whose section is missing, empty or off-format. Pictures are never committed: they are release assets named `<version>-<slug>.png`, rendered into the ignored `local/release-media/<version>/` from the `.shots` scenarios (scripted data only) and uploaded after the release is published with `scripts/release-media.sh <version> --upload`.
+- **CI is macOS only on push** (`ci.yml`: `macos-package`, `macos-lint`, `edge`). The slow checks (`tests.yml`, nightly and by hand) and Linux (`ci-linux.yml`, by hand) are off the push path so an iteration stays fast; a push that breaks them is not caught until they run, so run `make verify-mac` or `gh workflow run tests.yml` before a release.
 
 ## Writing things down
 
