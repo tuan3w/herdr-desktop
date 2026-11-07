@@ -9,6 +9,23 @@ What changed for the person using Herdr Desktop, newest first. The format follow
   points to the source build. `install.sh --edge` installs the newest build of
   `main` (the pre-release `edge`, replaced after every push that builds).
 - **Play video and sound, and read any file.** The Files dialog plays mp4, mov, m4v, webm, mkv and ogv video and mp3, m4a, ogg, wav and flac sound with a seek bar, volume, loop and full screen (`Space` plays, `Left` and `Right` seek 5 s, `Shift` 30 s, `Up` and `Down` volume, `M`, `L`, `F`); nothing starts by itself. A file another machine holds is copied first (progress, `Cancel`, a 1 GB cache that never grows past its cap); one this computer cannot play says which codec it is and offers the system's player. Pictures zoom, turn and pan and copy to the clipboard; PDFs are drawn in the app; zip, tar and tar.gz files list their contents; tables show as tables, minified JSON is laid out, a text file of any size is read a page at a time with `Ctrl+F` through all of it, and a binary shows a hex peek and what it is. Every file has `Send to the agent`, `Open`, `Reveal`, `Copy path` and, for text, `Copy contents`. `Space` previews the highlighted file beside the list and `Enter` opens it. Played on this Linux box only; macOS was not run.
+- **Calmer lists, popups and tooltips.** Sidebar rows are one line each,
+  popups and tooltips have a single light edge instead of an edge and a
+  shadow, and the way you answer an agent is unchanged.
+- **A thin scroll bar that matches the app.** Lists and chats draw it in
+  place of the system's thick one. `Always show scrollbars` in Settings
+  keeps it on screen instead of showing it while you scroll.
+- **Changes is easier to read.** The list headings stay in view while you
+  scroll and the review controls are always visible instead of appearing
+  on hover.
+- **The media player remembers its volume** between files and sessions.
+- **Changes now loads on macOS.** It stayed on its loading placeholder
+  when the window opened covered; it now reads once.
+- **Checkouts reached through a symlink are found.** On macOS, an agent in
+  `/tmp` or another linked folder is now matched to its project and its
+  files can be mentioned in the composer.
+- Not checked: the TSX passed headless tests only; a few macOS screens
+  were looked at by eye, Linux was not.
 
 ## [0.1.0-alpha.3] - 2026-11-07
 
