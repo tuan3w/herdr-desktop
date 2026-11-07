@@ -11,6 +11,7 @@ word as its own argument, so a path is never parsed by a shell.
   put PATH OFFSET              append stdin to the upload part file next to PATH (OFFSET 0 starts it)
   commit PATH REPLACE          move the part file to PATH; REPLACE is 1 to overwrite, else it must not exist
   discard PATH                 remove the part file
+  mkdir PATH                   make the folder and the missing ones above it; one that exists is fine
   tree ROOT LIMIT              one JSON header line ({"n", "truncated"}), then n NUL-terminated relative paths:
                                `git ls-files` in a checkout, else a walk without junk folders; at most LIMIT paths,
                                8 MB of path text and 5 seconds, then it stops and says truncated
@@ -233,6 +234,14 @@ def discard(path):
     sys.stdout.write(json.dumps({"ok": True}) + "\n")
 
 
+def mkdir(path):
+    try:
+        os.makedirs(resolve(path), 0o755, exist_ok=True)
+    except OSError as e:
+        oserror(e, path)
+    sys.stdout.write(json.dumps({"ok": True}) + "\n")
+
+
 def number(text):
     try:
         value = int(text)
@@ -380,6 +389,7 @@ def main(argv):
         "put": (2, lambda a: put(a[0], number(a[1]))),
         "commit": (2, lambda a: commit(a[0], a[1] == "1")),
         "discard": (1, lambda a: discard(a[0])),
+        "mkdir": (1, lambda a: mkdir(a[0])),
         "tree": (2, lambda a: tree(a[0], number(a[1]))),
     }
     entry = table.get(command)

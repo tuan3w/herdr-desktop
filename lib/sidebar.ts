@@ -35,6 +35,8 @@ export const foldedProjects = signal<readonly string[]>([]);
 /** Projects whose idle agents beyond the first few are all listed (`QUIET_SHOWN`), in memory only. */
 export const moreOpen = signal<readonly string[]>([]);
 export const sidebarReady = signal(false);
+/** How far the tree is scrolled, in points: where the person is in a long list. */
+export const treeOffset = signal(0);
 
 export function toggleProject(key: string): void {
   foldedProjects.update((all) => (all.includes(key) ? all.filter((k) => k !== key) : [...all, key]));
@@ -243,6 +245,36 @@ export function sidebarItems(
     out.push(...lines);
   }
   return out;
+}
+
+/**
+ * Whether `a` and `b` draw the same line: equal all the way down, except that a time (`sinceSecs`, which the engine
+ * measures anew at every read) is the same while it reads the same (`ageText`).
+ */
+function sameLine(a: unknown, b: unknown, key = ""): boolean {
+  if (a === b) return true;
+  if (key === "sinceSecs") return ageText(a as number | null | undefined) === ageText(b as number | null | undefined);
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((x, i) => sameLine(x, b[i]));
+  }
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  return keys.every((k) => sameLine((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], k));
+}
+
+/**
+ * `next` with every line that did not change replaced by the object it was: the list tells which lines are new by
+ * identity, and the engine hands out new objects at every read. Without this each tick (a pane's output, the clock)
+ * made every line new, the list dropped what it had measured of them and, with rows of other heights than its estimate,
+ * the person's place in a long sidebar slid towards the top (`sidebar-scroll.test.tsx`).
+ */
+export function keepItems(prev: readonly SidebarItem[], next: SidebarItem[]): SidebarItem[] {
+  const before = new Map(prev.map((i) => [i.key, i]));
+  return next.map((item) => {
+    const old = before.get(item.key);
+    return old && sameLine(old, item) ? old : item;
+  });
 }
 
 /** How long, as a glance wants it: `just now`, `4 min`, `2 h`, `3 d`. Empty when herdr gave no time. */

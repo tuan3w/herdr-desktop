@@ -9,8 +9,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use herdr_core::files::{
-    Chunk, FileError, FileErrorKind, Files, Listing, LocalFiles, Quick, Stat, Tree, TreeEntry,
-    TreeLimits,
+    Chunk, FileError, FileErrorKind, Files, HotPaths, Listing, LocalFiles, Quick, Stat, Tree,
+    TreeEntry, TreeLimits,
 };
 
 const WORDS: [&str; 32] = [
@@ -172,5 +172,37 @@ fn main() {
             micros[RUNS / 2],
             micros[RUNS * 95 / 100]
         );
+    }
+
+    // What a `@` in a message asks: files and folders, a few hot paths, on a 20,000-file project (the budget is a
+    // keystroke: well under 16 ms) and on the 100,000 above.
+    for n in [20_000, 100_000] {
+        let files: Arc<dyn Files> = Arc::new(Fixed(paths(n)));
+        let quick = Quick::new();
+        quick.warm("bench", &files, "/root").expect("lists");
+        let hot = HotPaths {
+            recent: vec!["core/lib/native-12.rs".into(), "app/tests".into()],
+            changed: vec!["lib/core/app-3.ts".into()],
+        };
+        for query in ["", "p", "pal", "palette", "comp pal", "zzzzzz", "paletet"] {
+            const RUNS: usize = 40;
+            let mut micros: Vec<u128> = Vec::with_capacity(RUNS);
+            let mut matches = 0;
+            for _ in 0..RUNS {
+                let started = Instant::now();
+                let found = quick
+                    .mentions("bench", &files, "/root", black_box(query), 8, &hot)
+                    .expect("the index is in memory");
+                micros.push(started.elapsed().as_micros());
+                matches = found.total;
+                black_box(&found);
+            }
+            micros.sort_unstable();
+            println!(
+                "mention files={n} {query:?} p50_us={} p95_us={} matches={matches}",
+                micros[RUNS / 2],
+                micros[RUNS * 95 / 100]
+            );
+        }
     }
 }

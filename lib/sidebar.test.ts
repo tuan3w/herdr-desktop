@@ -4,6 +4,7 @@ import { boardData, machine, project, row } from "#lib/board-rows.fixture";
 import type { SidebarItem } from "#lib/sidebar";
 import {
   ageText,
+  keepItems,
   matches,
   monogram,
   MONOGRAM_TONES,
@@ -205,4 +206,26 @@ test("a project says what it does once: the number alone in the sidebar, every p
   expect(projectSummary({ needsYou: 0, working: 2, toReview: 1 }, true)).toBe("2 working");
   expect(projectSummary({ needsYou: 0, working: 0, toReview: 1 }, true)).toBe("1 to review");
   expect(projectSummary({ needsYou: 0, working: 0, toReview: 0 }, false)).toBe("");
+});
+
+test("a read of the board that changes nothing a line draws hands the list the very lines it had, and a change replaces only its own", () => {
+  const read = (seconds: number, status: "working" | "done") =>
+    boardData([
+      project("api", [row("local/a1", { sinceSecs: seconds }), row("local/a2", { sinceSecs: seconds, status })]),
+      project("web", [row("local/w1", { sinceSecs: seconds })]),
+    ]);
+  const first = keepItems([], sidebarItems(read(100, "working"), one, "", [], []));
+
+  // Ten seconds later: the engine measured every age anew, and every line reads as before ("2 min").
+  const later = keepItems(first, sidebarItems(read(110, "working"), one, "", [], []));
+  expect(later.every((item, i) => item === first[i])).toBe(true);
+
+  // An agent finishes: its line and its project's are new, the other project's lines are the same objects.
+  const done = keepItems(later, sidebarItems(read(110, "done"), one, "", [], []));
+  expect(shape(done)).toEqual(shape(later));
+  expect(done.map((item, i) => item === later[i])).toEqual([false, true, false, true, true]);
+
+  // An age that now reads differently is a change of that line.
+  const older = keepItems(done, sidebarItems(read(400, "done"), one, "", [], []));
+  expect(older.every((item, i) => item !== done[i])).toBe(true);
 });

@@ -23,7 +23,9 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 pub use local::LocalFiles;
-pub use quick::{IGNORED_FROM, Quick, QuickHit, QuickSearch, REFRESH_AFTER};
+pub use quick::{
+    Hot, HotPaths, IGNORED_FROM, MentionHit, Mentions, Quick, QuickHit, QuickSearch, REFRESH_AFTER,
+};
 pub use remote::{FS_SCRIPT, RemoteFiles};
 pub use resolve::{candidates, parent, path_from_uri, uri_from_path};
 pub use tunnel::{Tunnel, TunnelError, free_port, localhost_port};
@@ -235,6 +237,14 @@ pub trait Files: Send + Sync {
     fn commit(&self, path: &str, replace: bool) -> Result<(), FileError>;
     /// Removes the part file of `path` (after a failed or cancelled upload). A missing one is fine.
     fn discard(&self, path: &str) -> Result<(), FileError>;
+    /// Makes the folder `path` and the folders above it that are missing; one that exists is fine. Only a
+    /// machine that can say so answers: the default is [`FileErrorKind::Unsupported`].
+    fn mkdir(&self, _path: &str) -> Result<(), FileError> {
+        Err(FileError::new(
+            FileErrorKind::Unsupported,
+            "This machine cannot make a folder",
+        ))
+    }
     /// Every file under `root` that is worth opening by name (see [`keep_name`]), relative to it, within `limits`:
     /// what a git checkout does not ignore. A machine that cannot say answers [`FileErrorKind::Unsupported`].
     fn tree(&self, _root: &str, _limits: &TreeLimits) -> Result<Tree, FileError> {

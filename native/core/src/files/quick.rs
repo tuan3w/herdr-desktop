@@ -17,6 +17,8 @@ use std::time::{Duration, Instant};
 
 use parking_lot::{Condvar, Mutex};
 
+mod mention;
+
 use super::{FileError, Files, TreeEntry, TreeLimits};
 use crate::search::{Haystack, Needle, Scorer, runs};
 
@@ -31,6 +33,8 @@ const ROOTS_KEPT: usize = 8;
 
 /// Added to a word that matches the file's name: bigger than any score of a match inside a path.
 const NAME_TIER: u32 = 1 << 20;
+
+pub use mention::{Hot, HotPaths, MentionHit, Mentions};
 
 /// One file found by a query.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -177,6 +181,8 @@ struct Index {
     built: Instant,
     /// The second walk: made by the first query long enough to want it, kept with the index.
     ignored: OnceLock<Vec<Row>>,
+    /// The folders above the files, made by the first `@` that wants them (`mention.rs`).
+    dirs: OnceLock<Vec<Row>>,
 }
 
 impl Index {
@@ -187,6 +193,7 @@ impl Index {
             truncated: tree.truncated,
             built: Instant::now(),
             ignored: OnceLock::new(),
+            dirs: OnceLock::new(),
         })
     }
 

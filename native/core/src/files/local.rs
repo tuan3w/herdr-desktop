@@ -201,6 +201,10 @@ impl Files for LocalFiles {
             .map_err(|e| FileError::from_io(&e, dir))
     }
 
+    fn mkdir(&self, path: &str) -> Result<(), FileError> {
+        fs::create_dir_all(self.resolve(path)?).map_err(|e| FileError::from_io(&e, path))
+    }
+
     fn commit(&self, path: &str, replace: bool) -> Result<(), FileError> {
         let real = self.resolve(path)?;
         let part = part_path(&real)?;

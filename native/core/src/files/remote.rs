@@ -229,6 +229,11 @@ impl Files for RemoteFiles {
         .map(drop)
     }
 
+    fn mkdir(&self, path: &str) -> Result<(), FileError> {
+        validate_path(path)?;
+        self.run(&["mkdir", path], &[], LIST_TIMEOUT).map(drop)
+    }
+
     fn discard(&self, path: &str) -> Result<(), FileError> {
         validate_path(path)?;
         self.run(&["discard", path], &[], LIST_TIMEOUT).map(drop)

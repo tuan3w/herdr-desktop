@@ -1,9 +1,10 @@
 import { Herdr } from "herdr-desktop/native";
-import { announce, computed, effect, keymap, List, Scroll, signal, Text, View } from "nsh";
+import { announce, computed, effect, keymap, List, Scroll, signal, Text, untracked, View } from "nsh";
 import { Button } from "nsh/base";
 
 import type { BoardProject, BoardRow, MachineStatus } from "herdr-desktop/native";
 import type { JSX } from "nsh";
+import type { ListRef } from "nsh/types";
 
 import { PickSlot } from "#components/pick-box";
 import { Monogram, ProjectMark } from "#components/project-parts";
@@ -49,10 +50,12 @@ import {
   projectLabel,
   projectState,
   rowLabel,
+  keepItems,
   type SidebarItem,
   sidebarItems,
   toggleMore,
   toggleProject,
+  treeOffset,
 } from "#lib/sidebar";
 import { stateWord } from "#lib/status";
 
@@ -68,7 +71,10 @@ const statuses = computed<MachineStatus[]>(() => {
   return Herdr.machineStatuses();
 });
 
-const items = computed(() => sidebarItems(board(), statuses(), query(), foldedProjects(), moreOpen()));
+let shown: SidebarItem[] = [];
+const items = computed(
+  () => (shown = keepItems(shown, sidebarItems(board(), statuses(), query(), foldedProjects(), moreOpen()))),
+);
 const rowKeys = computed(() => items().flatMap((i) => (i.kind === "row" ? [i.row.key] : [])));
 
 /** The agent whose tab is the one being worked in: its row is lit, and in the rail so is its project's tile. */
@@ -348,13 +354,39 @@ function More(props: { item: () => Extract<SidebarItem, { kind: "more" }> }) {
 
 /** The tree: machines, projects, checkouts, agents. Rows are recycled, so each reads its item and holds nothing of its own. */
 function Tree() {
+  let list: ListRef | undefined;
+  /** The lines in view, by key: the open agent's line is brought in only when it is not one of them. */
+  const inView = new Set<string>();
+  let revealed = openRow()?.key;
+  // The place follows the person's own move (another tab, a switch, `mod+j`), never a tick: the open row is read here as
+  // a key, and a new object for the same agent is not a move.
+  effect(() => {
+    const key = openRow()?.key;
+    if (key === revealed) return;
+    revealed = key;
+    untracked(() => {
+      const at = items().findIndex((i) => i.key === key);
+      if (at >= 0 && !inView.has(key!)) list?.scrollToIndex({ index: at, viewPosition: 0.5, animated: false });
+    });
+  });
   return (
     <List
+      ref={(node: ListRef) => {
+        list = node;
+      }}
+      onViewableItemsChange={({ changed }) => {
+        for (const t of changed) {
+          if (t.isViewable) inView.add(t.key);
+          else inView.delete(t.key);
+        }
+      }}
       each={items()}
       keyExtractor={(i: SidebarItem) => i.key}
       estimatedItemSize={ROW.agent.height}
       class="min-h-0 flex-1"
       contentClass="gap-1"
+      scrollEventThrottle={50}
+      onScroll={(e) => treeOffset.set(e.offset.y)}
       accessibilityLabel="Projects and agents"
     >
       {(item) => {
