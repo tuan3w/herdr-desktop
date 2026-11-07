@@ -5,7 +5,7 @@ import type { BoardData, BoardRow, PaneMeta } from "herdr-desktop/native";
 import type { Accessor } from "nsh";
 import type { MenuItem } from "nsh/desktop";
 
-import { confirmDestructive, notify, rail, undoLast } from "#kit";
+import { compact, confirmDestructive, notify, rail, undoLast } from "#kit";
 import { currentCheckout, reviewChanges } from "#lib/changes";
 import {
   closeTab,
@@ -43,7 +43,7 @@ import {
   showLinks,
 } from "#lib/pane-input";
 import { perfOpen } from "#lib/perf";
-import { sidebarCollapsed, themeId } from "#lib/settings";
+import { setSidebarCollapsed, themeId } from "#lib/settings";
 import { type GlobalShortcut, GLOBAL, keysOf, type ShortcutGroup } from "#lib/shortcuts";
 import { THEMES } from "#lib/theme/themes";
 
@@ -282,14 +282,14 @@ async function closeInHerdr(kind: "pane" | "tab" | "workspace"): Promise<void> {
 
 function toggleSidebar(): void {
   const before = rail();
-  sidebarCollapsed.update((c) => !c);
+  setSidebarCollapsed(!before);
   // A compact window forces the rail, so the setting then changes nothing anyone sees or hears.
   if (rail() !== before) announce(rail() ? "Sidebar collapsed" : "Sidebar expanded");
 }
 
 function focusSidebar(): void {
   // Narrow window: the rail is forced and has no field to take the focus.
-  if (rail() && sidebarCollapsed()) sidebarCollapsed.set(false);
+  if (rail() && !compact()) setSidebarCollapsed(false);
   if (rail()) {
     announce("The window is too narrow for the sidebar: widen it");
     return;

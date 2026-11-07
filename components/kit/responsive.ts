@@ -1,6 +1,6 @@
 import { windowSize } from "nsh";
 
-import { sidebarCollapsed } from "#lib/settings";
+import { boardExpanded, boardFront, sidebarCollapsed } from "#lib/settings";
 
 /**
  * Below this window width the sidebar collapses to a rail of project tiles and panes narrow. The full sidebar needs about
@@ -17,8 +17,11 @@ export const snug = () => windowSize().width < SNUG_WIDTH;
 /** True while the window is narrower than `COMPACT_WIDTH`. Reactive. */
 export const compact = () => windowSize().width < COMPACT_WIDTH;
 
-/** True while the sidebar is an icon rail: a narrow window, or the user kept it collapsed. Reactive. */
-export const rail = () => compact() || sidebarCollapsed();
+/**
+ * True while the sidebar is an icon rail: a narrow window, the Board in front (unless expanded for this visit), or the
+ * user kept it collapsed. Reactive.
+ */
+export const rail = () => compact() || (boardFront() ? !boardExpanded() : sidebarCollapsed());
 
 /** Below this window width two-pane screens show one pane at a time and side-by-side columns stack. */
 export const NARROW_WIDTH = 860;

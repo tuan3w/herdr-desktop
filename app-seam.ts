@@ -94,6 +94,10 @@ export async function pressSettled(app: App, selector: string, done: string | ((
   await app.waitUntil(holds);
 }
 
+/** The app opens on the Board, where the sidebar is the rail: this brings back the list of projects and agents for the visit. */
+export const expandSidebar = (app: App): Promise<void> =>
+  pressSettled(app, "label:Expand sidebar", "label:Search projects");
+
 /**
  * Opens these agents' terminal tabs: the sidebar opens the chat of an agent that has one, so each is opened and then
  * switched with `Show terminal` (an agent already shown as a terminal this run needs no switch).

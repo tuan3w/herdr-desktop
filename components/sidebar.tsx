@@ -42,7 +42,7 @@ import { linkGlyph, linkText } from "#lib/machine-state";
 import { hoverTransition } from "#lib/motion";
 import { openProject } from "#lib/nav";
 import { openAgent } from "#lib/open-agent";
-import { sidebarCollapsed } from "#lib/settings";
+import { setSidebarCollapsed } from "#lib/settings";
 import { keyLabel } from "#lib/shortcuts";
 import {
   ageText,
@@ -533,7 +533,7 @@ function CollapseButton() {
       icon="panel-left"
       label={rail() ? "Expand sidebar" : "Collapse sidebar"}
       shortcut={keyLabel("sidebar")}
-      onPress={() => sidebarCollapsed.set(!rail())}
+      onPress={() => setSidebarCollapsed(!rail())}
     />
   );
 }

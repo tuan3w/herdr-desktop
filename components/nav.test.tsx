@@ -3,7 +3,20 @@ import { expect, test } from "nsh/test";
 
 import type { App } from "nsh/test";
 
-import { DONE, ENTRY, FIRST, front, openAgents, ready, SECOND, savedDock, settle, sidebarRow, WEB } from "../app-seam";
+import {
+  DONE,
+  ENTRY,
+  expandSidebar,
+  FIRST,
+  front,
+  openAgents,
+  ready,
+  SECOND,
+  savedDock,
+  settle,
+  sidebarRow,
+  WEB,
+} from "../app-seam";
 import { scripted } from "./board-seam";
 
 ENTRY.path = "../App.tsx";
@@ -259,6 +272,7 @@ test("Shift+Enter in the Switcher opens the agent here: its tab joins the worksp
 
 test("a project's name in the sidebar shows its workspace, and its chevron alone folds it", async () => {
   const app = await ready();
+  await expandSidebar(app);
   await app.press("label:Fold payments >> nth=0");
   expect(app.shows("label:Unfold payments")).toBe(true);
   // Folding changed nothing about what is shown.

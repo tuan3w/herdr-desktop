@@ -15,6 +15,7 @@ import {
   openTerminals,
   ready,
   saved,
+  pressSettled,
   seeded,
   SECOND,
   settle,
@@ -31,12 +32,62 @@ import { sentKeys } from "./components/board-seam";
  * computer`; which tab is displayed is otherwise read from the saved layout.
  */
 
-test("the app opens on the board, with every agent in the sidebar and the count where you look first", async () => {
+test("the app opens on the board, with every agent in its table and the count where you look first", async () => {
   const app = await ready();
   expect(onBoard(app)).toBe(true);
+  // The board is the overview: its table lists every agent, once (the sidebar is the rail beside it).
   expect(app.shows(sidebarRow(FIRST))).toBe(true);
   expect(app.shows(sidebarRow(DONE))).toBe(true);
+  expect(app.count(`label:/^${FIRST}, /`)).toBe(1);
   expect(app.count("role:tab")).toBe(0);
+});
+
+test("the board shows the sidebar as the rail, still naming what needs you, and an agent in front brings the full sidebar", async () => {
+  const app = await ready();
+  expect(app.shows("label:Expand sidebar")).toBe(true);
+  expect(app.shows("label:Search projects")).toBe(false);
+  expect(app.shows("label:Board, 2 need you")).toBe(true);
+  expect(app.shows("label:/^payments, This computer, 2 need you/")).toBe(true);
+  await app.press(sidebarRow(FIRST));
+  await app.waitFor("label:Search projects");
+  expect(app.shows("label:Collapse sidebar")).toBe(true);
+  expect(onBoard(app)).toBe(false);
+  // Back to the overview: the rail again.
+  await app.press("label:Board, 2 need you");
+  await app.waitFor("label:Expand sidebar");
+  expect(app.shows("label:Search projects")).toBe(false);
+});
+
+test("the toggle expands the sidebar for the visit on the board without changing the saved preference", async () => {
+  const app = await ready();
+  await pressSettled(app, "label:Expand sidebar", "label:Search projects");
+  expect(onBoard(app)).toBe(true);
+  await settle(app);
+  expect(JSON.parse(app.storage()["herdr.settings.v1"] ?? "{}").sidebarCollapsed ?? false).toBe(false);
+  // The choice holds for that visit only: an agent and back to the board gives the rail again.
+  await app.press(sidebarRow(FIRST));
+  await app.waitFor("label:Collapse sidebar");
+  await app.press("label:Board, 2 need you");
+  await app.waitFor("label:Expand sidebar");
+  expect(app.shows("label:Search projects")).toBe(false);
+  // Elsewhere the toggle is the saved preference, and the board then keeps the rail.
+  await app.press(sidebarRow(FIRST));
+  await app.waitFor("label:Collapse sidebar");
+  await pressSettled(app, "label:Collapse sidebar", "label:Expand sidebar");
+  await settle(app);
+  expect(JSON.parse(app.storage()["herdr.settings.v1"]).sidebarCollapsed).toBe(true);
+});
+
+test("a rail tile opens its project's agents, and pressing one opens that agent with the full sidebar", async () => {
+  const app = await ready();
+  // The rail is left of the board, so its tile is the first view of that name.
+  await app.press("label:/^payments, This computer, 2 need you/ >> nth=0");
+  // `Show project` exists only in the tile's popover.
+  await app.waitFor("label:Show payments");
+  await app.press("label:/^payments review, claude, needs you, payments/ >> nth=0");
+  await app.waitFor("label:Search projects");
+  expect(onBoard(app)).toBe(false);
+  expect(app.shows("label:Collapse sidebar")).toBe(true);
 });
 
 test("opening an agent from the sidebar adds its chat tab and shows it; closing the tab leaves the agent running", async () => {
@@ -158,11 +209,12 @@ const CHECKS: Record<GlobalShortcut, Check> = {
     expect(app.shows("label:Close dev panel")).toBe(false);
   },
   sidebar: async (app, press) => {
-    expect(app.shows("label:Search projects")).toBe(true);
-    await press();
+    // The app starts on the Board, where the sidebar is the rail.
     expect(app.shows("label:Search projects")).toBe(false);
     await press();
     expect(app.shows("label:Search projects")).toBe(true);
+    await press();
+    expect(app.shows("label:Search projects")).toBe(false);
   },
   focusSidebar: async (app, press) => {
     await press();

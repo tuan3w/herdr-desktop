@@ -6,6 +6,7 @@ import type { App } from "nsh/test";
 import {
   DONE,
   ENTRY,
+  expandSidebar,
   FIRST,
   nameOf,
   onBoard,
@@ -247,6 +248,7 @@ test("a terminal agent whose log can be read has Show chat in its header and it 
 
 test("a project's menu and the chat's header open the Changes tab of the checkout they are about", async () => {
   const app = await ready();
+  await expandSidebar(app);
   await app.press("label:Options for web");
   await app.clock!.runFor(300);
   // `web` holds agents in three folders, so its menu names each; a project with one checkout says `Review changes`.

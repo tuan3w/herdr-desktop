@@ -13,6 +13,20 @@ const KEY = "herdr.settings.v1";
 export const themeId = signal(DEFAULT_THEME_ID);
 /** Keep the sidebar as an icon rail even in a wide window. */
 export const sidebarCollapsed = signal(false);
+/**
+ * Whether the Board is the front view (App.tsx keeps it). The sidebar is then the rail: the Board is the overview, so the
+ * list of agents is not drawn beside it. Session state, never saved. It lives here because the kit's `rail()` may import
+ * only a few lib modules and this is one of them.
+ */
+export const boardFront = signal(false);
+/** The person expanded the sidebar while on the Board: holds for that visit only (App.tsx resets it when the front view changes) and is not the saved preference. */
+export const boardExpanded = signal(false);
+
+/** The one place the sidebar's fold is set: on the Board it is the visit's choice, elsewhere the saved preference. */
+export function setSidebarCollapsed(collapsed: boolean): void {
+  if (boardFront()) boardExpanded.set(!collapsed);
+  else sidebarCollapsed.set(collapsed);
+}
 /** Pane font size in points (the view scales it down to fit the pane's columns in the width). */
 export const paneFontSize = signal(13);
 /** Minimum contrast of terminal text against its background, 1 (off) to 7. */

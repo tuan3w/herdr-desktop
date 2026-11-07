@@ -39,7 +39,7 @@ import {
   settingsOpen,
   shortcutsOpen,
 } from "#lib/actions";
-import { dockReady, loadDock, openPane, openSession, showBoard, startDock } from "#lib/dock";
+import { BOARD, dockReady, focused, loadDock, openPane, openSession, showBoard, startDock } from "#lib/dock";
 import { board, startHerdr } from "#lib/herdr";
 import { warmCode } from "#lib/highlight";
 import { RAIL_WIDTH, SIDEBAR_WIDTH } from "#lib/layout";
@@ -48,7 +48,7 @@ import { startNav, switcherOpen } from "#lib/nav";
 import { openTarget } from "#lib/open-agent";
 import { saveFailures } from "#lib/save";
 import { scrollbarTheme } from "#lib/scrollbars";
-import { alwaysShowScrollbars, loadSettings, settingsReady } from "#lib/settings";
+import { alwaysShowScrollbars, boardExpanded, boardFront, loadSettings, settingsReady } from "#lib/settings";
 import { type GlobalShortcut, GLOBAL, keysOf } from "#lib/shortcuts";
 import { loadSidebar, sidebarReady, sidebarWidth } from "#lib/sidebar";
 import { loadViews } from "#lib/view-state";
@@ -123,6 +123,11 @@ function App() {
   effect(() => Herdr.setBackground(lifecycle() !== "active"));
 
   let loading = false;
+  // The Board is the overview, so the sidebar is the rail while it is in front; what the person expanded there is for that visit.
+  effect(() => {
+    boardFront.set(focused() === BOARD);
+    boardExpanded.set(false);
+  });
   const ready = () => dockReady() && settingsReady() && sidebarReady();
   // In a snug window (under 1100) the full sidebar is its narrow width and its edge is fixed; the person's own width is kept for wide windows.
   const fixedWidth = () => rail() || snug();
