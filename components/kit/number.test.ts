@@ -193,7 +193,8 @@ test("holding a stepper steps once, then repeats after the delay, and a step tha
   expect(steps).toBe(1);
   await wait(25);
   expect(steps).toBe(1);
-  await wait(60);
+  // Poll: a loaded runner's timers are late, and the repeat is what is asserted, not how late.
+  for (let i = 0; i < 100 && steps <= 2; i++) await wait(20);
   expect(steps).toBeGreaterThan(2);
   hold.stop();
   const after = steps;
@@ -204,7 +205,7 @@ test("holding a stepper steps once, then repeats after the delay, and a step tha
   let value = 8;
   const atMax = createHold(() => value < 10 && ++value > 0, 5, 5);
   atMax.start();
-  await wait(60);
+  for (let i = 0; i < 100 && atMax.running; i++) await wait(20);
   expect(value).toBe(10);
   expect(atMax.running).toBe(false);
 

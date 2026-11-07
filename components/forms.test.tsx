@@ -105,7 +105,8 @@ test("Escape takes back what was typed since the last commit", async () => {
 });
 
 test("the stepper buttons step, are named, and a press held repeats", async () => {
-  const app = await lab();
+  // A manual clock: the hold is 500 ms and the repeat starts at 400 ms, a margin a loaded runner's real timers miss.
+  const app = await open("./forms-probe.tsx", { ...DESKTOP, clock: {} });
   expect(app.shows("label:Increase: Retries")).toBe(true);
   await app.press("label:Increase: Retries");
   expect(app.texts()).toContain("retries:4");
