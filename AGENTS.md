@@ -12,7 +12,28 @@ A **supervisor, not a pair-programmer.** Someone whose agents run under the `her
 4. **Steer it:** correct, redirect, stop, start.
 5. **Can I trust it?** The agent, and what this app shows.
 
-A screen, row, word or animation that answers none of these is noise. Desktop means keyboard first, many agents visible at once, and no touch or battery limits: it does not mean more chrome.
+A screen, row, word or animation that answers none of these is noise.
+
+**Desktop is not a wide phone.** This app was started from `herdr-mobile`, and its first layout, type scale and row height (56 pt, two lines) are phone decisions. A window is 1280 pt or more, the person has a pointer and a keyboard, and keeps it open all day. So the bar is *density* (a dozen agents visible and still room to read one), *regions* (each part of the window has one job, below) and *keyboard first*. "Calm" means said once and quiet, not empty: unused width and oversized type are defects, not restraint. When this file or a `design/*.md` page says "quiet" and a screen wastes space, space wins; fix the page.
+
+### Regions of the window
+
+| Region | Job | Never |
+|---|---|---|
+| Sidebar | The one list of every agent, grouped by project, with state on the row; navigation; new | Hold what the main region holds, or list an agent a second time |
+| Main | The one agent being worked on: its conversation or terminal | Be a second list of agents |
+| Inspector (right, collapsible, remembers its state) | What you consult, not read: where it runs, branch, context used, changes, files, subagents, terminal | Hold the conversation |
+| Status | Connection truth per machine: live, stale, offline | Repeat counts the sidebar shows |
+
+An agent appears **once per view**. The conversation keeps a readable measure (about 720 to 768 pt); extra width goes to the inspector or a split, never to margins. A text button that opens a dialog for facts about the open agent (`Details`) is a missing inspector.
+
+### Sidebar, chat and settings (owner decisions, 2026-11-07; prototype in the Herdr Desktop Lab artifact)
+
+- **Sidebar is grouped by project only.** No separate Needs you list. Attention is a mark on the row, said once, and a project header shows a count only while it is collapsed (a hidden question is never silent). A row is a state glyph and a title: no program name (`claude`, `omp`), no machine, no age. Only an exception adds a word (`quiet 41m`) or a dashed glyph (stale machine). Order is stable (last activity), never re-sorted by state, so a row does not move under the pointer.
+- **A project header names its machine**, muted, unless it is this computer. The same project on two machines is two groups: each is its own working copy with its own branch. A stale machine is an amber name, dashed glyphs and one footer line.
+- **Answering happens in the agent's own conversation**, in the one answer dock that replaces the composer. `mod+j` (check `lib/shortcuts.ts`) jumps to the next waiting agent; it never answers and never advances by itself. Answering many agents at once lives in the Board's filtered view, not in a second list. `design/board.md` and `design/attention.md` still describe the Needs you card and `Answer one by one`: update them in the same change as the cutover (principle 10).
+- **A chat turn is ranked by consequence, not time.** Always visible: a pending question, the final answer, failures, and effects outside the working tree (a push, a delete, an install). Folded to one muted line: reads, searches, commands, narration. Paths and counts are links into the inspector. No repeated state word, no `Done in 12s`; while working, one live line says what it is doing now.
+- **Settings opens in the main region, not a modal over the sidebar**, so a question waiting for you stays visible. A row is a label at body size with its description one step smaller; controls are small (switch about 30 x 18, segmented control about 30 tall with a recessed track and a raised chosen segment, radii nested: outer minus padding). These sizes come from screenshots and are unverified until measured in a render.
 
 ## Principles
 
@@ -27,10 +48,38 @@ A screen, row, word or animation that answers none of these is noise. Desktop me
 9. **Protocol facts come from `docs/herdr-api.schema.json`**, refreshed with `make schema`, not from memory. herdr's public JSON API (its unix socket) only; never its private client socket.
 10. **Clean cutover.** Migrate every caller and delete what a change made obsolete; no shims, aliases or deprecated paths.
 
+## Design process (mandatory for any UI change)
+
+Skills live in `.agents/skills/` (linked into `.claude/skills/`). The herdr ones carry the product judgement; the `emil-*` ones carry craft. Use both, in this order:
+
+1. **`herdr-design`**: the moment, the regions, the density tier, the journey, the noise ledger, and a **reference teardown** (open the Claude desktop app's Code view, Linear or Zed, write what each region does that ours does not). Never design from this repo's docs alone: they are where the phone assumptions live.
+2. **Craft**, by what you touch: `emil-design-foundations` (hierarchy, spacing, one primary action), `emil-typography`, `emil-surfaces` (nested radii, hairlines, shadows), `emil-color`, `emil-ui-polish`, `emil-forms-and-inputs` (the composer), `emil-animations`, `emil-component-design` (the kit). Their rules are written for the web: keep the value (a 4-pt scale, outer minus padding, tabular figures) and translate the unit to nsh classes.
+3. **`herdr-prototype`** when the path is open: 2 to 4 directions, each moving one axis, on the same data.
+4. **`herdr-screen-check`** to render and look at every width, theme and `fontScale()` 2.0.
+5. **`herdr-critic`** before you call a UI change done: a fresh reviewer sees only the PNGs and the five questions, then `emil-ui-review` judges the diff.
+
+Defects found in a review of the app next to the Claude desktop app (sizes estimated from screenshots, **unverified until measured in a render**):
+
+**Fixed in code, unverified until a render** (look at 1280, 960 and 760 px, light and dark, `fontScale()` 2.0, before calling them done):
+
+- Type scale in `lib/layout.ts` and `nsh.json` (chrome nearer 13 body, 12 meta), and row tiers (`ROW`: one-line sidebar row at 32, project header 28, tab `h-8`).
+- Switch 30 x 18 and segmented control 28 tall with a visible chosen segment (`components/kit/switch.tsx`, `segmented.tsx`); a setting's label and description at two sizes (`components/kit/settings.tsx`).
+- The sidebar row is one line (glyph and title); its tooltip carries the state word, program, machine and age.
+
+**Still open**:
+
+- Structural: the inspector (subagents, background jobs, changes, files as a tab of it), the answer dock in place, the Board as a table, Settings in the main region instead of a modal, and the Needs you inbox and project cards still drawn on the home.
+- Composer: tall for one line, `[Image #3]` beside its own thumbnail, help line outside the box.
+- Stacked bars (tab strip, header, subagent panel, sticky region) and a single tab still drawing a strip; unaligned edges between the subagent panel, header and chat text.
+- Two neutrals (warm sidebar, blue-grey tab strip and status bar): the cause needs a screenshot before a fix.
+- A group header that looks selected; a check that means both "machine connected" and "agent done"; text cut where the person needs it (shown whole on focus or hover).
+- Leftover 36 pt controls beside the 32 pt fields: `components/files.tsx`, `components/folder-picker.tsx`, `components/kit/collapsible.tsx`, `components/kit/menu.tsx`, `components/board.tsx`, `components/changes-notes.tsx`.
+
 ## Rules that do real damage when forgotten
 
 - **Never kill a process you did not start.** This machine runs the owner's other work (training runs, agents, herdr itself). No `pkill -f`, `killall` or name/pattern kills. Keep the PID of what you spawn and kill that PID. The app owns only its own `ssh` and keeper children. Subagents get this rule in their task text.
 - **Never call a mutating herdr method against the user's live herdr with empty params** (an empty `tab.create` creates a tab). Tests use the fake herdr server (`native/core/src/testing`). Live smoke uses read-only methods (`ping`, `session.snapshot`, `pane.read`, `agent.list`) or a scratch workspace labelled `herdr-desktop-scratch`, `focus: false`, closed afterwards.
+- **Never run `nsh test` bare: use `make test` (or `make test-smoke`), or set `HERDR_DESKTOP_TEST=1`.** The Makefile exports it; without it the test seam is closed (`fixture.rs` ignores every fixture) and the app under test connects to the owner's real herdr and machines, reading their real projects and risking a press on a real pane. It happened once (2026-11-08): the log's on-screen text showed real project names. The same goes for labs, shots and scripts: use `scripts/run-linux.mjs` or the Makefile target, and give every subagent this rule in its task text.
 - **Pane screens are private user data** (code, secrets). Fixtures are synthetic only, produced from `herdr-mobile/tool/demo-agent.py` in a scratch pane. Never commit, log or screenshot a real pane.
 - **Anything typed into a remote shell is validated or single-quoted** (`shq()` in `native/core/src/ssh`), with an injection test. A destination is validated and always follows `--`.
 - **Nothing is approved silently.** No timer, default or notification sends an answer; the answer path re-reads the pane and refuses when the question changed.
@@ -123,7 +172,7 @@ perf-app.tsx, perf-chat.tsx  entries of those scenarios (the app plus a driver f
 ## Definition of done
 
 1. `make` is green.
-2. A UI change was looked at: screenshot (cairo under Xvfb) at 1280, 960 and 760 px, light and dark, two themes; `make a11y` shows no unnamed control.
+2. A UI change was looked at: screenshot (cairo under Xvfb) at 1280, 960 and 760 px, light and dark, two themes; `make a11y` shows no unnamed control. It was compared with a reference app's screenshot (`herdr-design` step 6) and passed `herdr-critic`, which counts agents visible in the sidebar, marks per fact and unused width. On macOS no render exists: say the layout is unverified.
 3. Docs updated in the same change; `theme.json` regenerated if the default theme changed.
 4. A performance-sensitive change reports the scenario deltas of `docs/PERFORMANCE.md`.
 5. Nothing stray outside `.scratch/`; real pane data never reaches git, logs or screenshots.

@@ -1,6 +1,6 @@
 # macOS
 
-Herdr Desktop builds and packages for Apple silicon Macs (macOS 14 or newer: nsh's AppKit backend needs `NSView` display links). **Nobody has run it on a Mac yet**: CI builds it, runs the headless tests and signs the package, and that is all that is verified (see "Unverified").
+Herdr Desktop builds and packages for Apple silicon Macs (macOS 14 or newer: nsh's AppKit backend needs `NSView` display links). **The app window opens on a Mac and can be screenshotted (`make shots-mac`: board, Settings, permission dock and a Select popup were seen); little else was exercised**: CI builds it, runs the headless tests and signs the package, and that is all that is verified (see "Unverified").
 
 ## Installing
 
@@ -45,7 +45,8 @@ Anything that trusts the app by its signature (a keychain item, a granted permis
 | Data directory | `~/Library/Application Support/dev.herdrmobile.herdr_desktop` (`dirs::data_dir()`) | `native/core/src/store.rs` |
 | herdr's socket | `HERDR_SOCKET_PATH`, else `~/.config/herdr/herdr.sock` as on Linux | `native/core/src/link/local.rs` |
 | Accessibility gate | none: `make a11y` reads Linux's AT-SPI bus; VoiceOver is not exercised | `docs/ACCESSIBILITY.md` |
-| Perf and CPU scripts, screenshots | Linux only (`/proc`, Xvfb) | `scripts/perf.mjs`, `scripts/cpu.mjs`, `make shots` |
+| Perf and CPU scripts | Linux only (`/proc`) | `scripts/perf.mjs`, `scripts/cpu.mjs` |
+| Screenshots | `make shots` is Linux (Xvfb); `make shots-mac` renders the real AppKit window (popup menus and popovers are not in the picture) | `scripts/shots-mac.mjs`, `docs/DEVELOPMENT.md` |
 | Crash guard (`preload_guard`) | Linux only (an `LD_PRELOAD` allocator that breaks GTK) | `native/app/src/preload_guard.rs` |
 
 `make verify-mac` is `make verify` without `a11y`, and with only a smoke subset of the TSX tests. CI does not run it on a push: `ci.yml` packages and signs the app (and checks that the `.app` has its executable, an `Info.plist` and the self-signed signature) and lints on `macos-15`; the slow checks (`nsh check`, both crates' fmt/clippy/tests, every TSX test) are `tests.yml`, nightly and by hand; a stable release runs `make verify-mac` itself. `docs/RELEASING.md` has the timings and the commands.
