@@ -7,7 +7,8 @@ const LATEST = "GET https://api.github.com/repos/tuan3w/herdr-desktop/releases/l
 const REPO = "https://github.com/tuan3w/herdr-desktop";
 
 const bump = (patch: number) => {
-  const [major, minor, current] = app.version.split(".").map(Number);
+  // `0.1.0-alpha.1` bumps from its stable core, `0.1.0`.
+  const [major, minor, current] = app.version.split("-")[0].split(".").map(Number);
   return `${major}.${minor}.${current + patch}`;
 };
 

@@ -21,19 +21,24 @@ export interface Update {
 /** The newer release found this session; null until one is found, and after a check that found none or failed. */
 export const availableUpdate = signal<Update | null>(null);
 
-/** `[major, minor, patch]` of `1.2.3` or `v1.2.3`; null for anything else (a pre-release tag is not offered). */
-function parse(version: string): [number, number, number] | null {
-  const m = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(version.trim());
-  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+/** `[major, minor, patch, prerelease]` of `1.2.3` or `v1.2.3`, and of `1.2.3-alpha.1` when `prerelease` allows it; null for anything else. */
+function parse(version: string, prerelease: boolean): [number, number, number, boolean] | null {
+  const m = /^v?(\d+)\.(\d+)\.(\d+)(-(?:alpha|beta|rc)\.\d+)?$/.exec(version.trim());
+  if (!m || (m[4] && !prerelease)) return null;
+  return [Number(m[1]), Number(m[2]), Number(m[3]), Boolean(m[4])];
 }
 
-/** Whether `candidate` is a higher version than `current`; false when either is not `x.y.z`. */
+/**
+ * Whether `candidate` is a higher version than `current`. A candidate is always a stable `x.y.z` (a pre-release tag is not offered),
+ * and `current` may be a pre-release: `0.1.0-alpha.1` is older than `0.1.0` and than every higher version, and is not told about
+ * another alpha. False when either is not of that shape.
+ */
 export function isNewer(candidate: string, current: string): boolean {
-  const a = parse(candidate);
-  const b = parse(current);
+  const a = parse(candidate, false);
+  const b = parse(current, true);
   if (!a || !b) return false;
   for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i];
-  return false;
+  return b[3];
 }
 
 let inFlight = false;
