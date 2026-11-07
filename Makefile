@@ -7,7 +7,7 @@ export HERDR_DESKTOP_TEST := 1
 CORE := native/core/Cargo.toml
 APP  := native/app/Cargo.toml
 
-.PHONY: lint fmt fmt-check hooks verify verify-mac check test test-smoke core docs a11y copy run package theme perf cpu perf-check schema shots
+.PHONY: lint fmt fmt-check hooks verify verify-mac check test test-smoke core docs a11y copy run package theme perf cpu perf-check schema shots shots-mac
 
 # Linux: everything. `a11y` needs AT-SPI (dbus, Xvfb, python3-gi), which only Linux has.
 verify: check test core docs a11y
@@ -103,3 +103,8 @@ schema:
 shots:
 	mkdir -p .scratch/shots
 	dbus-run-session -- xvfb-run -a env GSK_RENDERER=cairo GTK_A11Y=atspi nsh test .shots/screens.test.tsx --target linux
+
+# macOS: one lab or .shots scenario in the real AppKit window, nsh's own window screenshot, into .scratch/shots-mac. Never the
+# screen. Example: make shots-mac ARGS="settings --no-steps --keys meta+, --theme both". docs/DEVELOPMENT.md, "Screenshots on a Mac".
+shots-mac:
+	node scripts/shots-mac.mjs $(ARGS)
