@@ -4,6 +4,7 @@
 
 pub mod board;
 pub mod files;
+pub mod git;
 pub mod link;
 pub mod observed;
 pub mod project;
