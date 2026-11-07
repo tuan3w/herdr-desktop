@@ -35,6 +35,7 @@ A screen, row, word or animation that answers none of these is noise. Desktop me
 - **Anything typed into a remote shell is validated or single-quoted** (`shq()` in `native/core/src/ssh`), with an injection test. A destination is validated and always follows `--`.
 - **Nothing is approved silently.** No timer, default or notification sends an answer; the answer path re-reads the pane and refuses when the question changed.
 - **Never put a secret on a command line, in a log or in a fixture.** ssh identities stay with ssh.
+- **macOS releases are signed with the project's self-signed identity** (`scripts/sign-macos.sh`; key in `~/.herdr-desktop-signing`, secrets `HERDR_SIGN_P12` and `HERDR_SIGN_PASSWORD`). Never commit the key, never print the password, never replace the identity without `--force` and a changelog note: the designated requirement in the job summary must stay identical between releases.
 - **Versions.** The line is 0.1.x: patch bumps only, unless the owner says otherwise. `nsh.json` `version` and `native/*/Cargo.toml` move together.
 - **Do not upgrade nsh** (0.4.0, `nsh -V`) unless asked. Its online docs track `main`, not the installed runtime: for what 0.4.0 does, clone tag `v0.4.0` into `.scratch/nsh-0.4.0` and read `crates/`. `Terminal` and the Linux tray exist only on `main`; when a release ships them, swap in with a clean cutover.
 
