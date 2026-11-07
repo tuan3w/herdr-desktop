@@ -1,8 +1,11 @@
-import { host, mount, signal, Text, View } from "nsh";
+import { cleanup, host, keymap, mount, signal, Text, View } from "nsh";
 import { Files as MachineFiles, Sessions } from "herdr-desktop/native";
 import type { AcpView, ActionResult, DiffItem, PlanStepView, QueuedView, SessionItem, SessionRef, SessionView, ToolItem } from "herdr-desktop/native";
+import { warmCode } from "#lib/highlight";
 import { startHerdr } from "#lib/herdr";
+import { copyCode, copyReply } from "#lib/pane-input";
 import { createSessionModel, type SessionPort } from "#lib/session";
+import { GLOBAL, keysOf } from "#lib/shortcuts";
 import { loadSettings } from "#lib/settings";
 import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
 import { SessionChat, SessionTab } from "#components/session-tab";
@@ -21,9 +24,10 @@ import { SessionChat, SessionTab } from "#components/session-tab";
  *
  * `quiet: true` leaves out the lab's own buttons and lines, for a screenshot of the chat alone. Not part of the app.
  */
-const params = host.params as { mode?: "keeper" | "scripted" | "model"; scene?: string; quiet?: boolean; rows?: number; only?: "user" | "agent" };
+const params = host.params as { mode?: "keeper" | "scripted" | "model"; scene?: string; quiet?: boolean; rows?: number; only?: "user" | "agent"; autostream?: number; upTo?: number; instant?: boolean };
 startHerdr("", "empty");
 void loadSettings();
+warmCode();
 /** The synthetic folder the test seam copied (`fixtures/files/project`): the session's folder, so `@` lists real files. */
 const tree = MachineFiles.testTree();
 
@@ -73,6 +77,111 @@ const ANSWER = [
   "| type check | clean |",
 ].join("\n");
 
+/** One long synthetic function: a block past the fold of 16 lines, for the look of `Show all 304 lines`. */
+const LONG_FUNCTION = ["fn replay(ledger: &mut Ledger) {", ...Array.from({ length: 300 }, (_, i) => `    ledger.record(${i}, "entry-${i}", ${(i * 7) % 100});`), "}"].join("\n");
+
+/** What an agent writes when it explains code: prose, inline code and a fence of every kind the chat meets. */
+const CODE_ANSWER = [
+  "The retry loop lives in `Client::send` (see `src/client.ts:42`). Here is the shape of it in the three places that matter.",
+  "",
+  "```ts",
+  "export async function send(req: Request, attempts = 3): Promise<Response> {",
+  "  for (let i = 0; i < attempts; i++) {",
+  "    const res = await fetch(req.url, { method: req.method, signal: AbortSignal.timeout(2_500) });",
+  "    if (res.ok || res.status < 500) return res;",
+  "    await sleep(2 ** i * 100); // back off",
+  "  }",
+  '  throw new Error(`gave up after ${attempts} tries`);',
+  "}",
+  "```",
+  "",
+  "The Rust side does the same with a bounded loop:",
+  "",
+  "```rust",
+  "pub fn send(req: &Request, attempts: u32) -> Result<Response, Error> {",
+  "    for i in 0..attempts {",
+  "        match transport::call(req) {",
+  "            Ok(res) if res.status() < 500 => return Ok(res),",
+  '            Err(e) if !e.retryable() => return Err(e),',
+  "            _ => std::thread::sleep(Duration::from_millis(100 << i)),",
+  "        }",
+  "    }",
+  "    Err(Error::GaveUp(attempts))",
+  "}",
+  "```",
+  "",
+  "```python",
+  "def send(req, attempts=3):",
+  "    for i in range(attempts):",
+  "        res = transport.call(req, timeout=2.5)",
+  "        if res.ok or res.status < 500:",
+  "            return res",
+  "        time.sleep(0.1 * 2**i)",
+  '    raise GaveUp(f"after {attempts} tries")',
+  "```",
+  "",
+  "To try it and look at the log:",
+  "",
+  "```sh",
+  "$ pnpm test --filter client && tail -n 20 logs/client.log | grep -i retry",
+  "```",
+  "",
+  "A response that does not retry carries this body, which is no language in particular:",
+  "",
+  "```",
+  "{",
+  '  "status": 400,',
+  '  "retryable": false,',
+  '  "message": "bad request"',
+  "}",
+  "```",
+  "",
+  "A language nobody has a grammar for is drawn plain:",
+  "",
+  "```frobnicate",
+  "wibble the wobble",
+  "wobble the wibble",
+  "```",
+  "",
+  "```json",
+  '{ "attempts": 3, "backoff": { "base_ms": 100, "factor": 2 }, "retry_on": [500, 502, 503] }',
+  "```",
+  "",
+  "This is the change to the loop:",
+  "",
+  "```diff",
+  "--- a/src/client.ts",
+  "+++ b/src/client.ts",
+  "@@ -10,7 +10,7 @@ export async function send(req: Request) {",
+  "   for (let i = 0; i < attempts; i++) {",
+  "-    await sleep(100);",
+  "+    await sleep(2 ** i * 100);",
+  "   }",
+  "```",
+  "",
+  "A very long line, as a minified file or a log line has:",
+  "",
+  "```text",
+  `${"GET /api/v2/ledger/entries?cursor=eyJpZCI6MTIzNDU2Nzg5fQ&limit=500&include=merchant,currency,fees&sort=-created_at ".repeat(4)}`,
+  "```",
+  "",
+  "And the whole replay, for reference:",
+  "",
+  "```rust",
+  LONG_FUNCTION,
+  "```",
+  "",
+  "- a fence inside a list item is drawn by the text view's hook:",
+  "  ```sh",
+  "  echo inside a list",
+  "  ```",
+  "",
+  "That is all of it.",
+].join("\n");
+
+/** The text a streaming reply writes in `code-stream`, in the pieces the lab cuts it into. */
+const STREAMED = ["Here is the loop, as it is being written:\n\n", "```ts\n", "export async function send(req: Request) {\n", "  for (let i = 0; i < 3; i++) {\n", "    const res = await fetch(req.url);\n", "    if (res.ok) return res;\n", "  }\n", "  throw new Error(\"gave up\");\n", "}\n", "```\n\n", "It tries three times and then gives up."];
+
 const OUTPUT = Array.from({ length: 40 }, (_, i) => `PASS src/case-${i + 1}.test.ts (${12 + i} ms)`);
 
 interface Scene {
@@ -95,6 +204,13 @@ function scene(name: string): Scene {
           call("Running pnpm test promo-eu", { toolKind: "execute", subject: "pnpm test promo-eu", status: "inProgress" }),
         ],
       };
+    case "code":
+      return {
+        view: { running: false, phase: "idle" },
+        items: [say("user", "How does the client retry? Show me the three implementations."), say("agent", CODE_ANSWER), done("Done in 12s")],
+      };
+    case "code-stream":
+      return { view: { running: true, phase: "working" }, items: [say("user", "Show me the retry loop."), say("agent", "")] };
     case "plan":
       return {
         view: {
@@ -287,12 +403,26 @@ function scripted(initial: Scene) {
 }
 
 function Scripted() {
+  // The app binds its global shortcuts in `App.tsx`; the two a chat answers are bound here the same way.
+  keymap.bind({ [keysOf(GLOBAL.copyCode)[0]]: copyCode, [keysOf(GLOBAL.copyReply)[0]]: copyReply }, { when: "always" });
   const lab = scripted(scene(params.scene ?? "chat"));
+  // A reply that writes itself: `Stream a piece` by hand (tests), or `autostream` pieces every N ms up to `upTo` of them (screenshots).
+  let piece = 0;
+  const writeMore = () => {
+    if (piece < STREAMED.length) lab.stream(STREAMED[piece++]!);
+  };
+  if (params.instant) while (piece < STREAMED.length) writeMore();
+  if (typeof params.autostream === "number") {
+    const upTo = params.upTo ?? STREAMED.length;
+    const timer = setInterval(() => (piece < upTo ? writeMore() : clearInterval(timer)), params.autostream);
+    cleanup(() => clearInterval(timer));
+  }
   return (
     <View class="min-h-0 flex-1">
       <If when={!params.quiet}>
         <View class="flex-row flex-wrap items-center gap-2 border-b border-border p-2">
           <Btn small label="Agent says more" onPress={() => lab.stream(" And more text arrives.")} />
+          <Btn small label="Stream a piece" onPress={writeMore} />
           <Btn small label="Agent starts a message" onPress={() => lab.message("A new answer, started while you were reading.")} />
           <Btn small label="Add unknown kind" onPress={() => lab.add({ id: next++, rev: 1, kind: "hologram", text: "Something new", images: [], parts: [] } as unknown as SessionItem)} />
           <Btn small label="Start a call" onPress={() => lab.add(call("Running pnpm lint", { toolKind: "execute", subject: "pnpm lint", status: "inProgress" }))} />

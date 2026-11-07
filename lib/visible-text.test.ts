@@ -1,5 +1,5 @@
 import { expect, test } from "nsh/test";
-import { rowsOf, visibleText } from "#lib/visible-text";
+import { rowsOf, safeCode, visibleText } from "#lib/visible-text";
 
 test("a character that hides what a command says is shown as its code point", () => {
   expect(visibleText("echo ok\u202e; rm -rf ~")).toBe("echo ok‹U+202E›; rm -rf ~");
@@ -17,4 +17,9 @@ test("rows of a command are counted by wrapping each line", () => {
   expect(rowsOf("one\ntwo", 80)).toBe(2);
   expect(rowsOf("x".repeat(250), 100)).toBe(3);
   expect(rowsOf("", 100)).toBe(1);
+});
+
+test("code keeps its tabs and blank lines exactly, and still shows what is hidden", () => {
+  expect(safeCode("a\tb\n\n\n\nc")).toBe("a\tb\n\n\n\nc");
+  expect(safeCode("echo ok\u202e; rm\u200b")).toBe("echo ok‹U+202E›; rm‹U+200B›");
 });

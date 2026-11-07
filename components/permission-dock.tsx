@@ -1,10 +1,12 @@
-import { announce, computed, effect, keymap, Scroll, signal, Text, untracked, View } from "nsh";
+import { announce, computed, effect, keymap, Scroll, signal, Text, token, untracked, View } from "nsh";
 import type { ScrollRef } from "nsh/types";
-import { Sessions } from "herdr-desktop/native";
+import { Code, CodeView, Sessions } from "herdr-desktop/native";
 import type { ActionResult, DiffItem, PermissionChoiceView, SessionView, WaitingView } from "herdr-desktop/native";
+import { codeLabel, lineCount } from "#lib/highlight";
 import { restartable } from "#lib/timer";
 import { rowsOf, visibleText } from "#lib/visible-text";
 import { AskChip } from "#components/ask-chip";
+import { CodeBlock } from "#components/code-block";
 import { Btn, Clipped, Icon, Modal } from "#kit";
 import { PermissionDiff } from "#components/permission-diff";
 import { PlanSteps } from "#components/plan-steps";
@@ -133,6 +135,9 @@ export function PermissionDock(props: { machine: string; id: string; view: Sessi
   });
 
   const text = computed(() => visibleText(request()?.subject ?? request()?.title ?? ""));
+  // A command is shell; what else a request names (a path, a title) is plain text unless its own shape says otherwise.
+  const language = () => (request()?.toolKind === "execute" ? "bash" : undefined);
+  const label = computed(() => codeLabel(Code.describe(text(), language() ?? null, null).language, lineCount(text())));
   const measured = () => contentHeight() > 0 && viewport() > 0;
   const overflow = () => (measured() ? contentHeight() > viewport() + 2 : rowsOf(text(), COLUMNS) > BOX_ROWS);
   const atEnd = () => readAll() || !overflow() || (measured() && offset() + viewport() >= contentHeight() - 2);
@@ -254,13 +259,11 @@ export function PermissionDock(props: { machine: string; id: string; view: Sessi
               }}
               onLayout={({ bounds }) => viewport.set(bounds.size.height)}
               onScroll={(e) => offset.set(e.offset.y)}
-              style={{ maxHeight: BOX_ROWS * LINE + PAD * 2 }}
-              class="rounded-md border border-border bg-muted"
+              class="rounded-md"
+              style={{ backgroundColor: token("code-bg"), maxHeight: BOX_ROWS * LINE + PAD * 2 }}
             >
               <View onLayout={({ bounds }) => contentHeight.set(bounds.size.height)} style={{ padding: PAD }}>
-                <Text style={{ userSelect: "text", lineHeight: LINE }} class="font-mono text-sm text-foreground">
-                  {text()}
-                </Text>
+                <CodeView code={text()} language={language()} wrap label={label()} />
               </View>
             </Scroll>
             <If when={overflow()}>
@@ -323,9 +326,7 @@ export function PermissionDock(props: { machine: string; id: string; view: Sessi
             actions={<Btn variant="ghost" label="Close" onPress={() => reading.set(false)} />}
           >
             <If when={reading()}>
-              <Text style={{ userSelect: "text" }} class="font-mono text-sm text-foreground">
-                {text()}
-              </Text>
+              <CodeBlock code={text()} language={language()} collapsedLines={0} />
             </If>
           </Modal>
         </View>

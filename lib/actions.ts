@@ -8,7 +8,7 @@ import { closeTab, focused, focusedPane, groupOf, groups, lastPane, layout, move
 import { allRows, board, meta, reviewable } from "#lib/herdr";
 import { browseFiles } from "#lib/files";
 import { canShowChat, openAgent, showChat, showTerminal } from "#lib/open-agent";
-import { focusComposer, searchInPane, showLinks, toggleCapture } from "#lib/pane-input";
+import { chatInFront, copyCode, copyReply, focusComposer, searchInPane, showLinks, toggleCapture } from "#lib/pane-input";
 import { perfOpen } from "#lib/perf";
 import { sidebarCollapsed, themeId } from "#lib/settings";
 import { type GlobalShortcut, GLOBAL, keysOf, type ShortcutGroup } from "#lib/shortcuts";
@@ -304,6 +304,8 @@ export const globalActions: Record<GlobalShortcut, () => void> = {
   splitRight: () => void moveFocused("right"),
   splitDown: () => void moveFocused("bottom"),
   capture: needPane(toggleCapture),
+  copyCode: () => (chatInFront() ? copyCode() : announce("Open a chat first")),
+  copyReply: () => (chatInFront() ? copyReply() : announce("Open a chat first")),
   search: needPane(searchInPane),
   newAgent: () => newSession(),
   settings: () => settingsOpen.set(true),
@@ -392,6 +394,8 @@ export function actions(): Action[] {
   global("focusPane", ["composer", "reply"], !pane && !lastPane());
   global("capture", ["type", "keyboard", "terminal"], !pane);
   global("search", ["find"], !pane);
+  global("copyCode", ["code block", "clipboard", "snippet"], !chatInFront());
+  global("copyReply", ["answer", "message", "clipboard", "markdown"], !chatInFront());
   global("closeTab", ["view"], focused() === "board");
   global("devPanel", ["performance", "frame"]);
   global("undo");
@@ -432,7 +436,7 @@ export function actions(): Action[] {
 
 /** The palette's heading for a shortcut group of `lib/shortcuts.ts`. */
 function groupName(group: ShortcutGroup): string {
-  return group === "attention" || group === "navigate" ? "Go" : group === "tabs" ? "Tabs" : group === "typing" ? "Pane" : "App";
+  return group === "attention" || group === "navigate" ? "Go" : group === "tabs" ? "Tabs" : group === "typing" ? "Pane" : group === "chat" ? "Chat" : "App";
 }
 
 /** A tab's name for the palette: the agent's name, else `Board`. */

@@ -9,7 +9,7 @@ import type { SessionModel } from "#lib/session";
 import type { Row } from "#lib/session-rows";
 import { durationText, itemLabel, toolLine, toolStatusText, visibleText, workHead, workParts } from "#lib/session-text";
 import { FOCUS_RING, Icon, IconButton, notify } from "#kit";
-import { MarkdownText } from "#components/markdown";
+import { type Folds, MarkdownText } from "#components/markdown";
 import { DiffStat, Disclosure, PartChips, ToolDetails, ToolRow, ToolStatus } from "#components/session-tool";
 
 /** The widest a line of the conversation is: past this, text is hard to follow and the window is better left calm. */
@@ -98,13 +98,17 @@ function UserRow(props: { row: Extract<Row, { kind: "user" }>; ctx: RowContext }
   );
 }
 
+/** The fold state of a message's code blocks, kept in the model by key because the list recycles the cell that draws them. */
+const foldsOf = (model: SessionModel): Folds => ({ get: (key) => model.chosen(key), set: (key, open) => model.choose(key, !open) });
+
 /** What the agent said, as Markdown on the page. A press-free `Copy message` appears with the pointer or the focus. */
 function AgentRow(props: { row: Extract<Row, { kind: "agent" }>; ctx: RowContext }) {
   const source = () => props.row.item.text ?? "";
+  const folds = foldsOf(props.ctx.model);
   return (
     <Line class="group py-1">
       <View role="group" accessibilityLabel={itemLabel(props.row.item)}>
-        <MarkdownText source={source()} machine={props.ctx.machine} folder={props.ctx.cwd} streaming={props.row.live} />
+        <MarkdownText source={source()} machine={props.ctx.machine} folder={props.ctx.cwd} streaming={props.row.live} folds={folds} foldKey={props.row.key} />
         <Each of={props.row.item.images} key={(i: ImageView) => i.key}>
           {(image) => <Picture image={image()} ctx={props.ctx} />}
         </Each>
@@ -161,7 +165,7 @@ function ThoughtRow(props: { row: Extract<Row, { kind: "thought" }>; ctx: RowCon
       </Disclosure>
       <If when={props.row.open}>
         <View class="ml-4 border-l border-border pl-3">
-          <MarkdownText source={props.row.item.text ?? ""} machine={props.ctx.machine} folder={props.ctx.cwd} class="text-muted-foreground" />
+          <MarkdownText source={props.row.item.text ?? ""} machine={props.ctx.machine} folder={props.ctx.cwd} class="text-muted-foreground" folds={foldsOf(props.ctx.model)} foldKey={props.row.key} />
         </View>
       </If>
     </Line>

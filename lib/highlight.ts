@@ -1,48 +1,20 @@
-import { effect, signal, Storage } from "nsh";
-import { save } from "#lib/save";
+import { Code } from "herdr-desktop/native";
 
 /**
- * How code blocks are drawn, as the person set it (`components/code-block.tsx`). Persisted under its own key until the
- * chat is integrated, when these three move into `lib/settings.ts` beside `paneFit` (the rule is one place for
- * options; `docs/specs/chat-craft.md`, "Integration").
+ * Words and sizes of the code renderer (`components/code-block.tsx`, `components/diff-block.tsx`). What the person
+ * can toggle (`codeWrap`, `codeLineNumbers`, `codeWhitespace`, `diffSplit`) lives in `lib/settings.ts`.
  */
-const KEY = "herdr.code.v1";
 
-/** Wrap long lines instead of scrolling sideways. */
-export const codeWrap = signal(false);
-/** Line numbers in a muted gutter. */
-export const codeLineNumbers = signal(false);
-/** Tabs as `→` and trailing spaces as `·`. */
-export const codeWhitespace = signal(false);
-/** Diffs side by side (old left, new right) instead of one column. */
-export const diffSplit = signal(false);
+let warmed = false;
 
-interface Saved {
-  wrap: boolean;
-  lineNumbers: boolean;
-  whitespace: boolean;
-  split?: boolean;
-}
-
-let started = false;
-
-/** Reads the saved choices once and keeps them saved. Call it before the first block is drawn. */
-export async function loadCodeSettings(): Promise<void> {
-  if (started) return;
-  started = true;
-  try {
-    const raw = await Storage.getItem(KEY);
-    if (raw) {
-      const saved = JSON.parse(raw) as Partial<Saved>;
-      if (typeof saved.wrap === "boolean") codeWrap.set(saved.wrap);
-      if (typeof saved.lineNumbers === "boolean") codeLineNumbers.set(saved.lineNumbers);
-      if (typeof saved.whitespace === "boolean") codeWhitespace.set(saved.whitespace);
-      if (typeof saved.split === "boolean") diffSplit.set(saved.split);
-    }
-  } catch (e) {
-    console.warn("herdr-desktop: code settings not read", e);
-  }
-  effect(() => save(KEY, JSON.stringify({ wrap: codeWrap(), lineNumbers: codeLineNumbers(), whitespace: codeWhitespace(), split: diffSplit() } satisfies Saved)));
+/**
+ * Compiles the grammars chat code is mostly in, on a background thread, so the first block of a language does not pay for
+ * its grammar on the person's first look. Returns at once; call it when the app starts.
+ */
+export function warmCode(): void {
+  if (warmed) return;
+  warmed = true;
+  Code.warm();
 }
 
 /** Lines of a block shown before `Show all N lines`. */

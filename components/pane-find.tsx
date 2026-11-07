@@ -9,7 +9,8 @@ import { Btn, IconButton, INPUT_CLASS } from "#kit";
  * the one before, Escape closes it. It starts at the last match, the one nearest the newest output. The rows are read
  * again at every query and every step, so output that arrived meanwhile is found; the count is announced politely.
  */
-export function PaneFind(props: { rows: () => Promise<string[]>; scrollToRow: (row: number) => void; onClose: () => void }) {
+export function PaneFind(props: { rows: () => Promise<string[]>; scrollToRow: (row: number) => void; onClose: () => void; /** What is searched, for the field's name: `pane` (default) or `file`. */ what?: string }) {
+  const what = props.what ?? "pane";
   const query = signal("");
   const hits = signal<number[]>([]);
   const at = signal(0);
@@ -69,8 +70,8 @@ export function PaneFind(props: { rows: () => Promise<string[]>; scrollToRow: (r
           query.set(value);
           void typed();
         }}
-        placeholder="Find in the pane"
-        accessibilityLabel="Text to find in the pane"
+        placeholder={`Find in the ${what}`}
+        accessibilityLabel={`Text to find in the ${what}`}
         autoFocus
         autoCorrect={false}
         autoCapitalize="none"

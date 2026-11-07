@@ -92,6 +92,8 @@ export interface SessionModel {
   toggle(row: Row): void;
   /** Flips a choice that is not a row's own fold, by its key (`moreKey`): `now` is what it is showing. */
   choose(key: string, now: boolean): void;
+  /** What the person chose for `key` (`true` open, `false` closed), `undefined` when they never did. Reactive. */
+  chosen(key: string): boolean | undefined;
 }
 
 /** Rows read again on every revision: enough to follow a stream and a handful of parallel calls, however long the chat. */
@@ -287,5 +289,7 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
 
   const choose = (key: string, now: boolean): void => choices.update((m) => new Map(m).set(key, !now));
 
-  return { view: viewSignal, rows, working, toggle, choose };
+  const chosen = (key: string): boolean | undefined => choices().get(key);
+
+  return { view: viewSignal, rows, working, toggle, choose, chosen };
 }

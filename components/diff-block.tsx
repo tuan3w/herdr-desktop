@@ -2,7 +2,8 @@ import { computed, signal, Text, token, View } from "nsh";
 import { Button } from "nsh/base";
 import { CodeDiff } from "herdr-desktop/native";
 import type { CodeDiffRef } from "herdr-desktop/native";
-import { CODE_MAX_HEIGHT, codeWhitespace, codeWrap, diffLabel, diffSplit } from "#lib/highlight";
+import { CODE_MAX_HEIGHT, diffLabel } from "#lib/highlight";
+import { codeWhitespace, codeWrap, diffSplit } from "#lib/settings";
 import { FOCUS_RING, Icon, Tipped } from "#kit";
 
 /**
@@ -28,6 +29,10 @@ export function DiffBlock(props: {
   maxHeight?: number;
   /** Force a layout; by default the person's choice (`diffSplit`). */
   split?: boolean;
+  /** The file is new: says so in the header. */
+  created?: boolean;
+  /** Makes the file name a button (`Open <path>`) that shows the file. */
+  onOpenFile?: () => void;
 }) {
   const counts = signal({ added: 0, removed: 0, changes: 0 });
   const at = signal<number | null>(null);
@@ -39,9 +44,23 @@ export function DiffBlock(props: {
   return (
     <View class="group w-full overflow-hidden rounded-md" style={{ backgroundColor: token("code-bg") }}>
       <View class="relative min-h-8 flex-row items-center gap-1 pl-3 pr-1">
-        <Text class="min-w-0 flex-1 font-mono text-xs text-foreground" style={{ numberOfLines: 1 }}>
-          {props.path ?? "Changes"}
-        </Text>
+        <If when={props.onOpenFile}>
+          {(open) => (
+            <Button onPress={open()} accessibilityLabel={`Open ${props.path}`} class={`min-w-0 flex-1 flex-row rounded-md py-1 ${FOCUS_RING}`}>
+              <Text class="min-w-0 font-mono text-xs text-foreground underline" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
+                {props.path ?? "Changes"}
+              </Text>
+            </Button>
+          )}
+        </If>
+        <If when={!props.onOpenFile}>
+          <Text class="min-w-0 flex-1 font-mono text-xs text-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
+            {props.path ?? "Changes"}
+          </Text>
+        </If>
+        <If when={props.created}>
+          <Text class="text-xs text-muted-foreground">new file</Text>
+        </If>
         <Text class="pr-2 text-xs text-muted-foreground" style={{ fontVariant: ["tabular-nums"] }}>
           {`+${counts().added} \u2212${counts().removed}`}
         </Text>

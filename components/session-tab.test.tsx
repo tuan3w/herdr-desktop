@@ -153,11 +153,12 @@ test("a call opens to what it did: the edit as a diff, the command whole, the ou
   await app.press(label("^Worked, 1 command, 1 file changed, 1 failed"));
   await app.waitFor(label("^Tool: Edited src/auth.ts"));
   await app.press(label("^Tool: Edited src/auth.ts"));
-  await app.waitFor("label:Changes to src/auth.ts");
+  await app.waitFor("label:/^Diff of src\\/auth\\.ts, 2 added, 1 removed$/");
   expect(app.shows("label:Open src/auth.ts")).toBe(true);
 
   await app.press(label("^Tool: Ran pnpm test, failed"));
-  await app.waitFor("label:Copy command");
+  await app.waitFor("label:Copy code");
+  expect(said(app, "pnpm test")).toBe(true);
   await app.waitFor("label:Show all 10 lines of output");
   expect(said(app, "lines not kept")).toBe(false);
   await app.press("label:Show all 10 lines of output");
@@ -411,4 +412,91 @@ test("a finished agent message can be copied whole, since a drag selects only wi
   // The whole answer, the code block and the table included: what was written, not what is drawn.
   expect(app.clipboard()).toContain("| unit tests | 42 passed |");
   expect(app.clipboard()).toContain("export function login(user: User)");
+});
+
+// ---- code in the chat ----
+
+/** The TypeScript fence of the `code` scene, as written: what `Copy code` must put on the clipboard. */
+const TS_FENCE = [
+  "export async function send(req: Request, attempts = 3): Promise<Response> {",
+  "  for (let i = 0; i < attempts; i++) {",
+  "    const res = await fetch(req.url, { method: req.method, signal: AbortSignal.timeout(2_500) });",
+  "    if (res.ok || res.status < 500) return res;",
+  "    await sleep(2 ** i * 100); // back off",
+  "  }",
+  "  throw new Error(`gave up after ${attempts} tries`);",
+  "}",
+].join("\n");
+
+test("a fence in an answer is a code block named by its language, and Copy code puts exactly its text on the clipboard", async () => {
+  const app = await scripted("code");
+  await app.waitFor("label:/^Code, TypeScript, 8 lines$/");
+  expect(app.shows("label:/^Code, Rust, 10 lines$/")).toBe(true);
+  expect(app.shows("label:/^Code, Python, 7 lines$/")).toBe(true);
+  expect(app.shows("label:/^Code, Shell, 1 line$/")).toBe(true);
+  // The prose around the blocks is still prose, and the code is text a screen reader can read line by line.
+  expect(said(app, "The retry loop lives in")).toBe(true);
+  expect(said(app, "throw new Error")).toBe(true);
+
+  await app.press("label:Copy code >> nth=0");
+  await app.waitUntil(() => app.clipboard() === TS_FENCE);
+});
+
+test("a fence with no language is read from its text, and a language nobody has a grammar for is drawn plain", async () => {
+  const app = await scripted("code");
+  // Five lines of JSON with no word after the fence: found by their shape.
+  await app.waitFor("label:/^Code, JSON, 5 lines$/");
+  // A made-up word is plain text: no language in its name, and its words are all there.
+  expect(app.shows("label:/^Code, 2 lines$/")).toBe(true);
+  expect(said(app, "wibble the wobble")).toBe(true);
+});
+
+test("a long block folds to its first lines in the chat, and a fence inside a list item is a block too", async () => {
+  const app = await scripted("code");
+  await app.waitFor("label:/^Show all 302 lines$/");
+  expect(said(app, "ledger.record(299")).toBe(false);
+  expect(app.shows("label:/^Code, Shell, 1 line$/")).toBe(true);
+  expect(said(app, "echo inside a list")).toBe(true);
+  // Opening the fold is a choice the chat keeps: it is not undone when the message is drawn again.
+  await app.press("label:/^Show all 302 lines$/");
+  await app.waitFor("Show fewer lines");
+});
+
+test("Copy code takes the last block of the last answer, and Copy answer the whole answer as it was written", async () => {
+  const app = await scripted("code");
+  await app.waitFor("label:/^Code, TypeScript, 8 lines$/");
+  await app.keyboard.press("mod+shift+c");
+  await app.waitUntil(() => (app.clipboard() ?? "").startsWith("fn replay(ledger: &mut Ledger) {"));
+  expect((app.clipboard() ?? "").split("\n")).toHaveLength(302);
+  expect(app.clipboard()).not.toContain("```");
+
+  await app.keyboard.press("mod+shift+y");
+  await app.waitUntil(() => (app.clipboard() ?? "").startsWith("The retry loop lives in"));
+  expect(app.clipboard()).toContain("```ts\n" + TS_FENCE + "\n```");
+});
+
+test("an answer that is still being written shows its open fence as it stands, and ends in the same state as the answer whole", async () => {
+  const live = await open("./session-lab.tsx", { ...DESKTOP, host: { params: { mode: "scripted", scene: "code-stream" } } });
+  await live.waitFor("Stream a piece");
+  // The prose, the fence's opening line and two lines of code.
+  for (let i = 0; i < 4; i++) await live.press("Stream a piece");
+  await live.waitFor("label:/^Code, TypeScript, 2 lines$/");
+  expect(said(live, "for (let i = 0; i < 3; i++)")).toBe(true);
+  // A block that is being written never folds.
+  expect(live.shows("label:/^Show all/")).toBe(false);
+  for (let i = 0; i < 7; i++) await live.press("Stream a piece");
+  await live.press("Finish the turn");
+  await live.waitFor("label:/^Code, TypeScript, 7 lines$/");
+
+  const whole = await open("./session-lab.tsx", { ...DESKTOP, host: { params: { mode: "scripted", scene: "code-stream", instant: true } } });
+  await whole.press("Finish the turn");
+  await whole.waitFor("label:/^Code, TypeScript, 7 lines$/");
+  await live.keyboard.press("mod+shift+c");
+  await whole.keyboard.press("mod+shift+c");
+  await live.waitUntil(() => (live.clipboard() ?? "") !== "");
+  await whole.waitUntil(() => (whole.clipboard() ?? "") !== "");
+  expect(live.clipboard()).toBe(whole.clipboard());
+  // Everything on screen but the two windows' own scratch folders.
+  const shown = (a: App) => a.texts().filter((t) => !t.includes("/tmp/herdr-desktop-"));
+  expect(shown(live)).toEqual(shown(whole));
 });

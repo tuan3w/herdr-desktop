@@ -1,18 +1,20 @@
-import { Clipboard, Image, type JSX, Text, View } from "nsh";
-import { Button, DiffView } from "nsh/base";
+import { Image, type JSX, Text, View } from "nsh";
+import { Button } from "nsh/base";
 import type { DiffItem, LocationView, PartView, ToolItem, ToolStatusName } from "herdr-desktop/native";
 import { viewFile } from "#lib/files";
 import { pictureSize } from "#lib/session-pictures";
 import { hoverTransition } from "#lib/motion";
 import { outputView, shortPath, toolIcon, toolKindOf, toolLine, toolStatusText, visibleText } from "#lib/session-text";
-import { FOCUS_RING, FOCUS_RING_INSET, Icon, IconButton, notify } from "#kit";
+import { FOCUS_RING, FOCUS_RING_INSET, Icon } from "#kit";
+import { CodeBlock } from "#components/code-block";
+import { DiffBlock } from "#components/diff-block";
 import { openLink } from "#components/links-dialog";
 import { StatusGlyph } from "#components/status-glyph";
 
 /** Lines of a call's input shown before it is cut. */
 const INPUT_LINES = 12;
-
-const copy = (text: string, done: string) => void Clipboard.writeText(text).then(() => notify(done));
+/** How tall a command's output or an edit grows inside a tool row before it scrolls: the row is a step, not the page. */
+const TOOL_BLOCK_HEIGHT = 360;
 
 /**
  * A row that opens and folds something under it. It is a view with the button role rather than a `Button`, because only a
@@ -93,59 +95,18 @@ export function ToolRow(props: { tool: ToolItem; cwd: string; open: boolean; onT
   );
 }
 
-/** A block of selectable monospace text with a copy button that appears with the pointer and stays pressable. */
-function Mono(props: { text: string; label: string; copied: string }) {
-  return (
-    <View class="group rounded-md bg-muted px-3 py-2">
-      <Text style={{ userSelect: "text" }} class="font-mono text-xs text-foreground">
-        {props.text}
-      </Text>
-      <View class="absolute right-1 top-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
-        <IconButton icon="copy" label={props.label} onPress={() => copy(props.text, props.copied)} />
-      </View>
-    </View>
-  );
-}
-
-/** What one edit looks like: the file (a link to it in the viewer), the size, then the change itself. */
+/** What one edit looks like: the file's change as a diff, its name a link to the file in the viewer. */
 function Edit(props: { diff: DiffItem; machine: string; cwd: string }) {
-  // The rows a unified diff draws: at most the new text plus what was removed, and with three lines of context around
-  // each change usually fewer. A guess that errs high leaves blank space, one that errs low scrolls: so the smaller of two.
-  const rows = () => {
-    const lines = props.diff.new.split("\n").length + props.diff.removed;
-    return Math.min(300, Math.max(54, Math.min(lines, props.diff.added + props.diff.removed + 7) * 18 + 4));
-  };
   return (
-    <View class="gap-1">
-      <View class="flex-row items-center gap-2">
-        <Button
-          onPress={() => viewFile(props.machine, props.diff.path)}
-          accessibilityLabel={`Open ${shortPath(props.diff.path, props.cwd)}`}
-          class={`min-w-0 flex-1 flex-row items-center gap-2 rounded-md py-1 ${FOCUS_RING}`}
-        >
-          <Icon name="file" size={12} tone="muted-foreground" />
-          <Text class="min-w-0 font-mono text-xs text-foreground underline" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
-            {shortPath(props.diff.path, props.cwd)}
-          </Text>
-        </Button>
-        <If when={props.diff.old == null}>
-          <Text class="text-xs text-muted-foreground">new file</Text>
-        </If>
-        <DiffStat added={props.diff.added} removed={props.diff.removed} />
-      </View>
-      <View role="group" accessibilityLabel={`Changes to ${shortPath(props.diff.path, props.cwd)}`} style={{ height: rows() }} class="overflow-hidden rounded-md border border-border">
-        <DiffView
-          oldValue={props.diff.old ?? ""}
-          newValue={props.diff.new}
-          language={props.diff.path}
-          layout="unified"
-          fontSize={12}
-          lineHeight={18}
-          contextLines={3}
-          class="flex-1"
-        />
-      </View>
-    </View>
+    <DiffBlock
+      path={shortPath(props.diff.path, props.cwd)}
+      oldText={props.diff.old ?? ""}
+      newText={props.diff.new}
+      created={props.diff.old == null}
+      context={3}
+      maxHeight={TOOL_BLOCK_HEIGHT}
+      onOpenFile={() => viewFile(props.machine, props.diff.path)}
+    />
   );
 }
 
@@ -266,7 +227,7 @@ export function ToolDetails(props: { tool: ToolItem; machine: string; cwd: strin
   return (
     <View class="ml-4 mb-1 gap-2 border-l border-border pl-3 pt-1">
       <If when={showSubject()}>
-        <Mono text={subject()} label="Copy command" copied="Command copied" />
+        <CodeBlock code={subject()} language="bash" compact collapsedLines={0} maxHeight={TOOL_BLOCK_HEIGHT} />
       </If>
       <If when={props.tool.locations.length > 0 && props.tool.diffs.length === 0}>
         <Locations locations={props.tool.locations} machine={props.machine} cwd={props.cwd} all={props.all} />
@@ -275,14 +236,11 @@ export function ToolDetails(props: { tool: ToolItem; machine: string; cwd: strin
         {(diff) => <Edit diff={diff()} machine={props.machine} cwd={props.cwd} />}
       </Each>
       <If when={inputText() !== ""}>
-        <View class="gap-1">
-          <Text class="text-xs text-muted-foreground">Input</Text>
-          <Mono text={inputText()} label="Copy input" copied="Input copied" />
-        </View>
+        <CodeBlock code={inputText()} compact collapsedLines={0} maxHeight={TOOL_BLOCK_HEIGHT} />
       </If>
       <PartChips parts={props.tool.parts} machine={props.machine} cwd={props.cwd} />
       <If when={output().lines.length > 0}>
-        <Mono text={text()} label="Copy output" copied="Output copied" />
+        <CodeBlock code={text()} compact collapsedLines={0} maxHeight={TOOL_BLOCK_HEIGHT} />
         <If when={output().hidden > 0}>
           <Button
             onPress={props.onMore}

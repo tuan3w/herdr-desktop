@@ -15,7 +15,7 @@ import { keymap } from "nsh";
  * - where a platform's habit differs, give that platform its own keys (`apple`, `other`) instead of bending one.
  * Escape is never a global shortcut and never the way out of capture mode: agents need it.
  */
-export type ShortcutGroup = "general" | "attention" | "navigate" | "tabs" | "typing" | "dev";
+export type ShortcutGroup = "general" | "attention" | "navigate" | "tabs" | "typing" | "chat" | "dev";
 
 export interface Group {
   id: ShortcutGroup;
@@ -28,6 +28,7 @@ export const GROUPS: Group[] = [
   { id: "navigate", title: "Go to" },
   { id: "tabs", title: "Tabs and splits" },
   { id: "typing", title: "Typing and choosing" },
+  { id: "chat", title: "In a chat" },
   { id: "dev", title: "Developer tools" },
 ];
 
@@ -40,6 +41,8 @@ export interface Shortcut {
   other?: string[];
   label: string;
   group: ShortcutGroup;
+  /** Fires in a text field too: nsh gives a field the copy and redo chords (`mod+shift+c` among them), and this is not one to lose to the message box. */
+  always?: boolean;
 }
 
 export type GlobalShortcut =
@@ -64,6 +67,8 @@ export type GlobalShortcut =
   | "splitRight"
   | "splitDown"
   | "capture"
+  | "copyCode"
+  | "copyReply"
   | "search"
   | "newAgent"
   | "settings"
@@ -99,6 +104,8 @@ export const GLOBAL: Record<GlobalShortcut, Shortcut> = {
   splitRight: { keys: ["mod+\\"], label: "Split right", group: "tabs" },
   splitDown: { keys: ["mod+shift+\\"], label: "Split down", group: "tabs" },
   capture: { keys: ["mod+shift+k"], label: "Type into the pane, or stop typing into it", group: "typing" },
+  copyCode: { keys: ["mod+shift+c"], label: "Copy code (the block under the pointer, else the last one)", group: "chat", always: true },
+  copyReply: { keys: ["mod+shift+y"], label: "Copy the agent's last answer", group: "chat", always: true },
   devPanel: { keys: ["mod+shift+d"], label: "Developer panel (frame time, latency, data)", group: "dev" },
 };
 

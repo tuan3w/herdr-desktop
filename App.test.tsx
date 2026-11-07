@@ -184,6 +184,15 @@ const CHECKS: Record<GlobalShortcut, Check> = {
     await press();
     expect(app.shows("label:/^Typing into /")).toBe(false);
   },
+  // They act on a chat (`session-tab.test.tsx` copies from one); with a terminal in front they copy nothing and say so.
+  copyCode: async (app, press) => {
+    await press();
+    expect(app.clipboard() ?? "").toBe("");
+  },
+  copyReply: async (app, press) => {
+    await press();
+    expect(app.clipboard() ?? "").toBe("");
+  },
   search: async (app, press) => {
     await press();
     expect(app.shows("label:Find in the pane >> nth=0")).toBe(true);
@@ -235,6 +244,8 @@ const ORDER: GlobalShortcut[] = [
   "nextAttention",
   "prevAttention",
   "capture",
+  "copyCode",
+  "copyReply",
   "search",
   "tab1",
   "tab2",

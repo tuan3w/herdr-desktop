@@ -231,6 +231,39 @@ export const SCENARIOS: Record<string, Scenario> = {
       await app.wait(600);
     },
   },
+  // An answer with code of every kind the chat meets: TypeScript, Rust, Python, shell, JSON, a diff, a long line, a block of 300
+  // lines (folded), a fence with no language, one inside a list item, inline code. Scrolled so that each part is on screen.
+  "chat-code": { fixture: "empty", entry: "../components/session-lab.tsx", params: { mode: "scripted", scene: "code", quiet: true }, steps: (app) => app.wait(1200) },
+  // The same answer scrolled up a page at a time: `chat-code-1` is the top, the next two follow it down.
+  ...Object.fromEntries(
+    [1, 2, 3].map((n): [string, Scenario] => [
+      `chat-code-${n}`,
+      {
+        fixture: "empty",
+        entry: "../components/session-lab.tsx",
+        params: { mode: "scripted", scene: "code", quiet: true },
+        steps: async (app) => {
+          await app.wait(1000);
+          for (let i = 0; i < 6 - (n - 1) * 1; i++) {
+            await app.keyboard.press("pageup");
+            await app.wait(150);
+          }
+          for (let i = 0; i < n - 1; i++) {
+            await app.keyboard.press("pagedown");
+            await app.wait(150);
+          }
+          await app.wait(500);
+        },
+      },
+    ]),
+  ),
+  // The same message while a reply is being written: an open fence, half of it on screen.
+  "chat-code-stream": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "code-stream", quiet: true, autostream: 40, upTo: 6 },
+    steps: (app) => app.wait(1200),
+  },
   "chat-long": { fixture: "empty", entry: "../components/session-lab.tsx", params: { mode: "scripted", scene: "long", quiet: true }, steps: (app) => app.wait(1200) },
   // An agent that refuses the session until a sign-in: the card in place of the conversation, with a refusal under the buttons.
   "chat-signin": {

@@ -1,7 +1,10 @@
-import { announce, Clipboard, computed, signal, Text, token, View } from "nsh";
+import { announce, cleanup, Clipboard, computed, effect, signal, Text, token, View } from "nsh";
 import { Button } from "nsh/base";
 import { Code, CodeView } from "herdr-desktop/native";
-import { CODE_COLLAPSED_LINES, CODE_MAX_HEIGHT, codeLabel, codeLineNumbers, codeWhitespace, codeWrap, lineCount } from "#lib/highlight";
+import type { CodeViewRef } from "herdr-desktop/native";
+import { touched } from "#lib/code-blocks";
+import { CODE_COLLAPSED_LINES, CODE_MAX_HEIGHT, codeLabel, lineCount } from "#lib/highlight";
+import { codeLineNumbers, codeWhitespace, codeWrap } from "#lib/settings";
 import { restartable } from "#lib/timer";
 import { FOCUS_RING, Icon, Tipped } from "#kit";
 
@@ -28,19 +31,42 @@ export function CodeBlock(props: {
   streaming?: boolean;
   /** Lines shown while folded (default 16); 0 never folds. */
   collapsedLines?: number;
-  /** Start unfolded. */
+  /** Unfolded. Alone it is where the block starts; with `onOpenChange` it is the state the caller keeps (a recycled list cell keeps none). */
   open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   /** Height at which an open block scrolls inside itself (default 560). */
   maxHeight?: number;
+  /** No header row: the block is only its code, and the tools float over its corner on hover. For a command or an output whose kind the row around it already says. */
+  compact?: boolean;
+  /** Show the header's tools (default true). Off where the card around the block has its own `Copy`. */
+  tools?: boolean;
+  /** Line numbers fixed on or off (a file viewer needs them); without it the person's choice, with its `Lines` tool. */
+  lineNumbers?: boolean;
+  /** Scrolls this line (a number counted from `firstLine`) to the top when it changes; it is not marked, `marks` does that. */
+  goTo?: number;
 }) {
   const info = computed(() => Code.describe(props.code, props.language ?? null, props.path ?? null));
   const lines = computed(() => lineCount(props.code));
   const fold = () => (props.streaming ? 0 : (props.collapsedLines ?? CODE_COLLAPSED_LINES));
-  const open = signal(props.open ?? false);
+  const local = signal(props.open ?? false);
+  const open = () => (props.onOpenChange ? (props.open ?? false) : local());
+  const toggle = () => (props.onOpenChange ? props.onOpenChange(!open()) : local.set(!open()));
   const foldable = () => fold() > 0 && lines() > fold() + 2;
   const shown = () => (foldable() && !open() ? fold() : 0);
   const copied = signal(false);
   const timer = restartable();
+
+  let view: CodeViewRef | undefined;
+  // A block that scrolls inside itself builds its list a frame after the block is made: ask after that.
+  effect(() => {
+    const line = props.goTo;
+    if (!line) return;
+    const id = setTimeout(() => view?.goToLine(line), 60);
+    return () => clearTimeout(id);
+  });
+  const numbers = () => props.lineNumbers ?? codeLineNumbers();
+  const mine = () => props.code;
+  cleanup(() => touched.release(mine));
 
   const copy = () => {
     void Clipboard.writeText(props.code).then(() => {
@@ -52,10 +78,13 @@ export function CodeBlock(props: {
 
   const code = (streaming: boolean) => (
     <CodeView
+      ref={(ref: CodeViewRef) => {
+        view = ref;
+      }}
       code={props.code}
       language={props.language}
       path={props.path}
-      lineNumbers={codeLineNumbers()}
+      lineNumbers={numbers()}
       firstLine={props.firstLine ?? 1}
       wrap={codeWrap()}
       whitespace={codeWhitespace()}
@@ -68,22 +97,35 @@ export function CodeBlock(props: {
   );
 
   return (
-    <View class="group w-full overflow-hidden rounded-md" style={{ backgroundColor: token("code-bg") }}>
-      <View class="relative min-h-8 flex-row items-center gap-1 pl-3 pr-1">
-        <Text class="flex-1 text-xs text-muted-foreground" style={{ numberOfLines: 1 }}>
-          {props.title ?? (info().language || "Text")}
-        </Text>
-        <View class="absolute right-1 top-1 flex-row items-center gap-1 rounded-md opacity-0 group-focus-within:opacity-100 group-hover:opacity-100" style={{ backgroundColor: token("code-bg") }}>
+    <View
+      class="group relative w-full overflow-hidden rounded-md"
+      style={{ backgroundColor: token("code-bg") }}
+      onMouseEnter={() => touched.set(mine)}
+      onMouseLeave={() => touched.release(mine)}
+      onFocus={() => touched.set(mine)}
+      onBlur={() => touched.release(mine)}
+    >
+      <If when={!props.compact}>
+        <View class="min-h-8 flex-row items-center gap-1 pl-3 pr-1">
+          <Text class="flex-1 text-xs text-muted-foreground" style={{ numberOfLines: 1 }}>
+            {props.title ?? (info().language || "Text")}
+          </Text>
+        </View>
+      </If>
+      <If when={props.tools ?? true}>
+        <View class="absolute right-1 top-1 z-10 flex-row items-center gap-1 rounded-md opacity-0 group-focus-within:opacity-100 group-hover:opacity-100" style={{ backgroundColor: token("code-bg") }}>
           <Tool label="Wrap lines" text="Wrap" selected={codeWrap()} onPress={() => codeWrap.set(!codeWrap())} />
-          <Tool label="Line numbers" text="Lines" selected={codeLineNumbers()} onPress={() => codeLineNumbers.set(!codeLineNumbers())} />
+          <If when={props.lineNumbers === undefined}>
+            <Tool label="Line numbers" text="Lines" selected={codeLineNumbers()} onPress={() => codeLineNumbers.set(!codeLineNumbers())} />
+          </If>
           <Tool label={copied() ? "Copied" : "Copy code"} text={copied() ? "Copied" : "Copy"} icon={copied() ? "check" : "copy"} onPress={copy} />
         </View>
-      </View>
+      </If>
       {/* Written and finished are two views on purpose: the first follows its end, the second starts at the top. */}
       <If when={props.streaming}>{code(true)}</If>
       <If when={!props.streaming}>{code(false)}</If>
       <If when={foldable()}>
-        <Button onPress={() => open.set(!open())} accessibilityLabel={open() ? "Show fewer lines" : `Show all ${lines()} lines`} class={`min-h-8 flex-row items-center justify-center gap-1 hover:bg-accent ${FOCUS_RING}`}>
+        <Button onPress={toggle} accessibilityLabel={open() ? "Show fewer lines" : `Show all ${lines()} lines`} class={`min-h-8 flex-row items-center justify-center gap-1 hover:bg-accent ${FOCUS_RING}`}>
           <Text class="text-xs font-medium text-muted-foreground">{open() ? "Show less" : `Show all ${lines()} lines`}</Text>
           <If when={!open()}>
             <Icon name="chevron-down" size={14} tone="muted-foreground" />

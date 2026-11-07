@@ -27,6 +27,7 @@ import { notify, PopupRoot, rail, Skeleton, snug, ThemeRoot, ToastHost } from "#
 import { actions, appMenu, globalActions, machinesOpen, naming, newAgentOpen, newSessionOpen, newSessionProject, palette, runAction, settingsOpen, shortcutsOpen } from "#lib/actions";
 import { dockReady, loadDock, openPane, openSession, showBoard } from "#lib/dock";
 import { openTarget } from "#lib/open-agent";
+import { warmCode } from "#lib/highlight";
 import { board, startHerdr } from "#lib/herdr";
 import { hoverTransition, motionReady } from "#lib/motion";
 import { saveFailures } from "#lib/save";
@@ -41,6 +42,7 @@ const fixture = typeof host.params.fixture === "string" ? host.params.fixture : 
 // A scripted run keeps its files in a fresh temporary directory (the empty path), never in the person's data directory.
 startHerdr(fixture ? "" : (process.dataDir ?? ""), fixture);
 void loadSettings();
+warmCode();
 void loadDock();
 void loadSidebar();
 for (const warning of Herdr.warnings()) notify(warning, { lasting: true });
@@ -67,7 +69,14 @@ function LoadingScreen() {
 function App() {
   // One handler per entry of `GLOBAL` (`lib/actions.ts`): a shortcut added there without one does not compile.
   // The keys of this platform: `mod` is Command or Ctrl, and a shortcut may have extra keys where its habit differs (F1).
-  keymap.bind(Object.fromEntries(Object.entries(GLOBAL).flatMap(([id, shortcut]) => keysOf(shortcut).map((keys) => [keys, globalActions[id as GlobalShortcut]]))));
+  const bindings = (always: boolean) =>
+    Object.fromEntries(
+      Object.entries(GLOBAL)
+        .filter(([, shortcut]) => (shortcut.always ?? false) === always)
+        .flatMap(([id, shortcut]) => keysOf(shortcut).map((keys) => [keys, globalActions[id as GlobalShortcut]])),
+    );
+  keymap.bind(bindings(false));
+  keymap.bind(bindings(true), { when: "always" });
 
   // The title is the one count the person sees from another window: how many agents need them.
   if (isAvailable) {

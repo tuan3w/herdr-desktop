@@ -1,14 +1,16 @@
-import { announce, cleanup, effect, signal, Text, untracked, View } from "nsh";
+import { announce, cleanup, Clipboard, effect, signal, Text, untracked, View } from "nsh";
 import { Herdr, Sessions } from "herdr-desktop/native";
 import type { SessionInfo, SessionView } from "herdr-desktop/native";
 import { openSession, removePanel, sessionKey } from "#lib/dock";
 import { sending } from "#lib/files";
 import { showTerminal } from "#lib/open-agent";
+import { touched } from "#lib/code-blocks";
 import { registerPane } from "#lib/pane-input";
 import { createSessionModel, latest, type SessionPort, sessionPort } from "#lib/session";
 import { oneLine, tailText, visibleText } from "#lib/session-text";
+import { lastCode, lastReply } from "#lib/session-copy";
 import { announceOutput } from "#lib/settings";
-import { Btn, Empty } from "#kit";
+import { Btn, Empty, notify } from "#kit";
 import { PermissionDock } from "#components/permission-dock";
 import { SessionComposer, type SessionComposerHandle } from "#components/session-composer";
 import { SessionActivity } from "#components/session-activity";
@@ -156,7 +158,15 @@ export function SessionChat(props: { machine: string; id: string; active: boolea
   });
   effect(() => {
     if (!props.active) return;
-    return registerPane({ focusComposer: () => composer?.focus() });
+    const copy = (text: string | undefined, done: string, none: string) => {
+      if (text === undefined) announce(none);
+      else void Clipboard.writeText(text).then(() => notify(done));
+    };
+    return registerPane({
+      focusComposer: () => composer?.focus(),
+      copyReply: () => copy(lastReply(model.rows()), "Answer copied", "The agent has not answered yet"),
+      copyCode: () => copy(touched.text() ?? lastCode(lastReply(model.rows())), "Code copied", "No code in the last answer"),
+    });
   });
 
   // A request the agent is waiting on is told once, when it arrives.

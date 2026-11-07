@@ -4,7 +4,7 @@ import type { NotificationSupport } from "herdr-desktop/native";
 import app from "../nsh.json";
 import { revision } from "#lib/herdr";
 import type { PaneFit } from "#lib/settings";
-import { announceOutput, checkUpdates, largeTargets, minContrast, paneFit, paneFontSize, quickPhrases, reduceMotionOverride, settingsReady, themeId } from "#lib/settings";
+import { announceOutput, checkUpdates, codeLineNumbers, codeWhitespace, codeWrap, diffSplit, largeTargets, minContrast, paneFit, paneFontSize, quickPhrases, reduceMotionOverride, settingsReady, themeId } from "#lib/settings";
 import { swatches } from "#lib/theme/build";
 import type { ThemeSpec } from "#lib/theme/build";
 import { availableUpdate, checkForUpdate } from "#lib/updates";
@@ -140,6 +140,26 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
                   onChange={(v) => minContrast.set(Number(v))}
                 />
               }
+            />
+            <SettingRow
+              label="Wrap code"
+              description="Long lines of code wrap instead of scrolling sideways. Every code block also has a Wrap button."
+              control={<Switch label="Wrap code" checked={codeWrap()} onChange={(v) => codeWrap.set(v)} />}
+            />
+            <SettingRow
+              label="Line numbers in code"
+              description="A muted number beside every line of code."
+              control={<Switch label="Line numbers in code" checked={codeLineNumbers()} onChange={(v) => codeLineNumbers.set(v)} />}
+            />
+            <SettingRow
+              label="Show tabs and spaces"
+              description="Draws a tab as an arrow and a space at the end of a line as a dot, so a stray one cannot hide."
+              control={<Switch label="Show tabs and spaces" checked={codeWhitespace()} onChange={(v) => codeWhitespace.set(v)} />}
+            />
+            <SettingRow
+              label="Diffs side by side"
+              description="Old text on the left and new on the right, instead of one column."
+              control={<Switch label="Diffs side by side" checked={diffSplit()} onChange={(v) => diffSplit.set(v)} />}
             />
           </SettingsSection>
           <SettingsSection title="Agents">

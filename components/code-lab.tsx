@@ -3,7 +3,7 @@ import { DiffView, Editor, TextView } from "nsh/base";
 import { Code } from "herdr-desktop/native";
 import { CodeBlock, InlineCode } from "#components/code-block";
 import { DiffBlock } from "#components/diff-block";
-import { codeLineNumbers, codeWrap } from "#lib/highlight";
+import { codeLineNumbers, codeWrap } from "#lib/settings";
 import { PopupRoot, ThemeRoot } from "#kit";
 
 /**
@@ -114,7 +114,7 @@ function Compare(props: { fence: string }) {
       </View>
       <View class="flex-1 gap-1">
         <Text class="text-xs text-muted-foreground">herdr CodeBlock</Text>
-        <CodeBlock code={s.text} language={s.fence} path={s.path} open collapsedLines={0} />
+        <CodeBlock code={s.text} language={s.fence} path={s.path} collapsedLines={0} />
       </View>
     </View>
   );
@@ -135,7 +135,7 @@ function Lab() {
             </Each>
           </If>
           <If when={part === "one"}>
-            <CodeBlock code={sample(wanted).text} language={sample(wanted).fence} path={sample(wanted).path} open collapsedLines={0} maxHeight={720} />
+            <CodeBlock code={sample(wanted).text} language={sample(wanted).fence} path={sample(wanted).path} collapsedLines={0} maxHeight={720} />
           </If>
           <If when={part === "stream"}>
             <Stream fence={wanted} />
@@ -150,7 +150,7 @@ function Lab() {
             <DiffBlock patch={sample("diff").text} path="src/ledger.rs" />
           </If>
           <If when={part === "long"}>
-            <CodeBlock code={bigText()} language="rust" open collapsedLines={0} />
+            <CodeBlock code={bigText()} language="rust" collapsedLines={0} />
           </If>
           <If when={part === "compare"}>
             <Compare fence={wanted} />

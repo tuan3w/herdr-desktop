@@ -151,6 +151,20 @@ pub enum CodeDiffEvent {
     },
 }
 
+/// The methods of a [`CodeView`]'s ref.
+pub struct CodeViewApi {
+    to_line: Rc<dyn Fn(u32)>,
+}
+
+#[methods]
+impl CodeViewApi {
+    /// Scrolls so that the line with this number (`firstLine` counts from its own start) is the first
+    /// one in view. A block that is not scrolling shows every line already, so nothing moves.
+    pub fn go_to_line(&self, line: u32) {
+        (self.to_line)(line)
+    }
+}
+
 /// The methods of a [`CodeDiff`]'s ref.
 pub struct CodeDiffApi {
     to_change: Rc<dyn Fn(i32) -> u32>,
@@ -355,9 +369,10 @@ fn reuse(previous: &RefCell<Rc<Vec<Rc<Row>>>>, fresh: Vec<Row>) -> RowsRef {
 // ---- CodeView -------------------------------------------------------------------------------------
 
 /// Code with colours, a gutter and marks.
-#[component]
-pub fn CodeView(props: CodeViewProps, _cx: Scope<NoEvent>) -> impl IntoElement {
+#[component(methods = CodeViewApi)]
+pub fn CodeView(props: CodeViewProps, cx: Scope<NoEvent>) -> impl IntoElement {
     let code = computed(move || props.code.get());
+    let list = element_ref();
     let colouring = colour(code, move || (props.language.get(), props.path.get()));
     let family = computed(move || font_family(props.font_family.get()));
     let ratio = computed(move || cell_ratio(&family.get()));
@@ -391,6 +406,12 @@ pub fn CodeView(props: CodeViewProps, _cx: Scope<NoEvent>) -> impl IntoElement {
         }
         reuse(&previous, all.into_iter().map(Row::Code).collect())
     });
+    cx.methods(CodeViewApi {
+        to_line: Rc::new(move |line| {
+            let index = line.saturating_sub(props.first_line.get_untracked().max(1));
+            list.scroll_to_index(index, Percentage(0.0), Points(0.0), false);
+        }),
+    });
     render::body(Body {
         rows,
         geometry,
@@ -403,7 +424,7 @@ pub fn CodeView(props: CodeViewProps, _cx: Scope<NoEvent>) -> impl IntoElement {
         layout: Layout::Code,
         on_fold: None,
         focus_row: None,
-        list: element_ref(),
+        list,
         follow: props.follow.get_untracked(),
         cut: Some(computed(move || {
             let limit = props.visible_lines.get() as usize;

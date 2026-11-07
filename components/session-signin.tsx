@@ -4,6 +4,7 @@ import type { ActionKind, ActionResult, AuthMethodView, SessionView } from "herd
 import type { SessionPort } from "#lib/session";
 import { agentName, shellLine, visibleText } from "#lib/session-text";
 import { Btn, Icon, notify } from "#kit";
+import { CodeBlock } from "#components/code-block";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
@@ -111,11 +112,7 @@ function TerminalMethod(props: { method: AuthMethodView; where: string; signin: 
         <If when={props.method.description}>{(text) => <Text class="text-sm text-muted-foreground">{visibleText(text())}</Text>}</If>
       </View>
       <Text class="text-sm text-foreground">{`In a terminal on ${props.where}, start the agent's program with these arguments, and follow what it asks:`}</Text>
-      <View class="rounded-md border border-border bg-muted px-3 py-2">
-        <Text style={{ userSelect: "text" }} class="font-mono text-sm text-foreground">
-          {line() || "(no arguments)"}
-        </Text>
-      </View>
+      <CodeBlock code={line() || "(no arguments)"} language={line() ? "bash" : "text"} title="Arguments" collapsedLines={0} tools={false} />
       <View class="flex-row flex-wrap gap-2">
         <Btn
           label="Copy command"

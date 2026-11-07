@@ -49,3 +49,18 @@ export function visibleText(text: string): string {
 export function rowsOf(text: string, columns: number): number {
   return text.split("\n").reduce((rows, line) => rows + Math.max(1, Math.ceil([...line].length / columns)), 0);
 }
+
+/**
+ * Code an agent wrote, safe to draw: the same invisible and control characters as `visibleText` become `‹U+XXXX›`, but
+ * the text is otherwise exactly as written (tabs, blank lines and indentation stay), because it is also what `Copy code`
+ * puts on the clipboard.
+ */
+export function safeCode(text: string): string {
+  let out = "";
+  for (const c of text.replace(/\r\n?/g, "\n")) {
+    const code = c.codePointAt(0) ?? 0;
+    const control = (code < 0x20 && c !== "\n" && c !== "\t") || (code >= 0x7f && code <= 0x9f);
+    out += control || BIDI.test(c) || ZERO_WIDTH.test(c) ? `‹U+${code.toString(16).toUpperCase().padStart(4, "0")}›` : c;
+  }
+  return out;
+}

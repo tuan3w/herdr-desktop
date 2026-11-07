@@ -1,20 +1,26 @@
-import { Clipboard, signal, Text, View } from "nsh";
+import { Clipboard, keymap, signal, Text, View } from "nsh";
 import { Editor } from "nsh/base";
 import { Files } from "herdr-desktop/native";
 import type { FileData } from "herdr-desktop/native";
 import { modifiedText, parentOf, sizeText } from "#lib/files";
 import { held } from "#lib/list-item";
 import { Btn, Clipped, Empty, notify, Segmented } from "#kit";
+import { CodeBlock } from "#components/code-block";
 import { Markdown } from "#components/markdown";
+import { PaneFind } from "#components/pane-find";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 /** The height of the content, so a viewer in a dialog has the room of a window and the dialog does not jump between files. */
 const BODY = "h-[400px]";
 
+/** Characters above which a file stays in the editor: the code view builds a row per line, the editor reads a file of any size. */
+const CODE_VIEW_LIMIT = 512 * 1024;
+
 /**
- * One file, read only: text in the editor with the language its name says (line numbers, find, selection and copy, no
- * typing), Markdown as a document with a switch to its source, a binary as its size, and a sentence above whatever is
+ * One file, read only: text as code (`CodeBlock`: the language its name says, line numbers, selection and copy, `mod+f`
+ * to find a line, the line a link named marked and scrolled to), a file above 512 KB in the read-only editor instead,
+ * Markdown as a document with a switch to its source, a binary as its size, and a sentence above whatever is
  * shown when that is not the whole file (`Showing the first 4.0 MB of 18 MB`). `Reveal` and `Open` act on a file of
  * this computer only; `Copy path` is for every machine. A file that changes on disk is not followed: `Back` and
  * open it again.
@@ -22,6 +28,12 @@ const BODY = "h-[400px]";
 export function FileViewer(props: { machine: string; machineName: string; data: FileData; line?: number; onBack: () => void }) {
   const mode = signal<"preview" | "source">("preview");
   const data = held(() => props.data);
+  const finding = signal(false);
+  // The line shown marked and scrolled to: the one a link named, then each match of the find bar.
+  const line = signal(props.line ?? 0);
+  const lines = () => (data().text ?? "").split("\n");
+  const code = () => (data().text ?? "").length <= CODE_VIEW_LIMIT;
+  keymap.bind({ "mod+f": () => finding.set(true) }, { when: "always" });
   const meta = () => [sizeText(data().size), modifiedText(data().modified, Math.floor(Date.now() / 1000)), props.machineName].filter(Boolean).join(" · ");
   const failed = (what: string) => (e: unknown) => notify(`${what}: ${reason(e)}`, { type: "error" });
   return (
@@ -67,21 +79,43 @@ export function FileViewer(props: { machine: string; machineName: string; data: 
         <If
           when={data().kind === "markdown" && mode() === "preview"}
           else={
-            <Editor
-              ref={(editor) => {
-                if (props.line) editor.goToLine(props.line);
-              }}
-              readOnly
-              autoFocus
-              language={data().name}
-              value={data().text ?? ""}
-              lineNumbers
-              softWrap={data().kind === "markdown"}
-              folding={false}
-              fontSize={13}
-              accessibilityLabel={`${data().name}, read only`}
-              class={`${BODY} w-full rounded-md border border-border bg-card`}
-            />
+            <View class="gap-2">
+              <If when={finding()}>
+                <PaneFind what="file" rows={async () => lines()} scrollToRow={(row) => line.set(row + 1)} onClose={() => finding.set(false)} />
+              </If>
+              <If
+                when={code()}
+                else={
+                  <Editor
+                    ref={(editor) => {
+                      if (props.line) editor.goToLine(props.line);
+                    }}
+                    readOnly
+                    autoFocus
+                    language={data().name}
+                    value={data().text ?? ""}
+                    lineNumbers
+                    softWrap={data().kind === "markdown"}
+                    folding={false}
+                    fontSize={13}
+                    accessibilityLabel={`${data().name}, read only`}
+                    class={`${BODY} w-full rounded-md border border-border bg-card`}
+                  />
+                }
+              >
+                <View role="group" accessibilityLabel={`${data().name}, read only`} class={BODY}>
+                  <CodeBlock
+                    code={data().text ?? ""}
+                    path={data().name}
+                    lineNumbers
+                    collapsedLines={0}
+                    maxHeight={368}
+                    marks={line() > 0 ? String(line()) : undefined}
+                    goTo={line() > 0 ? line() : undefined}
+                  />
+                </View>
+              </If>
+            </View>
           }
         >
           <Markdown source={data().text ?? ""} machine={props.machine} folder={parentOf(data().path) ?? "/"} class={`${BODY} rounded-md border border-border bg-card`} />

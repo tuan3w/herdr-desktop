@@ -19,10 +19,14 @@ export interface PaneInput {
   showLinks?(): void;
   /** Opens the find bar over the pane's text: a terminal only. */
   searchInPane?(): void;
+  /** Copies the last answer of the agent, as Markdown: a chat only. */
+  copyReply?(): void;
+  /** Copies the code block the person pointed at, else the last one of the last answer: a chat only. */
+  copyCode?(): void;
 }
 
-/** What a terminal tab registers: every part. */
-export type TerminalInput = Required<PaneInput>;
+/** What a terminal tab registers: every part a terminal has. */
+export type TerminalInput = Required<Omit<PaneInput, "copyReply" | "copyCode">>;
 
 const registered = signal<readonly PaneInput[]>([]);
 
@@ -48,6 +52,15 @@ export const focusComposer = (): void => front()?.focusComposer();
 
 /** `mod+f`. */
 export const searchInPane = (): void => front()?.searchInPane?.();
+
+/** `mod+shift+y`: the chat in front copies the agent's last answer. */
+export const copyReply = (): void => front()?.copyReply?.();
+
+/** `mod+shift+c`: the chat in front copies a code block. */
+export const copyCode = (): void => front()?.copyCode?.();
+
+/** Whether the tab in front is a chat: the palette offers `Copy code` and `Copy last answer` only then. Reactive. */
+export const chatInFront = (): boolean => front()?.copyReply !== undefined;
 
 /** Whether a pane is in front: the palette offers pane entries only then. Reactive. */
 export const paneInFront = (): boolean => front() !== undefined;

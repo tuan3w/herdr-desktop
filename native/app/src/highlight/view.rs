@@ -17,5 +17,5 @@ mod palette;
 mod render;
 
 pub use self::model::{
-    CodeDiff, CodeDiffApi, CodeDiffEvent, CodeDiffProps, CodeView, CodeViewProps,
+    CodeDiff, CodeDiffApi, CodeDiffEvent, CodeDiffProps, CodeView, CodeViewApi, CodeViewProps,
 };

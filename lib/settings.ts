@@ -30,6 +30,14 @@ export const largeTargets = signal(false);
 export const reduceMotionOverride = signal(false);
 /** Ask GitHub for a newer release when Settings opens (`lib/updates.ts`). On by default: the request is all that leaves the computer. */
 export const checkUpdates = signal(true);
+/** Wrap long lines of code instead of scrolling sideways (`components/code-block.tsx`). */
+export const codeWrap = signal(false);
+/** Line numbers in a muted gutter beside code. */
+export const codeLineNumbers = signal(false);
+/** Tabs as `→` and trailing spaces as `·` in code. */
+export const codeWhitespace = signal(false);
+/** Diffs side by side (old left, new right) instead of one column. */
+export const diffSplit = signal(false);
 export const settingsReady = signal(false);
 
 interface Saved {
@@ -43,6 +51,10 @@ interface Saved {
   largeTargets: boolean;
   reduceMotionOverride: boolean;
   checkUpdates: boolean;
+  codeWrap: boolean;
+  codeLineNumbers: boolean;
+  codeWhitespace: boolean;
+  diffSplit: boolean;
 }
 
 export async function loadSettings(): Promise<void> {
@@ -60,6 +72,10 @@ export async function loadSettings(): Promise<void> {
       if (typeof saved.largeTargets === "boolean") largeTargets.set(saved.largeTargets);
       if (typeof saved.reduceMotionOverride === "boolean") reduceMotionOverride.set(saved.reduceMotionOverride);
       if (typeof saved.checkUpdates === "boolean") checkUpdates.set(saved.checkUpdates);
+      if (typeof saved.codeWrap === "boolean") codeWrap.set(saved.codeWrap);
+      if (typeof saved.codeLineNumbers === "boolean") codeLineNumbers.set(saved.codeLineNumbers);
+      if (typeof saved.codeWhitespace === "boolean") codeWhitespace.set(saved.codeWhitespace);
+      if (typeof saved.diffSplit === "boolean") diffSplit.set(saved.diffSplit);
     }
   } catch (e) {
     console.error("herdr-desktop: cannot read settings", e);
@@ -80,6 +96,10 @@ effect(() => {
     largeTargets: largeTargets(),
     reduceMotionOverride: reduceMotionOverride(),
     checkUpdates: checkUpdates(),
+    codeWrap: codeWrap(),
+    codeLineNumbers: codeLineNumbers(),
+    codeWhitespace: codeWhitespace(),
+    diffSplit: diffSplit(),
   };
   save(KEY, JSON.stringify(saved));
 });
