@@ -252,3 +252,34 @@ fn an_empty_path_means_a_private_directory_of_its_own() {
     let _ = std::fs::remove_dir_all(a.dir());
     let _ = std::fs::remove_dir_all(b.dir());
 }
+
+#[test]
+fn recents_survive_a_restart_newest_first_and_a_foreign_file_is_set_aside() {
+    use herdr_core::recents::Recents;
+
+    let dir = tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let mut recents = Recents::default();
+    recents.visit("agent:local/w1:p1", 1_000);
+    recents.visit("project:payments", 2_000);
+    store.save_recents(&recents).unwrap();
+    let mode = std::fs::metadata(dir.path().join("recents.json"))
+        .unwrap()
+        .permissions()
+        .mode();
+    assert_eq!(mode & 0o777, 0o600);
+
+    let loaded = Store::open(dir.path()).unwrap().recents();
+    assert_eq!(loaded.warning, None);
+    assert_eq!(loaded.value, recents);
+
+    std::fs::write(
+        dir.path().join("recents.json"),
+        "{\"v\":1,\"recents\":\"nope\"}",
+    )
+    .unwrap();
+    let broken = Store::open(dir.path()).unwrap().recents();
+    assert!(broken.warning.is_some());
+    assert!(broken.value.entries().is_empty());
+    assert!(dir.path().join("recents.json.corrupt").exists());
+}

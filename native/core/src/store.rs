@@ -1,4 +1,4 @@
-//! What the app keeps on disk: machines, the "reviewed" marks and settings.
+//! What the app keeps on disk: machines, the "reviewed" marks, settings and what was visited last.
 //!
 //! Each is one small versioned JSON file (`{"v":1,...}`) in the data directory, written atomically
 //! (temp file in the same directory, then `rename`) with mode 0600 in a 0700 directory. A file the
@@ -17,6 +17,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+use crate::recents::{Entry, Recents};
 use crate::schema::{AgentStatus, Snapshot};
 
 /// Identifies a machine across the app: `"local"` for this computer, a generated id otherwise.
@@ -237,7 +238,7 @@ pub struct Loaded<T> {
     pub warning: Option<String>,
 }
 
-/// The data directory and the three files in it.
+/// The data directory and the files in it.
 #[derive(Debug, Clone)]
 pub struct Store {
     dir: PathBuf,
@@ -333,6 +334,27 @@ impl Store {
         self.write(
             "settings.json",
             settings.map.iter().map(|(k, v)| (k.as_str(), v.clone())),
+        )
+    }
+
+    /// Loads `recents.json`.
+    pub fn recents(&self) -> Loaded<Recents> {
+        #[derive(Deserialize)]
+        struct File {
+            recents: Vec<Entry>,
+        }
+        self.load("recents.json", |doc| {
+            let file: File =
+                serde_json::from_value(Value::Object(doc)).map_err(|e| e.to_string())?;
+            Ok(Recents::from_entries(file.recents))
+        })
+    }
+
+    /// Writes `recents.json`.
+    pub fn save_recents(&self, recents: &Recents) -> io::Result<()> {
+        self.write(
+            "recents.json",
+            [("recents", serde_json::to_value(recents.entries())?)],
         )
     }
 

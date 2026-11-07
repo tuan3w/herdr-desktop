@@ -8,6 +8,7 @@ pub mod link;
 pub mod observed;
 pub mod project;
 pub mod prompt;
+pub mod recents;
 pub mod schema;
 pub mod screen;
 pub mod session;
