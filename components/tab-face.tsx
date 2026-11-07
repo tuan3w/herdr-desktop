@@ -48,7 +48,7 @@ export function TabFace(props: { tab: DockTab }) {
   const label = () => tabLabel(title(), plain ? "" : statusText(status(), row()?.reviewed), props.tab.index, count());
   return (
     <View
-      style={appear(props.tab.panel)}
+      style={appear(props.tab.panel, "fade")}
       accessibilityLabel={label()}
       onContextMenu={copyMenu(() => [
         { label: "Copy title", onSelect: () => void copyText(title(), "Title") },
@@ -56,7 +56,7 @@ export function TabFace(props: { tab: DockTab }) {
       ])}
       onMouseEnter={() => hovered.set(true)}
       onMouseLeave={() => hovered.set(false)}
-      class="relative h-9 w-full flex-row items-center gap-2 pl-3 pr-1"
+      class="relative h-8 w-full flex-row items-center gap-2 pl-3 pr-1"
     >
       <If when={plain} else={<StatusGlyph status={status()} size={12} />}>
         <Icon name={changes ? "pencil" : "list"} size={14} tone="muted-foreground" />

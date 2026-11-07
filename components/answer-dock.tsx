@@ -4,7 +4,7 @@ import { announce, cleanup, computed, effect, keymap, signal, Text, View } from 
 import type { PromptOption, PromptView } from "herdr-desktop/native";
 
 import { Btn, FOCUS_RING, Icon, Modal, Spinner } from "#kit";
-import { hoverTransition } from "#lib/motion";
+import { animateLayout, arrived, hoverTransition } from "#lib/motion";
 import { largeTargets } from "#lib/settings";
 
 /**
@@ -70,7 +70,10 @@ export function AnswerDock(props: { machine: string; pane: string; prompt: Promp
 
   // A new question (or the first one) is what the person has not seen yet: nothing it had armed carries over.
   effect(() => {
-    identity();
+    // The dock changes the layout around it: the commit that brings a question is animated (what is below glides, the
+    // dock fades in), once per question and never after a shortcut, at start or when the same question is built again.
+    // Nothing waits for it: the answers are in place from the first frame and the guard below is its own timer.
+    if (arrived(identity())) animateLayout();
     guarded.set(true);
     more.set(false);
     guard.after(GUARD_MS, () => guarded.set(false));

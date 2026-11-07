@@ -5,8 +5,9 @@ import { swapped } from "#lib/motion";
 import { NUM } from "./core";
 
 /**
- * A number or short word that changes while it is on screen (a count of agents, a tally): the new text fades in and rises
- * 4 pt (`DURATION.swap`) so the eye sees which figure moved. Tabular figures. The first text is just there, and under
+ * A number or short word that changes while it is on screen (a count of agents, a tally): the new text fades in (from 0.6) and
+ * rises 4 pt (`DURATION.swap`) so the eye sees which figure moved, unless it changed again within a second (a ticking
+ * count does not flash). Tabular figures. The first text is just there, and under
  * reduced motion every one is. Not for text that is recycled by a virtual list (it would move whenever a cell changes
  * its row).
  */

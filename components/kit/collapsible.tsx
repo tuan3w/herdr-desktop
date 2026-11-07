@@ -1,6 +1,6 @@
-import { context, type JSX, View } from "nsh";
+import { context, effect, type JSX, untracked, View } from "nsh";
 
-import { hoverTransition, moveTransition } from "#lib/motion";
+import { animateLayout, hoverTransition, moveTransition } from "#lib/motion";
 
 import { FOCUS_RING } from "./core";
 import { Icon } from "./icon";
@@ -26,8 +26,9 @@ function scopeOf(): DisclosureScope {
 /**
  * A region that opens and closes (Base UI's Collapsible): a `CollapsibleTrigger` and a `CollapsiblePanel` inside it.
  * `open` makes it controlled (the owner decides in `onOpenChange`, which may `cancel()`), else it holds its own state
- * from `defaultOpen`. `disabled` stops the trigger. The panel appears and disappears at once: animating its height is
- * layout (`design/motion.md`), so the only motion is the chevron turning.
+ * from `defaultOpen`. `disabled` stops the trigger. The panel opens and closes through a layout animation of the commit
+ * (`animateLayout`: what is inserted fades in, what moves glides, what is removed fades out), never a height tween
+ * (`design/motion.md`), and the chevron turns.
  */
 export function Collapsible(props: {
   open?: boolean;
@@ -100,6 +101,13 @@ export function CollapsibleTrigger(props: {
 export function CollapsiblePanel(props: { keepMounted?: boolean; class?: string; children?: JSX.Element }) {
   const scope = scopeOf();
   const kept = () => props.keepMounted ?? scope.keepMounted();
+  // Here and not in the trigger: an owner that sets `open` (a controlled one, an accordion) folds the same way.
+  let was = untracked(scope.open);
+  effect(() => {
+    const now = scope.open();
+    if (now !== was) animateLayout();
+    was = now;
+  });
   return (
     <If when={scope.open() || kept()}>
       <View
