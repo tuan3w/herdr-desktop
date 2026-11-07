@@ -32,3 +32,24 @@ What was taken, and from where:
 
 The nsh runtime this app links (nsh-core, nsh-base, nsh-platform-linux and their dependencies) is
 distributed under the same Apache License, Version 2.0; their licenses ship with those crates.
+
+`assets/mermaid.min.js` is the minified build of mermaid 11.12.0, https://github.com/mermaid-js/mermaid
+(`dist/mermaid.min.js` of the npm package), licensed under the MIT License:
+
+    Copyright (c) 2014 - 2022 Knut Sveidqvist
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+    and associated documentation files (the "Software"), to deal in the Software without
+    restriction, including without limitation the rights to use, copy, modify, merge, publish,
+    distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions: the above copyright notice
+    and this permission notice shall be included in all copies or substantial portions of the
+    Software. The Software is provided "as is", without warranty of any kind.
+
+    The bundle includes other libraries (DOMPurify, released under the Apache License 2.0 or the
+    Mozilla Public License 2.0; d3 and others under MIT or ISC); their notices are in the bundle's own
+    comments and the file is kept unmodified.
+
+The folder, file, arrow, globe, upload and external-link icons in `components/kit/icons/` follow the
+shapes of Lucide, https://lucide.dev, licensed under the ISC License (Copyright (c) for Lucide
+contributors).

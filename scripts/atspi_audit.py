@@ -24,8 +24,15 @@ gi.require_version("Atspi", "2.0")
 from gi.repository import Atspi  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NAMED = {"text", "push button", "toggle button", "check box", "radio button", "menu item", "page tab", "entry", "combo box", "slider", "list item"}
+NAMED = {"text", "button", "push button", "toggle button", "check box", "radio button", "menu item", "page tab", "entry", "combo box", "slider", "list item"}
 APP = "nsh"
+
+# Unnamed controls that nsh 0.4.0 draws itself and the app cannot name, by scenario and role, with the exact count allowed
+# (a new unnamed control still fails). `docs/ACCESSIBILITY.md` says what each one is.
+HOST_UNNAMED = {
+    "file-code": {"button": 2},  # the read-only `Editor`'s own widgets
+    "file-markdown": {"check box": 1},  # `TextView` draws an unchecked task-list box without a name (a checked one is named `✓`)
+}
 
 
 def scenarios():
@@ -194,14 +201,20 @@ def run_scenario(name, timeout, tabs, keep=False):
     return rows, walked
 
 
-def check(rows, walked, tabs):
+def check(rows, walked, tabs, name=""):
     problems = []
-    for depth, role, name, focusable, showing, group in rows:
-        if role in NAMED and not name.strip() and showing:
+    allowed = dict(HOST_UNNAMED.get(name, {}))
+    for depth, role, label, focusable, showing, group in rows:
+        if role in NAMED and not label.strip() and showing:
             if role in ("text", "entry") and group:
                 continue
+            if allowed.get(role, 0) > 0:
+                allowed[role] -= 1
+                continue
             problems.append(f"{role} has no name")
-    if not any(f and s for _, _, _, f, s, _ in rows):
+    # nsh's buttons are Tab stops in GTK but carry no FOCUSABLE state (see the Tab-walk note below), so a showing push or
+    # toggle button counts as a way in for the keyboard: a card made of buttons (the sign-in card) has no input.
+    if not any(s and (f or role in ("button", "push button", "toggle button")) for _, role, _, f, s, _ in rows):
         problems.append("no focusable element")
     # nsh 0.4.0 on GTK reports no FOCUSED state for its own controls (only the menu bar's), so an empty Tab walk is
     # a host limit, not a finding: `--keep` photographs the window after the walk to see the focus ring move.
@@ -240,7 +253,7 @@ def main():
                 f.write("\nTab order (empty when the host does not report focus over AT-SPI):\n")
                 for i, (role, label) in enumerate(walked, 1):
                     f.write(f"  {i:2}. {role} {label!r}\n")
-        problems = check(rows, walked, args.tabs)
+        problems = check(rows, walked, args.tabs, name)
         print(f"{'FAIL' if problems else 'ok  '} {name}: {len(rows)} nodes" + ("".join(f"\n       {p}" for p in sorted(set(problems))) if problems else ""))
         if problems:
             failed = True

@@ -15,7 +15,7 @@ export const ENTRY = { path: "./App.tsx" };
  * `host.params` (`App.tsx` reads it); the Rust side honours it only while `HERDR_DESKTOP_TEST=1`. Starts on Linux with a
  * manual clock, so the 400 ms guard, the 4 s armed window and the layout's quiet period move only as a test moves them.
  */
-export function seeded(name: "mixed" | "storm" | "empty", extra: NonNullable<Opened> = {}): Promise<App> {
+export function seeded(name: "mixed" | "storm" | "empty" | "projects", extra: NonNullable<Opened> = {}): Promise<App> {
   return open(ENTRY.path, { ...DESKTOP, platform: "linux", clock: {}, ...extra, host: { params: { fixture: name } } });
 }
 
@@ -26,7 +26,7 @@ export const DONE = "Fix login flow";
 
 /** The `mixed` fixture's agents by pane id, for reading a saved layout. */
 const NAME: Record<string, string> = { "w1:p1": FIRST, "w1:p2": SECOND, "w1:p3": DONE, "w1:p4": "Refactor ledger", "w1:p5": "upgrade deps" };
-export const nameOf = (panel: string): string => NAME[panel.slice(panel.indexOf("/") + 1)];
+export const nameOf = (panel: string): string => NAME[panel.slice(panel.indexOf("/") + 1).replace(/^pane:/, "")];
 
 /** The mirror of an agent's pane, which is on screen only while its tab is the displayed one. */
 export const terminal = (name: string): string => `label:Terminal, ${name} on This computer`;
@@ -43,7 +43,28 @@ export async function ready(platform?: "macos" | "windows" | "linux"): Promise<A
   return app;
 }
 
-/** Opens these agents' tabs from the sidebar, in order. */
+/**
+ * Opens these agents' terminal tabs: the sidebar opens the chat of an agent that has one, so each is opened and then
+ * switched with `Show terminal` (an agent already shown as a terminal this run needs no switch).
+ */
+export async function openTerminals(app: App, ...names: string[]): Promise<void> {
+  for (const name of names) {
+    await app.press(sidebarRow(name));
+    await settle(app);
+    // An agent already shown as a terminal this run opens as one again.
+    if (app.texts().includes("Show terminal")) await app.press("Show terminal");
+    await settle(app);
+  }
+}
+
+/** The agent whose tab is displayed in the first group (`board` for the board), whichever view of it is open: read from the saved layout. */
+export async function front(app: App): Promise<string> {
+  const [group] = await saved(app);
+  const panel = group.panels[group.active];
+  return panel === "board" ? panel : nameOf(panel);
+}
+
+/** Opens these agents' tabs from the sidebar, in order: each opens in its default view (a chat for omp, Claude Code and Codex). */
 export async function openAgents(app: App, ...names: string[]): Promise<void> {
   for (const name of names) await app.press(sidebarRow(name));
   await settle(app);

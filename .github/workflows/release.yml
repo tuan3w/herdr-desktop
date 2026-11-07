@@ -1,0 +1,69 @@
+name: release
+
+# A `vX.Y.Z` tag publishes a release. The versions in nsh.json and native/*/Cargo.toml must already be X.Y.Z (the release
+# commit moves them together: docs/RELEASING.md), and CHANGELOG.md must have a section for it, which is the release notes.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: The tag, nsh.json and the crates name one version
+        id: version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          nsh_version="$(jq -r .version nsh.json)"
+          [ "$nsh_version" = "$version" ] || { echo "::error::tag $GITHUB_REF_NAME but nsh.json says $nsh_version"; exit 1; }
+          for toml in native/*/Cargo.toml; do
+            crate_version="$(sed -n 's/^version = "\(.*\)"$/\1/p' "$toml" | head -1)"
+            [ "$crate_version" = "$version" ] || { echo "::error::tag $GITHUB_REF_NAME but $toml says $crate_version"; exit 1; }
+          done
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: The release notes are the CHANGELOG section of this version
+        run: |
+          awk -v v="${{ steps.version.outputs.version }}" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > release-notes.md
+          [ -s release-notes.md ] || { echo "::error::CHANGELOG.md has no section for ${{ steps.version.outputs.version }}"; exit 1; }
+          cat release-notes.md
+
+      - uses: ./.github/actions/setup
+        with:
+          mobile-token: ${{ secrets.HERDR_MOBILE_TOKEN }}
+
+      - name: make verify
+        run: dbus-run-session -- xvfb-run -a env GSK_RENDERER=cairo GTK_A11Y=atspi make verify
+
+      - name: make package
+        run: make package
+
+      - name: Name the tarball and checksum it
+        run: |
+          name="herdr-desktop-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz"
+          mkdir -p release
+          cp ".scratch/dist/Herdr Desktop.tar.gz" "release/$name"
+          (cd release && sha256sum "$name" > "$name.sha256" && cat "$name.sha256")
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/* \
+            --title "Herdr Desktop ${{ steps.version.outputs.version }}" \
+            --notes-file release-notes.md \
+            --verify-tag

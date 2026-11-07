@@ -6,7 +6,7 @@ Built with [nsh](https://github.com/longbridge/nsh) (Rust + TSX, native GTK 4 wi
 
 ## What it does
 
-- **Board.** Agents grouped by what they need from you: `Needs you`, `To review`, `Working`, `Idle`, with one count shared by the status line, the window title and notifications.
+- **Board.** Agents grouped by project (a repository with its worktrees, or a folder), chat sessions and terminal agents together, each row and project header showing its state (needs you, working, to review) and an inbox of what waits for an answer over them; one count is shared by the status line, the window title and notifications.
 - **Answer.** Permission prompts of terminal agents become buttons showing the exact command. Risky answers are two-step. Nothing is sent when the question changed.
 - **Watch and steer.** A live mirror of each pane, a composer, a key row, an opt-in typing mode, links, slash commands.
 - **Many machines.** This computer plus any machine reachable with `ssh` (your `~/.ssh/config`, agent and ProxyJump are honoured; no password prompts).
@@ -27,6 +27,8 @@ Needs Linux with GTK 4.14+, `libgtk-4-dev`, `clang`, `pkg-config`, and [nsh](htt
 NSH_VERSION=v0.4.0 sh -c "$(curl -fsSL https://nsh.dev/install.sh)"
 make        # check, test, core, docs, a11y
 make run    # dev window
+make package            # .scratch/dist/Herdr Desktop.tar.gz
+local/install.sh        # install it for your user (--uninstall removes it)
 ```
 
 [AGENTS.md](AGENTS.md) is how to work here, [DESIGN.md](DESIGN.md) the design system, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) how the pieces fit.

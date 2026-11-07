@@ -16,6 +16,10 @@ xvfb-run -a env GSK_RENDERER=cairo nsh test components/<file>.test.tsx --target 
 
 A test step can `await app.screenshot(".scratch/x.png")`. The default renderer under NVIDIA is GSK GL (`ngl`); Xvfb needs `GSK_RENDERER=cairo`.
 
+## Packaging
+
+`make package` (`nsh package . --target linux -o .scratch/dist`) builds the release runner and writes `.scratch/dist/Herdr Desktop/` and `Herdr Desktop.tar.gz`; `local/install.sh` installs it (`PREFIX=<dir>` to try it without touching your home, `--uninstall` to remove it). The release build lands in `target/release`, about 2.5 GB beside the debug build: on a disk that cannot take both, point `CARGO_TARGET_DIR` at another disk for that one command and delete it after. `docs/RELEASING.md` is the release procedure and what the package needs at run time.
+
 ## Disk
 
 The data disk had 8.7 GB free when this project started. There is one `target/` (`.cargo/config.toml`); never create another. Clean it before a campaign when free space is under 6 GB.
@@ -23,6 +27,14 @@ The data disk had 8.7 GB free when this project started. There is one `target/` 
 ## Live smoke against the owner's herdr
 
 Read-only methods only (`ping`, `session.snapshot`, `pane.read`, `agent.list`), or a scratch workspace labelled `herdr-desktop-scratch` with `focus: false`, closed afterwards. Never commit or screenshot a real pane (`AGENTS.md`).
+
+## Tests that need more than cargo
+
+Three kinds are `#[ignore]`d or need a tool, so a plain `make core` stays hermetic:
+
+- **Real ssh** (`HERDR_DESKTOP_SSH_TEST=localhost`, key login to it, python3 there): `cargo test --manifest-path native/core/Cargo.toml --test ssh -- --ignored` and `cargo test --manifest-path native/app/Cargo.toml --test remote -- --ignored --nocapture`. The second talks to the owner's live herdr through the relay (read-only) and signals only the ssh children its own link exposes by PID.
+- **Notifications over D-Bus** (`native/app/tests/notify_dbus.rs`) run with `make core`: they need `dbus-daemon` and python3 with `gi`, start a private bus and a stand-in service, and kill only those two processes.
+- **The live board** (`native/app/tests/live.rs`, `--ignored`): counts only, no pane text.
 
 ## nsh host quirks
 

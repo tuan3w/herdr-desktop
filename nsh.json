@@ -19,6 +19,7 @@
           "paths": ["/repos/tuan3w/herdr-desktop/releases/latest"]
         }
       ]
-    }
+    },
+    "webview": { "hosts": ["127.0.0.1"] }
   }
 }

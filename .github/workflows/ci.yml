@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: always
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          mobile-token: ${{ secrets.HERDR_MOBILE_TOKEN }}
+
+      - name: theme.json matches its generator
+        # `make theme` only after the default theme's spec changes; a drift means someone edited one without the other.
+        run: bun scripts/gen-theme.mjs && git diff --exit-code theme.json
+
+      - name: make verify
+        # nsh check, nsh test, core (fmt, clippy, tests), docs, a11y. A real GTK window needs a display and an AT-SPI bus,
+        # and Xvfb has no GPU: cairo draws.
+        run: dbus-run-session -- xvfb-run -a env GSK_RENDERER=cairo GTK_A11Y=atspi make verify
+
+      - name: make package
+        # The release path must keep working on every change, not only on a tag.
+        run: make package
+
+      - name: Package contents
+        run: |
+          tar -tzf ".scratch/dist/Herdr Desktop.tar.gz" | grep -E 'HerdrDesktop$|\.desktop$|\.png$|nsh/bundle\.nshc$'
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: diagnostics
+          path: |
+            .scratch/a11y/
+            .scratch/shots/
+          if-no-files-found: ignore
