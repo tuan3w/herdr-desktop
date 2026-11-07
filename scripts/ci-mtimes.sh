@@ -8,7 +8,7 @@
 #   scripts/ci-mtimes.sh before   # after the cache is restored, before the build
 #   scripts/ci-mtimes.sh after    # after the build: records what the outputs in target/ were built from
 #
-# The record is `target/.ci-sources`: "<sha1>  <path>" for every tracked file. `before` gives every file whose line is in
+# The record is `target/.ci-sources`: "<sha1>  <path>" for every tracked file but the symlinks. `before` gives every file whose line is in
 # the record an old mtime (2000-01-01, older than any cached output) and leaves the rest at "now", so those and only those
 # are rebuilt. With no record (a cold build) it does nothing. A mistake here can only cost time, never a stale build: cargo
 # still compares against the outputs' own mtimes.
@@ -17,7 +17,7 @@ cd "$(git rev-parse --show-toplevel)"
 record="target/.ci-sources"
 now="$(mktemp)"
 trap 'rm -f "$now" "$now.old"' EXIT
-git ls-files -z | xargs -0 shasum -a 1 | sort > "$now"
+git ls-files -s | awk '$1 != "120000" { print substr($0, index($0, "\t") + 1) }' | tr '\n' '\0' | xargs -0 shasum -a 1 | sort > "$now"
 case "${1:?before|after}" in
   before)
     if [ ! -f "$record" ]; then echo "ci-mtimes: no record in $record (cold build): nothing to do"; exit 0; fi
