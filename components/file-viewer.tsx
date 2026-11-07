@@ -1,9 +1,10 @@
-import { Clipboard, keymap, signal, Text, View } from "nsh";
+import { Clipboard, effect, signal, Text, View } from "nsh";
 import { Editor } from "nsh/base";
 import { Files } from "herdr-desktop/native";
 import type { FileData } from "herdr-desktop/native";
 import { modifiedText, parentOf, sizeText } from "#lib/files";
 import { held } from "#lib/list-item";
+import { registerPane } from "#lib/pane-input";
 import { Btn, Clipped, Empty, notify, Segmented } from "#kit";
 import { CodeBlock } from "#components/code-block";
 import { Markdown } from "#components/markdown";
@@ -33,7 +34,9 @@ export function FileViewer(props: { machine: string; machineName: string; data: 
   const line = signal(props.line ?? 0);
   const lines = () => (data().text ?? "").split("\n");
   const code = () => (data().text ?? "").length <= CODE_VIEW_LIMIT;
-  keymap.bind({ "mod+f": () => finding.set(true) }, { when: "always" });
+  // `mod+f` finds in the file while it is open: the newest registration is the one the global shortcut asks (`lib/pane-input.ts`),
+  // so the pane behind the dialog does not open its own find bar too.
+  effect(() => registerPane({ focusComposer: () => {}, searchInPane: () => finding.set(true) }));
   const meta = () => [sizeText(data().size), modifiedText(data().modified, Math.floor(Date.now() / 1000)), props.machineName].filter(Boolean).join(" · ");
   const failed = (what: string) => (e: unknown) => notify(`${what}: ${reason(e)}`, { type: "error" });
   return (

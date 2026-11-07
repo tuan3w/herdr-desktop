@@ -6,11 +6,12 @@ import { Btn, IconButton, INPUT_CLASS } from "#kit";
 
 /**
  * The find bar over the rows the mirror shows (`mod+f`). Enter goes to the next match down the pane, Shift+Enter to
- * the one before, Escape closes it. It starts at the last match, the one nearest the newest output. The rows are read
+ * the one before, Escape closes it. It starts at the last match, the one nearest the newest output (a file: the first). The rows are read
  * again at every query and every step, so output that arrived meanwhile is found; the count is announced politely.
  */
-export function PaneFind(props: { rows: () => Promise<string[]>; scrollToRow: (row: number) => void; onClose: () => void; /** What is searched, for the field's name: `pane` (default) or `file`. */ what?: string }) {
+export function PaneFind(props: { rows: () => Promise<string[]>; scrollToRow: (row: number) => void; onClose: () => void; /** What is searched, for the field's name: `pane` (default) or `file`. A file is read from its top, so its first match comes first. */ what?: string }) {
   const what = props.what ?? "pane";
+  const first = what === "file";
   const query = signal("");
   const hits = signal<number[]>([]);
   const at = signal(0);
@@ -35,7 +36,8 @@ export function PaneFind(props: { rows: () => Promise<string[]>; scrollToRow: (r
     if (mine !== latest) return false;
     const previous = keep ? hits()[at()] : undefined;
     hits.set(found);
-    at.set(Math.max(0, previous === undefined ? found.length - 1 : found.indexOf(previous) >= 0 ? found.indexOf(previous) : found.length - 1));
+    const start = first ? 0 : found.length - 1;
+    at.set(Math.max(0, previous === undefined ? start : found.indexOf(previous) >= 0 ? found.indexOf(previous) : start));
     return true;
   };
   const typed = async () => {

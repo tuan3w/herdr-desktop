@@ -8,7 +8,7 @@ import { closeTab, focused, focusedPane, groupOf, groups, lastPane, layout, move
 import { allRows, board, meta, reviewable } from "#lib/herdr";
 import { browseFiles } from "#lib/files";
 import { canShowChat, openAgent, showChat, showTerminal } from "#lib/open-agent";
-import { chatInFront, copyCode, copyReply, focusComposer, searchInPane, showLinks, toggleCapture } from "#lib/pane-input";
+import { chatInFront, copyCode, copyReply, focusComposer, paneInFront, searchInPane, showLinks, toggleCapture } from "#lib/pane-input";
 import { perfOpen } from "#lib/perf";
 import { sidebarCollapsed, themeId } from "#lib/settings";
 import { type GlobalShortcut, GLOBAL, keysOf, type ShortcutGroup } from "#lib/shortcuts";
@@ -306,7 +306,7 @@ export const globalActions: Record<GlobalShortcut, () => void> = {
   capture: needPane(toggleCapture),
   copyCode: () => (chatInFront() ? copyCode() : announce("Open a chat first")),
   copyReply: () => (chatInFront() ? copyReply() : announce("Open a chat first")),
-  search: needPane(searchInPane),
+  search: () => (paneInFront() ? searchInPane() : announce("Open a pane first")),
   newAgent: () => newSession(),
   settings: () => settingsOpen.set(true),
   shortcuts: () => shortcutsOpen.update((open) => !open),

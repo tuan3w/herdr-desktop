@@ -101,6 +101,22 @@ test("a text file opens read only with its name and size, and Escape goes back t
   await app.waitFor("Files", { state: "gone" });
 });
 
+test("Ctrl+F in the viewer finds lines of the file: the count is said, Enter steps, and the line is marked", async () => {
+  const app = await lab();
+  await app.press("View main.rs at line 12");
+  await app.waitFor("label:main.rs, read only");
+  await app.keyboard.press("mod+f");
+  await app.waitFor("label:Text to find in the file");
+  await app.type("label:Text to find in the file", "totals");
+  await app.waitFor("1 of 3");
+  await app.keyboard.press("enter");
+  await app.waitFor("2 of 3");
+  await app.type("label:Text to find in the file", "zzz");
+  await app.waitFor("No matches");
+  await app.press("label:Close find");
+  await app.waitFor("label:Text to find in the file", { state: "gone" });
+});
+
 test("a file that is not text shows its size and offers to reveal and open it", async () => {
   const app = await lab();
   await browse(app);

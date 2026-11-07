@@ -1,7 +1,9 @@
-import { host, mount, signal, Text, View } from "nsh";
+import { host, keymap, mount, signal, Text, View } from "nsh";
 import { Files as MachineFiles } from "herdr-desktop/native";
 import { browseFiles, pageRequest, sending, viewFile } from "#lib/files";
 import { startHerdr } from "#lib/herdr";
+import { searchInPane } from "#lib/pane-input";
+import { GLOBAL, keysOf } from "#lib/shortcuts";
 import { Files } from "#components/files";
 import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
 import { openLink } from "#components/links-dialog";
@@ -19,6 +21,8 @@ const other = typeof host.params.dir === "string" ? host.params.dir : tree;
 
 function Lab() {
   const said = signal("nothing yet");
+  // The app binds its global shortcuts in `App.tsx`; the one a viewer answers is bound here the same way.
+  keymap.bind({ [keysOf(GLOBAL.search)[0]]: searchInPane });
   return (
     <ThemeRoot>
       <PopupRoot class="flex-1 bg-background">
