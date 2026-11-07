@@ -71,7 +71,7 @@ Five layers, from the page up. Colour comes from the tokens of `design/colors.md
 | sidebar | 264 default, 220 to 420 draggable (`SIDEBAR_WIDTH`) | 264 holds a 13-pt title of about 30 characters beside a glyph and a count; 420 is where more width only takes room from the conversation |
 | snug sidebar | 240, fixed (`SIDEBAR_WIDTH.narrow`) at 900 to 1100 | the conversation keeps its measure |
 | rail | 64 (`RAIL_WIDTH`), 44-pt tiles | under 900, or collapsed |
-| home | grows with the window to 1440 (`COLUMN.home`), two columns of cards from 800 (`TWO_COLUMNS_FROM`) | the title is the one elastic column, so it is uncapped on every laptop; past 1440 the eye travels too far from a title to its state |
+| home | grows with the window to 1440 (`COLUMN.home`); the Board is one table, never columns of cards | the title is the one elastic column, so it is uncapped on every laptop; past 1440 the eye travels too far from a title to its state |
 | chat | 768 (`COLUMN.chat`, `CHAT_COLUMN`: `max-w-3xl`, 24 pt of padding, so the text is 720) | the owner's readable measure; about 95 characters of 14-pt prose, above the 75 of emil-typography, accepted because a message is short and code and tables need the width. Extra window width goes to the inspector, not margins |
 | settings page | 640 (`COLUMN.page`) | a label, its description and its control read as one line |
 | dialogs | 560, 760 (`wide`), 1000 (`huge`) | `Modal` |

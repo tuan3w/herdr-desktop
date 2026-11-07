@@ -27,7 +27,7 @@ The one hot colour is `signal` (`design/colors.md`). Everything below is about w
 | status bar | none | none (connection truth only) |
 | pane or chat header | none: no state word, no mark; the dock says it in the chat | none |
 
-Decided; built in the sidebar: a row is a glyph and a title (the state word `waiting for you` is in its tooltip), a project header says nothing while open and one count of what waits while folded, a project names its machine in muted text (amber when stale, none for this computer) and a stale machine's rows carry the dashed glyph with no word. Not yet built: the footer line for a stale machine, the `quiet 41m` word, and removing the home board's `Needs you` inbox (`NeedsYou` in `components/board.tsx`) and project cards. The chat header no longer carries the word (built).
+Decided; built in the sidebar: a row is a glyph and a title (the state word `waiting for you` is in its tooltip), a project header says nothing while open and one count of what waits while folded, a project names its machine in muted text (amber when stale, none for this computer) and a stale machine's rows carry the dashed glyph with no word. Built on the Board (a table, `design/board.md`): rows are a quiet glyph and a title with `Last` and `Age`, the `Needs you` inbox and the project cards are gone, the chips are the only place it says how many, and a project header names its machine (amber when stale). Not yet built: the `quiet 41m` word and the rail while the Board is open. The chat header no longer carries the word (built).
 
 ## Why
 
@@ -38,7 +38,7 @@ On the old `storm` screen (twenty waiting in five projects) the first view held 
 - `StatusGlyph` is quiet unless `loud` is passed.
 - `ProjectMark` is the only component that draws a project's aggregate.
 - `text-signal` is used by nothing but the chat pill (`session-transcript.tsx`); a new use is a design change (edit this file).
-- `components/board.test.tsx` pins the count of answer rows to one set.
+- `components/board.test.tsx` pins that the Board states a count only in its chips and has no row-by-row answer buttons.
 
 ## Accessibility
 

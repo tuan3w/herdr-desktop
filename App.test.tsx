@@ -87,7 +87,7 @@ test("Next and Previous walk the agents that wait for you, longest waiting first
 
 test("with nothing that needs you, Next opens nothing and says so", async () => {
   const app = await seeded("empty");
-  await app.waitFor("nothing running");
+  await app.waitFor("Add your first machine");
   await app.keyboard.press("mod+j");
   await settle(app);
   expect(app.count("role:tab")).toBe(0);

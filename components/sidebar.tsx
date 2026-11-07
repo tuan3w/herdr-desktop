@@ -1,12 +1,12 @@
 import { Herdr } from "herdr-desktop/native";
-import { announce, computed, effect, keymap, List, Scroll, signal, Text, untracked, View } from "nsh";
+import { announce, computed, effect, List, Scroll, signal, Text, untracked, View } from "nsh";
 import { Button } from "nsh/base";
 
 import type { BoardProject, BoardRow, MachineStatus } from "herdr-desktop/native";
 import type { JSX } from "nsh";
 import type { ListRef } from "nsh/types";
 
-import { PickSlot } from "#components/pick-box";
+import { PickSlot, useRowKeys } from "#components/pick-box";
 import { Monogram, ProjectMark } from "#components/project-parts";
 import { SidebarFooter } from "#components/sidebar-footer";
 import { StatusGlyph } from "#components/status-glyph";
@@ -42,7 +42,6 @@ import { linkGlyph, linkText } from "#lib/machine-state";
 import { hoverTransition } from "#lib/motion";
 import { openProject } from "#lib/nav";
 import { openAgent } from "#lib/open-agent";
-import { rangeTo, toggle } from "#lib/selection";
 import { sidebarCollapsed } from "#lib/settings";
 import { keyLabel } from "#lib/shortcuts";
 import {
@@ -271,23 +270,6 @@ function Checkout(props: { item: () => Extract<SidebarItem, { kind: "checkout" }
 }
 
 /**
- * Space picks the focused agent for a bulk action and Shift+Space picks the range from the last pick, the keyboard form
- * of the checkbox. The keys are bound only while this row has the focus (a held binding is released with the row), and
- * they read the row at the moment of the press, because a recycled cell shows other agents over time.
- */
-function useRowKeys(row: () => BoardRow) {
-  const focus = signal(false);
-  effect(() => {
-    if (!focus()) return;
-    return keymap.bind({
-      space: () => toggle(row().key),
-      "shift+space": () => rangeTo(row().key, rowKeys()),
-    });
-  });
-  return { onFocus: () => focus.set(true), onBlur: () => focus.set(false) };
-}
-
-/**
  * What the compact row leaves out, for the bubble: the state in words (a glyph alone is not readable by eye), the agent
  * (or chat), its machine and how long. The accessible name (`rowLabel`) still carries all of it, so a screen reader loses
  * nothing.
@@ -317,7 +299,7 @@ function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
 /** The pressable line, apart from `Agent` so `useTriggerFocus` is called inside the bubble's trigger. */
 function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
   const row = () => props.item().row;
-  const keys = useRowKeys(row);
+  const keys = useRowKeys(row, rowKeys);
   const tip = useTriggerFocus();
   return (
     <View

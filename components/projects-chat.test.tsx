@@ -33,11 +33,10 @@ async function withChat() {
   return { app, ref };
 }
 
-test("a chat session joins the project whose checkout holds its folder, and its row says it is a chat", async () => {
+test("a chat session joins the project whose checkout holds its folder", async () => {
   const { app } = await withChat();
   await app.waitFor("label:/^tmp, .*, idle, web, This computer/", { timeout: 10000 });
   expect(app.shows("label:web, This computer, 1 needs you, 1 working")).toBe(true);
-  expect(app.texts().some((t) => t.endsWith("· chat"))).toBe(true);
 });
 
 test("opening a chat row opens its chat tab", async () => {

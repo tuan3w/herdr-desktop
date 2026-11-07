@@ -1,18 +1,24 @@
 # The home, the answer dock, triage and bulk actions
 
-The Board is the overview of every agent when the person is triaging rather than following one. The sidebar is the daily list; the Board is the same list as a wider table. Today's code: `components/board.tsx` (`Board`), `board-card.tsx` (`ProjectCard`, `AgentRow`, `Opener`), `project-parts.tsx` (`ProjectMark`, `Monogram`), `answer-dock.tsx` (`AnswerDock`), `bulk-bar.tsx` (`BulkBar`) with `bulk-confirm.tsx` (`BulkConfirm`), `pick-box.tsx` (`PickBox`), `status-bar.tsx` (`StatusBar`). The data is `lib/herdr.ts` (`board`, `revision`, `projectOf`, `rowOf`), the layout rules `lib/board-items.ts` (`strip`, `homeLines`) and `lib/sidebar.ts` (`shownRows`, folds and pins shared with the sidebar), the opening rules `lib/open-agent.ts` (`openAgent`), the picks `lib/selection.ts`, `lib/bulk.ts` (`planBulk`). Product wording is herdr-mobile's (`To review`, `The question changed`).
+The Board is the overview of every agent when the person is triaging rather than following one. The sidebar is the daily list; the Board is the same list as a wider table. Code: `components/board.tsx` (`Board`), `board-card.tsx` (`Chips`, `TableHeader`, `ProjectHeader`, `AgentLine`, `MoreLine`, `TableLine`), `project-parts.tsx` (`ProjectMark`, `Monogram`), `answer-dock.tsx` (`AnswerDock`), `bulk-bar.tsx` (`BulkBar`) with `bulk-confirm.tsx` (`BulkConfirm`), `pick-box.tsx` (`PickBox`, `useRowKeys`), `status-bar.tsx` (`StatusBar`). The data is `lib/herdr.ts` (`board`, `revision`, `projectOf`, `rowOf`), the table's lines `lib/board-table.ts` (`tableItems`, `inFilter`, `chipCount`, `lastText`) over `lib/sidebar.ts` (`projectLines`, `shownRows`, folds and pins shared with the sidebar), the opening rules `lib/open-agent.ts` (`openAgent`), the picks `lib/selection.ts`, `lib/bulk.ts` (`planBulk`). Product wording is herdr-mobile's (`To review`, `The question changed`).
 
-## Decided, not built yet: the table
+## The table (built)
 
-The code still draws project cards and a Needs you inbox (`NeedsYou`, `Question`); the walk dialog and `Answer one by one` are gone, `Answer` on a row opens the agent. Owner decision 2026-11-07: they go, in one change (principle 10 of AGENTS.md), for these reasons.
+Owner decision 2026-11-07, built in one change (principle 10 of AGENTS.md: the cards, the `Needs you` inbox, `Answer` and `Reply…` on rows and the walk dialog are deleted).
 
-- **The Board is a table grouped by project**, the same grouping as the sidebar. Why: cards inside a card repeated the sidebar's list and used one third of the width for nothing.
-- **State is a filter chip, not a section.** The chips are the counts (Need you, Working, To review, Idle), said once; an agent is never listed under a second heading. Why: a Needs you section listed agents the project groups already listed.
-- **Columns carry what the sidebar leaves out**: machine, last activity, age. About 20 agents fit without scrolling. It wins at 15 or more agents across machines and loses at 3, where the sidebar is enough (unverified: a prototype, not a render of the app).
-- **The sidebar collapses to a rail on the Board** with one dot per project that needs you, so the two lists are never both open.
-- **A stale machine is named once** (amber name) and its rows get a dashed glyph.
-- **Answering many at once lives here**: filter Need you, pick rows, answer together with the count in the button. It costs a click per agent when many ask for the same safe thing; that is the price of one answer place. The rules of the answer dock below apply to each.
-- **Order is stable** (last activity), never re-sorted by state, so a row does not move under the pointer.
+- **The Board is a table grouped by project**, the same grouping as the sidebar: `projectLines` is the one place that decides which projects exist, their order, folds, pins and the idle fold, and both lists read it. Why: cards inside a card repeated the sidebar's list and used one third of the width for nothing. It is a virtualized `List` named `Projects` (the sidebar's is `Projects and agents`; `app-seam.ts` and `.perf` find the Board by that exact name) whose lines are plain data kept by identity (`keepItems`), so a tick does not slide the person's place. Not a `DataTable`: nsh's cannot hold a pick box, `Reviewed` or a group header.
+- **State is a filter chip, not a section.** The chips (`Need you`, `Working`, `To review`, `Idle`; `role=button`, `accessibilityState.selected`, named `Need you, 2`) are the counts, the one place the Board says how many; pressing the one that is on goes back to all. A chip keeps exactly the agents of that state, drops projects left empty and lists every idle agent (the idle fold is for the unfiltered inventory); folds still apply. An agent on a machine that is not connected is in no chip, as in the engine's counts. An empty chip says `Nothing needs you`, not an empty table.
+- **Columns**: glyph, `Agent`, `Last`, `Age`, the header static (no sorting in this slice: the order is the board's). `Last` is what a chat's agent said last, or, for a blocked terminal, the first line of its question (`lastText`); `Age` is how long the agent has been in this state (`ageText(sinceSecs)`): herdr gives no time of the last output, so the table never says `last active`. The machine is not a column: it is named once in the project header (muted, amber when stale, none for this computer).
+- **A row** is a quiet glyph, the title, `Last` and `Age`; a press opens the agent (it does not review it), `Reviewed` appears on hover or focus of a finished one, the pick box covers the glyph on hover (`PickSlot`, Space and Shift+Space through `useRowKeys`). A stale or offline machine's rows have the dashed glyph and are dimmed. Accessible name: `rowLabel`. The window's width caps at `COLUMN.home`.
+- **Picks follow the chips**: a row a chip hides leaves the selection. `To review` is a filter, never a pick; while it is on, `N to review, select them` picks exactly those agents (and unfolds the projects over them) for the bar's `Reviewed`.
+- **A stale machine is named once** (amber name in its project headers) and its rows get a dashed glyph; the connection line is the sidebar footer's.
+
+### Not built yet
+
+- **The sidebar collapses to a rail on the Board** with one dot per project that needs you, so the two lists are never both open (the rail exists; the Board does not trigger it yet).
+- **Answering many at once lives here**: filter Need you, tick rows, answer together with the count in the button, each command shown in full. Not built: with `Need you` on, a row shows its question's first line and is opened to answer. The rules of the answer dock below apply to each.
+- **Order is stable by last activity** (the engine still orders agents by state, newest first), never re-sorted by a click.
+- It wins at 15 or more agents across machines and loses at 3, where the sidebar is enough (unverified: a prototype, not a measured use).
 
 ## Projects, not states
 
@@ -21,14 +27,14 @@ The Board and the sidebar are organised by **project**: a repository (with its l
 - **Order never moves under the pointer.** Today: pinned projects first, then by name; counts and states reorder nothing, and only a pin (`Herdr.pinProject`) moves a project. Inside a project, agents that need you come first, then the rest newest state first (today's code; the decided order is last activity, see above).
 - **Idle is inventory.** A project lists everyone who works, waits or finished, and its first `QUIET_SHOWN` (3) idle agents; the rest fold behind `N more idle in <project>`. A search lists every match.
 - A project's header names its machine, muted, unless it is this computer (the same project on two machines is two groups), `Pinned`, and a waiting count only while the project is collapsed (`ProjectMark`; design/attention.md). Hovering it offers a new session there, with its machine and folder chosen.
-- A row is a state glyph and a title: no program name, no age; only an exception adds a word (`quiet 41m`) or a dashed glyph. The program shows in the inspector and in the composer note when it limits you.
-- **Layout (today's cards).** One column below `TWO_COLUMNS_FROM` (760 pt of the home itself), two above; a project listing `WIDE_ROWS` agents takes the whole line. A card's place depends only on the cards before it. The home scrolls (cards are not virtualized: the idle fold keeps what is built small).
+- In the sidebar a row is a state glyph and a title: no program name, no age; only an exception adds a word (`quiet 41m`) or a dashed glyph. The Board's row adds `Last` and `Age`. The program shows in the inspector and in the composer note when it limits you.
+- **Layout.** One table, one column of rows that scrolls (virtualized). A line's place depends only on the lines before it.
 
 ## One count
 
-The Rust engine builds the board once per change; `board()` pulls it once per `revision()` and every reader shares it. The status line (`board().statusLine`), the window title, the status bar, the filter chips and the jump to the next waiting agent therefore never disagree. A machine that is not connected lists its agents dimmed and marked `offline`, and never counts as needing you.
+The Rust engine builds the board once per change; `board()` pulls it once per `revision()` and every reader shares it. The sidebar's empty text (`board().statusLine`), the window title, the filter chips and the jump to the next waiting agent therefore never disagree. The Board draws no status line: the chips are its counts. A machine that is not connected lists its agents dimmed and marked `offline`, and never counts as needing you.
 
-- `3 to review` in the status line is a button: it picks exactly the finished agents (`select`) and unfolds the projects that hold them. `Reviewed` in the bar then marks them under one `Undo` (`reviewWithUndo`). Opening a finished agent never reviews it; `Reviewed` on its row (hover or focus) does.
+- `N to review, select them`, beside the chips while `To review` is on, picks exactly the finished agents (`select`) and unfolds the projects that hold them. `Reviewed` in the bar then marks them under one `Undo` (`reviewWithUndo`). Opening a finished agent never reviews it; `Reviewed` on its row (hover or focus) does.
 
 ## The answer dock
 
@@ -49,7 +55,7 @@ A chip is a pressable `View` (not nsh's `Button`: it has no focus events). Its a
 
 ## Opening an agent
 
-`openAgent(row)` decides the view. A chat session opens its chat tab. A terminal agent that is omp, Claude Code or Codex (`Sessions.canObserve`) opens the chat read from its log, with `Show terminal` one press away (a button in the chat's header, the palette entry of the same name); everything else opens the terminal mirror. The choice is per pane and lasts for the run; `Show chat` (palette, the terminal's header) swaps back. Rows say which view they open only through their detail line: `chat` or `terminal`.
+`openAgent(row)` decides the view. A chat session opens its chat tab. A terminal agent that is omp, Claude Code or Codex (`Sessions.canObserve`) opens the chat read from its log, with `Show terminal` one press away (a button in the chat's header, the palette entry of the same name); everything else opens the terminal mirror. The choice is per pane and lasts for the run; `Show chat` (palette, the terminal's header) swaps back. A row does not say which view it opens.
 
 ## Moving between waiting agents
 
@@ -57,7 +63,7 @@ A chip is a pressable `View` (not nsh's `Button`: it has no focus events). Its a
 
 ## Picking and bulk actions
 
-`lib/selection.ts` holds the picked keys (`BoardRow.key`), shared by the home and the sidebar and pruned to rows still on the board. `PickBox` is the box: press toggles, Shift-press picks the range from the last toggled (`rangeTo`, in the order the cards list their rows), Space toggles, Return does not. It shows on hover or focus, and always once anything is picked.
+`lib/selection.ts` holds the picked keys (`BoardRow.key`), shared by the home and the sidebar and pruned to rows still on the board. `PickBox` is the box: press toggles, Shift-press picks the range from the last toggled (`rangeTo`, in the order the table lists its rows), Space toggles, Return does not. It shows on hover or focus, and always once anything is picked. Picking is shared with the sidebar: a pick survives a switch between them and leaves the selection when a chip hides the row.
 
 `BulkBar` exists only while something is picked and is mounted once under the page. `Reviewed` acts at once with one `Undo`. `Stop` (Esc), `Message` (text then Enter) and `Close` (closes the panes, cannot be undone) open `BulkConfirm`, built from live data (`planBulk`): who is reached, `Waiting for an answer (skipped)` and `Not connected (skipped)`. An agent waiting on a question is typed into only with `Send anyway` (`Close anyway` for Close), off every time the dialog opens. The plan is worked out again when the button is pressed. The result is one toast (`Stopped 3 agents`, or `Stopped 2 · 1 failed: name: why`, lasting).
 
@@ -73,4 +79,4 @@ One folder can have two names on this computer (macOS: `/var` is a link to `/pri
 
 ## Tests
 
-`board.test.tsx`, `answer-dock.test.tsx`, `bulk.test.tsx`, `sidebar.test.tsx`, `workspace.test.tsx` and `projects-chat.test.tsx` run against the scripted herdr (`fixtures/herdr/projects.json`, `mixed.json`, `storm.json`) through `board-lab.tsx`, `sidebar-lab.tsx` and the whole app; `board-seam.ts` moves that herdr on (a new question, a state change, a pane closed, more idle agents) and `sentKeys` reads what it was sent. The pure rules are in `lib/board-items.test.ts` and `lib/sidebar.test.ts` over `lib/board-rows.fixture.ts`; the grouping is in `native/core/tests/board.rs`. Time is the test clock, never a sleep.
+`board.test.tsx`, `answer-dock.test.tsx`, `bulk.test.tsx`, `sidebar.test.tsx`, `workspace.test.tsx` and `projects-chat.test.tsx` run against the scripted herdr (`fixtures/herdr/projects.json`, `mixed.json`, `storm.json`) through `board-lab.tsx`, `sidebar-lab.tsx` and the whole app; `board-seam.ts` moves that herdr on (a new question, a state change, a pane closed, more idle agents) and `sentKeys` reads what it was sent. The pure rules are in `lib/board-table.test.ts` and `lib/sidebar.test.ts` over `lib/board-rows.fixture.ts`; the grouping is in `native/core/tests/board.rs`. Time is the test clock, never a sleep.

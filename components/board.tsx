@@ -1,195 +1,138 @@
 import { Herdr } from "herdr-desktop/native";
-import { computed, effect, Scroll, signal, Text, View } from "nsh";
+import { computed, effect, List, signal, Text, untracked, View } from "nsh";
 
-import type { BoardProject, BoardRow } from "herdr-desktop/native";
+import type { BoardRow } from "herdr-desktop/native";
 
-import { Opener, ProjectCard, Question } from "#components/board-card";
-import { Btn, Empty, FOCUS_RING, NUM, Swap } from "#kit";
-import { type HomeLine, homeLines, strip } from "#lib/board-items";
-import { allRows, board, projectOf, revision, reviewable } from "#lib/herdr";
-import { COLUMN, GAP, PAD, TWO_COLUMNS_FROM } from "#lib/layout";
-import { animateLayout, hoverTransition } from "#lib/motion";
-import { select } from "#lib/selection";
-import { foldedProjects, moreOpen, shownRows } from "#lib/sidebar";
+import { Chips, machineStatuses, TableHeader, TableLine } from "#components/board-card";
+import { Btn, Empty, FOCUS_RING, NUM } from "#kit";
+import { chipCount, inFilter, tableItems } from "#lib/board-table";
+import type { BoardFilter, TableItem } from "#lib/board-table";
+import { allRows, board, revision, reviewable } from "#lib/herdr";
+import { COLUMN, PAD, ROW } from "#lib/layout";
+import { hoverTransition } from "#lib/motion";
+import { select, selected } from "#lib/selection";
+import { foldedProjects, keepItems, moreOpen } from "#lib/sidebar";
+
+/** What an empty chip says: the state is what the person asked about, so the answer is about that state. */
+const NOTHING: Record<Exclude<BoardFilter, "all">, string> = {
+  blocked: "Nothing needs you",
+  working: "Nothing is working",
+  done: "Nothing to review",
+  idle: "Nothing is idle",
+};
 
 /**
- * The status line, one count for every surface, all in the muted ink (the `Needs you` inbox just under it is the loud
- * thing: a number in colour here would say the same twice). `3 to review` is a button that picks exactly those agents (and
- * opens the projects that were folded over them) for the bulk bar's `Reviewed`.
+ * `3 to review, select them` beside the chips while `To review` is the filter: picks exactly those agents (and opens the
+ * projects that were folded over them) for the bulk bar's `Reviewed`. A filter alone never picks anything.
  */
-function StatusLine() {
-  const parts = computed(() => board().statusLine.split(" · "));
-  const pickToReview = () => {
-    const finished = reviewable(allRows(board()));
-    select(finished.map((r) => r.key));
-    const where = new Set(finished.map((r) => r.project));
+function PickToReview() {
+  const finished = () => reviewable(allRows(board()));
+  const pick = () => {
+    select(finished().map((r) => r.key));
+    const where = new Set(finished().map((r) => r.project));
     foldedProjects.update((all) => all.filter((k) => !where.has(k)));
   };
   return (
-    <View class="flex-row flex-wrap items-center gap-x-2 gap-y-1">
-      <Each of={parts()} key="index">
-        {(part, i) => (
-          <View class="flex-row items-center gap-2">
-            <If when={i() > 0}>
-              <Text class="text-sm text-muted-foreground">·</Text>
-            </If>
-            <If
-              when={/^\d+ to review/.test(part())}
-              else={<Swap class="text-sm text-muted-foreground" text={part()} />}
-            >
-              <View
-                role="button"
-                accessibilityLabel={`${part()}, select them`}
-                onPress={pickToReview}
-                style={hoverTransition()}
-                class={`rounded-md px-1 hover:bg-accent ${FOCUS_RING}`}
-              >
-                <Text style={NUM} class="text-sm text-muted-foreground underline">
-                  {part()}
-                </Text>
-              </View>
-            </If>
-          </View>
-        )}
-      </Each>
-    </View>
-  );
-}
-
-/**
- * The inbox over the projects: the agents that wait for an answer, longest first, each with its question and the one
- * `AnswerDock`. It owns the loud treatment of an agent that waits (the signal disc): everywhere else the same agent is a
- * quiet shape and words. One agent is answered in place so the projects stay in view; the rest are counted by project
- * (`docs 4 · infra 4`, never a wall of rows); `Answer` on a row opens that agent. It exists only while something waits,
- * takes no room otherwise.
- */
-function NeedsYou(props: { onOpen: (row: BoardRow, options?: { reply?: boolean }) => void }) {
-  const waiting = computed(() => strip(board()));
-  // The inbox arriving or going pushes the cards: they glide instead of jumping.
-  let had: boolean | undefined;
-  effect(() => {
-    const has = waiting().rows.length > 0;
-    if (had !== undefined && has !== had) animateLayout();
-    had = has;
-  });
-  return (
-    <If when={waiting().rows.length > 0}>
-      <View role="group" accessibilityLabel="Needs you" class="gap-2 rounded-xl border border-border bg-card p-4">
-        <View class="min-h-9 flex-row items-center justify-between px-1">
-          <View class="flex-row items-baseline gap-2">
-            <Text role="header" class="text-base font-semibold text-foreground">
-              Needs you
-            </Text>
-            <Swap class="text-sm text-muted-foreground" text={`${board().counts.needsYou}`} />
-          </View>
-        </View>
-        <Each of={waiting().rows} key={(r: BoardRow) => r.key}>
-          {(row) => (
-            <If when={projectOf(row().project)}>
-              {(project) => (
-                <View class="gap-1">
-                  <View class="flex-row items-center">
-                    <Opener row={row()} project={project()} loud onOpen={props.onOpen} />
-                  </View>
-                  <View class="pl-10 pr-3">
-                    <Question row={row()} onOpen={props.onOpen} />
-                  </View>
-                </View>
-              )}
-            </If>
-          )}
-        </Each>
-        <If when={waiting().more > 0}>
-          <Text class="px-3 text-sm text-muted-foreground">
-            {`${waiting().more} more waiting · ${waiting()
-              .moreIn.map((g) => `${g.name} ${g.count}`)
-              .join(" · ")}`}
-          </Text>
-        </If>
+    <If when={finished().length > 0}>
+      <View
+        role="button"
+        accessibilityLabel={`${finished().length} to review, select them`}
+        onPress={pick}
+        style={hoverTransition()}
+        class={`rounded-md px-2 py-1 hover:bg-accent ${FOCUS_RING}`}
+      >
+        <Text style={NUM} class="text-sm text-muted-foreground underline">
+          {`Select ${finished().length}`}
+        </Text>
       </View>
     </If>
   );
 }
 
 /**
- * The home: the status line, the `Needs you` inbox while something waits, then the projects as cards (one column in a
- * narrow home, two in a wide one, a calm column that stops growing on a very wide window) with every agent, chat or
- * terminal, in its project. Opening an agent does not review it; `Reviewed` does, with one `Undo`. `onAddMachine` offers
- * the first-run pointer when only this computer is known.
+ * The home: the projects as a table, the same projects in the same order as the sidebar (`projectLines`), with the state
+ * chips above it. The chips are the counts and the filter; an agent is never listed under a second heading. The list is
+ * virtualized like the sidebar's tree and keeps its lines by identity (`keepItems`), so a tick does not slide the
+ * person's place. Opening an agent does not review it; `Reviewed` does, with one `Undo`. `onAddMachine` offers the
+ * first-run pointer when only this computer is known.
  */
 export function Board(props: {
   onOpen: (row: BoardRow, options?: { reply?: boolean }) => void;
   onAddMachine?: () => void;
 }) {
-  const width = signal(0);
-  const columns = () => (width() >= TWO_COLUMNS_FROM ? 2 : 1);
-  const lines = computed(() => homeLines(board().projects, columns(), moreOpen(), foldedProjects()));
-  const order = computed(() =>
-    board().projects.flatMap((p) =>
-      foldedProjects().includes(p.key) ? [] : shownRows(p.rows, moreOpen().includes(p.key)).shown.map((r) => r.key),
-    ),
+  const filter = signal<BoardFilter>("all");
+  let shown: TableItem[] = [];
+  const items = computed(
+    () => (shown = keepItems(shown, tableItems(board(), machineStatuses(), filter(), foldedProjects(), moreOpen()))),
   );
+  const order = computed(() => items().flatMap((i) => (i.kind === "row" ? [i.row.key] : [])));
   const machines = computed(() => {
     revision();
     return Herdr.machines().filter((m) => m.enabled);
   });
-  const several = () => machines().length > 1;
   const lonely = () => machines().length <= 1 && board().projects.length === 0;
-  // An agent, chat or terminal, is answered in its own tab, where the answer dock is.
-  const answer = (row: BoardRow) => props.onOpen(row);
+
+  // A row the chip hides leaves the selection: a bulk action never reaches an agent that is not in the table.
+  effect(() => {
+    const f = filter();
+    const rows = allRows(board());
+    const picked = untracked(selected);
+    if (f === "all" || picked.length === 0) return;
+    const visible = new Set(rows.filter((r) => inFilter(r, f)).map((r) => r.key));
+    const kept = picked.filter((k) => visible.has(k));
+    if (kept.length !== picked.length) select(kept);
+  });
 
   return (
-    <View class="min-h-0 flex-1" onLayout={({ bounds }) => width.set(Math.min(bounds.size.width, COLUMN.home))}>
+    <View class="min-h-0 flex-1 items-center">
       <If
         when={board().projects.length > 0}
         else={
-          <>
-            <View class={`${PAD.page} pb-2`}>
-              <StatusLine />
-            </View>
-            <Empty
-              fill
-              icon="monitor"
-              title={lonely() ? "Add your first machine" : "No agents yet"}
-              hint={
-                lonely()
-                  ? "Agents running under herdr on this computer show up here. Add a machine to watch others too."
-                  : "Agents running under herdr appear here."
-              }
-            >
-              <If when={lonely() && props.onAddMachine}>
-                <Btn label="Add machine" onPress={() => props.onAddMachine?.()} />
-              </If>
-            </Empty>
-          </>
+          <Empty
+            fill
+            icon="monitor"
+            title={lonely() ? "Add your first machine" : "No agents yet"}
+            hint={
+              lonely()
+                ? "Agents running under herdr on this computer show up here. Add a machine to watch others too."
+                : "Agents running under herdr appear here."
+            }
+          >
+            <If when={lonely() && props.onAddMachine}>
+              <Btn label="Add machine" onPress={() => props.onAddMachine?.()} />
+            </If>
+          </Empty>
         }
       >
-        <Scroll class="min-h-0 flex-1" contentClass="items-center" accessibilityLabel="Projects">
-          <View class={`w-full pb-8 ${PAD.page} ${GAP.section}`} style={{ maxWidth: COLUMN.home }}>
-            <StatusLine />
-            <NeedsYou onOpen={props.onOpen} />
-            <Each of={lines()} key={(l: HomeLine) => l.key}>
-              {(line) => (
-                <View class={`flex-row items-start ${GAP.section}`}>
-                  <Each of={line().projects} key={(p: BoardProject) => p.key}>
-                    {(project) => (
-                      <ProjectCard
-                        project={project()}
-                        several={several()}
-                        order={order}
-                        onAnswer={answer}
-                        onOpen={props.onOpen}
-                      />
-                    )}
-                  </Each>
-                  <If when={columns() === 2 && !line().alone && line().projects.length === 1}>
-                    <View class="flex-1" />
-                  </If>
-                </View>
-              )}
-            </Each>
+        <View class={`min-h-0 w-full flex-1 gap-3 ${PAD.page}`} style={{ maxWidth: COLUMN.home }}>
+          <View class="flex-row flex-wrap items-center justify-between gap-2">
+            <Chips filter={filter} counts={(f) => chipCount(board().counts, f)} onFilter={(next) => filter.set(next)} />
+            <If when={filter() === "done"}>
+              <PickToReview />
+            </If>
           </View>
-        </Scroll>
+          {/* BULK ANSWER SLOT (package D): while `filter() === "blocked"` the bulk answer view mounts here, between the chips and the table. */}
+          <TableHeader />
+          <If
+            when={items().length > 0}
+            else={
+              <Text class="px-3 text-sm text-muted-foreground">
+                {filter() === "all" ? "Nothing to show" : NOTHING[filter() as Exclude<BoardFilter, "all">]}
+              </Text>
+            }
+          >
+            <List
+              each={items()}
+              keyExtractor={(i: TableItem) => i.key}
+              estimatedItemSize={ROW.table.height}
+              class="min-h-0 flex-1"
+              contentClass="pb-8"
+              accessibilityLabel="Projects"
+            >
+              {(item) => <TableLine item={item} order={order} onOpen={props.onOpen} />}
+            </List>
+          </If>
+        </View>
       </If>
     </View>
   );

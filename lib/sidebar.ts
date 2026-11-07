@@ -194,6 +194,61 @@ function byCheckout(
   return groups.filter((g) => g.rows.length > 0);
 }
 
+/** One project as both lists draw it: the rows that survive the narrowing, which of them are listed, and where it lives. */
+export interface ProjectLine {
+  project: BoardProject;
+  /** The machine's name for the header, or null for this computer (the usual case says nothing). */
+  machine: string | null;
+  /** The machine is not online: the header's machine name turns amber and the rows are dashed. */
+  stale: boolean;
+  folded: boolean;
+  /** Every row the narrowing keeps, folded or cut or not. */
+  kept: BoardRow[];
+  /** The rows to list now: none while folded, else the kept rows without the idle ones past `QUIET_SHOWN` (unless all are open). */
+  shown: BoardRow[];
+  /** The `N more idle` line: how many idle rows the cut hides (or, open, would hide), null when there is no such line (also while folded). */
+  more: { count: number; open: boolean } | null;
+}
+
+/** How a list narrows the board's projects: what both lists share, said once. */
+export interface Narrowing {
+  /** Keeps a row (a search, a state filter); default every row. A project left with no row is dropped. */
+  keep?: (row: BoardRow, project: BoardProject) => boolean;
+  /** The folded projects; `null` ignores folds (a search lists every match). */
+  folds: readonly string[] | null;
+  /** The projects whose idle rows are all listed; `true` lists every idle row of every project and draws no `more` line. */
+  opened: readonly string[] | true;
+}
+
+/**
+ * The board's projects in the board's order, each with its machine, its fold and the rows to list. The sidebar and the
+ * board's table both read this, so they agree on which projects exist, in what order, which are folded or pinned (a pin is
+ * the board's order) and how the idle ones fold.
+ */
+export function projectLines(data: BoardData, statuses: readonly MachineStatus[], narrowing: Narrowing): ProjectLine[] {
+  const out: ProjectLine[] = [];
+  for (const project of data.projects) {
+    const keep = narrowing.keep;
+    const kept = keep ? project.rows.filter((r) => keep(r, project)) : project.rows;
+    if (kept.length === 0) continue;
+    const host = statuses.find((s) => s.id === project.machine);
+    const folded = narrowing.folds !== null && narrowing.folds.includes(project.key);
+    const all = narrowing.opened === true || narrowing.opened.includes(project.key);
+    const quiet = kept.filter(isQuiet).length;
+    out.push({
+      project,
+      machine: project.machine === LOCAL_MACHINE ? null : (host?.name ?? project.machineName),
+      stale: host !== undefined && host.state !== "online",
+      folded,
+      kept,
+      shown: folded ? [] : shownRows(kept, all).shown,
+      more:
+        !folded && narrowing.opened !== true && quiet > QUIET_SHOWN ? { count: quiet - QUIET_SHOWN, open: all } : null,
+    });
+  }
+  return out;
+}
+
 /**
  * The lines to show, the board's projects in the board's order. A project carries its machine (null for this computer)
  * and whether that machine is not online. A search lists every match (open, without the idle cut: a hit must not hide
@@ -209,24 +264,23 @@ export function sidebarItems(
 ): SidebarItem[] {
   const searching = fold(query).trim() !== "";
   const out: SidebarItem[] = [];
-  for (const project of data.projects) {
-    const rows = searching ? project.rows.filter((r) => matches(r, project.name, query)) : project.rows;
-    if (rows.length === 0) continue;
-    const host = statuses.find((s) => s.id === project.machine);
-    const isFolded = !searching && folds.includes(project.key);
+  const lines = projectLines(data, statuses, {
+    keep: searching ? (r, p) => matches(r, p.name, query) : undefined,
+    folds: searching ? null : folds,
+    opened: searching ? true : opened,
+  });
+  for (const line of lines) {
+    const { project } = line;
     out.push({
       kind: "project",
       key: `p:${project.key}`,
       project,
-      folded: isFolded,
-      machine: project.machine === LOCAL_MACHINE ? null : (host?.name ?? project.machineName),
-      stale: host !== undefined && host.state !== "online",
+      folded: line.folded,
+      machine: line.machine,
+      stale: line.stale,
     });
-    if (isFolded) continue;
-    const all = searching || opened.includes(project.key);
-    const { shown } = shownRows(rows, all);
     const grouped = project.checkouts.length > 1;
-    for (const group of byCheckout(project, shown)) {
+    for (const group of byCheckout(project, line.shown)) {
       if (grouped && group.checkout)
         out.push({
           kind: "checkout",
@@ -237,9 +291,7 @@ export function sidebarItems(
       for (const row of group.rows)
         out.push({ kind: "row", key: row.key, project: project.key, row, nested: grouped && group.checkout !== null });
     }
-    const quiet = rows.filter(isQuiet).length;
-    if (!searching && quiet > QUIET_SHOWN)
-      out.push({ kind: "more", key: `m:${project.key}`, project: project.key, count: quiet - QUIET_SHOWN, open: all });
+    if (line.more) out.push({ kind: "more", key: `m:${project.key}`, project: project.key, ...line.more });
   }
   return out;
 }
@@ -266,7 +318,7 @@ function sameLine(a: unknown, b: unknown, key = ""): boolean {
  * made every line new, the list dropped what it had measured of them and, with rows of other heights than its estimate,
  * the person's place in a long sidebar slid towards the top (`sidebar-scroll.test.tsx`).
  */
-export function keepItems(prev: readonly SidebarItem[], next: SidebarItem[]): SidebarItem[] {
+export function keepItems<I extends { key: string }>(prev: readonly I[], next: I[]): I[] {
   const before = new Map(prev.map((i) => [i.key, i]));
   return next.map((item) => {
     const old = before.get(item.key);

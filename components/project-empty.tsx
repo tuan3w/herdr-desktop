@@ -1,11 +1,14 @@
-import { Scroll, View } from "nsh";
+import { computed, Scroll, View } from "nsh";
 
-import { ProjectCard } from "#components/board-card";
+import { machineStatuses, TableLine } from "#components/board-card";
 import { Empty } from "#kit";
+import type { TableItem } from "#lib/board-table";
+import { tableItems } from "#lib/board-table";
 import { context } from "#lib/dock";
 import { board, projectOf } from "#lib/herdr";
 import { COLUMN, PAD } from "#lib/layout";
 import { openAgent } from "#lib/open-agent";
+import { moreOpen } from "#lib/sidebar";
 
 /**
  * What a project's workspace shows while it has no tab open (a project never opened, or one whose last tab was closed):
@@ -15,7 +18,17 @@ import { openAgent } from "#lib/open-agent";
  */
 export function ProjectEmpty() {
   const project = () => projectOf(context());
-  const several = () => new Set(board().projects.map((p) => p.machine)).size > 1;
+  // The board's own lines for this one project, never folded: it is the whole page.
+  const items = computed(() =>
+    tableItems(
+      { ...board(), projects: board().projects.filter((p) => p.key === context()) },
+      machineStatuses(),
+      "all",
+      [],
+      moreOpen(),
+    ),
+  );
+  const order = computed(() => items().flatMap((i) => (i.kind === "row" ? [i.row.key] : [])));
   return (
     <If
       when={project()}
@@ -30,14 +43,9 @@ export function ProjectEmpty() {
       {(p) => (
         <Scroll class="min-h-0 flex-1" contentClass="items-center" accessibilityLabel={`${p().name}, no tabs open`}>
           <View class={`w-full pb-8 ${PAD.page}`} style={{ maxWidth: COLUMN.home }}>
-            <ProjectCard
-              project={p()}
-              several={several()}
-              fold={false}
-              order={() => p().rows.map((r) => r.key)}
-              onAnswer={(row) => void openAgent(row, { reply: true })}
-              onOpen={(row, options) => void openAgent(row, options)}
-            />
+            <Each of={items()} key={(i: TableItem) => i.key}>
+              {(item) => <TableLine item={item} order={order} fold={false} onOpen={(row) => void openAgent(row)} />}
+            </Each>
           </View>
         </Scroll>
       )}

@@ -73,8 +73,6 @@ export const RAIL_WIDTH = 64;
  * `page` is a settings page: a label, a description and a control read as one line at 640.
  */
 export const COLUMN = { home: 1440, chat: 768, page: 640 } as const;
-/** The home lays out two columns of cards from this width (points of the home itself, not of the window). */
-export const TWO_COLUMNS_FROM = 800;
 
 /** Pointer hit targets in points; `largeTargets` (Settings) raises every control that reads `hit()` to the second. */
 export const HIT = { pointer: 28, large: 44 } as const;

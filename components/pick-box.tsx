@@ -1,4 +1,6 @@
-import { cleanup, keymap, View } from "nsh";
+import { cleanup, effect, keymap, signal, View } from "nsh";
+
+import type { BoardRow } from "herdr-desktop/native";
 
 import { FOCUS_RING, Icon } from "#kit";
 import { isSelected, rangeTo, selected, toggle } from "#lib/selection";
@@ -44,6 +46,24 @@ export function PickBox(props: { rowKey: string; name: string; order: () => read
 }
 
 /**
+ * Space picks the focused agent for a bulk action and Shift+Space picks the range from the last pick, the keyboard form
+ * of the checkbox. The keys are bound only while this row has the focus (a held binding is released with the row), and
+ * they read the row at the moment of the press, because a recycled cell shows other agents over time. `order` is the
+ * keys of every row in the order they are shown.
+ */
+export function useRowKeys(row: () => BoardRow, order: () => readonly string[]) {
+  const focus = signal(false);
+  effect(() => {
+    if (!focus()) return;
+    return keymap.bind({
+      space: () => toggle(row().key),
+      "shift+space": () => rangeTo(row().key, order()),
+    });
+  });
+  return { onFocus: () => focus.set(true), onBlur: () => focus.set(false) };
+}
+
+/**
  * The place of a row's glyph while the row is looked at: the box that picks the agent for a bulk action covers the glyph
  * when the pointer is on this slot or the focus is anywhere in the row, and on every row once anything is picked (so a
  * range can be built without hunting). It sits over the row's left padding, so a row spends no width on a column of
@@ -53,13 +73,13 @@ export function PickSlot(props: {
   rowKey: string;
   name: string;
   order: () => readonly string[];
-  surface: "sidebar" | "card";
+  surface: "sidebar" | "page";
   nested?: boolean;
 }) {
   return (
     <View class={`group/pick absolute inset-y-0 w-7 justify-center ${props.nested ? "left-4" : "left-1"}`}>
       <View
-        class={`rounded-md ${props.surface === "sidebar" ? "bg-sidebar" : "bg-card"} ${selected().length > 0 ? "" : "opacity-0 group-hover/pick:opacity-100 group-focus-within/row:opacity-100"}`}
+        class={`rounded-md ${props.surface === "sidebar" ? "bg-sidebar" : "bg-background"} ${selected().length > 0 ? "" : "opacity-0 group-hover/pick:opacity-100 group-focus-within/row:opacity-100"}`}
       >
         <PickBox rowKey={props.rowKey} name={props.name} order={props.order} />
       </View>
