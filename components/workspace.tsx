@@ -2,12 +2,14 @@ import { cleanup, effect, untracked, View } from "nsh";
 import { DockArea, type DockTab } from "nsh/base";
 
 import { Board } from "#components/board";
+import { Changes } from "#components/changes";
 import { PaneTab } from "#components/pane-tab";
 import { ProjectEmpty } from "#components/project-empty";
 import { SessionTab } from "#components/session-tab";
 import { StatusGlyph } from "#components/status-glyph";
 import { Btn, Clipped, Empty, FOCUS_RING_INSET, Icon, IconButton } from "#kit";
 import { machinesOpen } from "#lib/actions";
+import { checkoutName } from "#lib/changes";
 import {
   attach,
   activated,
@@ -17,6 +19,7 @@ import {
   focused,
   layout,
   openPane,
+  parseChangesKey,
   parsePaneKey,
   parseSessionKey,
   removePanel,
@@ -55,6 +58,13 @@ function SessionPanel(props: { id: string }) {
   return <SessionTab machine={at.machine} id={at.id} active={focused() === props.id} />;
 }
 
+/** A checkout's Changes tab: what its agents changed since the last commit, to review. */
+function ChangesPanel(props: { id: string }) {
+  const at = parseChangesKey(props.id);
+  if (!at) return <AgentGone panel={props.id} />;
+  return <Changes machine={at.machine} cwd={at.cwd} active={focused() === props.id} />;
+}
+
 function PanePanel(props: { id: string }) {
   const at = parsePaneKey(props.id);
   if (!at) return <AgentGone panel={props.id} />;
@@ -80,6 +90,7 @@ function TabFace(props: { tab: DockTab }) {
   const at = parsePaneKey(props.tab.panel);
   const info = at ? meta(at.machine, at.pane) : () => null;
   const chat = parseSessionKey(props.tab.panel) !== null;
+  const changes = parseChangesKey(props.tab.panel);
   const row = () => {
     const key = chat ? rowKeyOf(props.tab.panel) : null;
     return key === null ? undefined : rowOf(key);
@@ -88,16 +99,18 @@ function TabFace(props: { tab: DockTab }) {
   const name = () =>
     props.tab.panel === BOARD
       ? "Board"
-      : chat
-        ? (row()?.name ?? "Chat")
-        : gone()
-          ? "Agent gone"
-          : (info()?.name ?? at?.pane ?? "");
+      : changes
+        ? `Changes \u00b7 ${checkoutName(changes.machine, changes.cwd)}`
+        : chat
+          ? (row()?.name ?? "Chat")
+          : gone()
+            ? "Agent gone"
+            : (info()?.name ?? at?.pane ?? "");
   const status = () => (chat ? (row()?.status ?? "unknown") : gone() ? "unknown" : (info()?.status ?? "unknown"));
   return (
     <View style={appear(props.tab.panel)} class="max-w-56 flex-row items-center gap-2">
-      <If when={props.tab.panel === BOARD} else={<StatusGlyph status={status()} size={12} />}>
-        <Icon name="list" size={14} tone="muted-foreground" />
+      <If when={props.tab.panel === BOARD || changes !== null} else={<StatusGlyph status={status()} size={12} />}>
+        <Icon name={changes ? "pencil" : "list"} size={14} tone="muted-foreground" />
       </If>
       <Clipped class={`text-sm ${props.tab.active ? "text-foreground" : "text-muted-foreground"}`}>{name()}</Clipped>
       <If when={props.tab.closable}>
@@ -143,6 +156,8 @@ export function Workspace() {
             />
           ) : id.startsWith("session:") ? (
             <SessionPanel id={id} />
+          ) : id.startsWith("changes:") ? (
+            <ChangesPanel id={id} />
           ) : (
             <PanePanel id={id} />
           )

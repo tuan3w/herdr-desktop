@@ -39,9 +39,12 @@ export const GONE_AFTER_MS = 30 * 24 * 3600 * 1000;
 export const SAVE_DELAY_MS = 500;
 const PANE = "pane:";
 const SESSION = "session:";
+const CHANGES = "changes:";
 
 export const paneKey = (machine: string, pane: string): string => `${PANE}${machine}/${pane}`;
 export const sessionKey = (machine: string, id: string): string => `${SESSION}${machine}/${id}`;
+/** A checkout's Changes tab: `cwd` is an absolute folder on the machine (so the key holds `//` after the machine). */
+export const changesKey = (machine: string, cwd: string): string => `${CHANGES}${machine}/${cwd}`;
 
 /** Splits `<prefix><machine>/<rest>`; pane and session ids hold `:` (and `pane:`) but a machine id never holds `/`. */
 function split(prefix: string, key: string): { machine: string; rest: string } | null {
@@ -63,6 +66,12 @@ export function parseSessionKey(key: string): { machine: string; id: string } | 
   return at && { machine: at.machine, id: at.rest };
 }
 
+/** The machine and folder a Changes tab's key names, `null` for anything else. */
+export function parseChangesKey(key: string): { machine: string; cwd: string } | null {
+  const at = split(CHANGES, key);
+  return at && at.rest.startsWith("/") ? { machine: at.machine, cwd: at.rest } : null;
+}
+
 /** The key of the board row a tab is about (`BoardRow.key`), `null` for the board: a pane, a terminal agent's chat and a keeper session each map to their one row. */
 export function rowKeyOf(panel: string): string | null {
   const pane = parsePaneKey(panel);
@@ -75,7 +84,8 @@ export function rowKeyOf(panel: string): string | null {
 }
 
 const validKey = (key: unknown): key is string =>
-  typeof key === "string" && (key === BOARD || parsePaneKey(key) !== null || parseSessionKey(key) !== null);
+  typeof key === "string" &&
+  (key === BOARD || parsePaneKey(key) !== null || parseSessionKey(key) !== null || parseChangesKey(key) !== null);
 
 export function defaultLayout(): DockAreaLayout {
   return { center: { type: "split", axis: "horizontal", children: [{ type: "tabs", panels: [BOARD] }] } };
@@ -493,9 +503,34 @@ export function focusedPane(): { machine: string; pane: string } | null {
 
 // ---- contexts ----
 
-/** The context a panel belongs to: the home for the board, the project of its agent's row, `null` when that is not known (a shell pane, an agent the board has not listed yet). */
+/** `path` is `root` or inside it (`/src/api/x` is inside `/src/api`, `/src/api-2` is not). */
+export const inside = (path: string, root: string): boolean => {
+  const base = root.replace(/\/+$/, "");
+  return path === base || path.startsWith(`${base}/`);
+};
+
+/**
+ * The project a folder on a machine belongs to: the one with a checkout that holds it (the deepest wins), else one whose
+ * agent works in it. `null` when the board knows none.
+ */
+export function folderProject(machine: string, cwd: string): string | null {
+  let best: { key: string; depth: number } | null = null;
+  for (const project of board().projects) {
+    if (project.machine !== machine) continue;
+    const folders = [...project.checkouts.map((c) => c.path), ...project.rows.flatMap((r) => (r.cwd ? [r.cwd] : []))];
+    for (const folder of folders) {
+      if ((inside(cwd, folder) || inside(folder, cwd)) && (best === null || folder.length > best.depth))
+        best = { key: project.key, depth: folder.length };
+    }
+  }
+  return best?.key ?? null;
+}
+
+/** The context a panel belongs to: the home for the board, the project of its agent's row or of its checkout, `null` when that is not known (a shell pane, an agent the board has not listed yet). */
 export function homeOf(key: string): string | null {
   if (key === BOARD) return HOME;
+  const changes = parseChangesKey(key);
+  if (changes) return folderProject(changes.machine, changes.cwd);
   const row = rowKeyOf(key);
   return (row !== null ? rowOf(row)?.project : undefined) ?? null;
 }

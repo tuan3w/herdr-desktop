@@ -25,8 +25,9 @@ import {
  * belongs to the engine's data directory, not to a window. Read once on first use; every change is written through.
  * The pure rules live in `lib/slash.ts` and `lib/phrases.ts`; Settings edits the same stores (the quick phrase list, the
  * slash pins, "forget what was learned").
+ * `remembered` is also what the Changes tab keeps its `reviewed` marks in (`lib/changes-model.ts`).
  */
-function remembered<T>(key: string, parse: (json: unknown) => T, empty: () => T) {
+export function remembered<T>(key: string, parse: (json: unknown) => T, empty: () => T) {
   const state = signal<T | undefined>(undefined);
   const read = (): T => {
     let value = state();

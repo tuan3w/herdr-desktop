@@ -18,6 +18,7 @@ Read the file that matches your change before writing UI:
 | a checkbox, radio, tabs, collapsible, accordion, progress, avatar, accessibility of a control | [design/controls.md](design/controls.md) |
 | a dialog, a toast, undo | [design/dialogs.md](design/dialogs.md) |
 | a table, a list of many records, sorting | [design/data.md](design/data.md) |
+| the Changes tab: changed files, diffs, notes to the agent, revert | [design/changes.md](design/changes.md) |
 | files, a viewer, a picture, a diagram, a page from a machine, sending a file | [design/files.md](design/files.md) |
 | the chat's permission dock, a question form, New session, Past sessions, session details | [design/chat-parts.md](design/chat-parts.md) |
 | feedback, undo, delete, shortcuts, settings, window size | [design/patterns.md](design/patterns.md) |

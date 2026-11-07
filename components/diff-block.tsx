@@ -1,5 +1,5 @@
 import { CodeDiff } from "herdr-desktop/native";
-import { computed, signal, Text, token, View } from "nsh";
+import { cleanup, computed, signal, Text, token, View } from "nsh";
 import { Button } from "nsh/base";
 
 import type { CodeDiffRef } from "herdr-desktop/native";
@@ -36,12 +36,17 @@ export function DiffBlock(props: {
   created?: boolean;
   /** Makes the file name a button (`Open <path>`) that shows the file. */
   onOpenFile?: () => void;
+  /** Hands over the steps `Previous change` and `Next change` take, once drawn (`null` when the block goes), for a screen with keys of its own. */
+  onReady?: (steps: { next(): void; previous(): void } | null) => void;
+  /** The group of changes brought into view, from 0: by a step, or by a key of the screen's. */
+  onChange?: (index: number) => void;
 }) {
   const counts = signal({ added: 0, removed: 0, changes: 0 });
   const at = signal<number | null>(null);
   let diff: CodeDiffRef | undefined;
   const split = () => props.split ?? diffSplit();
   const step = (dir: 1 | -1) => void (dir > 0 ? diff?.nextChange() : diff?.previousChange());
+  cleanup(() => props.onReady?.(null));
   const label = computed(() => diffLabel(props.path, counts().added, counts().removed));
 
   return (
@@ -92,6 +97,7 @@ export function DiffBlock(props: {
       <CodeDiff
         ref={(ref: CodeDiffRef) => {
           diff = ref;
+          props.onReady?.({ next: () => step(1), previous: () => step(-1) });
         }}
         oldText={props.oldText ?? ""}
         newText={props.newText ?? ""}
@@ -105,7 +111,10 @@ export function DiffBlock(props: {
         maxHeight={props.maxHeight ?? CODE_MAX_HEIGHT}
         label={label()}
         onCounts={(e: { added: number; removed: number; changes: number }) => counts.set(e)}
-        onChange={(e: { index: number }) => at.set(e.index)}
+        onChange={(e: { index: number }) => {
+          at.set(e.index);
+          props.onChange?.(e.index);
+        }}
       />
       <If when={counts().changes > 1 && at() !== null}>
         <Text
