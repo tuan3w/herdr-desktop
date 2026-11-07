@@ -93,16 +93,13 @@ impl From<FeedState> for FeedStateName {
     }
 }
 
-/// Which part of a pane a view shows: the live `visible` screen, the scrollback `recent`, or the
-/// scrollback with soft wraps joined (`recentUnwrapped`), for re-flowing to another width.
+/// Which part of a pane a view shows: the live `visible` screen or the scrollback `recent`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PropEnum)]
 pub enum PaneSourceName {
     /// The live screen.
     Visible,
     /// The scrollback, up to 1000 rows.
     Recent,
-    /// The scrollback with soft wraps joined.
-    RecentUnwrapped,
 }
 
 impl From<PaneSourceName> for PaneSource {
@@ -110,7 +107,6 @@ impl From<PaneSourceName> for PaneSource {
         match source {
             PaneSourceName::Visible => Self::Visible,
             PaneSourceName::Recent => Self::Recent,
-            PaneSourceName::RecentUnwrapped => Self::RecentUnwrapped,
         }
     }
 }

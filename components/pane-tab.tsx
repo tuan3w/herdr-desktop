@@ -4,29 +4,26 @@ import { announce, Clipboard, computed, effect, signal, Text, View } from "nsh";
 import type { PaneLink, PaneScreenRef } from "herdr-desktop/native";
 
 import { AnswerDock } from "#components/answer-dock";
-import { CaptureBar } from "#components/capture-bar";
 import { Composer, type ComposerHandle } from "#components/composer";
-import { KeyRow } from "#components/key-row";
 import { LinksDialog, openLink } from "#components/links-dialog";
 import { PaneFind } from "#components/pane-find";
 import { PaneHeader } from "#components/pane-header";
-import { Btn, dialogDepth, Empty, notify } from "#kit";
+import { Empty, notify } from "#kit";
 import { browseFiles, sending } from "#lib/files";
 import { meta } from "#lib/herdr";
 import { canShowChat, showChat } from "#lib/open-agent";
-import { registerPane, type TerminalInput } from "#lib/pane-input";
-import { announceOutput, minContrast, paneFit, paneFontSize } from "#lib/settings";
-import { keyLabel } from "#lib/shortcuts";
+import { type PaneInput, registerPane } from "#lib/pane-input";
+import { announceOutput, minContrast, paneFontSize } from "#lib/settings";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 /**
- * One agent's pane as a tab: header, the read-only mirror of its screen, the answer dock while it asks something, the
- * message box and the key row. It is a mirror: herdr gives the app the pane's rows and takes text and keys back, there is
- * no cursor or mouse, so typing goes through the message box or capture mode (`mod+shift+k`, `CaptureBar`).
+ * One agent's pane as a tab: header, the read-only view of its screen, the answer dock while it asks something and a
+ * message box. It is a view, not a terminal: herdr gives the app the pane's rows, no cursor or mouse, so the person
+ * answers a question with the dock, stops the agent with `Stop` and steers it with a line of text in the message box.
  *
- * While `active` the tab is the pane the global functions of `lib/pane-input.ts` act on (capture, links, find, the
- * message box). `onOpenPane` is how `Duplicate` shows the new tab it made; a host that omits it gets a toast instead.
+ * While `active` the tab is the pane the global functions of `lib/pane-input.ts` act on (links, find, the message
+ * box). `onOpenPane` is how `Duplicate` shows the new tab it made; a host that omits it gets a toast instead.
  *
  * Links in the mirror open where they belong (`openLink`): a file path in the file viewer, found in the pane's folder
  * and the two above it; a web address in the browser; a page on a remote machine's `localhost` through a tunnel. Files
@@ -39,7 +36,6 @@ export function PaneTab(props: {
   onOpenPane?: (machine: string, pane: string) => void;
 }) {
   const info = meta(props.machine, props.pane);
-  const capturing = signal(false);
   const finding = signal(false);
   const links = signal<PaneLink[] | null>(null);
   let screen: PaneScreenRef | undefined;
@@ -59,21 +55,9 @@ export function PaneTab(props: {
   // The mirror shows what herdr last said; after something was sent, read again instead of waiting for its next event.
   const refresh = () => void Herdr.readPane(props.machine, props.pane, "visible").catch(() => undefined);
   const failed = (what: string) => (e: unknown) => notify(`${what}: ${reason(e)}`, { type: "error" });
-  const sendKeys = (keys: string[]) =>
-    void Herdr.sendKeys(props.machine, props.pane, keys).then(refresh, failed("Could not send the key"));
+  const stop = () =>
+    void Herdr.sendKeys(props.machine, props.pane, ["esc"]).then(refresh, failed("Could not send the key"));
 
-  const leaveCapture = () => {
-    if (!capturing()) return;
-    capturing.set(false);
-    announce(`Stopped typing into ${name()}`);
-  };
-  const toggleCapture = () => {
-    if (capturing()) return leaveCapture();
-    if (dialogDepth() > 0) return;
-    if (!live()) return announce("Cannot type into the pane: its machine is not connected");
-    finding.set(false);
-    capturing.set(true);
-  };
   const showLinks = async () => {
     try {
       links.set((await screen?.links()) ?? []);
@@ -82,23 +66,14 @@ export function PaneTab(props: {
     }
   };
 
-  const handle: TerminalInput = {
-    toggleCapture,
-    capturing: () => capturing(),
+  const handle: Required<Pick<PaneInput, "focusComposer" | "showLinks" | "searchInPane">> = {
     showLinks: () => void showLinks(),
     focusComposer: () => composer?.focus(),
-    searchInPane: () => {
-      if (capturing()) leaveCapture();
-      finding.set(true);
-    },
+    searchInPane: () => finding.set(true),
   };
   effect(() => {
     if (!props.active) return;
     return registerPane(handle);
-  });
-  // A tab that is not in front, or whose machine went away, is not typed into.
-  effect(() => {
-    if (capturing() && (!props.active || !live())) leaveCapture();
   });
 
   const duplicate = async () => {
@@ -150,7 +125,7 @@ export function PaneTab(props: {
               info={i()}
               pane={props.pane}
               onStop={() => {
-                sendKeys(["esc"]);
+                stop();
                 announce(`Sent Escape to ${name()}`);
               }}
               onShowChat={chat() ? () => void showChat(props.machine, props.pane) : undefined}
@@ -163,7 +138,7 @@ export function PaneTab(props: {
             />
             <If when={i().feedState === "stale"}>
               <View role="alert" class="border-b border-border bg-muted px-3 py-2">
-                <Text class="text-xs text-foreground">{`${i().machineName} is not connected. This is the last text it showed; typing is off until it reconnects.`}</Text>
+                <Text class="text-xs text-foreground">{`${i().machineName} is not connected. This is the last text it showed; sending is off until it reconnects.`}</Text>
               </View>
             </If>
             <If when={finding()}>
@@ -184,32 +159,11 @@ export function PaneTab(props: {
               machine={props.machine}
               pane={props.pane}
               label={`Terminal, ${i().name} on ${i().machineName}`}
-              fit={paneFit()}
               fontSize={paneFontSize()}
               minContrast={minContrast()}
               announceOutput={announceOutput()}
               onLink={(e) => void openLink(e.kind, e.target, e.line, e.col, { machine: props.machine, cwd: i().cwd })}
             />
-            <If
-              when={capturing()}
-              else={
-                <View class="flex-row items-center gap-3 px-4 py-2">
-                  <Text class="min-w-0 flex-1 text-xs text-muted-foreground">
-                    Mirror: type with Mirror mode or the composer
-                  </Text>
-                  <Btn
-                    small
-                    label="Mirror mode"
-                    name="Mirror mode, type into the pane"
-                    hint={keyLabel("capture")}
-                    disabled={!live()}
-                    onPress={toggleCapture}
-                  />
-                </View>
-              }
-            >
-              <CaptureBar machine={props.machine} pane={props.pane} name={i().name} onLeave={leaveCapture} />
-            </If>
             <If when={prompt()}>
               {(p) => (
                 <View class="border-t border-border px-4 py-3">
@@ -228,12 +182,6 @@ export function PaneTab(props: {
                 composer = h;
               }}
               onSent={refresh}
-            />
-            <KeyRow
-              agent={i().agent !== ""}
-              disabled={!live()}
-              onKeys={sendKeys}
-              onInsert={(text) => composer?.insert(text)}
             />
             <LinksDialog
               open={links() !== null}

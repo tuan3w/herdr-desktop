@@ -36,10 +36,6 @@ The file of the first version (`herdr.dock.v1`, one layout) opens as the Home as
 
 In the sidebar and on a project's card the name shows the project's workspace and the chevron alone folds it; the card of a project with no tab open has no fold control. The rail's popover has `Show project`. A project's menu has `Switch to this project` and `Open here`.
 
-## Typing into a pane
-
-While capture mode is on (`mod+shift+k`) the pane owns every plain Ctrl chord a terminal can send (`capturedBy`: a letter, and `[ ] \ /`); the app keeps what a terminal cannot encode (every chord with Shift, `ctrl+tab`, `mod+,`, `mod+<digit>`, function keys). The palette is `mod+shift+p` there (`mod+k` also outside the mode). See `design/pane.md`.
-
 ## Motion
 
 A project switch is the one deliberate exception to "switching never animates": the incoming workspace fades from `CONTEXT_FROM` to 1 in `DURATION.context` (`contextEnter`), with no fade-out and nothing waiting for it; skipped when a second switch comes within `CONTEXT_REPEAT_MS` and under reduced motion. It moves the area's wrapper, never a pane's rows.

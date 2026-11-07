@@ -1,6 +1,6 @@
 //! `screen`: what a pane looks like. `pane.read format=ansi` text becomes rows of styled runs that
 //! keep their identity between reads, plus the helpers that make those rows readable and useful:
-//! contrast correction, link detection and re-flow to a column count.
+//! contrast correction and link detection.
 //!
 //! The model is a mirror, not an emulator: herdr sends finished rows (no cursor, no mouse), so the
 //! parser only understands text, line breaks and SGR styling and ignores every other escape
@@ -9,7 +9,6 @@
 mod contrast;
 mod links;
 mod parse;
-mod wrap;
 
 use std::sync::Arc;
 
@@ -17,7 +16,6 @@ use unicode_width::UnicodeWidthStr;
 
 pub use contrast::{Rgb, contrast_ratio, indexed_cube_rgb, indexed_rgb, min_contrast_fg};
 pub use links::{Link, LinkKind, detect_links, looks_like_slash_command};
-pub use wrap::{wrap_row, wrap_screen};
 
 /// A terminal colour as herdr sends it: a palette index (the first 16 come from the theme when
 /// drawn) or a 24-bit value.

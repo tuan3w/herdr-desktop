@@ -1,6 +1,6 @@
 # The command palette
 
-One palette (`components/palette.tsx`, principle 6): the search over everything the person can go to or do. `mod+k` and `mod+shift+p` open it (`mod+shift+p` is the one that works while typing into a pane), `mod+p` opens it on the files of the project, `mod+e` is the Switcher (`design/context.md`, a smaller list of the places visited last). Entry points go through `openPalette` and `paletteKey` in `lib/palette/controller.ts`; a second `mod+k` while it is open opens the actions of the highlighted row, and `Escape` closes.
+One palette (`components/palette.tsx`, principle 6): the search over everything the person can go to or do. `mod+k` and `mod+shift+p` open it (`mod+shift+p` is a chord with Shift that no terminal program uses as itself), `mod+p` opens it on the files of the project, `mod+e` is the Switcher (`design/context.md`, a smaller list of the places visited last). Entry points go through `openPalette` and `paletteKey` in `lib/palette/controller.ts`; a second `mod+k` while it is open opens the actions of the highlighted row, and `Escape` closes.
 
 ## What it looks like
 

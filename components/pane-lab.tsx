@@ -4,8 +4,8 @@ import { Composer } from "#components/composer";
 import { PaneTab } from "#components/pane-tab";
 import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
 import { startHerdr } from "#lib/herdr";
-import { captureActive, paneInFront, searchInPane, showLinks, toggleCapture } from "#lib/pane-input";
-import { loadSettings, paneFit, quickPhrases } from "#lib/settings";
+import { paneInFront, searchInPane, showLinks } from "#lib/pane-input";
+import { loadSettings } from "#lib/settings";
 import { GLOBAL, keysOf } from "#lib/shortcuts";
 
 /**
@@ -21,20 +21,16 @@ const MACHINE = "local";
 function Lab() {
   const active = signal(true);
   const opened = signal("nothing opened");
-  keymap.bind(keysOf(GLOBAL.capture)[0], () => toggleCapture());
   keymap.bind(keysOf(GLOBAL.search)[0], () => searchInPane());
   return (
     <ThemeRoot>
       <PopupRoot class="flex-1 bg-background">
         <View class="flex-row flex-wrap items-center gap-2 border-b border-border p-2">
-          <Text class="text-xs text-foreground">{`Capture: ${captureActive() ? "on" : "off"}`}</Text>
-          <Text class="text-xs text-foreground">{`Fit: ${paneFit()}`}</Text>
           <Text class="text-xs text-foreground">{`Pane in front: ${paneInFront() ? "yes" : "no"}`}</Text>
           <Text class="text-xs text-foreground">{opened()}</Text>
           <Btn small label="Show links" onPress={() => showLinks()} />
           <Btn small label="Make pane inactive" onPress={() => active.set(false)} />
           <Btn small label="Make pane active" onPress={() => active.set(true)} />
-          <Btn small label="Turn quick phrases off" onPress={() => quickPhrases.set(false)} />
         </View>
         <If
           when={params.broken}

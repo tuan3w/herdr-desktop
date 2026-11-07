@@ -3,21 +3,8 @@ import { expect, test } from "nsh/test";
 
 import type { App } from "nsh/test";
 
-import {
-  DONE,
-  ENTRY,
-  FIRST,
-  front,
-  openAgents,
-  openTerminals,
-  ready,
-  SECOND,
-  savedDock,
-  settle,
-  sidebarRow,
-  WEB,
-} from "../app-seam";
-import { scripted, sentKeys } from "./board-seam";
+import { DONE, ENTRY, FIRST, front, openAgents, ready, SECOND, savedDock, settle, sidebarRow, WEB } from "../app-seam";
+import { scripted } from "./board-seam";
 
 ENTRY.path = "../App.tsx";
 
@@ -27,7 +14,6 @@ ENTRY.path = "../App.tsx";
  */
 
 /** The palette's search field: open while the palette is. */
-const PALETTE = "label:Search agents, projects and commands";
 const FILTER = "label:Filter recent agents and projects";
 const tap = async (app: App, keys: string) => {
   await app.keyboard.press(keys);
@@ -247,38 +233,6 @@ test("with nothing visited the Switcher says so, and it never lists an agent tha
   await tap(app, "mod+e");
   expect(has(app, `${FIRST}, `)).toBe(false);
   expect(has(app, "auth, ", "1 of \\d+")).toBe(true);
-});
-
-test("typing into a pane: Ctrl+K and Ctrl+E reach the pane, and the palette is Ctrl+Shift+P", async () => {
-  const app = await ready();
-  await openTerminals(app, FIRST);
-  await app.keyboard.press("mod+shift+k");
-  await settle(app);
-  expect(app.shows("label:/^Typing into /")).toBe(true);
-
-  for (const key of ["ctrl+k", "ctrl+e", "ctrl+w", "ctrl+["]) await app.keyboard.press(key);
-  await app.waitUntil(() => sentKeys().length === 4);
-  expect(sentKeys()).toEqual(["w1:p1: ctrl+k", "w1:p1: ctrl+e", "w1:p1: ctrl+w", "w1:p1: ctrl+["]);
-  expect(app.shows(PALETTE)).toBe(false);
-  expect(app.shows("Switch to…")).toBe(false);
-  expect(app.count("role:tab")).toBe(1);
-
-  await app.keyboard.press("mod+shift+p");
-  await settle(app);
-  expect(app.shows(PALETTE)).toBe(true);
-});
-
-test("out of the mode the same keys are the app's again", async () => {
-  const app = await ready();
-  await openTerminals(app, FIRST);
-  await app.keyboard.press("mod+shift+k");
-  await app.keyboard.press("mod+shift+k");
-  await settle(app);
-  expect(app.shows("label:/^Typing into /")).toBe(false);
-  await app.keyboard.press("mod+k");
-  await settle(app);
-  expect(app.shows(PALETTE)).toBe(true);
-  expect(sentKeys()).toEqual([]);
 });
 
 test("Shift+Enter in the Switcher opens the agent here: its tab joins the workspace shown and leaves its project's", async () => {

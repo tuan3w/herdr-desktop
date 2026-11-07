@@ -1,8 +1,6 @@
 import { expect, test } from "nsh/test";
 
 import {
-  BUILT_IN,
-  commandsOf,
   emptyMemory,
   hintFor,
   matchCommands,
@@ -13,13 +11,24 @@ import {
   type SlashCommand,
   type SlashMemory,
   togglePin,
-  unknownCommand,
   usedOf,
   countOf,
 } from "#lib/slash";
 
 /** What the composer's command list does, ported from herdr-mobile's `slash_catalog_test`, `slash_usage_test` and `command_guard_test`. */
-const claude = commandsOf("claude");
+const claude = [
+  "clear",
+  "compact",
+  "model",
+  "resume",
+  "rewind",
+  "context",
+  "cost",
+  "status",
+  "config",
+  "help",
+  "exit",
+].map((name) => commandOf(name));
 const names = (list: SlashCommand[]) => list.map((c) => c.name);
 
 /** A clock that moves one minute every time it is read, so every command has its own last-used time. */
@@ -40,7 +49,7 @@ test("a bare slash lists the pinned commands, then the five latest, then the res
   expect(all.slice(2, 7)).toEqual(["cost", "context", "rewind", "resume", "model"]);
   expect(all.slice(7, 9)).toEqual(["clear", "compact"]);
   expect(new Set(all).size).toBe(all.length);
-  expect(all.length).toBe(BUILT_IN.claude.length);
+  expect(all.length).toBe(claude.length);
 });
 
 test("a pinned command is not repeated among the recent ones", () => {
@@ -49,7 +58,7 @@ test("a pinned command is not repeated among the recent ones", () => {
 });
 
 test("with nothing used a bare slash is the table as it is", () => {
-  expect(names(matchCommands("/", "claude", claude, emptyMemory()))).toEqual(BUILT_IN.claude.map((c) => c.name));
+  expect(names(matchCommands("/", "claude", claude, emptyMemory()))).toEqual(claude.map((c) => c.name));
 });
 
 test("names that start with the word come first, then names that hold it, then descriptions; use breaks ties inside a group", () => {
@@ -86,7 +95,7 @@ test("a pane without an agent has no list", () => {
 });
 
 test("an agent without a table lists only what was pinned or sent", () => {
-  const none = commandsOf("omp");
+  const none: SlashCommand[] = [];
   expect(none).toEqual([]);
   expect(matchCommands("/", "omp", none, emptyMemory())).toEqual([]);
   let memory = used("omp", ["review", "review", "ship"]);
@@ -110,7 +119,7 @@ test("pins and use belong to the agent, whatever the case of its label", () => {
   const memory = togglePin(used("Claude", ["cost"]), "claude", "cost");
   expect(pinnedOf(memory, "CLAUDE")).toEqual(["cost"]);
   expect(countOf(memory, "claude", "cost")).toBe(1);
-  expect(names(matchCommands("/", "codex", commandsOf("codex"), memory))[0]).toBe("new");
+  expect(names(matchCommands("/", "codex", [commandOf("new"), commandOf("resume")], memory))[0]).toBe("new");
 });
 
 test("pinning toggles, keeps the order pinned in, and forgets an agent left with none", () => {
@@ -166,42 +175,6 @@ test("what was saved comes back as it was, and what does not fit is dropped", ()
   for (const junk of [null, 3, "x", [], undefined]) expect(parseMemory(junk)).toEqual(emptyMemory());
 });
 
-test("a /word the agent does not list is named, with or without arguments", () => {
-  const listed = [commandOf("review", "<pr number>"), commandOf("compact")];
-  expect(unknownCommand("/clera", "omp", listed, emptyMemory())).toBe("clera");
-  expect(unknownCommand("/clera now please", "omp", listed, emptyMemory())).toBe("clera");
-  expect(unknownCommand("  /revue 12  ", "omp", listed, emptyMemory())).toBe("revue");
-});
-
-test("a command the agent lists, in any case, and the ones every terminal takes, are not held", () => {
-  const listed = [commandOf("review"), commandOf("compact")];
-  expect(unknownCommand("/review 12", "omp", listed, emptyMemory())).toBeNull();
-  expect(unknownCommand("/Compact", "omp", listed, emptyMemory())).toBeNull();
-  for (const word of ["clear", "new", "help", "exit", "quit"])
-    expect(unknownCommand(`/${word}`, "omp", listed, emptyMemory())).toBeNull();
-});
-
-test("text, a path and a dollar sentence are not commands", () => {
-  const listed = [commandOf("review")];
-  for (const line of ["please review it", "/usr/bin/env python", "$PATH is wrong", ""])
-    expect(unknownCommand(line, "omp", listed, emptyMemory())).toBeNull();
-});
-
-test("nothing is said while nothing can be: no list, no slash command at all, no agent", () => {
-  expect(unknownCommand("/clera", "omp", [], emptyMemory())).toBeNull();
-  const skillOnly: SlashCommand = { name: "write", description: "", source: "builtIn", trigger: "$" };
-  expect(unknownCommand("/clera", "omp", [skillOnly], emptyMemory())).toBeNull();
-  expect(unknownCommand("/clera", "", [commandOf("review")], emptyMemory())).toBeNull();
-});
-
-test("a word the person sent before, or pinned, is not held", () => {
-  const listed = [commandOf("review")];
-  const memory = togglePin(used("omp", ["ship"]), "omp", "deploy");
-  expect(unknownCommand("/ship it", "omp", listed, memory)).toBeNull();
-  expect(unknownCommand("/deploy", "omp", listed, memory)).toBeNull();
-  expect(unknownCommand("/other", "omp", listed, memory)).toBe("other");
-});
-
 test("a sent line is remembered under its command, and a path, text or a lone slash is not a command", () => {
   const none: SlashCommand[] = [];
   expect(sentKey("/model gpt-5", "omp", none)).toBe("model");
@@ -232,7 +205,7 @@ test("a skill is remembered with its dollar, and a shell variable is a sentence,
   expect(sentKey("$HOME", "codex", [skill])).toBeNull();
   expect(sentKey("$PATH is wrong", "omp", [])).toBeNull();
   // The list for `$` shows the skills, and `/` never does.
-  expect(names(matchCommands("$", "codex", [skill, ...commandsOf("codex")], emptyMemory()))).toEqual(["review"]);
+  expect(names(matchCommands("$", "codex", [skill, commandOf("new")], emptyMemory()))).toEqual(["review"]);
 });
 
 test("what a picked command takes shows after it until the first character", () => {

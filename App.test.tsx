@@ -282,13 +282,6 @@ const CHECKS: Record<GlobalShortcut, Check> = {
   tab7: (app, press) => tabNth(app, press, 7),
   tab8: (app, press) => tabNth(app, press, 8),
   tab9: (app, press) => tabNth(app, press, 9),
-  capture: async (app, press) => {
-    await openTerminals(app, FIRST);
-    await press();
-    expect(app.shows("label:/^Typing into /")).toBe(true);
-    await press();
-    expect(app.shows("label:/^Typing into /")).toBe(false);
-  },
   // They act on a chat (`session-tab.test.tsx` copies from one); with a terminal in front they copy nothing and say so.
   copyCode: async (app, press) => {
     await press();
@@ -369,7 +362,6 @@ const ORDER: GlobalShortcut[] = [
   "forward",
   "prevProject",
   "nextProject",
-  "capture",
   "copyCode",
   "copyReply",
   "search",
@@ -418,15 +410,10 @@ test("walking the app with the keyboard: next agent, type to it, take over its k
   for (const letter of "hi") await app.keyboard.press(letter);
   expect(app.value("label:Message")).toBe("hi");
   await app.clear("label:Message");
-  // The terminal is one press away, and has what a terminal has: capture mode and the chips.
+  // The pane's view is one press away, and has the chips.
   await app.press("Show terminal");
   await settle(app);
   expect(shown(app, FIRST)).toBe(true);
-
-  await app.keyboard.press("mod+shift+k");
-  expect(app.shows("label:/^Typing into /")).toBe(true);
-  await app.keyboard.press("mod+shift+k");
-  expect(app.shows("label:/^Typing into /")).toBe(false);
 
   // The headless harness has no Tab traversal, so the one pointer step is the chip itself; the digits that answer from
   // the keyboard once a chip has the focus are tested with the dock (`answer-dock.test.tsx`).

@@ -26,7 +26,6 @@ pub mod files;
 pub mod fixture;
 pub mod git;
 pub mod highlight;
-pub mod keys;
 pub mod metrics;
 pub mod notify;
 pub mod pane_screen;
@@ -48,7 +47,6 @@ fn native(registry: &mut Registry) {
         .module::<files::Files>()
         .module::<files::Pages>()
         .module::<git::Git>()
-        .module::<keys::PaneKeys>()
         .module::<search::Search>()
         .register::<highlight::view::CodeDiff>()
         .register::<highlight::view::CodeView>()

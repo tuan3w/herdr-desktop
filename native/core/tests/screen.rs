@@ -1,4 +1,4 @@
-//! What a person sees of a pane: rows, colours, links, wrapping and readable contrast.
+//! What a person sees of a pane: rows, colours, links and readable contrast.
 
 use std::fs;
 use std::path::PathBuf;
@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use herdr_core::screen::{
     Color, Link, LinkKind, Rgb, Row, Screen, Style, contrast_ratio, detect_links, indexed_cube_rgb,
-    indexed_rgb, looks_like_slash_command, min_contrast_fg, wrap_row, wrap_screen,
+    indexed_rgb, looks_like_slash_command, min_contrast_fg,
 };
 
 fn fixture(name: &str) -> String {
@@ -775,110 +775,4 @@ fn a_screen_reports_each_link_with_its_row() {
         (url.row, url.kind, url.target.as_str()),
         (17, LinkKind::Url, "https://example.com/docs")
     );
-}
-
-// -- wrapping --------------------------------------------------------------------------------
-
-fn row_of(ansi: &str) -> Arc<Row> {
-    Screen::parse(ansi, None).rows[0].clone()
-}
-
-fn wrapped_texts(row: &Arc<Row>, cols: u16) -> Vec<String> {
-    wrap_row(row, cols).iter().map(|r| r.text()).collect()
-}
-
-#[test]
-fn a_long_row_breaks_at_the_column_count_without_losing_text() {
-    let row = row_of("abcdefghij");
-    assert_eq!(wrapped_texts(&row, 4), ["abcd", "efgh", "ij"]);
-    assert_eq!(wrapped_texts(&row, 10), ["abcdefghij"]);
-    assert_eq!(wrapped_texts(&row, 1).concat(), "abcdefghij");
-}
-
-#[test]
-fn a_row_that_fits_is_the_same_row_and_a_blank_row_stays_a_row() {
-    let row = row_of("short");
-    assert!(Arc::ptr_eq(&wrap_row(&row, 80)[0], &row));
-    let blank = Screen::parse("\r\n", None).rows[0].clone();
-    assert_eq!(wrap_row(&blank, 5).len(), 1);
-    // Zero columns is treated as one rather than looping.
-    assert_eq!(wrapped_texts(&row_of("ab"), 0), ["a", "b"]);
-}
-
-#[test]
-fn a_coloured_span_that_crosses_a_break_is_coloured_on_both_rows() {
-    let row = row_of("ab\x1b[31mcdefg\x1b[0mhi");
-    let pieces = wrap_row(&row, 5);
-    let red = Some(Color::Indexed(1));
-    assert_eq!(
-        pieces.iter().map(|r| r.text()).collect::<Vec<_>>(),
-        ["abcde", "fghi"]
-    );
-    assert_eq!(
-        runs(&pieces[0]),
-        [("ab", Style::default()), ("cde", style(|s| s.fg = red))]
-    );
-    assert_eq!(
-        runs(&pieces[1]),
-        [("fg", style(|s| s.fg = red)), ("hi", Style::default())]
-    );
-}
-
-#[test]
-fn wide_characters_and_clusters_are_never_split() {
-    // A wide character that does not fit starts the next row.
-    assert_eq!(wrapped_texts(&row_of("ab日本"), 3), ["ab", "日", "本"]);
-    assert_eq!(wrapped_texts(&row_of("日本語"), 1), ["日", "本", "語"]);
-    // A combining mark stays with its base, even at the break.
-    assert_eq!(
-        wrapped_texts(&row_of("abc e\u{301}f"), 5),
-        ["abc e\u{301}", "f"]
-    );
-    // A family emoji is one cluster two cells wide.
-    let family = "👨\u{200d}👩\u{200d}👧";
-    assert_eq!(
-        wrapped_texts(&row_of(&format!("ab{family}cd")), 3),
-        ["ab", &format!("{family}c"), "d"]
-    );
-}
-
-#[test]
-fn reflowing_an_unchanged_screen_hands_back_the_same_rows() {
-    let long = "x".repeat(25);
-    let screen = Screen::parse(&format!("{long}\r\nshort\r\n{}", "y".repeat(25)), None);
-    let first = wrap_screen(&screen, 10, None);
-    assert_eq!(first.cols, 10);
-    assert_eq!(first.rows.len(), 3 + 1 + 3);
-    assert!(first.rows.iter().all(|r| r.columns() <= 10));
-    // A row that fits is the input's row.
-    assert!(Arc::ptr_eq(&first.rows[3], &screen.rows[1]));
-
-    let again = wrap_screen(&screen, 10, Some(&first));
-    assert!(
-        first
-            .rows
-            .iter()
-            .zip(&again.rows)
-            .all(|(a, b)| Arc::ptr_eq(a, b))
-    );
-
-    // Edit the second long line: its pieces are new, the first line's pieces are reused.
-    let edited = Screen::parse(
-        &format!("{long}\r\nshort\r\n{}", "z".repeat(25)),
-        Some(&screen),
-    );
-    let next = wrap_screen(&edited, 10, Some(&first));
-    assert!(
-        first.rows[..4]
-            .iter()
-            .zip(&next.rows[..4])
-            .all(|(a, b)| Arc::ptr_eq(a, b))
-    );
-    assert!(
-        first.rows[4..]
-            .iter()
-            .zip(&next.rows[4..])
-            .all(|(a, b)| !Arc::ptr_eq(a, b))
-    );
-    assert_eq!(next.rows[4].text(), "zzzzzzzzzz");
 }

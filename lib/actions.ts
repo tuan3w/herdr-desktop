@@ -31,16 +31,7 @@ import { allRows, board, meta, reviewable } from "#lib/herdr";
 import { back, forward, previousAgent, previousProject, stepProject, switcherKey } from "#lib/nav";
 import { canShowChat, openAgent, showChat, showTerminal } from "#lib/open-agent";
 import { openPalette, paletteKey } from "#lib/palette/controller";
-import {
-  chatInFront,
-  copyCode,
-  copyReply,
-  focusComposer,
-  paneInFront,
-  searchInPane,
-  showLinks,
-  toggleCapture,
-} from "#lib/pane-input";
+import { chatInFront, copyCode, copyReply, focusComposer, paneInFront, searchInPane, showLinks } from "#lib/pane-input";
 import { perfOpen } from "#lib/perf";
 import { sidebarCollapsed, themeId } from "#lib/settings";
 import { type GlobalShortcut, GLOBAL, keysOf, type ShortcutGroup } from "#lib/shortcuts";
@@ -362,7 +353,6 @@ export const globalActions: Record<GlobalShortcut, () => void> = {
   closeTab: () => closeTab(focused()),
   splitRight: () => void moveFocused("right"),
   splitDown: () => void moveFocused("bottom"),
-  capture: needPane(toggleCapture),
   copyCode: () => (chatInFront() ? copyCode() : announce("Open a chat first")),
   copyReply: () => (chatInFront() ? copyReply() : announce("Open a chat first")),
   search: () => (paneInFront() ? searchInPane() : announce("Open a pane first")),
@@ -467,7 +457,6 @@ export function actions(): Action[] {
   global("sidebar", ["hide", "show"]);
   global("focusSidebar", ["search agents"]);
   global("focusPane", ["composer", "reply"], !pane && !lastPane());
-  global("capture", ["type", "keyboard", "terminal"], !pane);
   global("search", ["find"], !pane);
   global("copyCode", ["code block", "clipboard", "snippet"], !chatInFront());
   global("copyReply", ["answer", "message", "clipboard", "markdown"], !chatInFront());

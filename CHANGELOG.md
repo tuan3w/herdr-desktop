@@ -4,11 +4,12 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+- **A pane tab is a read-only view, not a pretend terminal.** The key row (Esc, arrows, Ctrl+C), the typing mode (`Ctrl+Shift+K`) with its hint bar, the slash list and quick phrases above the message box, and the `Wrap lines`, `Fit width` and `Actual size` options are gone: with a full keyboard they were clutter, and the typing mode took Escape and Ctrl+K from you. The tab is named `<agent> (view)` and its header says `Read-only view`. You still answer a question with the buttons, `Stop` the agent, send a line with the message box, follow links, find and copy; the pane's columns always fill the width. Chat tabs keep their slash commands.
+
 - **One-command install.** `curl -fsSL https://raw.githubusercontent.com/tuan3w/herdr-desktop/main/scripts/install.sh | sh` installs the newest release on Linux x86_64 or macOS Apple silicon after checking `SHA256SUMS` (`--version X` for another, `--uninstall` to remove). The macOS path is untested on a real Mac.
 
 - **Switch between agents and projects from the keyboard.** `Ctrl+Tab` goes to the agent you were in before this one and `Ctrl+Shift+Tab` to the previous project; tap again to come back. `Ctrl+E` opens the Switcher, a short list of the agents and projects you visited last with the one to go back to highlighted (`Ctrl+E` again moves down, `Enter` opens, `Escape` leaves everything as it was); its rows stay where they are while it is open. `Ctrl+[` and `Ctrl+]` go back and forward through the places you went to, `Ctrl+Shift+[` and `Ctrl+Shift+]` step through the projects. What you visited is remembered between runs (agent and project ids and times only, never what a pane showed).
 - **Each project keeps its own tabs.** Opening an agent of another project, `Ctrl+Shift+[`/`]`, `Ctrl+Tab` and the Switcher swap the whole workspace: the tabs, the tab you were in, the message you had not sent and where a chat was scrolled come back as you left them (unsent messages are kept in memory only, never written down). A project with no tab open shows its own card; the board and anything left there is Home (`Ctrl+1`). The saved layout of earlier versions is split by project on first start.
-- **Typing into a pane no longer steals Ctrl keys.** While you type into a pane (`Ctrl+Shift+K`), Ctrl+K, N, W, F, J, B, E, P and `[ ] \ /` reach the pane as a shell expects (kill to the end of the line, delete a word, escape, ...); the app keeps only the chords a terminal cannot send. The palette is `Ctrl+Shift+P` (also outside the mode, beside `Ctrl+K`), and the bar says so.
 
 ## [0.1.0-alpha.2] - 2026-11-07
 

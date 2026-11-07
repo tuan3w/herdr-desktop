@@ -1,7 +1,7 @@
 import { keymap } from "nsh";
 import { expect, test } from "nsh/test";
 
-import { capturedBy, GLOBAL, keysOf, LOCAL, SHORTCUTS } from "#lib/shortcuts";
+import { GLOBAL, keysOf, LOCAL, SHORTCUTS } from "#lib/shortcuts";
 
 /** The two key families: Apple platforms take Command for `mod`, every other Ctrl. */
 const FAMILIES = [true, false] as const;
@@ -46,7 +46,7 @@ test("nsh keeps Quit and Full screen: no shortcut binds them", () => {
   every((k) => expect(["mod+q", "f11"].includes(k)).toBe(false));
 });
 
-test("Escape belongs to the agent: it is never a global shortcut, so capture mode cannot depend on it", () => {
+test("Escape belongs to the agent: it is never a global shortcut, so a program in a terminal can have it", () => {
   for (const s of Object.values(GLOBAL))
     for (const onApple of FAMILIES) expect(keysOf(s, onApple).some((k) => k.split("+").includes("escape"))).toBe(false);
 });
@@ -61,32 +61,4 @@ test("ctrl+tab is spelled with ctrl, never mod: on Apple platforms cmd+tab belon
   // The keymap counts Tab among the keys a text field uses, so only `always` fires it in a message box.
   expect(GLOBAL.previousAgent.always).toBe(true);
   expect(GLOBAL.previousProject.always).toBe(true);
-});
-
-test("typing into a pane: the pane keeps every plain Ctrl letter and Ctrl+[ ] \\ /, the app what a terminal cannot send", () => {
-  for (const key of ["mod+k", "mod+n", "mod+w", "mod+e", "mod+f", "mod+j", "mod+[", "mod+]", "mod+\\", "mod+/"])
-    expect(capturedBy(key, false)).toBe("pane");
-  for (const key of [
-    "mod+shift+k",
-    "mod+shift+p",
-    "mod+shift+e",
-    "mod+shift+[",
-    "mod+shift+\\",
-    "mod+,",
-    "mod+1",
-    "mod+0",
-    "ctrl+tab",
-    "ctrl+shift+tab",
-    "f1",
-  ])
-    expect(capturedBy(key, false)).toBe("app");
-  // On Apple platforms mod is Command, which a terminal never receives.
-  for (const key of ["mod+k", "mod+[", "mod+shift+k"]) expect(capturedBy(key, true)).toBe("app");
-});
-
-test("while typing into a pane the app keeps a way to leave and a way to the palette", () => {
-  const appKeys = (id: keyof typeof GLOBAL) => keysOf(GLOBAL[id], false).filter((k) => capturedBy(k, false) === "app");
-  expect(appKeys("capture")).toEqual(["mod+shift+k"]);
-  expect(appKeys("palette")).toEqual(["mod+shift+p"]);
-  expect(keysOf(GLOBAL.palette, false)).toContain("mod+k");
 });

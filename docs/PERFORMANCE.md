@@ -65,7 +65,7 @@ What the monitor's columns are (`nsh::perf`, one line a second while GTK draws; 
 | `idle pane` | A pane tab in front, nothing arriving, 5 s: no frames, no reads |
 | `stream 8 panes, 1 open` | 8 panes of the scripted herdr (50 rows, 100 columns, colour) updated 20 times a second for 10 s; one pane tab open and in front. Frame time with a screen changing every tick, read to paint, rows rebound, and that **only the open pane is read** (`pane.read` per pane: 405 for the open one, 1 for the other seven) |
 | `idle pane after streaming` | The same pane after the stream stops: it returns to rest (no frames, no reads) |
-| `scrollback 1000 rows, scrolled` | One pane with 1000 rows in the scrollback view (`Wrap lines`), scrolled up and down 12 times: virtualised rows, frame time while scrolling |
+| `scrollback 1000 rows, scrolled` | One pane whose screen holds 1000 rows, scrolled up and down 12 times: virtualised rows, frame time while scrolling |
 | `open 2 more panes in splits` | `Ctrl+\` splits and two more terminal tabs: mounting a pane tab into a new group |
 | `stream 8 panes, 3 open in splits` | The same stream with three panes open, each in its own split: reads scale with the open panes (20 a second each, 60 in all), not with the 8 that update |
 | `close panes` | Closing the three tabs and going back to the board |
@@ -133,7 +133,7 @@ From `Herdr.metrics()` (the panel's lines), same runs. Reads per second are read
 | `project home scroll, 200 agents` | - | 2.33 / 3.52 | 7.7 | 4.4 / 50 | 75 | 20 |
 | chat window, `5,000 items, scrolled` | - | - | - | - | 79-83 | 22-23 |
 
-`cargo bench --manifest-path native/core/Cargo.toml --bench parse` (release, 50 rows of 200 columns, five runs; ns per row, median of batches): `parse_cold` 824 [816-899], `parse_unchanged` 771 [769-857], `parse_one_row_changed` 771 [770-857], `links_per_screen` 667, `detect_links_one_row` 1239 [1233-1244], `wrap_to_80` 478, `min_contrast_fg` 1083 [1083-1104]. A screen of 50 rows is 41 µs to parse cold, release.
+`cargo bench --manifest-path native/core/Cargo.toml --bench parse` (release, 50 rows of 200 columns, five runs; ns per row, median of batches): `parse_cold` 824 [816-899], `parse_unchanged` 771 [769-857], `parse_one_row_changed` 771 [770-857], `links_per_screen` 667, `detect_links_one_row` 1239 [1233-1244], `min_contrast_fg` 1083 [1083-1104]. A screen of 50 rows is 41 µs to parse cold, release.
 
 ## Budgets
 

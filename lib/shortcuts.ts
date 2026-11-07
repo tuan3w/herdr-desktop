@@ -15,7 +15,7 @@ import { keymap } from "nsh";
  *   Apple platforms `cmd+tab` belongs to the system;
  * - not a key the platform keeps (`keymap.bind` throws on ⌘Q, ⌘H, ⌘M, Ctrl+Q, Alt+F4, F11);
  * - where a platform's habit differs, give that platform its own keys (`apple`, `other`) instead of bending one.
- * Escape is never a global shortcut and never the way out of capture mode: agents need it.
+ * Escape is never a global shortcut: agents need it.
  */
 export type ShortcutGroup = "general" | "attention" | "navigate" | "tabs" | "typing" | "chat" | "dev";
 
@@ -78,7 +78,6 @@ export type GlobalShortcut =
   | "closeTab"
   | "splitRight"
   | "splitDown"
-  | "capture"
   | "copyCode"
   | "copyReply"
   | "search"
@@ -89,7 +88,7 @@ export type GlobalShortcut =
 
 /** Work anywhere in the app, even in a text field (unless the field uses the key itself: undo, paste, caret keys). */
 export const GLOBAL: Record<GlobalShortcut, Shortcut> = {
-  // `mod+shift+p` is the palette's key while typing into a pane: `mod+k` is then the pane's (`capturedBy`).
+  // `mod+shift+p` is the second key: a chord with Shift that no terminal program uses as itself, so it stays the palette's wherever Ctrl+K belongs to the focused control.
   palette: { keys: ["mod+k", "mod+shift+p"], label: "Command palette", group: "general" },
   quickOpen: { keys: ["mod+p"], label: "Find a file in the project", group: "navigate" },
   newAgent: { keys: ["mod+n"], label: "New agent session", group: "general" },
@@ -138,7 +137,6 @@ export const GLOBAL: Record<GlobalShortcut, Shortcut> = {
   closeTab: { keys: ["mod+w"], label: "Close tab (the pane keeps running)", group: "tabs" },
   splitRight: { keys: ["mod+\\"], label: "Split right", group: "tabs" },
   splitDown: { keys: ["mod+shift+\\"], label: "Split down", group: "tabs" },
-  capture: { keys: ["mod+shift+k"], label: "Type into the pane, or stop typing into it", group: "typing" },
   copyCode: {
     keys: ["mod+shift+c"],
     label: "Copy code (the block under the pointer, else the last one)",
@@ -171,20 +169,6 @@ export const SHORTCUTS: Shortcut[] = [...Object.values(GLOBAL), ...LOCAL];
  * and the hints cannot disagree (also in a test that opens the app as another platform).
  */
 export const apple = (): boolean => keymap.label("mod+n").startsWith("⌘");
-
-/** The keys a terminal can send as a control byte: a letter, and `[ ] \\ /` (Escape's byte, SIGQUIT, 0x1d, 0x1f). */
-const PANE_CHORD = /^mod\+(?:[a-z]|\[|\]|\\|\/)$/;
-
-/**
- * Who hears `keystroke` while capture mode types into a pane. On Windows and Linux `mod` is Ctrl and a terminal can send
- * every plain Ctrl+letter and Ctrl+`[ ] \\ /`, so those go to the pane (Ctrl+K kills to the end of the line, Ctrl+W a word):
- * the app keeps only what a terminal cannot encode, which is every chord with Shift (Ctrl+Shift+P reads as Ctrl+P on the
- * wire), `ctrl+tab`, `mod+,`, `mod+<digit>` and function keys. Apple platforms are unchanged: `mod` is Command, which a
- * terminal never receives, so every Command chord is the app's and every Ctrl chord the pane's.
- */
-export function capturedBy(keystroke: string, onApple: boolean = apple()): "app" | "pane" {
-  return !onApple && PANE_CHORD.test(keystroke) ? "pane" : "app";
-}
 
 /** The keystrokes of `shortcut` on this platform (or on `onApple` when given, for a test). */
 export function keysOf(shortcut: Shortcut, onApple: boolean = apple()): string[] {

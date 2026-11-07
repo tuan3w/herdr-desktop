@@ -116,8 +116,12 @@ fn pane(pane: &str) -> Arc<TestFeed> {
     feed
 }
 
+/// A pane keeps its width: padded to 72 columns, a view of 400 pt draws it at the 10 pt base of `mirror` (the fit gives
+/// 10.1 pt), so the first layout does not change the cell size the counts below assume.
 fn lines(prefix: &str, count: usize) -> Vec<String> {
-    (0..count).map(|i| format!("{prefix} {i}")).collect()
+    (0..count)
+        .map(|i| format!("{:<72}", format!("{prefix} {i}")))
+        .collect()
 }
 
 fn start<C: Component>(width: f32, height: f32, clock: Option<nsh_core::time::Clock>) -> Headless
@@ -139,7 +143,6 @@ fn mirror(pane: &'static str) -> PaneScreenElement {
         .machine("m")
         .pane(pane)
         .label(LABEL)
-        .fit(PaneFit::Actual)
         .font_size(10.0)
 }
 
@@ -220,15 +223,11 @@ fn Linked() -> impl IntoElement {
 fn Fitted() -> impl IntoElement {
     view()
         .size_full()
-        .child(
-            mirror("fitted")
-                .fit(PaneFit::Width)
-                .on_cells(move |e: &PaneScreenEvent| {
-                    if let PaneScreenEvent::Cells { cols, rows } = e {
-                        CELLS.lock().push((*cols, *rows));
-                    }
-                }),
-        )
+        .child(mirror("fitted").on_cells(move |e: &PaneScreenEvent| {
+            if let PaneScreenEvent::Cells { cols, rows } = e {
+                CELLS.lock().push((*cols, *rows));
+            }
+        }))
 }
 
 /// What `Fitted` heard from `onCells`.
@@ -280,7 +279,7 @@ impl Changes {
 fn one_new_line_redraws_one_row_not_the_screen() {
     let pane = pane("fifty");
     pane.show(&lines("row", 50));
-    let mut app = start::<Fifty>(800.0, 1000.0, None);
+    let mut app = start::<Fifty>(400.0, 1000.0, None);
     let changes = Changes::default();
     changes.watch(&mut app);
     app.wait_for("text:row 49").unwrap();
@@ -291,7 +290,7 @@ fn one_new_line_redraws_one_row_not_the_screen() {
     );
 
     let mut one = lines("row", 50);
-    one[20] = "row 20 changed".into();
+    one[20] = format!("{:<72}", "row 20 changed");
     pane.show(&one);
     app.wait_for("text:row 20 changed").unwrap();
     let (one_items, one_texts) = changes.take();

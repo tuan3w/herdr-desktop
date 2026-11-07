@@ -18,17 +18,12 @@ async function inSettings(options: Parameters<typeof open>[1] = DESKTOP): Promis
 
 test("each option applies at once and is saved at once, with no Save button", async () => {
   const a = await inSettings();
-  expect(a.texts()).toContain("quick=true announce=false motion=false");
+  expect(a.texts()).toContain("announce=false motion=false");
   expect(a.shows("Save")).toBe(false);
 
-  await a.press("label:Quick phrases");
   await a.press("label:Announce agent output");
-  expect(a.texts()).toContain("quick=false announce=true motion=false");
-  await a.waitUntil(() => saved(a).quickPhrases === false && saved(a).announceOutput === true);
-
-  await a.press("label:Wrap lines");
-  expect(a.texts().some((t) => t.startsWith("fit=wrap"))).toBe(true);
-  await a.waitUntil(() => saved(a).paneFit === "wrap");
+  expect(a.texts()).toContain("announce=true motion=false");
+  await a.waitUntil(() => saved(a).announceOutput === true);
 
   await a.press("label:/^Chart/");
   expect(a.texts().some((t) => t.endsWith("theme=chart"))).toBe(true);
@@ -52,26 +47,31 @@ test("the pane font size and the minimum contrast are chosen from their lists, a
 test("what was chosen before is what the window opens with, and a saved value out of range is ignored", async () => {
   const stored = {
     themeId: "graphite",
-    paneFit: "actual",
     paneFontSize: 17,
     minContrast: 7,
     announceOutput: true,
-    quickPhrases: false,
     reduceMotionOverride: true,
+    // Options this app no longer has: ignored, and gone from the next save.
+    paneFit: "actual",
+    quickPhrases: false,
   };
   const a = await inSettings({ ...DESKTOP, storage: { [KEY]: JSON.stringify(stored) } });
-  await a.waitUntil(() => a.texts().includes("quick=false announce=true motion=true"));
-  expect(a.texts().some((t) => t.startsWith("fit=actual font=17 contrast=7 theme=graphite"))).toBe(true);
+  await a.waitUntil(() => a.texts().includes("announce=true motion=true"));
+  expect(a.texts().some((t) => t.startsWith("font=17 contrast=7 theme=graphite"))).toBe(true);
   // the controls show the loaded values, including a font size that is not a round number
   expect(a.shows("label:Pane font size: 17 pt")).toBe(true);
   expect(a.shows("label:Minimum contrast: 7")).toBe(true);
+  await a.press("label:Announce agent output");
+  await a.waitUntil(() => saved(a).announceOutput === false);
+  expect(Object.keys(saved(a))).not.toContain("paneFit");
+  expect(Object.keys(saved(a))).not.toContain("quickPhrases");
 
   const bad = await inSettings({
     ...DESKTOP,
-    storage: { [KEY]: JSON.stringify({ themeId: "nope", paneFontSize: 99, minContrast: 12, paneFit: "sideways" }) },
+    storage: { [KEY]: JSON.stringify({ themeId: "nope", paneFontSize: 99, minContrast: 12 }) },
   });
-  await bad.waitUntil(() => bad.texts().some((t) => t.startsWith("fit=width")));
-  expect(bad.texts().some((t) => t === "fit=width font=13 contrast=4.5 theme=harbor")).toBe(true);
+  await bad.waitUntil(() => bad.texts().some((t) => t.startsWith("font=13")));
+  expect(bad.texts().some((t) => t === "font=13 contrast=4.5 theme=harbor")).toBe(true);
 });
 
 test("how code is drawn is chosen in Settings, applies at once, is saved, and is what the window opens with", async () => {

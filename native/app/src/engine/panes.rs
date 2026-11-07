@@ -47,7 +47,6 @@ impl Key {
         match self.source {
             PaneSource::Visible => "visible",
             PaneSource::Recent => "recent",
-            PaneSource::RecentUnwrapped => "recent_unwrapped",
         }
     }
 }
@@ -187,7 +186,7 @@ impl Fleet {
                 key: key.clone(),
                 lines: AtomicU32::new(match source {
                     PaneSource::Visible => 0,
-                    PaneSource::Recent | PaneSource::RecentUnwrapped => SCROLLBACK_LINES,
+                    PaneSource::Recent => SCROLLBACK_LINES,
                 }),
                 state: Mutex::new(WatchState {
                     screen: Arc::new(Screen::default()),

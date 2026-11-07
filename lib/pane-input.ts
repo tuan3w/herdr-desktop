@@ -1,7 +1,5 @@
-import { PaneKeys } from "herdr-desktop/native";
-import { keymap, signal } from "nsh";
+import { signal } from "nsh";
 
-import { apple, capturedBy, GLOBAL, keysOf } from "#lib/shortcuts";
 import { fold } from "#lib/text";
 
 /**
@@ -13,9 +11,6 @@ import { fold } from "#lib/text";
 export interface PaneInput {
   /** Puts the keyboard in the message box. */
   focusComposer(): void;
-  /** Starts or stops typing into the pane (capture mode): a terminal only. */
-  toggleCapture?(): void;
-  capturing?(): boolean;
   /** Opens the list of every link in the pane: a terminal only. */
   showLinks?(): void;
   /** Opens the find bar over the pane's text: a terminal only. */
@@ -26,9 +21,6 @@ export interface PaneInput {
   copyCode?(): void;
 }
 
-/** What a terminal tab registers: every part a terminal has. */
-export type TerminalInput = Required<Omit<PaneInput, "copyReply" | "copyCode">>;
-
 const registered = signal<readonly PaneInput[]>([]);
 
 /** Makes `pane` the one the functions below act on, until the returned function runs. */
@@ -38,12 +30,6 @@ export function registerPane(pane: PaneInput): () => void {
 }
 
 const front = (): PaneInput | undefined => registered().at(-1);
-
-/** `mod+shift+k`: type into the pane in front, or stop. */
-export const toggleCapture = (): void => front()?.toggleCapture?.();
-
-/** Whether the pane in front is being typed into. Reactive. */
-export const captureActive = (): boolean => front()?.capturing?.() ?? false;
 
 /** The palette entry `Links in this pane…`. */
 export const showLinks = (): void => front()?.showLinks?.();
@@ -65,77 +51,6 @@ export const chatInFront = (): boolean => front()?.copyReply !== undefined;
 
 /** Whether a pane is in front: the palette offers pane entries only then. Reactive. */
 export const paneInFront = (): boolean => front() !== undefined;
-
-const NAMED = [
-  "escape",
-  "enter",
-  "tab",
-  "shift+tab",
-  "backspace",
-  "delete",
-  "insert",
-  "up",
-  "down",
-  "left",
-  "right",
-  "home",
-  "end",
-  "pageup",
-  "pagedown",
-];
-const LETTERS = "abcdefghijklmnopqrstuvwxyz".split("");
-
-/**
- * The keystrokes capture mode binds, as `keymap` spells them: the keys that are not text (everything else arrives as
- * typed text through the capture field), as herdr names them (`PaneKeys.herdrKey`). Left out:
- * - what a terminal cannot send, which stays the app's (`capturedBy`: every chord with Shift, `ctrl+tab`, `mod+,`,
- *   `mod+<digit>`, function keys such as Help). That is how `mod+shift+k` leaves the mode and `mod+shift+p` opens the
- *   palette while it is on. Every plain Ctrl chord a terminal can send (Ctrl+K, N, W, F, J, B, E, P, `[`, `]`, `\\`, `/`)
- *   is the pane's here, the app's shortcut for it waits until the mode is left; on Apple platforms `mod` is Command and
- *   every Ctrl chord was always the pane's;
- * - `ctrl+v` where Ctrl is `mod`: that is paste, which sends the pasted text (bracketed by the shell) instead;
- * - what the host keeps for itself (`bindable`).
- */
-export function captureKeystrokes(onApple: boolean = apple()): string[] {
-  const taken = new Set(
-    Object.values(GLOBAL).flatMap((shortcut) =>
-      keysOf(shortcut, onApple)
-        .filter((k) => capturedBy(k, onApple) === "app")
-        .map((k) => (onApple ? k : k.replace(/^mod\b/, "ctrl"))),
-    ),
-  );
-  const candidates = [
-    ...NAMED,
-    ...Array.from({ length: 12 }, (_, i) => `f${i + 1}`),
-    ...LETTERS.map((l) => `ctrl+${l}`),
-    ...["[", "]", "\\", "/"].map((p) => `ctrl+${p}`),
-    ...LETTERS.map((l) => `alt+${l}`),
-  ];
-  return candidates.filter(
-    (k) => !taken.has(k) && !(!onApple && k === "ctrl+v") && PaneKeys.herdrKey(k) !== null && bindable(k),
-  );
-}
-
-const probed = new Map<string, boolean>();
-
-/**
- * Whether the host lets the app bind `keystroke`: it keeps some for itself (F11 full screen, Ctrl+Q quit on Windows and
- * Linux) and `keymap.bind` throws for them, which would refuse the whole set. Asked once per key, by binding and
- * releasing it.
- */
-function bindable(keystroke: string): boolean {
-  let ok = probed.get(keystroke);
-  if (ok === undefined) {
-    try {
-      keymap.bind(keystroke, () => undefined)();
-      ok = true;
-    } catch {
-      ok = false;
-    }
-    probed.set(keystroke, ok);
-  }
-  return ok;
-}
 
 /** The rows of the pane that hold `query`, ignoring case, diacritics and invisible characters; none for an empty query. */
 export function matchRows(rows: readonly string[], query: string): number[] {

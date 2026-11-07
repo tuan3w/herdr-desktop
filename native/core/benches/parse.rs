@@ -7,7 +7,7 @@
 use std::hint::black_box;
 use std::time::Instant;
 
-use herdr_core::screen::{Rgb, Screen, detect_links, min_contrast_fg, wrap_screen};
+use herdr_core::screen::{Rgb, Screen, detect_links, min_contrast_fg};
 
 const ROWS: usize = 50;
 const COLS: usize = 200;
@@ -122,10 +122,6 @@ fn main() {
                 )));
             }
         }),
-    );
-    report(
-        "wrap_to_80",
-        per_row(|| drop(black_box(wrap_screen(&previous, 80, None)))),
     );
     report(
         "min_contrast_fg",

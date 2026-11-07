@@ -16,9 +16,7 @@ import {
   diffSplit,
   loadSettings,
   minContrast,
-  paneFit,
   paneFontSize,
-  quickPhrases,
   reduceMotionOverride,
   themeId,
 } from "#lib/settings";
@@ -91,8 +89,8 @@ function Lab() {
         <Text>{started()}</Text>
         <Text>{named()}</Text>
         <Text>{requests()}</Text>
-        <Text>{`fit=${paneFit()} font=${paneFontSize()} contrast=${minContrast()} theme=${themeId()}`}</Text>
-        <Text>{`quick=${quickPhrases()} announce=${announceOutput()} motion=${reduceMotionOverride()}`}</Text>
+        <Text>{`font=${paneFontSize()} contrast=${minContrast()} theme=${themeId()}`}</Text>
+        <Text>{`announce=${announceOutput()} motion=${reduceMotionOverride()}`}</Text>
         <Text>{`code=${codeWrap()}/${codeLineNumbers()}/${codeWhitespace()}/${diffSplit()}`}</Text>
         <Text>{`notify=${(revision(), Herdr.setting("notify.needsYou") === true)}/${(revision(), Herdr.setting("notify.alsoDone") === true)}`}</Text>
         <Text>{`press=${pressTransition() === undefined ? "still" : "eased"}`}</Text>

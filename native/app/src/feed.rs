@@ -12,12 +12,11 @@ use async_channel::Receiver;
 use herdr_core::screen::Screen;
 
 /// Which part of the pane a view shows. `Visible` is the live screen, `Recent` the scrollback (up to 1000
-/// rows), `RecentUnwrapped` the scrollback with soft wraps joined, for re-flowing to another width.
+/// rows).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PaneSource {
     Visible,
     Recent,
-    RecentUnwrapped,
 }
 
 /// How trustworthy what a feed shows is right now.

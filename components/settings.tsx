@@ -4,21 +4,8 @@ import { colorScheme, computed, effect, openUrl, signal, Text, untracked, View }
 import type { NotificationSupport } from "herdr-desktop/native";
 
 import { Machines } from "#components/machines";
-import {
-  Btn,
-  Modal,
-  notify,
-  RadioGroup,
-  RadioItem,
-  Segmented,
-  type SegmentOption,
-  SelectField,
-  SettingRow,
-  SettingsSection,
-  Switch,
-} from "#kit";
+import { Btn, Modal, notify, RadioGroup, RadioItem, SelectField, SettingRow, SettingsSection, Switch } from "#kit";
 import { revision } from "#lib/herdr";
-import type { PaneFit } from "#lib/settings";
 import {
   announceOutput,
   checkUpdates,
@@ -28,9 +15,7 @@ import {
   diffSplit,
   largeTargets,
   minContrast,
-  paneFit,
   paneFontSize,
-  quickPhrases,
   reduceMotionOverride,
   settingsReady,
   themeId,
@@ -45,12 +30,6 @@ import app from "../nsh.json";
 /** The engine's settings keys of the two notification switches (`native/app/src/engine/alerts.rs`). */
 const NOTIFY_NEEDS_YOU = "notify.needsYou";
 const NOTIFY_ALSO_DONE = "notify.alsoDone";
-
-const FIT_OPTIONS: SegmentOption<PaneFit>[] = [
-  { value: "width", label: "Fit width" },
-  { value: "actual", label: "Actual size" },
-  { value: "wrap", label: "Wrap lines" },
-];
 
 /** 9 to 24 pt, the range `loadSettings` accepts. */
 const FONT_SIZES = Array.from({ length: 16 }, (_, i) => ({ value: String(i + 9), title: `${i + 9} pt` }));
@@ -170,20 +149,8 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
               control={<ThemePicker />}
             />
             <SettingRow
-              label="Pane width"
-              description="How a pane's columns meet the window: scaled to fill the width, the font as set, or lines wrapped to fit."
-              control={
-                <Segmented
-                  label="Pane width"
-                  value={paneFit()}
-                  onChange={(v) => paneFit.set(v)}
-                  options={FIT_OPTIONS}
-                />
-              }
-            />
-            <SettingRow
               label="Pane font size"
-              description="The size terminal text is drawn at. Fit width scales it down to fit the columns, never below 9 pt."
+              description="The size a pane's text is drawn at. It is scaled down to fit the pane's columns in the width, never below 9 pt."
               control={
                 <SelectField
                   small
@@ -238,13 +205,6 @@ export function Settings(props: { open: boolean; onClose: () => void }) {
               label="Diffs side by side"
               description="Old text on the left and new on the right, instead of one column."
               control={<Switch label="Diffs side by side" checked={diffSplit()} onChange={(v) => diffSplit.set(v)} />}
-            />
-          </SettingsSection>
-          <SettingsSection title="Agents">
-            <SettingRow
-              label="Quick phrases"
-              description="Learns the replies you send often and offers them above an empty composer. Stays on this computer."
-              control={<Switch label="Quick phrases" checked={quickPhrases()} onChange={(v) => quickPhrases.set(v)} />}
             />
           </SettingsSection>
           <SettingsSection title="Notifications">

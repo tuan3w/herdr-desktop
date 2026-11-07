@@ -5,15 +5,14 @@ import type { PaneMeta } from "herdr-desktop/native";
 import { agentTitle } from "#components/composer";
 import { StatusGlyph } from "#components/status-glyph";
 import { ActionMenu, Btn, Clipped, IconButton, type MenuEntry } from "#kit";
-import { paneFit, type PaneFit } from "#lib/settings";
 import { keyLabel } from "#lib/shortcuts";
 import { statusText } from "#lib/status";
 
 /**
  * The top of a pane tab: what the agent is and what it is doing (a shape and words, never colour alone), its machine
  * and folder, `Stop` while it works, `Show chat` (an agent whose log can be read as a conversation; the chat's own
- * `Show terminal` comes back), find, `Browse files` (its folder on its machine), and `Pane options`: the layout of
- * the mirror (kept in Settings: the choice is the person's, not this pane's), links, duplicate, and the two copies.
+ * `Show terminal` comes back), find, `Browse files` (its folder on its machine), and `Pane options`: links, duplicate,
+ * and the two copies. The words `Read-only view` say what the screen below is: a picture of the pane, not a terminal.
  */
 export function PaneHeader(props: {
   info: PaneMeta;
@@ -29,19 +28,6 @@ export function PaneHeader(props: {
   onCopyPaneId: () => void;
 }) {
   const options = (): MenuEntry[] => [
-    {
-      type: "radio",
-      label: "Layout",
-      value: paneFit(),
-      onValueChange: (value) => paneFit.set(value as PaneFit),
-      items: [
-        { value: "width", label: "Fit width" },
-        { value: "actual", label: "Actual size" },
-        { value: "wrap", label: "Wrap lines" },
-      ],
-      closeOnClick: true,
-    },
-    "separator",
     { label: "Find in the pane…", shortcut: keyLabel("search"), onSelect: props.onFind },
     { label: "Links in this pane…", onSelect: props.onLinks },
     "separator",
@@ -62,6 +48,7 @@ export function PaneHeader(props: {
             {props.info.name}
           </Text>
           <Text class="text-xs text-muted-foreground">{statusText(props.info.status)}</Text>
+          <Text class="text-xs text-muted-foreground">Read-only view</Text>
         </View>
         <Clipped class="text-xs text-muted-foreground" label={where()}>
           {where()}

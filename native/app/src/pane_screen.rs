@@ -18,14 +18,13 @@ mod tests;
 
 use std::{cell::RefCell, rc::Rc, sync::Arc, time::Duration};
 
-use herdr_core::screen::{LinkKind, Rgb, Row, Screen, detect_links, wrap_screen};
+use herdr_core::screen::{LinkKind, Rgb, Row, Screen, detect_links};
 use nsh_base::{button, theme};
 use nsh_core::{EllipsizeMode, element::measure_text, prelude::*};
 
 use self::{
     follow::Pill,
     ink::{Ink, Palette, Resolved},
-    layout::PaneFit,
     news::{AttentionWatch, OutputGate},
     segments::{Fill, Segment, fills, segments},
 };
@@ -83,9 +82,9 @@ pub struct PaneLink {
     pub row: u32,
 }
 
-/// A read-only mirror of one herdr pane: its rows with colours, bold, italic, underline, links and
-/// wide characters, following the end while you are at the end. It has no cursor and takes no keys:
-/// type into the pane with the composer or capture mode. Colours are the theme's `term-*` tokens,
+/// A read-only view of one herdr pane: its rows with colours, bold, italic, underline, links and
+/// wide characters, following the end while you are at the end. It has no cursor and takes no keys.
+/// The pane's columns fill the width (see `layout::plan`). Colours are the theme's `term-*` tokens,
 /// each foreground lifted to `minContrast` against the cell behind it. Screen readers hear a group
 /// named `label` holding the rows as text, and an assertive announcement when the agent in the pane
 /// needs you.
@@ -95,16 +94,9 @@ pub struct PaneScreenProps {
     pub machine: Prop<SharedString>,
     /// The pane's id on that machine (`w1:p2`).
     pub pane: Prop<SharedString>,
-    /// `"visible"` (default) shows the live screen, `"recent"` the scrollback. `fit="wrap"` always
-    /// shows the scrollback with its soft wraps joined, re-flowed to the width.
+    /// `"visible"` (default) shows the live screen, `"recent"` the scrollback.
     #[prop(default)]
     pub source: Prop<PaneContent>,
-    /// How the pane's columns meet the width: `"width"` (default) scales the font so they fill it
-    /// (9 pt at the smallest, then it scrolls sideways; never past twice `fontSize`), `"actual"`
-    /// keeps `fontSize` and scrolls sideways when the pane is wider, `"wrap"` keeps `fontSize` and
-    /// re-flows the rows to the columns that fit.
-    #[prop(default)]
-    pub fit: Prop<PaneFit>,
     /// The WCAG contrast every foreground reaches against its background: 1 leaves the colours as
     /// the agent sent them, 7 is the strictest (default 4.5).
     #[prop(default = 4.5)]
@@ -113,8 +105,8 @@ pub struct PaneScreenProps {
     pub label: Prop<SharedString>,
     /// The font family (default the theme's `font-mono`, else the system's monospaced font).
     pub font_family: Prop<Option<SharedString>>,
-    /// The font size in points for `fit="actual"` and `"wrap"`, and the size `fit="width"` scales
-    /// from (default 13).
+    /// The font size in points the pane's columns are scaled from: they fill the width (9 pt at the
+    /// smallest, then the view scrolls sideways; never past twice this size). Default 13.
     #[prop(default = 13.0)]
     pub font_size: Prop<f32>,
     /// Have screen readers read new output: at most one polite announcement every two seconds, of
@@ -266,12 +258,11 @@ fn font_family(family: Option<SharedString>) -> SharedString {
         .unwrap_or_else(|| "monospace".into())
 }
 
-/// What the view reads from the feed: the scrollback when re-flowing, otherwise what was asked for.
-fn source_for(fit: PaneFit, source: PaneContent) -> PaneSource {
-    match (fit, source) {
-        (PaneFit::Wrap, _) => PaneSource::RecentUnwrapped,
-        (_, PaneContent::Visible) => PaneSource::Visible,
-        (_, PaneContent::Recent) => PaneSource::Recent,
+/// What the view reads from the feed.
+fn source_for(source: PaneContent) -> PaneSource {
+    match source {
+        PaneContent::Visible => PaneSource::Visible,
+        PaneContent::Recent => PaneSource::Recent,
     }
 }
 
@@ -327,7 +318,7 @@ pub fn PaneScreen(props: PaneScreenProps, cx: Scope<PaneScreenEvent>) -> impl In
 
     // The feed: opened for what is asked for, dropped (which stops the engine watching) when the
     // pane, the machine or what is read changes.
-    let source = computed(move || source_for(props.fit.get(), props.source.get()));
+    let source = computed(move || source_for(props.source.get()));
     let feed = computed(move || {
         let (machine, pane) = (props.machine.get(), props.pane.get());
         FeedHandle(feed::open(machine.as_ref(), pane.as_ref(), source.get()).map(Rc::from))
@@ -335,37 +326,16 @@ pub fn PaneScreen(props: PaneScreenProps, cx: Scope<PaneScreenEvent>) -> impl In
     watch_feed(props, feed, mirror);
 
     // The font: its cell width per point of font size is measured once per family (monospaced text
-    // scales linearly), everything else follows from the fit.
+    // scales linearly), everything else follows from the width.
     let family = move || font_family(props.font_family.get());
     let cell_ratio = computed(move || {
         let css = font_css(&family(), 100.0);
         measure_text(&css, "0000000000").0 / 10.0 / 100.0
     });
-    let base_cell = computed(move || props.font_size.get() * cell_ratio.get());
-    let wrap_cols = computed(move || layout::columns_that_fit(width.get(), base_cell.get()));
-
-    // What is shown: the feed's screen, re-flowed for `fit="wrap"`.
-    let wrapped = stored(None::<Arc<Screen>>);
-    let shown = computed(move || {
-        let raw = mirror.screen.get();
-        if props.fit.get() != PaneFit::Wrap {
-            return raw;
-        }
-        let cols = wrap_cols.get();
-        let flowed = wrapped.with(|prev| wrap_screen(&raw.0, cols, prev.as_deref()));
-        let flowed = Arc::new(flowed);
-        wrapped.replace(Some(flowed.clone()));
-        ScreenRef(flowed)
-    });
+    let shown = mirror.screen;
     let plan = computed(move || {
         let cols = shown.with(|s| s.0.cols);
-        layout::plan(
-            props.fit.get(),
-            props.font_size.get(),
-            width.get(),
-            cols,
-            cell_ratio.get(),
-        )
+        layout::plan(props.font_size.get(), width.get(), cols, cell_ratio.get())
     });
     let cell_width = computed(move || plan.get().cell_width);
     let line_height = computed(move || plan.get().line_height);
@@ -626,7 +596,7 @@ fn jump_to_end(mirror: Mirror, cx: Scope<PaneScreenEvent>, list: ElementRef) {
 /// Row `at`: the cells' backgrounds, then the text.
 fn pane_row(
     cx: Scope<PaneScreenEvent>,
-    shown: Memo<ScreenRef>,
+    shown: Signal<ScreenRef>,
     ink: Memo<InkRef>,
     cell_width: Memo<f32>,
     line_height: Memo<f32>,

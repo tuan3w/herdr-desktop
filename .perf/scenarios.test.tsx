@@ -84,10 +84,8 @@ test(
     await app.wait(3000);
 
     await mark(app, "scrollback 1000 rows, scrolled");
-    // The scripted herdr gives what it holds for any source: 1000 rows, shown wrapped (the scrollback view).
+    // The scripted herdr gives what it holds for any source: 1000 rows.
     await app.keyboard.press("ctrl+alt+2");
-    await app.press("label:Pane options");
-    await app.press("label:Wrap lines");
     await app.wait(1500);
     const window = () => {
       const rows = app
@@ -104,9 +102,6 @@ test(
     console.log(`PERF-NOTE scrollback: rows near the window after each scroll: ${seen.join(", ")}`);
     if (new Set(seen).size < 3) throw new Error(`the scrollback did not scroll: ${seen.join(", ")}`);
     await app.wait(1000);
-    await app.press("label:Pane options");
-    await app.press("label:Fit width");
-    await app.wait(500);
 
     await mark(app, "open 2 more panes in splits");
     await app.keyboard.press("ctrl+\\");

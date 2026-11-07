@@ -1,11 +1,7 @@
 /**
- * The slash commands of an agent pane, ported from herdr-mobile (`slash_catalog.dart`, `slash_usage.dart`,
- * `command_model.dart`): what the composer's first word can complete to, what pinning and sending teach it, and the
- * guard that holds a `/word` the agent does not list. Pure: `lib/pane-memory.ts` keeps the memory, the composer shows it.
- *
- * The built-in tables are a best effort: an agent adds and renames commands between versions. The list only fills in
- * the composer; the agent has the last word when the line is sent. Commands that live as files on the machine (a
- * project's `.claude/commands`) need a file read the engine does not offer yet, so they are not listed.
+ * The slash commands of an agent, ported from herdr-mobile (`slash_catalog.dart`, `slash_usage.dart`, `command_model.dart`):
+ * what the chat composer's first word can complete to and what pinning and sending teach it. The list is the agent's own
+ * (`available_commands_update`), never a table kept here. Pure: `lib/pane-memory.ts` keeps the memory, the composer shows it.
  */
 
 /** Where a command comes from; listing order is this order. */
@@ -29,72 +25,6 @@ export const commandText = (c: SlashCommand): string => `${c.trigger}${c.name}`;
 
 /** What pins and use remember a command under: the bare name for `/`, the name with `$` for a skill. */
 export const usageKey = (c: SlashCommand): string => (c.trigger === "/" ? c.name : `${c.trigger}${c.name}`);
-
-const builtIn = (name: string, description: string): SlashCommand => ({
-  name,
-  description,
-  source: "builtIn",
-  trigger: "/",
-});
-
-/** By herdr's agent label. An agent without a table (omp, pi) lists what was pinned or sent. */
-export const BUILT_IN: Record<string, SlashCommand[]> = {
-  claude: [
-    builtIn("clear", "Start a new conversation"),
-    builtIn("compact", "Summarise the conversation to free context"),
-    builtIn("model", "Choose the model"),
-    builtIn("resume", "Resume an earlier conversation"),
-    builtIn("rewind", "Go back to an earlier point"),
-    builtIn("context", "Show what fills the context"),
-    builtIn("cost", "Show token usage"),
-    builtIn("status", "Show version, model and account"),
-    builtIn("permissions", "Manage tool permissions"),
-    builtIn("memory", "Edit memory files"),
-    builtIn("init", "Create a CLAUDE.md for this project"),
-    builtIn("review", "Review a pull request"),
-    builtIn("agents", "Manage subagents"),
-    builtIn("mcp", "Manage MCP servers"),
-    builtIn("hooks", "Manage hooks"),
-    builtIn("config", "Open settings"),
-    builtIn("add-dir", "Add a working folder"),
-    builtIn("export", "Export the conversation"),
-    builtIn("todos", "Show the todo list"),
-    builtIn("doctor", "Check the installation"),
-    builtIn("help", "Show help and commands"),
-    builtIn("exit", "Quit"),
-  ],
-  codex: [
-    builtIn("new", "Start a new chat"),
-    builtIn("resume", "Resume an earlier chat"),
-    builtIn("compact", "Summarise the chat to free context"),
-    builtIn("model", "Choose the model and reasoning effort"),
-    builtIn("approvals", "Choose what needs approval"),
-    builtIn("status", "Show the session configuration"),
-    builtIn("diff", "Show the git diff"),
-    builtIn("review", "Review the working tree"),
-    builtIn("mention", "Mention a file"),
-    builtIn("init", "Create an AGENTS.md"),
-    builtIn("mcp", "List MCP tools"),
-    builtIn("logout", "Sign out"),
-    builtIn("quit", "Quit"),
-  ],
-  opencode: [
-    builtIn("new", "Start a new session"),
-    builtIn("sessions", "Switch session"),
-    builtIn("models", "Choose the model"),
-    builtIn("compact", "Summarise the session"),
-    builtIn("undo", "Undo the last message and its changes"),
-    builtIn("redo", "Redo"),
-    builtIn("share", "Share the session"),
-    builtIn("init", "Create an AGENTS.md"),
-    builtIn("themes", "Choose a theme"),
-    builtIn("help", "Show help"),
-    builtIn("exit", "Quit"),
-  ],
-};
-
-/** The commands an agent label lists, case-insensitive; none for an agent without a table. */
-export const commandsOf = (agent: string): SlashCommand[] => BUILT_IN[agent.trim().toLowerCase()] ?? [];
 
 // --- What the person pinned and sent, per agent label (lower case). Nothing secret: command names only.
 
@@ -204,9 +134,6 @@ const WORD = /^[/$]\S*$/;
 const SENT = /^([/$])(\w[\w:.-]{0,63})(?:\s|$)/;
 const PICKED = /^([/$])(\w[\w:.-]{0,63}) $/;
 
-/** Commands every agent's terminal takes that its advertised table often lacks: never warned about. */
-const UNLISTED = new Set(["clear", "new", "help", "exit", "quit"]);
-
 const triggerOf = (key: string): "/" | "$" => (key.startsWith("$") ? "$" : "/");
 
 /** By source (project, user, built-in), then by `uses` (most first), keeping the given order among equals. */
@@ -266,30 +193,6 @@ export function matchCommands(
   // A command typed in full and nothing else left to choose: nothing to show.
   if (starts.length === 1 && starts[0].name.toLowerCase() === query && inName.length === 0) return [];
   return [...ordered(starts, uses), ...ordered(inName, uses), ...ordered(inText, uses)];
-}
-
-/**
- * The word of a `/command` that `line` (about to be sent) starts with and that this agent does not list; null when the
- * line is not a command, is one the agent lists (or the person sent or pinned before), or nothing can be said because
- * the agent lists none. A typo (`/clera`) goes to the model as a message and costs a turn, a real command is run.
- * Only `/` is checked: `$PATH is wrong` is a sentence and a path (`/usr/bin/env`) is not a command at all.
- */
-export function unknownCommand(
-  line: string,
-  agent: string,
-  commands: readonly SlashCommand[],
-  memory: SlashMemory,
-): string | null {
-  const m = SENT.exec(line.trim());
-  if (!agent.trim() || !m || m[1] !== "/") return null;
-  const listed = commands.filter((c) => c.trigger === "/").map((c) => c.name.toLowerCase());
-  if (listed.length === 0) return null;
-  const word = m[2];
-  const lower = word.toLowerCase();
-  if (listed.includes(lower) || UNLISTED.has(lower)) return null;
-  const remembered = [...pinnedOf(memory, agent), ...usedOf(memory, agent)];
-  if (remembered.some((key) => key.toLowerCase() === lower)) return null;
-  return word;
 }
 
 /**
