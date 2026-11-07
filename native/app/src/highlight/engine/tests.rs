@@ -591,6 +591,22 @@ mod rows {
     }
 
     #[test]
+    fn a_removed_or_added_line_that_looks_like_a_file_header_is_still_a_line() {
+        // `-- comment` removed is `--- comment` in the patch; `++ x` added is `+++ x`.
+        let patch = "diff --git a/q.sql b/q.sql\n--- a/q.sql\n+++ b/q.sql\n@@ -1,3 +1,3 @@\n--- old comment\n+++ new comment\n keep\n";
+        let files = diff::patch(patch, DiffOptions::default());
+        assert_eq!(files.len(), 1);
+        let (name, u) = &files[0];
+        assert_eq!(name, "q.sql");
+        assert_eq!((u.added, u.removed), (1, 1));
+        // A patch without `diff --git` lines still splits files at the pair that precedes a hunk.
+        let two = "--- a/one\n+++ b/one\n@@ -1 +1 @@\n-a\n+b\n--- a/two\n+++ b/two\n@@ -1 +1 @@\n-c\n+d\n";
+        let files = diff::patch(two, DiffOptions::default());
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[1].0, "two");
+    }
+
+    #[test]
     fn split_pairs_removed_and_added_lines_side_by_side() {
         let u = diff::between(
             "a\nb\nc\n",

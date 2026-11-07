@@ -266,19 +266,38 @@ pub fn patch(text: &str, options: DiffOptions) -> Vec<(String, Unified)> {
     let mut current: Option<(String, Vec<PatchLine>)> = None;
     let mut old_name = String::new();
     let (mut old_no, mut new_no) = (0u32, 0u32);
-    for raw in text.lines() {
+    let all: Vec<&str> = text.lines().collect();
+    for (at, raw) in all.iter().copied().enumerate() {
+        // `--- ` and `+++ ` open a file only before its first hunk (or when `@@` follows the pair, a patch without
+        // `diff --git` lines): inside a hunk `--- x` is the removed line `-- x`, `+++ x` the added line `++ x`.
+        let before_hunk = current.as_ref().is_none_or(|f| f.1.is_empty());
+        let pair = |first: &str, second: &str| {
+            raw.starts_with(first)
+                && all.get(at + 1).is_some_and(|l| l.starts_with(second))
+                && all.get(at + 2).is_some_and(|l| l.starts_with("@@"))
+        };
+        let old_header = raw.starts_with("--- ") && (before_hunk || pair("--- ", "+++ "));
+        let new_header = raw.starts_with("+++ ")
+            && (before_hunk
+                || (at > 0
+                    && all[at - 1].starts_with("--- ")
+                    && all.get(at + 1).is_some_and(|l| l.starts_with("@@"))));
         if let Some(rest) = raw.strip_prefix("diff --git ") {
             if let Some(file) = current.take() {
                 files.push(file);
             }
             let name = rest.rsplit(" b/").next().unwrap_or(rest).to_string();
             current = Some((name, Vec::new()));
-        } else if let Some(rest) = raw.strip_prefix("--- ") {
-            old_name = rest.trim_start_matches("a/").to_string();
+        } else if old_header {
+            if !before_hunk && let Some(file) = current.take() {
+                files.push(file);
+            }
+            old_name = raw["--- ".len()..].trim_start_matches("a/").to_string();
             if current.is_none() {
                 current = Some((String::new(), Vec::new()));
             }
-        } else if let Some(rest) = raw.strip_prefix("+++ ") {
+        } else if new_header {
+            let rest = &raw["+++ ".len()..];
             if let Some(file) = current.as_mut() {
                 if file.0.is_empty() || file.0 == "/dev/null" {
                     file.0 = rest.trim_start_matches("b/").to_string();
