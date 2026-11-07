@@ -18,6 +18,11 @@
 # Only removes paths this script owns; your data (~/.local/share/dev.herdrmobile.herdr_desktop) stays.
 set -euo pipefail
 
+if [[ "$(uname -s)" != "Linux" ]]; then
+  echo "local/install.sh installs the Linux package. On a Mac, unzip the release and drag Herdr Desktop.app to Applications (docs/MACOS.md)." >&2
+  exit 64
+fi
+
 ID="dev.herdrmobile.herdr_desktop"
 EXE="HerdrDesktop"
 root="$(cd "$(dirname "$0")/.." && pwd)"
