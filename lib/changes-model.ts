@@ -27,6 +27,7 @@ import {
   withCheckout,
   withMark,
 } from "#lib/changes";
+import { noteCount } from "#lib/changes-count";
 import { changesKey } from "#lib/dock";
 import { allRows, board, revision } from "#lib/herdr";
 import { remembered } from "#lib/pane-memory";
@@ -205,10 +206,11 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
       if (disposed) return;
       failure.set(null);
       status.set(next);
-      if (next.problem) {
-        failure.set(null);
-        return;
-      }
+      // The chip of a chat in this checkout shows the same number without reading git itself.
+      const count = next.problem ? null : next.files.length;
+      noteCount(machine, cwd, count);
+      if (next.root) noteCount(machine, next.root, count);
+      if (next.problem) return;
       const have = marks();
       const trimmed = pruned(have, next.files);
       if (trimmed !== have) reviewedStore.set(withCheckout(reviewedStore.get(), `${machine}\n${next.root}`, trimmed));
@@ -238,10 +240,11 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
     }
   }
 
-  // While in front and the window is in use: read now, then again after `POLL_MS` (longer when a read is slow). A hidden
-  // tab and a window that is away read nothing; coming back reads at once.
+  // While in front and the window is on screen (focused or not: the person watches agents work beside another window):
+  // read now, then again after `POLL_MS` (longer when a read is slow). A hidden tab and a window in the background
+  // (minimised, another desktop) read nothing; coming back reads at once.
   effect(() => {
-    if (!active() || lifecycle() !== "active") return;
+    if (!active() || lifecycle() === "background") return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const tick = () => {
       void refresh().finally(() => {
@@ -265,7 +268,7 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
       first = false;
       return;
     }
-    if (!untracked(active) || untracked(lifecycle) !== "active") return;
+    if (!untracked(active) || untracked(lifecycle) === "background") return;
     clearTimeout(soon);
     soon = setTimeout(() => void refresh(), TURN_MS);
   });

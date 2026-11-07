@@ -10,6 +10,10 @@ The Changes tab (`components/changes.tsx`) is where a person reads what the agen
 - **Narrow windows** (`narrow()`) show the list or the change, one at a time, with `Back to the files`.
 - **Calm**: no signal colour (a change is `+`/`−` in its own column, never only a tint), nothing moves at rest, and nothing is drawn for a tab that is not in front.
 
+## Where it opens from
+
+`Review changes` (`mod+shift+g`, the Go menu, the palette), the `Changes` chip in a chat's header (the count of changed files from `lib/changes-count.ts`: one read when the chat comes to the front and one when its agent changes state, no timer), `Changes` in a project's sidebar menu (one entry per checkout when there are several) and on its card.
+
 ## Reading git
 
 All of it is `herdr_core::git` (`native/core/src/git`), reached through the `Git` module (`native/app/src/git.rs`). The rules are in its module doc and each has a test in `native/core/tests/git.rs`:
@@ -19,13 +23,13 @@ All of it is `herdr_core::git` (`native/core/src/git`), reached through the `Git
 3. **Output is bounded where git runs** (locally by killing our own child by PID, remotely inside `git.py`).
 4. **A remote machine** runs `git.py` over the machine's shared ssh connection: every path is one argument, validated by `validate_dir` and `validate_rel` first.
 
-The tab reads when it comes to the front, every `POLL_MS` (5 s, stretched to four times a slow read) while it is in front and the window is `active`, and `TURN_MS` after an agent of the checkout changes state. A hidden tab, or a window that is away, reads nothing.
+The tab reads when it comes to the front, every `POLL_MS` (5 s, stretched to four times a slow read) while it is in front and the window is on screen (focused or not; `background` reads nothing), and `TURN_MS` after an agent of the checkout changes state. A hidden tab, or a window in the background, reads nothing.
 
 ## Reviewing
 
 - `j` and `k` move between files (Up and Down too while the list has the keyboard), `n` and `p` between the changes of a file, `Enter` shows more unchanged lines (3, 12, the whole file: `CONTEXTS`), `x` marks the file reviewed, `r` reads again, `c` writes a note on the change in view.
 - **Reviewed** marks are saved per checkout (`changes.reviewed.v1` in the settings file) against the file's `fingerprint`, a hash of its working-tree content: an edit since, even one that keeps the line counts, takes the mark back.
-- **A note** is on a group of changed lines (the unit `n` and `p` step through: the diff view reports no finer focus), one per group. It is kept with its `path:line`, the changed lines it is about and the person's words. Notes live in memory for as long as the app runs, per tab, so a project switch keeps them.
+- **A note** is on a group of changed lines (the unit `n` and `p` step through), one per group. A note on one line would need `CodeDiff` to report which row has the focus; it only reports the change it stepped to (`CodeDiffEvent::Change`), and teaching its renderer a line focus is a change to `native/app/src/highlight/view` that was not made. It is kept with its `path:line`, the changed lines it is about and the person's words. Notes live in memory for as long as the app runs, per tab, so a project switch keeps them.
 
 ## Sending notes to the agent
 

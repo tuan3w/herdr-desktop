@@ -29,6 +29,7 @@ import {
   usePopover,
 } from "#kit";
 import { machinesOpen, newSession, settingsOpen, sidebarSearch } from "#lib/actions";
+import { checkoutsOf, openChanges } from "#lib/changes";
 import { BOARD, context, focused, rowKeyOf, showBoard } from "#lib/dock";
 import { board, projectOf, revision, rowOf, started } from "#lib/herdr";
 import { ROW } from "#lib/layout";
@@ -166,7 +167,27 @@ function Host(props: { item: () => Extract<SidebarItem, { kind: "host" }> }) {
   );
 }
 
-/** What a project's menu offers: show its tabs, pin it, start a chat in it. */
+/** `Review changes`: one entry for a project with one checkout, one per checkout (named by its folder) for a project with several. */
+function changesEntries(project: BoardProject) {
+  const checkouts = checkoutsOf(project);
+  const keys = keyLabel("changes");
+  if (checkouts.length <= 1)
+    return [
+      {
+        label: "Review changes",
+        shortcut: keys,
+        onSelect: () => void openChanges(project.machine, checkouts[0].path),
+        disabled: project.offline || checkouts.length === 0,
+      },
+    ];
+  return checkouts.map((c) => ({
+    label: `Review changes in ${c.name}`,
+    onSelect: () => void openChanges(project.machine, c.path),
+    disabled: project.offline,
+  }));
+}
+
+/** What a project's menu offers: show its tabs, pin it, start a chat in it, review what its agents changed. */
 function projectEntries(project: BoardProject) {
   return [
     { label: "Switch to this project", onSelect: () => openProject(project.key) },
@@ -188,6 +209,7 @@ function projectEntries(project: BoardProject) {
       onSelect: () => newSession({ machine: project.machine, folder: projectFolder(project) }),
       disabled: project.offline,
     },
+    ...changesEntries(project),
   ];
 }
 

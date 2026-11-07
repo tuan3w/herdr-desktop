@@ -6,10 +6,9 @@ import type { ViewRef } from "nsh/types";
 import { FileNotes, NoteComposer } from "#components/changes-notes";
 import { DiffBlock } from "#components/diff-block";
 import { ActionMenu, Btn, Empty, Icon, IconButton, type MenuEntry, Skeleton } from "#kit";
-import { KIND_WORD, plusMinus, statsText } from "#lib/changes";
+import { KIND_WORD, statsText } from "#lib/changes";
 import { CONTEXTS, type ChangesModel } from "#lib/changes-model";
 import { viewFile } from "#lib/files";
-import { keyLabel } from "#lib/shortcuts";
 
 /** Room the file header, the `Change n of m` line and the edge of the block take from the diff's own height. */
 const CHROME = 76;
@@ -111,7 +110,7 @@ export function ChangesDiff(props: { model: ChangesModel; onBack?: () => void })
               <Text class="text-sm font-medium text-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
                 {c().path}
               </Text>
-              <Text class="text-xs text-muted-foreground">{`${text(c())}${c().added !== undefined ? ` \u00b7 ${plusMinus(c().added!, c().removed ?? 0)}` : ""}`}</Text>
+              <Text class="text-xs text-muted-foreground">{text(c())}</Text>
             </View>
             <Btn
               small
@@ -192,9 +191,6 @@ export function ChangesDiff(props: { model: ChangesModel; onBack?: () => void })
           <If when={model.composing()}>
             <NoteComposer model={model} onClosed={() => addButton && setAccessibilityFocus(addButton)} />
           </If>
-          <Text class="px-4 pb-2 text-xs text-muted-foreground" accessibilityElementsHidden>
-            {`j and k move between files · n and p between changes · c adds a note · x marks reviewed · ${keyLabel("changes")} opens this tab`}
-          </Text>
         </View>
       )}
     </If>

@@ -511,3 +511,47 @@ export const CODE_SCENARIOS: Record<string, Scenario> = {
   "code-inline": code({ part: "inline" }),
 };
 Object.assign(SCENARIOS, CODE_SCENARIOS);
+
+// The Changes tab on a synthetic repository the lab builds (`Git.testRepo`): every kind of change, a note kept and one being
+// written, a clean checkout, and 522 changed files.
+const changes = (params: Record<string, unknown>, steps: (app: App) => Promise<void> = async () => {}): Scenario => ({
+  fixture: "mixed",
+  entry: "../components/changes-lab.tsx",
+  params,
+  steps: async (app) => {
+    await app.waitFor(params.kind === "clean" ? "No changes" : "label:Changed files", { timeout: 15000 });
+    await app.wait(500);
+    await steps(app);
+    await app.wait(400);
+  },
+});
+const openAuth = async (app: App) => {
+  await app.press("label:/^src\\/auth\\.ts, /");
+  await app.wait(600);
+};
+export const CHANGES_SCENARIOS: Record<string, Scenario> = {
+  changes: { ...changes({}, openAuth) },
+  "changes-split": {
+    ...changes({}, async (app) => {
+      await openAuth(app);
+      await app.press("label:Side by side");
+      await app.wait(600);
+    }),
+  },
+  "changes-notes": {
+    ...changes({}, async (app) => {
+      await openAuth(app);
+      await app.press("label:Next change");
+      await app.press("Add note");
+      await app.type("label:/^Note on change 1/", "Name this limit instead of repeating 5.");
+      await app.submit("label:/^Note on change 1/");
+      await app.wait(300);
+      await app.press("label:Next change");
+      await app.press("Add note");
+      await app.type("label:/^Note on change 2/", "Why a minute?");
+    }),
+  },
+  "changes-empty": { ...changes({ kind: "clean" }) },
+  "changes-many": { ...changes({ kind: "many" }) },
+};
+Object.assign(SCENARIOS, CHANGES_SCENARIOS);

@@ -26,7 +26,6 @@ import {
   selectNth,
   showBoard,
 } from "#lib/dock";
-import { currentCheckout, reviewChanges } from "#lib/changes";
 import { browseFiles } from "#lib/files";
 import { allRows, board, meta, reviewable } from "#lib/herdr";
 import { back, forward, previousAgent, previousProject, stepProject, switcherKey } from "#lib/nav";
@@ -348,7 +347,6 @@ export const globalActions: Record<GlobalShortcut, () => void> = {
   prevAttention: () => goAttention(-1),
   board: () => void showBoard(),
   changes: () => void reviewChanges(),
-  changes: () => void reviewChanges(),
   focusPane: () => void focusPaneArea(),
   focusSidebar: focusSidebar,
   sidebar: toggleSidebar,
@@ -454,7 +452,6 @@ export function actions(): Action[] {
   global("nextAttention", ["attention", "blocked", "waiting"]);
   global("prevAttention", ["attention", "blocked", "waiting"]);
   global("board", ["home", "agents"]);
-  global("changes", ["diff", "files", "git", "review", "modified", "edits"], currentCheckout() === null);
   global("changes", ["diff", "files", "git", "review", "modified", "edits"], currentCheckout() === null);
   global("switcher", ["recent", "switch", "agents", "projects", "mru"]);
   global("quickOpen", ["file", "find file", "open file", "go to file"]);
@@ -656,6 +653,8 @@ export function appMenu(): MenuItem[] {
       submenu: [
         item("Next agent that needs you", "nextAttention"),
         item("Previous agent that needs you", "prevAttention"),
+        { type: "separator" },
+        item("Review changes", "changes"),
         { type: "separator" },
         item("Switch between recent agents and projects", "switcher"),
         item("Previous agent", "previousAgent"),

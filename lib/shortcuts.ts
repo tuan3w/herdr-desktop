@@ -63,7 +63,6 @@ export type GlobalShortcut =
   | "prevAttention"
   | "board"
   | "changes"
-  | "changes"
   | "focusPane"
   | "focusSidebar"
   | "sidebar"
@@ -124,7 +123,6 @@ export const GLOBAL: Record<GlobalShortcut, Shortcut> = {
   nextProject: { keys: ["mod+shift+]"], label: "Next project", group: "navigate" },
   board: { keys: ["mod+1"], label: "Board", group: "navigate" },
   changes: { keys: ["mod+shift+g"], label: "Review changes", group: "navigate" },
-  changes: { keys: ["mod+shift+g"], label: "Review changes", group: "navigate" },
   focusPane: { keys: ["mod+2"], label: "Open pane area", group: "navigate" },
   focusSidebar: { keys: ["mod+0"], label: "Sidebar", group: "navigate" },
   sidebar: { keys: ["mod+b"], label: "Show or hide the sidebar", group: "navigate" },
@@ -158,6 +156,11 @@ export const LOCAL: Shortcut[] = [
   { keys: ["up", "down"], label: "Move in menus and lists", group: "typing" },
   { keys: ["escape"], label: "Close a dialog, menu or list", group: "typing" },
   { keys: ["tab"], label: "Next scope in the palette", group: "typing" },
+  { keys: ["j", "k"], label: "Changes: next or previous file", group: "navigate" },
+  { keys: ["n", "p"], label: "Changes: next or previous change in the file", group: "navigate" },
+  { keys: ["x"], label: "Changes: mark the file reviewed", group: "navigate" },
+  { keys: ["c"], label: "Changes: write a note on the change", group: "navigate" },
+  { keys: ["mod+enter"], label: "Changes: preview the notes to send them", group: "navigate" },
 ];
 
 /** In the order the list shows them: by group, global before local. */

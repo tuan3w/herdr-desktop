@@ -278,6 +278,8 @@ export function SessionChat(props: {
             <>
               <SessionHeader
                 view={view()}
+                machine={props.machine}
+                active={props.active}
                 machineName={machineName()}
                 onDetails={() => details.set(true)}
                 onShowTerminal={observedPane ? () => void showTerminal(props.machine, observedPane) : undefined}

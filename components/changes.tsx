@@ -136,7 +136,7 @@ export function Changes(props: { machine: string; cwd: string; active: boolean }
             {`Changes in ${model.repoName()}`}
           </Text>
           <Text class="text-xs text-muted-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
-            {[model.branch(), ready() ? header() : ""].filter(Boolean).join(" \u00b7 ")}
+            {[model.branch(), ready() && model.files().length > 0 ? header() : ""].filter(Boolean).join(" \u00b7 ")}
           </Text>
         </View>
         <If when={model.notes().length > 0}>

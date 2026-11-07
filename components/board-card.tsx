@@ -10,6 +10,7 @@ import { Monogram, ProjectMark } from "#components/project-parts";
 import { StatusGlyph } from "#components/status-glyph";
 import { Btn, Clipped, FOCUS_RING, FOCUS_RING_INSET, Icon, NUM, Pill } from "#kit";
 import { newSession } from "#lib/actions";
+import { openChanges } from "#lib/changes";
 import { reviewWithUndo } from "#lib/herdr";
 import { GAP, ROW } from "#lib/layout";
 import { animateLayout, appear, hoverTransition } from "#lib/motion";
@@ -284,6 +285,15 @@ export function ProjectCard(props: CardProps) {
             name={`New agent session in ${p().name}`}
             disabled={p().offline}
             onPress={() => newSession({ machine: p().machine, folder: projectFolder(p()) })}
+          />
+          <Btn
+            small
+            variant="ghost"
+            icon="pencil"
+            label="Changes"
+            name={`Review changes in ${p().name}`}
+            disabled={p().offline || projectFolder(p()) === ""}
+            onPress={() => void openChanges(p().machine, projectFolder(p()))}
           />
         </View>
       </If>

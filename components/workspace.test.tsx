@@ -244,3 +244,21 @@ test("a terminal agent whose log can be read has Show chat in its header and it 
   expect(shown(app, "notes")).toBe(true);
   expect(app.texts().includes("Show chat")).toBe(false);
 });
+
+test("a project's menu and the chat's header open the Changes tab of the checkout they are about", async () => {
+  const app = await ready();
+  await app.press("label:Options for web");
+  await app.clock!.runFor(300);
+  // `web` holds agents in three folders, so its menu names each; a project with one checkout says `Review changes`.
+  await app.press("text:Review changes in web");
+  await settle(app);
+  expect(app.shows("label:/^Changes in /")).toBe(true);
+
+  // A chat names the same place: its header has a `Changes` chip.
+  await openAgents(app, FIRST);
+  await app.waitFor("label:Message");
+  await settle(app);
+  await app.press("label:Changes");
+  await settle(app);
+  expect(app.shows("label:/^Changes in /")).toBe(true);
+});
