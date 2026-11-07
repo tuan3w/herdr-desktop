@@ -28,7 +28,6 @@ import { WebPage } from "#components/web-page";
 import { Workspace } from "#components/workspace";
 import { notify, PopupRoot, rail, Skeleton, snug, ThemeRoot, ToastHost } from "#kit";
 import {
-  actions,
   appMenu,
   globalActions,
   machinesOpen,
@@ -37,7 +36,6 @@ import {
   newSessionOpen,
   newSessionProject,
   palette,
-  runAction,
   settingsOpen,
   shortcutsOpen,
 } from "#lib/actions";
@@ -165,7 +163,7 @@ function App() {
             </If>
           </ResizablePanel>
         </ResizablePanelGroup>
-        <Palette open={palette()} onClose={() => palette.set(false)} items={actions()} onRun={runAction} />
+        <Palette open={palette()} onClose={() => palette.set(false)} />
         <Switcher open={switcherOpen()} onClose={() => switcherOpen.set(false)} />
         <Shortcuts open={shortcutsOpen()} onClose={() => shortcutsOpen.set(false)} />
         <Settings open={settingsOpen()} onClose={() => settingsOpen.set(false)} />

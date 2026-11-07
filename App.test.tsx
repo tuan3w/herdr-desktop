@@ -120,9 +120,15 @@ const position = (app: App): string | undefined => app.texts().find((t) => /^\d+
 const CHECKS: Record<GlobalShortcut, Check> = {
   palette: async (app, press) => {
     await press();
-    expect(app.shows("Command palette")).toBe(true);
+    expect(app.shows("label:Search agents, projects and commands")).toBe(true);
     await app.keyboard.press("escape");
-    expect(app.shows("Command palette")).toBe(false);
+    expect(app.shows("label:Search agents, projects and commands")).toBe(false);
+  },
+  quickOpen: async (app, press) => {
+    await press();
+    expect(app.shows("label:Search files of this project")).toBe(true);
+    await app.keyboard.press("escape");
+    expect(app.shows("label:Search files of this project")).toBe(false);
   },
   shortcuts: async (app, press) => {
     await press();
@@ -325,11 +331,24 @@ const CHECKS: Record<GlobalShortcut, Check> = {
     await settle(app);
     expect(app.count("role:tab")).toBe(before - 1);
   },
+  changes: async (app, press) => {
+    await openAgents(app, "Refactor ledger");
+    const before = app.count("role:tab");
+    await press();
+    await settle(app);
+    // The agent's folder is not a repository on this machine: the tab opens and says so instead of staying shut.
+    await app.waitFor("label:/^Changes in /");
+    expect(app.count("role:tab")).toBe(before + 1);
+    await app.press("label:/^Close tab Changes/");
+    await settle(app);
+    expect(app.count("role:tab")).toBe(before);
+  },
 };
 
 /** The order the checks run in: each starts from what the one before left (tabs open, a pane in front). */
 const ORDER: GlobalShortcut[] = [
   "palette",
+  "quickOpen",
   "shortcuts",
   "settings",
   "newAgent",
@@ -366,6 +385,7 @@ const ORDER: GlobalShortcut[] = [
   "closeTab",
   "splitRight",
   "splitDown",
+  "changes",
 ];
 
 for (const platform of ["macos", "windows", "linux"] as const) {

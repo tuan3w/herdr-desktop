@@ -25,6 +25,7 @@ Read the file that matches your change before writing UI:
 | where the signal colour may appear, what a waiting agent looks like on each surface | [design/attention.md](design/attention.md) |
 | anything that moves | [design/motion.md](design/motion.md) |
 | the chat tab: the conversation, work groups, tool rows, the message box, queue, attachments | [design/chat.md](design/chat.md) |
+| the command palette: scopes, ranking, rows, actions, two-step commands, files | [design/palette.md](design/palette.md) |
 
 Tokens come from `lib/theme/` (`theme.json` is the default theme's generated copy), sizes from `lib/layout.ts` (with the `"tailwind"` scale of `nsh.json`), motion values from `lib/motion.ts`, the UI kit from `components/kit/` (import everything from `./kit`, never from a file inside it). Those are the source of truth; these docs describe them. `docs/ACCESSIBILITY.md` is the checklist every screen answers to.
 

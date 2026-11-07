@@ -15,6 +15,7 @@ Motion explains a change: something arrives, folds, finishes, moves. It is short
 | An agent's state glyph changes (same agent, new state) | grows back from 0.5 with a fade | `pop` 160, `EASE_OUT` | `glyphChanged()` in `StatusGlyph` | none |
 | A popover (a rail tile's agents) opens | fade, scale from `ENTER_SCALE`, 4 pt away from its trigger | `enter` 220, `EASE_OUT` | `popupEnter()` | none |
 | Dialog | popup scales 0.97 to 1; layer and scrim fade (nsh-owned) | `enter` 220, `EASE_OUT` | `enterScale()` in `Modal` | scale none; nsh's fade follows only the system setting |
+| The command palette opens | fades in and scales from 0.98; closing is instant, results appear at once | `context` 120, `EASE_OUT` | `paletteEnter()` in `PaletteDialog` | none |
 | Check mark of a `CheckRow` | pops in from 0.4 | `pop` 160 | `createMotion` | nsh-owned |
 | `Switch` thumb | slides | `pop` 160, ease-out, `transform` only | `moveTransition()` | none |
 | `Collapsible` chevron | turns | `pop` 160 | `moveTransition()` | none |

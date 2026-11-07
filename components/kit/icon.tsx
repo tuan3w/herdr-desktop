@@ -23,6 +23,7 @@ import lightbulb from "./icons/lightbulb.svg";
 import link from "./icons/link.svg";
 import list from "./icons/list.svg";
 import loader from "./icons/loader.svg";
+import message from "./icons/message.svg";
 import monitor from "./icons/monitor.svg";
 import moon from "./icons/moon.svg";
 import panelLeft from "./icons/panel-left.svg";
@@ -62,6 +63,7 @@ const ICONS = {
   link,
   list,
   loader,
+  message,
   monitor,
   moon,
   "panel-left": panelLeft,

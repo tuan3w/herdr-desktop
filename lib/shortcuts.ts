@@ -49,6 +49,7 @@ export interface Shortcut {
 
 export type GlobalShortcut =
   | "palette"
+  | "quickOpen"
   | "switcher"
   | "switcherBack"
   | "previousAgent"
@@ -61,6 +62,7 @@ export type GlobalShortcut =
   | "nextAttention"
   | "prevAttention"
   | "board"
+  | "changes"
   | "focusPane"
   | "focusSidebar"
   | "sidebar"
@@ -89,6 +91,7 @@ export type GlobalShortcut =
 export const GLOBAL: Record<GlobalShortcut, Shortcut> = {
   // `mod+shift+p` is the palette's key while typing into a pane: `mod+k` is then the pane's (`capturedBy`).
   palette: { keys: ["mod+k", "mod+shift+p"], label: "Command palette", group: "general" },
+  quickOpen: { keys: ["mod+p"], label: "Find a file in the project", group: "navigate" },
   newAgent: { keys: ["mod+n"], label: "New agent session", group: "general" },
   // The Undo of a toast (`notify(..., { undo })`): the kit names this key in its hint, so it exists even though a text field keeps its own undo.
   undo: { keys: ["mod+z"], label: "Undo the latest change", group: "general" },
@@ -119,6 +122,7 @@ export const GLOBAL: Record<GlobalShortcut, Shortcut> = {
   prevProject: { keys: ["mod+shift+["], label: "Previous project", group: "navigate" },
   nextProject: { keys: ["mod+shift+]"], label: "Next project", group: "navigate" },
   board: { keys: ["mod+1"], label: "Board", group: "navigate" },
+  changes: { keys: ["mod+shift+g"], label: "Review changes", group: "navigate" },
   focusPane: { keys: ["mod+2"], label: "Open pane area", group: "navigate" },
   focusSidebar: { keys: ["mod+0"], label: "Sidebar", group: "navigate" },
   sidebar: { keys: ["mod+b"], label: "Show or hide the sidebar", group: "navigate" },
@@ -151,6 +155,7 @@ export const LOCAL: Shortcut[] = [
   { keys: ["shift+enter"], label: "New line in the message", group: "typing" },
   { keys: ["up", "down"], label: "Move in menus and lists", group: "typing" },
   { keys: ["escape"], label: "Close a dialog, menu or list", group: "typing" },
+  { keys: ["tab"], label: "Next scope in the palette", group: "typing" },
 ];
 
 /** In the order the list shows them: by group, global before local. */

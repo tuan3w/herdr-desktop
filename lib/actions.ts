@@ -6,6 +6,7 @@ import type { Accessor } from "nsh";
 import type { MenuItem } from "nsh/desktop";
 
 import { confirmDestructive, notify, rail, undoLast } from "#kit";
+import { currentCheckout, reviewChanges } from "#lib/changes";
 import {
   closeTab,
   focusComposerSoon,
@@ -29,6 +30,7 @@ import { browseFiles } from "#lib/files";
 import { allRows, board, meta, reviewable } from "#lib/herdr";
 import { back, forward, previousAgent, previousProject, stepProject, switcherKey } from "#lib/nav";
 import { canShowChat, openAgent, showChat, showTerminal } from "#lib/open-agent";
+import { openPalette, paletteKey } from "#lib/palette/controller";
 import {
   chatInFront,
   copyCode,
@@ -51,7 +53,7 @@ import { THEMES } from "#lib/theme/themes";
  */
 
 /** Which dialogs are open. They live here so a key, a menu item and a palette entry open the same one. */
-export const palette = signal(false);
+export { palette } from "#lib/palette/controller";
 export const shortcutsOpen = signal(false);
 export const settingsOpen = signal(false);
 export const machinesOpen = signal(false);
@@ -330,7 +332,8 @@ function needPane(then: () => void): () => void {
 
 /** One handler per global shortcut; `App.tsx` binds every key of `GLOBAL` to these. */
 export const globalActions: Record<GlobalShortcut, () => void> = {
-  palette: () => palette.set(true),
+  palette: paletteKey,
+  quickOpen: () => openPalette("files"),
   switcher: () => switcherKey(1),
   switcherBack: () => switcherKey(-1),
   previousAgent,
@@ -343,6 +346,7 @@ export const globalActions: Record<GlobalShortcut, () => void> = {
   nextAttention: () => goAttention(1),
   prevAttention: () => goAttention(-1),
   board: () => void showBoard(),
+  changes: () => void reviewChanges(),
   focusPane: () => void focusPaneArea(),
   focusSidebar: focusSidebar,
   sidebar: toggleSidebar,
@@ -448,7 +452,9 @@ export function actions(): Action[] {
   global("nextAttention", ["attention", "blocked", "waiting"]);
   global("prevAttention", ["attention", "blocked", "waiting"]);
   global("board", ["home", "agents"]);
+  global("changes", ["diff", "files", "git", "review", "modified", "edits"], currentCheckout() === null);
   global("switcher", ["recent", "switch", "agents", "projects", "mru"]);
+  global("quickOpen", ["file", "find file", "open file", "go to file"]);
   global("previousAgent", ["toggle", "last", "alt tab", "swap"]);
   global("previousProject", ["toggle", "last", "swap"]);
   global("prevProject", ["switch"]);

@@ -18,6 +18,7 @@ export { RadioGroup, RadioItem } from "./radio-group";
 export { ActionMenu, type MenuAction, type MenuEntry, type MenuGroup, RowMenu } from "./menu";
 export { Icon, type IconName, type IconTone } from "./icon";
 export { confirmDestructive, Modal } from "./modal";
+export { PaletteDialog } from "./palette-dialog";
 export {
   closeToast,
   focusToasts,

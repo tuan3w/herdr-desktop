@@ -13,6 +13,8 @@ export interface Scenario {
   cleanup?: (app: App) => Promise<void>;
 }
 
+const PALETTE_FIELD = "label:Search agents, projects and commands";
+
 const pressFirst = async (app: App, selector: string) => {
   await app.press(`${selector} >> nth=0`);
   await app.wait(800);
@@ -100,8 +102,6 @@ export const SCENARIOS: Record<string, Scenario> = {
       }
     },
   },
-  palette: {
-    fixture: "mixed",
   // A project switch: two agents open in `payments`, then the next project (`web`, nothing open: its own card).
   "context-switch": {
     fixture: "mixed",
@@ -114,9 +114,75 @@ export const SCENARIOS: Record<string, Scenario> = {
   },
   // The command palette (`design/palette.md`): empty (what needs you, what was visited, suggestions), a query, a scope, the
   // actions of a row, a two-step command, the empty app, nothing found, and the files of a project (in the palette lab).
+  palette: {
+    fixture: "mixed",
     steps: async (app) => {
       await app.keyboard.press("ctrl+k");
+      await app.wait(500);
+    },
+  },
+  "palette-query": {
+    fixture: "mixed",
+    steps: async (app) => {
+      await app.keyboard.press("ctrl+k");
+      await app.wait(300);
+      await app.type(PALETTE_FIELD, "pay");
       await app.wait(400);
+    },
+  },
+  "palette-agents": {
+    fixture: "mixed",
+    steps: async (app) => {
+      await app.keyboard.press("ctrl+k");
+      await app.wait(300);
+      await app.type(PALETTE_FIELD, "@");
+      await app.wait(400);
+    },
+  },
+  "palette-actions": {
+    fixture: "mixed",
+    steps: async (app) => {
+      await app.keyboard.press("ctrl+k");
+      await app.wait(300);
+      await app.type(PALETTE_FIELD, "auth");
+      await app.wait(300);
+      await app.keyboard.press("ctrl+k");
+      await app.wait(400);
+    },
+  },
+  "palette-two-step": {
+    fixture: "mixed",
+    steps: async (app) => {
+      await app.keyboard.press("ctrl+k");
+      await app.wait(300);
+      await app.type(PALETTE_FIELD, "new session pay");
+      await app.wait(500);
+    },
+  },
+  "palette-empty": {
+    fixture: "empty",
+    steps: async (app) => {
+      await app.keyboard.press("ctrl+k");
+      await app.wait(500);
+    },
+  },
+  "palette-noresult": {
+    fixture: "mixed",
+    steps: async (app) => {
+      await app.keyboard.press("ctrl+k");
+      await app.wait(300);
+      await app.type(PALETTE_FIELD, "zzzqq");
+      await app.wait(500);
+    },
+  },
+  "palette-files": {
+    fixture: "mixed",
+    entry: "../components/palette-lab.tsx",
+    steps: async (app) => {
+      await app.press("Find a file");
+      await app.wait(1200);
+      await app.type("label:Search files of this project", "read");
+      await app.wait(600);
     },
   },
   settings: {
@@ -155,7 +221,7 @@ export const SCENARIOS: Record<string, Scenario> = {
     steps: async (app) => {
       await app.keyboard.press("ctrl+k");
       await app.wait(300);
-      await app.type("label:Search commands", "Machines");
+      await app.type("label:Search agents, projects and commands", "Machines");
       await app.keyboard.press("enter");
       await app.wait(400);
     },
@@ -187,7 +253,7 @@ export const SCENARIOS: Record<string, Scenario> = {
     steps: async (app) => {
       await app.keyboard.press("ctrl+k");
       await app.wait(300);
-      await app.type("label:Search commands", "Machines");
+      await app.type("label:Search agents, projects and commands", "Machines");
       await app.keyboard.press("enter");
       await app.wait(600);
       await app.press("Add machine");
