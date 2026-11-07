@@ -1,5 +1,6 @@
 #!/bin/sh
-# Install Herdr Desktop from a GitHub release, on Linux (x86_64) or macOS (Apple silicon).
+# Install Herdr Desktop from a GitHub release: macOS (Apple silicon), or Linux (x86_64) when the release has a Linux build.
+# Linux builds are paused for now (the releases hold the macOS zip only); Linux builds from source: see the README.
 #
 #   curl -fsSL https://raw.githubusercontent.com/tuan3w/herdr-desktop/main/scripts/install.sh | sh
 #   curl -fsSL https://raw.githubusercontent.com/tuan3w/herdr-desktop/main/scripts/install.sh | sh -s -- --version 0.1.0-alpha.2
@@ -7,6 +8,7 @@
 #
 # Options
 #   --version X.Y.Z[-alpha.N]   install that release (default: the newest one, pre-releases included)
+#   --edge                      install the newest build of main (the rolling pre-release `edge`; macOS only, may break)
 #   --uninstall                 remove what this script put there (your data stays)
 #   --help                      this text
 #
@@ -33,13 +35,15 @@ say() { printf '%s\n' "$*"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 version=""
+edge=0
 uninstall=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --version) [ $# -ge 2 ] || die "--version needs a value"; version="${2#v}"; shift 2 ;;
     --version=*) version="${1#--version=}"; version="${version#v}"; shift ;;
+    --edge) edge=1; shift ;;
     --uninstall) uninstall=1; shift ;;
-    -h|--help) sed -n '2,24p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//' || true; exit 0 ;;
+    -h|--help) sed -n '2,26p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//' || true; exit 0 ;;
     *) die "unknown option '$1' (see --help)" ;;
   esac
 done
@@ -47,14 +51,14 @@ done
 case "$(uname -s)" in
   Linux) os=linux ;;
   Darwin) os=macos ;;
-  *) die "unsupported system $(uname -s): Herdr Desktop has builds for Linux x86_64 and macOS Apple silicon" ;;
+  *) die "unsupported system $(uname -s): Herdr Desktop has builds for macOS Apple silicon (Linux x86_64 is paused)" ;;
 esac
 arch="$(uname -m)"
 case "$os-$arch" in
   linux-x86_64|linux-amd64) target=linux-x86_64; ext=tar.gz ;;
   macos-arm64) target=macos-arm64; ext=zip ;;
   macos-x86_64) die "no Intel Mac build: nsh 0.4.0 publishes its macOS runtime for Apple silicon only" ;;
-  *) die "no build for $os on $arch (available: linux-x86_64, macos-arm64)" ;;
+  *) die "no build for $os on $arch (available: macos-arm64; linux-x86_64 is paused)" ;;
 esac
 
 prefix="${PREFIX:-$HOME/.local}"
@@ -98,25 +102,51 @@ sha256_of() {
 work="$(mktemp -d "${TMPDIR:-/tmp}/herdr-desktop-install.XXXXXX")"
 trap 'rm -rf "$work"' EXIT INT TERM
 
-if [ -z "$version" ]; then
+no_linux() {
+  die "no Linux build in this release: Linux builds are paused, build from source (README: https://github.com/$REPO#build)"
+}
+
+tag=""
+if [ "$edge" = 1 ]; then
+  [ -z "$version" ] || die "--edge and --version do not go together"
+  [ -z "${HERDR_DESKTOP_BASE:-}" ] || die "--edge reads the release 'edge' of $REPO: leave HERDR_DESKTOP_BASE out"
+  tag=edge
+elif [ -z "$version" ]; then
   [ -z "${HERDR_DESKTOP_BASE:-}" ] || die "give --version with HERDR_DESKTOP_BASE"
   say "looking for the newest release..."
-  fetch "https://api.github.com/repos/$REPO/releases?per_page=1" "$work/latest.json"
-  tag="$(sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$work/latest.json" | head -1)"
+  fetch "https://api.github.com/repos/$REPO/releases?per_page=20" "$work/latest.json"
+  # The rolling pre-release `edge` is newer than any release and is not one: the newest vX.Y.Z tag is.
+  tag="$(sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\(v[0-9][^"]*\)".*/\1/p' "$work/latest.json" | head -1)"
   [ -n "$tag" ] || die "could not read the newest release from GitHub (rate limited? try --version)"
   version="${tag#v}"
 fi
-case "$version" in
-  [0-9]*.[0-9]*.[0-9]*) ;;
-  *) die "'$version' is not a version like 0.1.0 or 0.1.0-alpha.2" ;;
-esac
-case "$version" in *[!A-Za-z0-9.-]*) die "'$version' has characters a version does not" ;; esac
+if [ "$edge" != 1 ]; then
+  case "$version" in
+    [0-9]*.[0-9]*.[0-9]*) ;;
+    *) die "'$version' is not a version like 0.1.0 or 0.1.0-alpha.2" ;;
+  esac
+  case "$version" in *[!A-Za-z0-9.-]*) die "'$version' has characters a version does not" ;; esac
+fi
 
-asset="Herdr-Desktop-$version-$target.$ext"
-base="${HERDR_DESKTOP_BASE:-https://github.com/$REPO/releases/download/v$version}"
+base="${HERDR_DESKTOP_BASE:-https://github.com/$REPO/releases/download/${tag:-v$version}}"
+# The checksums come first: they say which archives the release holds. A release without the one for this system is
+# not a 404 to explain, it is a build that does not exist (Linux is paused).
+fetch "$base/SHA256SUMS" "$work/SHA256SUMS" || die "could not download $base/SHA256SUMS (is ${tag:-v$version} a release?)"
+if [ "$edge" = 1 ]; then
+  [ "$os" = macos ] || no_linux
+  asset="$(awk -v t="-$target.$ext" '{ f = $2; sub(/^\*/, "", f); if (index(f, "Herdr-Desktop-edge-") == 1 && substr(f, length(f) - length(t) + 1) == t) { print f; exit } }' "$work/SHA256SUMS")"
+  [ -n "$asset" ] || die "the edge release has no $target archive (a build of main may be in progress: try again in a few minutes)"
+  version="${asset#Herdr-Desktop-}"
+  version="${version%-$target.$ext}"
+else
+  asset="Herdr-Desktop-$version-$target.$ext"
+  if ! awk -v f="$asset" '$2 == f || $2 == "*" f { found = 1 } END { exit !found }' "$work/SHA256SUMS"; then
+    [ "$os" = linux ] && no_linux
+    die "SHA256SUMS of $version has no line for $asset"
+  fi
+fi
 say "installing Herdr Desktop $version ($target)"
-fetch "$base/$asset" "$work/$asset" || die "could not download $base/$asset (is $version a release?)"
-fetch "$base/SHA256SUMS" "$work/SHA256SUMS" || die "could not download $base/SHA256SUMS"
+fetch "$base/$asset" "$work/$asset" || die "could not download $base/$asset"
 
 want="$(awk -v f="$asset" '$2 == f || $2 == "*" f { print $1; exit }' "$work/SHA256SUMS")"
 [ -n "$want" ] || die "SHA256SUMS has no line for $asset"
