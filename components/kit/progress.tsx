@@ -53,7 +53,8 @@ export function Progress(props: {
       accessibilityValue={{
         min: min(),
         max: max(),
-        now: props.value === null ? undefined : props.value,
+        // Clamped like the bar, so a value past the end is not announced as more than the whole.
+        now: props.value === null ? undefined : Math.min(max(), Math.max(min(), props.value)),
         text: progressText(ratio(), props.valueText),
       }}
       class={`h-1 overflow-hidden rounded-full bg-muted ${props.class ?? ""}`}

@@ -155,6 +155,18 @@ test("a rail tile opens its project's agents in a popover, and pressing one open
   expect(app.shows(row("Fix login flow"))).toBe(true);
 });
 
+test("a rail popover stays open when the keyboard moves into it, onto its Show project button", async () => {
+  const app = await ready({ width: 760 });
+  await app.press("label:payments, This computer, 2 need you, 2 working, 1 to review");
+  await app.waitFor("label:/^payments review, claude, needs you, payments/");
+  // Past the pointer's own focus grace, then Tab onto the first control of the popup.
+  await app.clock!.runFor(600);
+  await app.keyboard.press("tab");
+  await app.clock!.runFor(300);
+  expect(app.shows(row("Fix login flow"))).toBe(true);
+  expect(app.shows("label:Show payments")).toBe(true);
+});
+
 test("a wide window can collapse the sidebar to the rail and bring it back", async () => {
   const app = await ready();
   await app.press("label:Collapse sidebar");

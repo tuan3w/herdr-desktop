@@ -20,7 +20,7 @@ import type { Bounds, ListRef, MouseEvent, OverlayPosition, Point, ScrollRef, Vi
 import { hoverTransition } from "#lib/motion";
 import { fold } from "#lib/text";
 
-import { FOCUS_RING } from "./core";
+import { EDGE, FOCUS_RING } from "./core";
 import { dialogDepth } from "./dialog-stack";
 import { Kbd, Tipped } from "./hint";
 import { Icon, type IconName } from "./icon";
@@ -201,13 +201,53 @@ export function menuRows(entries: readonly MenuEntry[]): MenuRow[] {
   return rows;
 }
 
-const POPUP = "min-w-52 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md";
+const POPUP = `min-w-52 max-w-80 rounded-lg bg-popover p-1 text-popover-foreground ${EDGE.md}`;
+/** `POPUP`'s least and greatest width (`min-w-52`, `max-w-80`): a label is cut with an ellipsis only past the greatest. */
+const MENU_MIN = 208;
+const MENU_MAX = 320;
+/** An average glyph of the 14pt body face (a wide character counts twice) and a shortcut keycap's: the text is estimated, not measured, because the popup is sized before it is built. */
+const GLYPH = 7.5;
+const KEY_GLYPH = 7;
+const glyphs = (text: string) => [...text].reduce((n, c) => n + ((c.codePointAt(0) ?? 0) >= 0x2e80 ? 2 : 1), 0);
+
+/**
+ * How wide a menu is: as its longest row needs (the icon column, the label, a tick or chevron, the keycap and the gaps and
+ * paddings between), at least `MENU_MIN` and at most `MENU_MAX`. Without it the popup took its width from the layout
+ * pass and cut "Add a note on this change" with an ellipsis although there was room.
+ */
+export function menuWidth(rows: readonly MenuRow[]): number {
+  const icons = rows.some((r) => r.kind !== "label" && r.kind !== "separator" && !!r.icon);
+  let widest = 0;
+  for (const row of rows) {
+    if (row.kind === "separator") continue;
+    let w = glyphs(row.label) * GLYPH;
+    if (row.kind !== "label") {
+      if (icons) w += 16 + 12;
+      if (row.kind === "submenu" || row.kind === "check" || row.kind === "radio") w += 14 + 12;
+      if (row.kind !== "submenu" && row.shortcut) w += 12 + glyphs(row.shortcut) * KEY_GLYPH + 14;
+    }
+    widest = Math.max(widest, w);
+  }
+  // The popup's border and padding (10) and a row's padding (24).
+  return Math.min(MENU_MAX, Math.max(MENU_MIN, Math.ceil(widest) + 34));
+}
+
+/** The colours of a row's label and icon: a row that cannot be chosen is plain muted, whatever it would be (a danger row is not pink while it is off). */
+export function rowTone(row: ItemRow | SubmenuRow): { text: string; icon: "muted-foreground" | "destructive" } {
+  const danger = row.kind !== "submenu" && row.danger;
+  if (row.disabled) return { text: "text-muted-foreground", icon: "muted-foreground" };
+  return danger
+    ? { text: "text-destructive", icon: "destructive" }
+    : { text: "text-popover-foreground", icon: "muted-foreground" };
+}
+
 /** `POPUP`'s border (1) and padding (4): how far a submenu rises above its row so the first rows line up. */
 const POPUP_INSET = 5;
 /** `POPUP_INSET` on both sides: what a popup is taller than its rows. */
 const CHROME = POPUP_INSET * 2;
-const ITEM_HEIGHT = 36;
-const HEADING_HEIGHT = 32;
+/** Pointer tiers (`HIT`, `ROW` in `lib/layout.ts`): an item is a 32-pt control row, a group heading a 28-pt quiet one. Keep equal to `ITEM` and the heading class. */
+const ITEM_HEIGHT = 32;
+const HEADING_HEIGHT = 28;
 /** A divider's line (1) and its margins (4 and 4). */
 const DIVIDER_HEIGHT = 9;
 const MARGIN = 8;
@@ -215,9 +255,9 @@ const MARGIN = 8;
 const MAX_ROWS_HEIGHT = 384;
 /** Above this many rows a scrolling menu is a `List`: only the rows in view exist. */
 const VIRTUAL_ROWS = 30;
-const ITEM = "h-9 flex-row items-center gap-3 rounded-md px-3";
+const ITEM = "h-8 flex-row items-center gap-3 rounded-md px-3";
 /** A choice list's rows hang like its trigger's text: the trigger has a border (1) and 10pt of padding. */
-const CHOICE_ITEM = "h-9 flex-row items-center gap-3 rounded-md px-2";
+const CHOICE_ITEM = "h-8 flex-row items-center gap-3 rounded-md px-2";
 /** The pointer must rest this long on a submenu's row, with no other submenu open, before it opens. */
 const OPEN_DELAY = 100;
 /** A press on the trigger this soon after a hover opened the menu keeps it open: the user meant to open it (Base UI's `PATIENT_CLICK_THRESHOLD`). */
@@ -225,6 +265,62 @@ const PATIENT_CLICK_MS = 500;
 
 function heightOf(row: MenuRow): number {
   return row.kind === "separator" ? DIVIDER_HEIGHT : row.kind === "label" ? HEADING_HEIGHT : ITEM_HEIGHT;
+}
+
+/** Where a trigger is, in the window: the top and bottom of its frame. */
+export interface Span {
+  top: number;
+  bottom: number;
+}
+
+/** The room a popup has above and below its trigger: the window less the margin and the gap to the trigger. */
+export function roomAround(trigger: Span, gap: number, windowHeight: number): { above: number; below: number } {
+  return { above: trigger.top - gap - MARGIN, below: windowHeight - MARGIN - (trigger.bottom + gap) };
+}
+
+/**
+ * How tall the rows may be so the popup keeps off its trigger, or `undefined` when a popup of `popup` points (rows and
+ * its own border and padding) fits on one side as it is. nsh places a popup that fits neither side on the larger one and
+ * clamps it into the window, which lays it over its own trigger: so it is cut to the larger side's room and its rows
+ * scroll (shadcn's `max-h-(--available-height)`, Base UI's `--available-height`).
+ */
+export function fitRows(popup: number, room: { above: number; below: number }): number | undefined {
+  if (popup <= room.below || popup <= room.above) return undefined;
+  return Math.max(ITEM_HEIGHT, Math.max(room.above, room.below) - CHROME);
+}
+
+/** The first of the ascending `offsets` that is at least `at` (the end when none is). */
+function boundaryFrom(offsets: readonly number[], at: number): number {
+  let lo = 0;
+  let hi = offsets.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (offsets[mid] < at) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/**
+ * Moves a list's opening offset to a row boundary, so the first visible row is whole rather than cut mid-glyph. At the
+ * end of the list the offset stays flush with it (the top row is then the one that shows a part, a peek of the side that
+ * has more). `keep` is a row that must stay fully in view (the selected one): the offset moves the least that shows it.
+ */
+export function snapScroll(offsets: readonly number[], scroll: number, height: number, keep?: number): number {
+  const content = offsets[offsets.length - 1];
+  const last = Math.max(0, content - height);
+  const at = Math.min(Math.max(scroll, 0), last);
+  const next = boundaryFrom(offsets, at);
+  const before = Math.max(0, next - 1);
+  const near = at - offsets[before] <= offsets[next] - at ? offsets[before] : offsets[next];
+  let snapped = Math.min(near, last);
+  if (keep !== undefined && offsets[keep + 1] !== undefined) {
+    const top = offsets[keep];
+    const bottom = offsets[keep + 1];
+    if (top < snapped) snapped = top;
+    else if (bottom > snapped + height) snapped = Math.min(last, offsets[boundaryFrom(offsets, bottom - height)]);
+  }
+  return snapped;
 }
 
 /** What a screen reader hears for a row: its label, the submenu it is in, and whether it is the value. */
@@ -330,20 +426,18 @@ interface Level {
 
 /** The inside of a row: a column for icons when the panel has any, the label, the tick, the shortcut, the chevron of a submenu. */
 function RowContent(props: { row: () => ItemRow | SubmenuRow; icons: boolean }) {
-  const danger = () => props.row().kind !== "submenu" && (props.row() as ItemRow).danger;
   const shortcut = () => (props.row().kind === "submenu" ? undefined : (props.row() as ItemRow).shortcut);
+  const tone = () => rowTone(props.row());
   return (
     <>
       <If when={props.icons}>
         <View class="size-4 items-center justify-center">
-          <If when={props.row().icon}>
-            {(name) => <Icon name={name()} size={14} tone={danger() ? "destructive" : "muted-foreground"} />}
-          </If>
+          <If when={props.row().icon}>{(name) => <Icon name={name()} size={14} tone={tone().icon} />}</If>
         </View>
       </If>
-      <Text class={`line-clamp-1 min-w-0 flex-1 text-sm ${danger() ? "text-destructive" : "text-popover-foreground"}`}>
-        {props.row().label}
-      </Text>
+      {/* Sized by its text, and cut only when the popup is at its greatest width; the spacer pushes the tick and keycap right. */}
+      <Text class={`line-clamp-1 min-w-0 shrink text-sm ${tone().text}`}>{props.row().label}</Text>
+      <View class="min-w-0 flex-1" />
       <If when={isChecked(props.row())}>
         <Icon name="check" size={14} tone="primary" />
       </If>
@@ -404,7 +498,9 @@ function Panel(props: {
   const selected = first.findIndex(isChecked);
   const scroll0 =
     props.viewport?.scroll ??
-    (props.start === "selected" && selected >= 0 ? centerOffset(offsets(), selected, height) : 0);
+    (props.start === "selected" && selected >= 0
+      ? snapScroll(offsets(), centerOffset(offsets(), selected, height), height, selected)
+      : 0);
   const active = signal(
     props.start === "first" ? stepIndex(skip(), -1, 1, true) : props.start === "selected" ? selected : -1,
   );
@@ -525,12 +621,13 @@ function Panel(props: {
     const danger = () => row().kind !== "submenu" && (row() as ItemRow).danger;
     const disabled = () => (item().disabled ? true : undefined);
     return (
-      <View>
+      // A scrolling list leaves its rows room for the scroll bar, which would cover the highlight and the tick.
+      <View class={scrolls ? "pr-2" : undefined}>
         <If when={row().kind === "separator"}>
           <View role="none" class="mx-1 my-1 h-px bg-border" />
         </If>
         <If when={row().kind === "label"}>
-          <View class={`h-8 justify-end pb-1 ${config.choice ? "px-2" : "px-3"}`}>
+          <View class={`h-7 justify-end pb-1 ${config.choice ? "px-2" : "px-3"}`}>
             <Text role="header" class="line-clamp-1 text-xs font-medium text-muted-foreground">
               {row().label}
             </Text>
@@ -562,7 +659,7 @@ function Panel(props: {
             onMouseEnter={hasSubmenu ? undefined : () => hover(index())}
             onMouseMove={hasSubmenu ? (e: MouseEvent) => hover(index(), e.pagePosition) : undefined}
             onMouseLeave={() => leaveRow(index())}
-            class={`${config.choice ? CHOICE_ITEM : ITEM} ${active() === index() ? (danger() ? "bg-destructive/10" : "bg-accent") : ""} ${disabled() ? "opacity-50" : ""}`}
+            class={`${config.choice ? CHOICE_ITEM : ITEM} ${active() === index() ? (danger() && !disabled() ? "bg-destructive/10" : "bg-accent") : ""}`}
           >
             <RowContent row={item} icons={icons} />
           </View>
@@ -577,6 +674,7 @@ function Panel(props: {
                   frame = e.bounds;
                 }}
                 onCancel={() => open.set(-1)}
+                style={{ minWidth: menuWidth(menuRows(sub().items)) }}
                 class={POPUP}
               >
                 <Panel
@@ -682,7 +780,21 @@ export function Surface(props: {
   const plan = signal<{ viewport: { height: number; scroll: number }; offset: number } | null | undefined>(
     props.over ? undefined : null,
   );
+  // The rows' height when the popup would not fit beside its trigger: a popup of this size was cut to the room it has.
+  const capped = signal<number | undefined>(undefined);
+  const fit = (m: { pagePosition: Point; bounds: Bounds }, gap: number) => {
+    const content = offsetsOf(rowsOf().map(heightOf)).at(-1) ?? 0;
+    const trigger = { top: m.pagePosition.y, bottom: m.pagePosition.y + m.bounds.size.height };
+    const rows = fitRows(Math.min(content, max) + CHROME, roomAround(trigger, gap, windowHeight));
+    if (rows !== undefined) capped.set(rows);
+  };
   const over = props.over;
+  if (!over) {
+    // Measured after the first frame: a menu that fits (nearly all do) is never rebuilt.
+    void props.anchor.measure().then((m) => {
+      if (m) fit(m, props.offset ?? 0);
+    });
+  }
   if (over) {
     const rows = rowsOf();
     const offsets = offsetsOf(rows.map(heightOf));
@@ -703,11 +815,21 @@ export function Surface(props: {
         // One point of slack: a popup that ends exactly at the edge can be put on the other side by rounding.
         area: { top: MARGIN + POPUP_INSET, bottom: windowHeight - MARGIN - POPUP_INSET - 1 },
       });
-      plan.set(
-        aligned
-          ? { viewport: { height: aligned.height, scroll: aligned.scroll }, offset: aligned.top - POPUP_INSET - bottom }
-          : null,
-      );
+      if (!aligned) {
+        fit(m, props.offset ?? 0);
+        plan.set(null);
+        return;
+      }
+      // The first row shows whole: the offset goes to a row boundary and the popup moves with it, so the chosen row stays on the trigger.
+      const scroll = snapScroll(offsets, aligned.scroll, aligned.height, row);
+      const lowest = MARGIN + POPUP_INSET - aligned.top;
+      const highest = windowHeight - MARGIN - POPUP_INSET - 1 - aligned.height - aligned.top;
+      const shift = scroll - aligned.scroll;
+      const snapped = shift >= lowest && shift <= highest;
+      plan.set({
+        viewport: { height: aligned.height, scroll: snapped ? scroll : aligned.scroll },
+        offset: aligned.top + (snapped ? shift : 0) - POPUP_INSET - bottom,
+      });
     });
   }
 
@@ -804,17 +926,31 @@ export function Surface(props: {
         onPosition={placed}
         onMouseEnter={props.onPopupHover?.enter}
         onMouseLeave={props.onPopupHover?.leave}
-        style={props.minWidth ? { minWidth: props.minWidth } : undefined}
+        style={
+          props.minWidth ? { minWidth: props.minWidth } : props.choice ? undefined : { minWidth: menuWidth(rowsOf()) }
+        }
         class={POPUP}
       >
-        <Panel
-          rows={rowsOf}
-          session={session}
-          config={config}
-          max={max}
-          start={props.start}
-          viewport={plan()?.viewport}
-        />
+        <If when={capped() === undefined}>
+          <Panel
+            rows={rowsOf}
+            session={session}
+            config={config}
+            max={max}
+            start={props.start}
+            viewport={plan()?.viewport}
+          />
+        </If>
+        <If when={capped() !== undefined}>
+          <Panel
+            rows={rowsOf}
+            session={session}
+            config={config}
+            max={capped() ?? max}
+            start={props.start}
+            viewport={plan()?.viewport}
+          />
+        </If>
       </Overlay>
     </If>
   );
@@ -840,6 +976,8 @@ export function ActionMenu(props: {
   closeDelay?: number;
   loop?: boolean;
   highlightItemOnHover?: boolean;
+  /** A 28-pt trigger, as the small buttons beside it (default 32). */
+  small?: boolean;
 }) {
   const state = createOpenState({
     open: () => props.open,
@@ -883,7 +1021,7 @@ export function ActionMenu(props: {
             if (props.openOnHover) intent.leaveTrigger(true);
           }}
           style={hoverTransition()}
-          class={`size-8 items-center justify-center rounded-md hover:bg-accent active:bg-accent ${state.open() ? "bg-accent" : ""} ${props.disabled ? "opacity-50" : ""} ${FOCUS_RING}`}
+          class={`${props.small ? "size-7" : "size-8"} items-center justify-center rounded-md hover:bg-accent active:bg-accent ${state.open() ? "bg-accent" : ""} ${props.disabled ? "opacity-50" : ""} ${FOCUS_RING}`}
         >
           <Icon name={props.icon ?? "ellipsis"} tone="muted-foreground" />
         </View>

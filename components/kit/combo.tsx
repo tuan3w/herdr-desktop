@@ -1,10 +1,11 @@
 import { announce, cleanup, computed, effect, keymap, List, type Signal, signal, Text, untracked, View } from "nsh";
 import { Input } from "nsh/base";
 
-import type { Bounds, InputRef, ListRef, ViewRef } from "nsh/types";
+import type { Bounds, InputRef, ListRef, OverlayPosition, ViewRef } from "nsh/types";
 
 import { hoverTransition } from "#lib/motion";
 import { timing } from "#lib/perf";
+import { largeTargets } from "#lib/settings";
 
 import {
   type AutoHighlight,
@@ -15,6 +16,7 @@ import {
   contentHeight,
   createRefiner,
   entryOf,
+  drawsOwnValue,
   filterQuery,
   filtersByText,
   foldFast,
@@ -27,6 +29,7 @@ import {
   inlineText,
   type Layout,
   layout,
+  listRoom,
   nextHighlight,
   pageHighlight,
   queryKey,
@@ -41,8 +44,9 @@ import {
   typingOpens,
   wordProbe,
 } from "./combo-rules";
-import { openOnDown } from "./core";
+import { EDGE, openOnDown } from "./core";
 import { dialogDepth } from "./dialog-stack";
+import { OneLine } from "./field-parts";
 import { INPUT_CLASS, Labeled, type Option } from "./fields";
 import { Clipped } from "./hint";
 import { Icon } from "./icon";
@@ -58,7 +62,7 @@ import { Positioner } from "./positioner";
  * `design/combobox.md` has the rules.
  */
 
-const POPUP = "rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md";
+const POPUP = `rounded-lg bg-popover p-1 text-popover-foreground ${EDGE.md}`;
 const COMBOBOX_ROWS = 7;
 const AUTOCOMPLETE_ROWS = 8;
 const PAGE = COMBOBOX_ROWS;
@@ -348,6 +352,8 @@ function createCore(o: CoreOptions, picked: (c: Choice) => boolean): Core {
   const composing = signal(false);
   const holding = signal(false);
   const width = signal(0);
+  /** The room the list has on the side it was placed (`Infinity` before the first placement). */
+  const room = signal(Number.POSITIVE_INFINITY);
   let anchor: ViewRef | undefined;
   let blurTimer: number | undefined;
   let saidTimer: number | undefined;
@@ -481,11 +487,13 @@ function createCore(o: CoreOptions, picked: (c: Choice) => boolean): Core {
       width.set(bounds.size.width);
     },
     /** The overlay was placed. */
-    placed() {
+    placed(p: OverlayPosition) {
       // A field that grows (chips wrapping) moves the edge of its own list: that is not a scroll.
       resized = laidOut;
       laidOut = false;
+      room.set(p.available.height);
     },
+    room,
     /** The field moved with a scroll: a list left behind must not float over other things. */
     anchorMoved() {
       if (!resized) hide("anchor-moved");
@@ -523,7 +531,9 @@ interface Core {
   setAnchor: (node: ViewRef) => void;
   anchor: () => ViewRef | undefined;
   laid: (e: { bounds: Bounds }) => void;
-  placed: () => void;
+  placed: (p: OverlayPosition) => void;
+  /** The room the placed list has: the rows are cut to it and scroll. */
+  room: Signal<number>;
   anchorMoved: () => void;
   hold: { down: () => void; up: () => void };
   blurSoon: () => void;
@@ -553,7 +563,7 @@ function Row(props: { pos: () => number; core: Core; picked: (c: Choice) => bool
       onMouseEnter={() => core.nav.set(props.pos(), "pointer")}
       accessibilityState={{ selected: current(), disabled: choice()?.disabled }}
       accessibilityLabel={choice() ? rowName(choice()!, chosen()) : ""}
-      class={`h-9 flex-row items-center gap-2 rounded-md px-3 ${current() ? "bg-accent" : ""} ${choice()?.disabled ? "opacity-50" : ""}`}
+      class={`h-8 flex-row items-center gap-2 rounded-md px-3 ${current() ? "bg-accent" : ""} ${choice()?.disabled ? "opacity-50" : ""}`}
     >
       <Clipped class="max-w-[70%] shrink-0 text-sm text-popover-foreground">{choice()?.title ?? ""}</Clipped>
       <View class="min-w-0 flex-1">
@@ -578,7 +588,8 @@ function Rows(props: {
 }) {
   const { core } = props;
   const l = () => core.model.layout() ?? NONE;
-  const height = () => Math.min(contentHeight(l()), core.rows * ROW_H);
+  const height = () =>
+    Math.min(contentHeight(l()), core.rows * ROW_H, listRoom(core.room(), !!core.model.layout()?.hidden));
   effect(() => core.viewport.set(height()));
   const message = () => (props.loading ? "Loading…" : props.empty);
   const start = untracked(() => core.nav.initialOffset(height()));
@@ -594,7 +605,7 @@ function Rows(props: {
       <If
         when={core.model.count() > 0}
         else={
-          <View class="h-9 flex-row items-center gap-2 px-3">
+          <View class="h-8 flex-row items-center gap-2 px-3">
             <If when={props.loading}>
               <Spinner size={14} tone="muted-foreground" />
             </If>
@@ -616,7 +627,7 @@ function Rows(props: {
             <If
               when={row() >= 0}
               else={
-                <View class="h-8 justify-end px-3 pb-1">
+                <View class="h-7 justify-end px-3 pb-1">
                   <Text class="text-xs font-medium text-muted-foreground">{l().names[-row() - 1]}</Text>
                 </View>
               }
@@ -936,7 +947,7 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
   const hasValue = () => values().length > 0;
   const clearable = () =>
     editable() && hasValue() && (props.multiple === true ? props.clear === true : !!props.onClear);
-  const small = () => (props.small ? "h-8 text-xs" : "");
+  const small = () => (largeTargets() ? "h-11" : props.small ? "h-7" : "");
 
   const input = (
     <View
@@ -945,64 +956,73 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
       }}
       class={multiple() ? "min-w-16 flex-1" : undefined}
     >
-      <Input
-        ref={(node: InputRef) => {
-          field = node;
-        }}
-        autoFocus={props.autoFocus}
-        value={shown()}
-        placeholder={multiple() && hasValue() ? "" : (props.placeholder ?? "Select…")}
-        role="combobox"
-        accessibilityLabel={name()}
-        accessibilityHint={stateHint()}
-        accessibilityState={{ expanded: core.visible(), disabled: props.disabled }}
-        autoCorrect={false}
-        submitBehavior="submit"
-        readonly={props.readOnly}
-        disabled={props.disabled}
-        onChange={change}
-        onCompositionChange={(e) => {
-          if (e.composing && !core.composing()) core.frozen.set(filterQuery(typed(), typed() ?? ""));
-          const ended = !e.composing && core.composing();
-          core.composing.set(e.composing);
-          // The owner hears the text only when it is settled: what a composition ended with is typed text too.
-          if (ended && typed() !== undefined) props.onInputChange?.(typed() ?? "", "type");
-        }}
-        onSelectionChange={(e) => caretAtStart.set(e.start === 0 && e.end === 0)}
-        onKeyPress={(e) => {
-          if (e.key !== "Backspace" || !multiple() || !editable() || core.composing() || shown() !== "" || !hasValue())
-            return;
-          removeChip(values().length - 1);
-        }}
-        onFocus={() => {
-          core.focused.set(true);
-          core.cancelBlur();
-          // The title is selected, so typing replaces it instead of editing it.
-          if (!multiple()) field?.setSelection(0, 1000);
-          const own = ownFocus;
-          ownFocus = false;
-          if (!own && pointerOver && (props.openOnInputClick ?? true) && !state.open()) core.show("trigger-focus");
-        }}
-        onBlur={() => {
-          core.focused.set(false);
-          core.composing.set(false);
-          ownFocus = false;
-          chipCursor.set(-1);
-          if (props.inline) return;
-          core.blurSoon();
-        }}
-        onSubmit={() => {
-          if (core.composing()) return;
-          if (core.visible() && nav.active() >= 0) pick(nav.active());
-          else if (!props.inline) core.hide("none");
-        }}
-        style={multiple() ? undefined : hoverTransition()}
-        class={
-          multiple()
-            ? "h-6 border-0 bg-transparent px-1 text-sm text-foreground placeholder:text-muted-foreground"
-            : `${INPUT_CLASS} ${clearable() ? "pr-14" : "pr-8"} ${small()} ${invalid() ? INVALID : ""}`
-        }
-      />
+      <OneLine text={multiple() ? "" : shown()} focused={core.focused()} padRight={clearable() ? "pr-14" : "pr-8"}>
+        <Input
+          ref={(node: InputRef) => {
+            field = node;
+          }}
+          autoFocus={props.autoFocus}
+          value={shown()}
+          placeholder={multiple() && hasValue() ? "" : (props.placeholder ?? "Select…")}
+          role="combobox"
+          accessibilityLabel={name()}
+          accessibilityHint={stateHint()}
+          accessibilityState={{ expanded: core.visible(), disabled: props.disabled }}
+          autoCorrect={false}
+          submitBehavior="submit"
+          readonly={props.readOnly}
+          disabled={props.disabled}
+          onChange={change}
+          onCompositionChange={(e) => {
+            if (e.composing && !core.composing()) core.frozen.set(filterQuery(typed(), typed() ?? ""));
+            const ended = !e.composing && core.composing();
+            core.composing.set(e.composing);
+            // The owner hears the text only when it is settled: what a composition ended with is typed text too.
+            if (ended && typed() !== undefined) props.onInputChange?.(typed() ?? "", "type");
+          }}
+          onSelectionChange={(e) => caretAtStart.set(e.start === 0 && e.end === 0)}
+          onKeyPress={(e) => {
+            if (
+              e.key !== "Backspace" ||
+              !multiple() ||
+              !editable() ||
+              core.composing() ||
+              shown() !== "" ||
+              !hasValue()
+            )
+              return;
+            removeChip(values().length - 1);
+          }}
+          onFocus={() => {
+            core.focused.set(true);
+            core.cancelBlur();
+            // The title is selected, so typing replaces it instead of editing it.
+            if (!multiple()) field?.setSelection(0, 1000);
+            const own = ownFocus;
+            ownFocus = false;
+            if (!own && pointerOver && (props.openOnInputClick ?? true) && !state.open()) core.show("trigger-focus");
+          }}
+          onBlur={() => {
+            core.focused.set(false);
+            core.composing.set(false);
+            ownFocus = false;
+            chipCursor.set(-1);
+            if (props.inline) return;
+            core.blurSoon();
+          }}
+          onSubmit={() => {
+            if (core.composing()) return;
+            if (core.visible() && nav.active() >= 0) pick(nav.active());
+            else if (!props.inline) core.hide("none");
+          }}
+          style={multiple() ? undefined : hoverTransition()}
+          class={
+            multiple()
+              ? "h-6 border-0 bg-transparent px-1 text-sm text-foreground placeholder:text-muted-foreground"
+              : `${INPUT_CLASS} ${clearable() ? "pr-14" : "pr-8"} ${small()} ${invalid() ? INVALID : ""} ${drawsOwnValue({ text: shown(), focused: core.focused() }) ? "text-transparent" : ""}`
+          }
+        />
+      </OneLine>
     </View>
   );
 
@@ -1063,7 +1083,7 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
       onMouseLeave={() => {
         pointerOver = false;
       }}
-      class={`relative min-h-9 flex-row flex-wrap items-center gap-1 rounded-md border bg-card py-1 pl-2 pr-8 ${core.focused() ? "border-ring" : invalid() ? "border-destructive" : "border-input hover:border-muted-foreground/50"}`}
+      class={`relative min-h-8 flex-row flex-wrap items-center gap-1 rounded-md border bg-card py-1 pl-2 pr-8 ${core.focused() ? "border-ring" : invalid() ? "border-destructive" : "border-input hover:border-muted-foreground/50"}`}
     >
       <Each of={chips()} key={(c: { value: string; text: string }) => c.value}>
         {(chip, index) => (
@@ -1296,61 +1316,68 @@ export function Autocomplete(props: {
           if (props.openOnInputClick === true && !state.open() && editable()) core.show("trigger-press");
         }}
       >
-        <Input
-          ref={(node: InputRef) => {
-            field = node;
-          }}
-          autoFocus={props.autoFocus}
-          value={shown()}
-          placeholder={props.placeholder}
-          role="combobox"
-          accessibilityState={{ expanded: core.visible(), disabled: props.disabled }}
-          accessibilityLabel={props.label || props.placeholder}
-          accessibilityHint={
-            [props.required && "required", props.readOnly && "read only", invalid() && "invalid"]
-              .filter(Boolean)
-              .join(", ") || undefined
-          }
-          autoCorrect={false}
-          submitBehavior="submit"
-          readonly={props.readOnly}
-          disabled={props.disabled}
-          onChange={({ value: v }) => {
-            if (!editable()) return;
-            completion.set(undefined);
-            props.onChange(v);
-            if (props.autoHighlight === undefined || props.autoHighlight === false) nav.clear();
-            typedOpen(v);
-          }}
-          onCompositionChange={(e) => {
-            if (e.composing && !core.composing()) core.frozen.set(props.value);
-            core.composing.set(e.composing);
-          }}
-          onFocus={() => {
-            core.focused.set(true);
-            core.cancelBlur();
-            if (pointerOver && props.openOnInputClick === true && !state.open() && editable())
-              core.show("trigger-focus");
-          }}
-          onBlur={() => {
-            core.focused.set(false);
-            core.composing.set(false);
-            props.onBlur?.();
-            if (props.inline) return;
-            // Pressing a suggestion blurs the input first: wait for the press to land before closing.
-            core.blurSoon();
-          }}
-          onSubmit={() => {
-            if (core.composing()) return;
-            if (core.visible() && nav.active() >= 0) pick(nav.active());
-            else {
-              if (!props.inline) core.hide("none");
-              props.onSubmit?.();
+        <OneLine
+          text={shown()}
+          focused={core.focused()}
+          padRight={props.clear && props.value ? "pr-8" : ""}
+          mono={props.mono}
+        >
+          <Input
+            ref={(node: InputRef) => {
+              field = node;
+            }}
+            autoFocus={props.autoFocus}
+            value={shown()}
+            placeholder={props.placeholder}
+            role="combobox"
+            accessibilityState={{ expanded: core.visible(), disabled: props.disabled }}
+            accessibilityLabel={props.label || props.placeholder}
+            accessibilityHint={
+              [props.required && "required", props.readOnly && "read only", invalid() && "invalid"]
+                .filter(Boolean)
+                .join(", ") || undefined
             }
-          }}
-          style={hoverTransition()}
-          class={`${INPUT_CLASS} ${props.clear && props.value ? "pr-8" : ""} ${props.mono ? "font-mono" : ""} ${invalid() ? INVALID : ""}`}
-        />
+            autoCorrect={false}
+            submitBehavior="submit"
+            readonly={props.readOnly}
+            disabled={props.disabled}
+            onChange={({ value: v }) => {
+              if (!editable()) return;
+              completion.set(undefined);
+              props.onChange(v);
+              if (props.autoHighlight === undefined || props.autoHighlight === false) nav.clear();
+              typedOpen(v);
+            }}
+            onCompositionChange={(e) => {
+              if (e.composing && !core.composing()) core.frozen.set(props.value);
+              core.composing.set(e.composing);
+            }}
+            onFocus={() => {
+              core.focused.set(true);
+              core.cancelBlur();
+              if (pointerOver && props.openOnInputClick === true && !state.open() && editable())
+                core.show("trigger-focus");
+            }}
+            onBlur={() => {
+              core.focused.set(false);
+              core.composing.set(false);
+              props.onBlur?.();
+              if (props.inline) return;
+              // Pressing a suggestion blurs the input first: wait for the press to land before closing.
+              core.blurSoon();
+            }}
+            onSubmit={() => {
+              if (core.composing()) return;
+              if (core.visible() && nav.active() >= 0) pick(nav.active());
+              else {
+                if (!props.inline) core.hide("none");
+                props.onSubmit?.();
+              }
+            }}
+            style={hoverTransition()}
+            class={`${INPUT_CLASS} ${props.clear && props.value ? "pr-8" : ""} ${props.mono ? "font-mono" : ""} ${invalid() ? INVALID : ""} ${drawsOwnValue({ text: shown(), focused: core.focused() }) ? "text-transparent" : ""}`}
+          />
+        </OneLine>
       </View>
       <If when={props.clear && !!props.value && editable()}>
         <View

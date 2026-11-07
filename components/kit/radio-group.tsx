@@ -2,7 +2,7 @@ import { context, type JSX, View } from "nsh";
 
 import { hoverTransition } from "#lib/motion";
 
-import { stateHint } from "./check";
+import { useChoiceControl } from "./check";
 import { createRoving, type Orientation, RING, type Roving } from "./roving";
 
 interface Scope {
@@ -29,8 +29,11 @@ export function RadioGroup<T extends string>(props: {
   label?: string;
   disabled?: boolean;
   readOnly?: boolean;
+  /** One must be chosen: in a `Form`, an unchosen group stops the submit and says so. */
   required?: boolean;
   invalid?: boolean;
+  /** What it is called in a form's values. */
+  name?: string;
   orientation?: Orientation;
   loop?: boolean;
   class?: string;
@@ -42,22 +45,36 @@ export function RadioGroup<T extends string>(props: {
     activateOnMove: () => !props.readOnly,
     activateKeys: ["space"],
   });
+  const control = useChoiceControl(
+    props,
+    () => props.value,
+    (v) => v === undefined,
+    "Choose one.",
+  );
   const scope: Scope = {
     value: () => props.value,
     choose: (value) => {
       if (!props.readOnly && !props.disabled && value !== props.value) props.onChange(value as T);
     },
-    disabled: () => props.disabled === true,
+    disabled: () => control.disabled(),
     roving,
   };
   return (
     <Group.Provider value={scope}>
       <View
         role="radiogroup"
-        accessibilityLabel={props.label}
-        accessibilityHint={stateHint(props)}
-        disabled={props.disabled}
+        accessibilityLabel={props.label ?? control.label()}
+        accessibilityHint={control.hint()}
+        disabled={control.disabled()}
         {...roving.focus}
+        onFocus={() => {
+          roving.focus.onFocus();
+          control.focused();
+        }}
+        onBlur={() => {
+          roving.focus.onBlur();
+          control.blurred();
+        }}
         class={props.class}
       >
         {props.children}
@@ -96,7 +113,7 @@ export function RadioItem<T extends string>(props: {
       disabled={off()}
       onPress={() => scope.choose(props.value)}
       style={hoverTransition()}
-      class={`group ${props.class ?? ""} ${mark.ring() ? RING : ""}`}
+      class={`group active:opacity-80 ${props.class ?? ""} ${mark.ring() ? RING : ""}`}
     >
       {props.children}
     </View>

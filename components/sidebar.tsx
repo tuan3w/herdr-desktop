@@ -30,6 +30,7 @@ import {
   snug,
   Tipped,
   usePopover,
+  useTriggerFocus,
 } from "#kit";
 import { machinesOpen, newSession, settingsOpen, sidebarSearch } from "#lib/actions";
 import { checkoutsOf, openChanges } from "#lib/changes";
@@ -153,7 +154,7 @@ function Host(props: { item: () => Extract<SidebarItem, { kind: "host" }> }) {
         onPress={() => machinesOpen.set(true)}
         accessibilityLabel={label()}
         style={hoverTransition()}
-        class={`min-h-8 flex-row items-center gap-2 px-3 py-1 ${FILL}`}
+        class={`flex-row items-center gap-2 ${ROW.nav.class} ${FILL}`}
       >
         <StatusGlyph status={linkGlyph(s().state)} size={12} />
         <Clipped class="min-w-0 flex-1 text-xs font-medium text-muted-foreground">{s().name}</Clipped>
@@ -309,41 +310,60 @@ function useRowKeys(row: () => BoardRow) {
 }
 
 /**
- * An agent in two lines: its state as a quiet shape, its name and how long, and under it what it is doing in words and
- * what it is (the agent, chat or terminal). The box that picks it for a bulk action takes the glyph's place on hover.
+ * What the compact row leaves out, for the bubble: the state in words (a glyph alone is not readable by eye), the agent
+ * (or chat), its machine and how long. The accessible name (`rowLabel`) still carries all of it, so a screen reader loses
+ * nothing.
+ */
+const rowDetail = (row: BoardRow) =>
+  [stateWord(row.status, row.reviewed), row.agent, row.session ? "chat" : "", row.machineName, ageText(row.sinceSecs)]
+    .filter(Boolean)
+    .join(" · ");
+
+/**
+ * An agent in one line: its state as a quiet shape and its name. Only an exception adds a word (`offline`); the program,
+ * machine and age are in the bubble and in the accessible name. The box that picks it for a bulk action takes the
+ * glyph's place on hover.
  */
 function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
   const row = () => props.item().row;
-  const keys = useRowKeys(row);
-  const sub = () =>
-    [stateWord(row().status, row().reviewed), row().agent, row().session ? "chat" : "", row().offline ? "offline" : ""]
-      .filter(Boolean)
-      .join(" · ");
   return (
     <View class={`group/row relative ${props.item().nested ? "pl-3" : ""}`}>
-      <View
-        role="button"
-        onPress={() => void openAgent(row())}
-        onContextMenu={copyMenu(() => copyEntries("Name", row().name, "Folder", row().cwd))}
-        accessibilityState={{ selected: isOpen(row()) }}
-        accessibilityLabel={rowLabel(row(), nameOf(props.item().project))}
-        onFocus={keys.onFocus}
-        onBlur={keys.onBlur}
-        style={hoverTransition()}
-        class={`min-w-0 flex-row items-center gap-3 ${ROW.agent.class} ${FILL} ${row().offline ? "opacity-60" : ""}`}
-      >
-        <StatusGlyph status={row().status} id={row().key} />
-        <View class="min-w-0 flex-1">
-          <View class="flex-row items-center gap-2">
-            <Clipped class="min-w-0 flex-1 text-sm text-sidebar-foreground">{row().name}</Clipped>
-            <Text style={NUM} class="text-xs text-muted-foreground">
-              {ageText(row().sinceSecs)}
-            </Text>
-          </View>
-          <Clipped class="text-xs text-muted-foreground">{sub()}</Clipped>
-        </View>
-      </View>
+      <Tipped label={rowDetail(row())}>
+        <AgentButton item={props.item} />
+      </Tipped>
       <PickSlot rowKey={row().key} name={row().name} order={rowKeys} surface="sidebar" nested={props.item().nested} />
+    </View>
+  );
+}
+
+/** The pressable line, apart from `Agent` so `useTriggerFocus` is called inside the bubble's trigger. */
+function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
+  const row = () => props.item().row;
+  const keys = useRowKeys(row);
+  const tip = useTriggerFocus();
+  return (
+    <View
+      role="button"
+      onPress={() => void openAgent(row())}
+      onContextMenu={copyMenu(() => copyEntries("Name", row().name, "Folder", row().cwd))}
+      accessibilityState={{ selected: isOpen(row()) }}
+      accessibilityLabel={rowLabel(row(), nameOf(props.item().project))}
+      onFocus={() => {
+        keys.onFocus();
+        tip.onFocus?.();
+      }}
+      onBlur={() => {
+        keys.onBlur();
+        tip.onBlur?.();
+      }}
+      style={hoverTransition()}
+      class={`min-w-0 flex-row items-center gap-3 ${ROW.agentCompact.class} ${FILL} ${row().offline ? "opacity-60" : ""}`}
+    >
+      <StatusGlyph status={row().status} id={row().key} />
+      <Clipped class="min-w-0 flex-1 text-sm text-sidebar-foreground">{row().name}</Clipped>
+      <If when={row().offline}>
+        <Text class="text-xs text-muted-foreground">offline</Text>
+      </If>
     </View>
   );
 }
@@ -358,7 +378,7 @@ function More(props: { item: () => Extract<SidebarItem, { kind: "more" }> }) {
       accessibilityLabel={`${text()} in ${nameOf(it().project)}`}
       accessibilityState={{ expanded: it().open }}
       style={hoverTransition()}
-      class={`min-h-9 justify-center pl-9 pr-3 ${FILL}`}
+      class={`justify-center pl-9 pr-3 ${ROW.more.class} ${FILL}`}
     >
       <Text class="text-xs text-muted-foreground">{text()}</Text>
     </View>
@@ -395,7 +415,7 @@ function Tree() {
       }}
       each={items()}
       keyExtractor={(i: SidebarItem) => i.key}
-      estimatedItemSize={ROW.agent.height}
+      estimatedItemSize={ROW.agentCompact.height}
       class="min-h-0 flex-1"
       contentClass="gap-1"
       scrollEventThrottle={50}
@@ -452,7 +472,7 @@ function RailAgent(props: { row: BoardRow; project: BoardProject }) {
       }}
       {...popover.focus}
       style={hoverTransition()}
-      class={`min-h-11 flex-row items-center gap-3 rounded-md px-3 py-2 hover:bg-accent ${FOCUS_RING_SIDEBAR} ${props.row.offline ? "opacity-60" : ""}`}
+      class={`flex-row items-center gap-3 rounded-md ${ROW.agentCompact.class} hover:bg-accent ${FOCUS_RING_SIDEBAR} ${props.row.offline ? "opacity-60" : ""}`}
     >
       <StatusGlyph status={props.row.status} />
       <Clipped class="min-w-0 flex-1 text-sm text-foreground">{props.row.name}</Clipped>
@@ -463,21 +483,28 @@ function RailAgent(props: { row: BoardRow; project: BoardProject }) {
   );
 }
 
-/** `Show project` in the popover of a rail tile: the project's tabs, as the full sidebar's `Switch to this project`. */
+/**
+ * `Show project` in the popover of a rail tile: the project's tabs, as the full sidebar's `Switch to this project`. A view
+ * that spreads the popover's focus like `RailAgent`, not a `Btn`: nsh's `Button` reports no focus, so Tab onto it counted as
+ * the focus leaving the popover and closed it.
+ */
 function RailShow(props: { project: BoardProject }) {
   const popover = usePopover();
   return (
     <View class="items-start py-1">
-      <Btn
-        small
-        variant="outline"
-        label="Show project"
-        name={`Show ${props.project.name}`}
+      <View
+        role="button"
+        accessibilityLabel={`Show ${props.project.name}`}
         onPress={() => {
           openProject(props.project.key);
           popover.close();
         }}
-      />
+        {...popover.focus}
+        style={hoverTransition()}
+        class={`min-h-7 flex-row items-center justify-center rounded-md border border-input bg-card px-3 hover:bg-accent active:bg-accent ${FOCUS_RING_SIDEBAR}`}
+      >
+        <Text class="text-xs font-medium text-foreground">Show project</Text>
+      </View>
     </View>
   );
 }

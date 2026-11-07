@@ -141,6 +141,19 @@ test("offsets add up row heights, and revealing scrolls only as far as it must",
   expect(centerOffset(offsets, 4, 40)).toBe(133 - 40);
 });
 
+test("a picker of equal rows follows the highlight by its nearest edge and leaves a wheel scroll alone", () => {
+  const rows = offsetsOf(Array.from({ length: 20 }, () => 32));
+  const view = 32 * 8;
+  // Visible rows: no move, so a scroll the person made with the wheel is not undone by the next arrow key.
+  expect(revealOffset(rows, 3, 64, view)).toBe(undefined);
+  // Past the bottom edge: the row ends at the bottom. Before the top edge: it starts at the top.
+  expect(revealOffset(rows, 12, 0, view)).toBe(13 * 32 - view);
+  expect(revealOffset(rows, 1, 96, view)).toBe(32);
+  // No row (-1) or a row the list no longer has asks for nothing.
+  expect(revealOffset(rows, -1, 96, view)).toBe(undefined);
+  expect(revealOffset(rows, 25, 0, view)).toBe(undefined);
+});
+
 const AREA = { top: 13, bottom: 787 };
 
 test("a list opens over its trigger: the selected row sits on the trigger's centre", () => {

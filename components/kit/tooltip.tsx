@@ -1,7 +1,8 @@
-import { cleanup, context, effect, type JSX } from "nsh";
+import { cleanup, context, effect, type JSX, Text, View } from "nsh";
 
 import type { ViewRef } from "nsh/types";
 
+import { NUM } from "./core";
 import { createHover, type Hover, type HoverTrigger } from "./hover";
 import { createOpenState, type OpenChange } from "./popup";
 import { Positioner } from "./positioner";
@@ -24,7 +25,8 @@ import { Positioner } from "./positioner";
  *   spreads `useTriggerFocus()` to take part; a `Button` cannot.
  * - Not taken: waiting for the pointer to *rest* (`onMouseMove`: a JS turn per frame for every text the pointer crosses), a
  *   hoverable bubble and a safe polygon (a bubble holds no controls: `PreviewCard` is the popup the pointer can enter),
- *   following the cursor (`trackCursorAxis`), animation.
+ *   following the cursor (`trackCursorAxis`), animation, an arrow (a 6 pt offset pill points at its anchor by proximity;
+ *   Base UI and shadcn draw one because their bubbles are larger cards that sit further out).
  *
  * Each root view has its own host (`PopupRoot`): a dialog is its own root view, and an overlay is placed in the root of its anchor.
  */
@@ -35,8 +37,45 @@ export const REST_MS = 500;
 export const GROUP_MS = 400;
 const GAP = 6;
 
-/** The shell of every bubble; what is in it is the trigger's. */
-const BUBBLE = "max-w-xs rounded-md border border-border bg-popover px-2 py-1 shadow-md";
+/**
+ * The shell of every bubble: a small inverted pill (the ink colour as the fill, the page colour as the text), so it reads
+ * as a label laid over the window and never as a miniature popover. No border and no shadow: against either ground the
+ * fill is 13:1 or more, so nothing has to lift it. Radius `md` 8 minus the 4 pt of vertical padding is `sm` 4, the radius
+ * of the key chip inside (nested radii). 240 pt is about 40 characters at 12 pt: longer text wraps instead of stretching
+ * the bubble across the window.
+ */
+const BUBBLE = "max-w-60 rounded-md bg-foreground px-2 py-1";
+
+/** Text inside a bubble, in the page colour. Regular weight: light on dark already looks heavier than it is. */
+export function TipText(props: { children?: JSX.Element }) {
+  return <Text class="text-xs text-background">{props.children}</Text>;
+}
+
+/**
+ * What `Tipped` shows: the label, and the shortcut as a quiet key in the same bubble. The key is the page colour at 70%
+ * on a chip of the page colour at 15% (5.2:1 and 5.1:1 in the light and dark appearances: it is quiet, not unreadable).
+ * It is decorative: the control's accessible name already carries the label.
+ */
+export function TipContent(props: { label: string; shortcut?: string }) {
+  return (
+    <View class="flex-row items-center gap-2">
+      <TipText>{props.label}</TipText>
+      <If when={props.shortcut}>
+        {(keys) => (
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            class="min-w-4 shrink-0 items-center rounded-sm bg-background/15 px-1"
+          >
+            <Text style={NUM} class="text-xs text-background opacity-70">
+              {keys()}
+            </Text>
+          </View>
+        )}
+      </If>
+    </View>
+  );
+}
 
 /** What one tooltip trigger asks for; every value is read when it is needed, so it may be a signal's. */
 export interface TooltipOptions {

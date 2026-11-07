@@ -3,7 +3,7 @@ import { Button } from "nsh/base";
 
 import type { ScrollRef } from "nsh/types";
 
-import { FOCUS_RING_INSET } from "#kit";
+import { FOCUS_RING_INSET, offsetsOf, revealOffset } from "#kit";
 import { commandText, type SlashCommand, usageKey } from "#lib/slash";
 
 /** One row's height in points: the list scrolls by whole rows to keep the highlighted one in view. */
@@ -24,9 +24,14 @@ export function SlashList(props: {
   onTogglePin: (command: SlashCommand) => void;
 }) {
   let scroll: ScrollRef | undefined;
-  // Keep the highlighted row in the list's upper middle, so there is always a row before it to see where it came from.
+  // The offset the person (or the last reveal) left the list at, from `onScroll`.
+  let offset = 0;
+  // Move only when the highlighted row is out of view, and only as far as its edge.
   effect(() => {
-    const y = Math.max(0, (props.highlighted - 2) * ROW);
+    const rows = offsetsOf(props.commands.map(() => ROW));
+    const y = revealOffset(rows, props.highlighted, offset, ROW * Math.min(VISIBLE, props.commands.length));
+    if (y === undefined) return;
+    offset = y;
     scroll?.scrollTo({ y, animated: false });
   });
   return (
@@ -39,6 +44,9 @@ export function SlashList(props: {
       <Scroll
         ref={(node: ScrollRef) => {
           scroll = node;
+        }}
+        onScroll={(e) => {
+          offset = e.offset.y;
         }}
       >
         <Each of={props.commands} key="index">

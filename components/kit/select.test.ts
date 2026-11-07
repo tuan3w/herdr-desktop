@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
 
-import { selectRows, toggled } from "./select";
+import { listWidth, selectRows, toggled } from "./select";
 
 import type { ItemRow } from "./menu";
 
@@ -71,4 +71,20 @@ test("groups put a heading before their options, and a disabled option is listed
   );
   expect(rows.map((r) => r.kind)).toEqual(["label", "radio", "radio", "separator", "label", "radio"]);
   expect((rows[2] as ItemRow).disabled).toBe(true);
+});
+
+test("a choice list is as wide as its trigger at least, and grows to its longest option up to a limit", () => {
+  // narrow trigger, short options: the floor
+  expect(listWidth(["Low", "High"], 120, 1280)).toBe(176);
+  // a trigger wider than the options keeps its width
+  expect(listWidth(["Low"], 300, 1280)).toBe(300);
+  // "4.5 (recommended)" must be read whole: 17 glyphs plus the popup's and row's chrome fit in the list
+  const wide = listWidth(["4.5", "4.5 (recommended)", "4.0"], 120, 1280);
+  expect(wide).toBeGreaterThanOrEqual(17 * 7 + 52);
+  // a very long option stops at the limit and is cut with an ellipsis there
+  expect(listWidth(["x".repeat(200)], 120, 1280)).toBe(480);
+  // and never wider than the window less its margins
+  expect(listWidth(["x".repeat(200)], 120, 300)).toBe(284);
+  // a wide character counts twice
+  expect(listWidth(["日本語日本語日本語日本語"], 100, 1280)).toBeGreaterThan(listWidth(["abcdefghijkl"], 100, 1280));
 });

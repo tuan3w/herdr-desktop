@@ -1,12 +1,15 @@
-import { computed, effect, keymap, signal, Text, View } from "nsh";
+import { computed, effect, keymap, signal, View, windowSize } from "nsh";
 
 import type { ViewRef } from "nsh/types";
 
 import { hoverTransition } from "#lib/motion";
+import { largeTargets } from "#lib/settings";
 import { fold } from "#lib/text";
 
 import { FOCUS_RING, openOnDown } from "./core";
+import { useFieldControl } from "./field";
 import { Labeled, type Option } from "./fields";
+import { Clipped } from "./hint";
 import { Icon } from "./icon";
 import { closeOnBlur, createSession, type MenuRow, openMenu, pressTrigger, Surface } from "./menu";
 import { type Typing, typeahead, TYPING_KEYS } from "./navigation";
@@ -70,6 +73,29 @@ export function selectRows<T extends string>(
   return rows;
 }
 
+/** The least a choice list is wide (a shorter trigger still gets a list that reads). */
+const LIST_MIN = 176;
+/** The most a choice list grows to fit its longest option; past it the option is cut with an ellipsis. */
+const LIST_MAX = 480;
+/** What a list is wider than its text: the popup's border and padding (10), a row's padding (16), the tick and the gap before it (26). */
+const LIST_CHROME = 52;
+/** An average glyph of the 14pt body face; a wide (CJK, emoji) character counts twice. */
+const GLYPH = 7.5;
+
+const glyphs = (text: string) => [...text].reduce((n, c) => n + ((c.codePointAt(0) ?? 0) >= 0x2e80 ? 2 : 1), 0);
+
+/**
+ * How wide a choice list is: at least its trigger and `LIST_MIN`, as wide as its longest option needs up to `LIST_MAX` and the
+ * window (Base UI sizes the popup `min-width: var(--anchor-width)` and lets it grow to its content; shadcn the same). A label like
+ * "4.5 (recommended)" is read whole, not cut to the trigger's width. The text is estimated, not measured: the list is
+ * built after it is sized, and the estimate errs wide.
+ */
+export function listWidth(titles: readonly string[], trigger: number, windowWidth: number): number {
+  const longest = titles.reduce((n, t) => Math.max(n, glyphs(t)), 0);
+  const wanted = Math.min(LIST_MAX, Math.ceil(longest * GLYPH) + LIST_CHROME, Math.max(LIST_MIN, windowWidth - 16));
+  return Math.max(trigger, LIST_MIN, wanted);
+}
+
 interface SelectBase<T extends string> {
   label?: string;
   /** The accessible name when there is no visible `label` (make it specific where the same select repeats). */
@@ -103,10 +129,22 @@ export type SelectFieldProps<T extends string> = SelectBase<T> &
  * A fixed set of options, one or (with `multiple`) several. The trigger keeps the keyboard focus while the list is open,
  * so choosing leaves the focus ring on it: Return, Space or Down open the list on the current value, Up and Down move,
  * letters find an option (on a closed select they choose it, as a native one does), Return chooses, Escape closes. A list of
- * hundreds opens at once: only the rows in view are built. `small` is the 28pt size of a dense row (as on `Btn`): every
- * control in one row has one height. For a set that is searched by typing, use a `Combobox`.
+ * hundreds opens at once: only the rows in view are built. `small` is the 28pt size of a dense row (as on `Btn`; the default is 32, Large hit
+ * targets makes both 44): every control in one row has one height, and the label is body size at both. For a set that is searched by typing, use a `Combobox`.
  */
 export function SelectField<T extends string>(props: SelectFieldProps<T>) {
+  return props.label ? (
+    <Labeled label={props.label} disabled={props.disabled} invalid={props.invalid}>
+      <SelectControl p={props} />
+    </Labeled>
+  ) : (
+    <SelectControl p={props} />
+  );
+}
+
+/** The select itself, made under its `Labeled` so that it takes part in the field around it and in a `Form`'s validation. */
+function SelectControl<T extends string>(args: { p: SelectFieldProps<T> }) {
+  const props = args.p;
   const state = createOpenState({
     open: () => props.open,
     defaultOpen: props.defaultOpen,
@@ -129,7 +167,15 @@ export function SelectField<T extends string>(props: SelectFieldProps<T>) {
       .map((o) => o.title)
       .join(", "),
   );
-  const name = () => props.label ?? props.name ?? props.placeholder ?? "Select";
+  // A required select left empty stops a form's submit and its message is announced (a select cannot take the focus from
+  // code, so `Form` announces instead). It has no form name: `name` is its accessible name, so its value is not in `values`.
+  const control = useFieldControl({
+    value: () => props.value,
+    required: () => props.required,
+    disabled: () => props.disabled,
+  });
+  const invalid = () => !!props.invalid || control.invalid();
+  const name = () => control.label() ?? props.label ?? props.name ?? props.placeholder ?? "Select";
   const pick = (value: T) => {
     if (props.multiple) props.onChange(toggled(chosen(), value, equal));
     else props.onChange(value);
@@ -169,25 +215,30 @@ export function SelectField<T extends string>(props: SelectFieldProps<T>) {
       }}
       role="combobox"
       focusable={props.disabled ? false : undefined}
-      accessibilityLabel={`${name()}: ${title() || "not selected"}${props.required ? ", required" : ""}${props.invalid ? ", invalid" : ""}${props.readOnly ? ", read only" : ""}`}
+      accessibilityLabel={`${name()}: ${title() || "not selected"}${props.required ? ", required" : ""}${invalid() ? ", invalid" : ""}${props.readOnly ? ", read only" : ""}`}
+      accessibilityHint={control.hint()}
       accessibilityState={{ expanded: state.open(), disabled: props.disabled || undefined }}
       onPress={() => {
         if (!props.disabled) pressTrigger(state, session);
       }}
-      onFocus={() => focused.set(true)}
+      onFocus={() => {
+        focused.set(true);
+        control.focused();
+      }}
       onBlur={() => {
         focused.set(false);
+        control.blurred();
         closeOnBlur(state, session);
       }}
       onLayout={({ bounds }) => width.set(bounds.size.width)}
       style={hoverTransition()}
-      class={`flex-row items-center justify-between gap-2 rounded-md border bg-card px-3 ${props.invalid ? "border-destructive" : "border-input"} ${props.disabled ? "opacity-50" : "hover:bg-accent"} ${FOCUS_RING} ${props.small ? "h-8" : "h-9"}`}
+      class={`flex-row items-center justify-between gap-2 rounded-md border bg-card px-3 ${invalid() ? "border-destructive" : "border-input"} ${props.disabled ? "opacity-50" : "hover:bg-accent"} ${FOCUS_RING} ${largeTargets() ? "h-11" : props.small ? "h-7" : "h-8"}`}
     >
-      <Text
-        class={`line-clamp-1 min-w-0 flex-1 ${props.small ? "text-xs" : "text-sm"} ${title() ? "text-foreground" : "text-muted-foreground"}`}
-      >
-        {title() || props.placeholder || "Select…"}
-      </Text>
+      <View class="min-w-0 flex-1">
+        <Clipped class={`text-sm ${title() ? "text-foreground" : "text-muted-foreground"}`}>
+          {title() || props.placeholder || "Select…"}
+        </Clipped>
+      </View>
       <Icon name="chevron-down" size={14} tone="muted-foreground" />
     </View>
   );
@@ -211,11 +262,15 @@ export function SelectField<T extends string>(props: SelectFieldProps<T>) {
           offset={4}
           start="selected"
           choice
-          minWidth={Math.max(width(), 176)}
+          minWidth={listWidth(
+            options().map((o) => o.title),
+            width(),
+            windowSize().width,
+          )}
           highlightItemOnHover={props.highlightItemOnHover}
         />
       </If>
     </View>
   );
-  return props.label ? <Labeled label={props.label}>{body}</Labeled> : body;
+  return body;
 }

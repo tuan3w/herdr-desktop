@@ -163,8 +163,20 @@ export function createRefiner(maxDepth = 12) {
 }
 
 /** Option rows and group headings, in points: fixed, so a row's place is arithmetic and nothing is measured. */
-export const ROW_H = 36;
-export const HEAD_H = 32;
+/** Equal to the `h-8` of an option row and the `h-7` of a heading in `combo.tsx` (`ROW.nav`/`ROW.more` tiers of `lib/layout.ts`). */
+export const ROW_H = 32;
+export const HEAD_H = 28;
+/** A list popup's border (2) and padding (8), and the line under a list that hides results. */
+export const LIST_CHROME = 10;
+export const HIDDEN_H = 28;
+
+/**
+ * The height the rows may have so the popup stays on its side of the field: the room the overlay reports for its side
+ * (`OverlayPosition.available`) less the popup's own chrome (and the "more results" line), never under one row. Without
+ * it nsh clamps a list taller than both sides over its own field.
+ */
+export const listRoom = (available: number, hidden: boolean): number =>
+  Math.max(ROW_H, available - LIST_CHROME - (hidden ? HIDDEN_H : 0));
 
 /** The group of each option (index into `names`); `names[g]` is empty for options without one. */
 export interface Groups {
@@ -437,4 +449,22 @@ export function chipStep(cursor: number, dir: 1 | -1, count: number): number {
   if (cursor < 0) return dir < 0 ? count - 1 : -1;
   const next = cursor + dir;
   return next < 0 ? 0 : next >= count ? -1 : next;
+}
+
+/**
+ * Whether a one-line input draws its value itself (a clipped `Text` over the field, the field's own text transparent)
+ * instead of the platform's editor. Only at rest: while the person edits, the platform's editor is the thing that has
+ * the caret and the selection. A native single-line field is meant to clip, but the host decides how a value wider than
+ * the box looks when the field is not edited, so the kit does not depend on it.
+ */
+export function drawsOwnValue(o: { text: string; focused: boolean }): boolean {
+  return !o.focused && o.text !== "";
+}
+
+/** Line breaks and spaces are not text: a wrapped line may drop the space it broke at. */
+const letters = (s: string) => s.replace(/\s/g, "").length;
+
+/** Whether the lines a `Text` laid out hold less than the whole text: the value was cut, so the full text goes in a bubble. */
+export function isCutOff(lines: readonly string[], full: string): boolean {
+  return letters(lines.join("")) < letters(full);
 }

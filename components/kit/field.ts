@@ -502,10 +502,11 @@ export interface FieldControl {
  * followed through `options.value`: no handler has to report a change.
  */
 export function useFieldControl(options: ControlOptions): FieldControl {
-  const field = FieldScope() ?? createField();
+  const form = FormScope();
+  // Alone in a form it still takes part: its value is in the form's values and a required one stops the submit.
+  const field = FieldScope() ?? createField({ form });
   const fieldset = FieldsetScope();
   const item = ItemScope();
-  const form = FormScope();
   const disabled = () => field.disabled() || !!options.disabled?.() || !!fieldset?.disabled() || !!item?.disabled();
   cleanup(
     field.attach({

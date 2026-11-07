@@ -3,7 +3,7 @@ import "#lib/native-metrics";
 import { Overlay, Text, View } from "nsh";
 import { Button } from "nsh/base";
 
-import { FOCUS_RING, Icon, IconButton, NUM } from "#kit";
+import { EDGE, FOCUS_RING, Icon, IconButton, NUM } from "#kit";
 import { hoverTransition } from "#lib/motion";
 import { type Health, perfCollapsed, perfOpen, perfReadings, type Reading } from "#lib/perf";
 import { keyLabel } from "#lib/shortcuts";
@@ -27,7 +27,7 @@ export function DevPanel() {
   return (
     <If when={perfOpen()}>
       <Overlay style={{ position: "absolute", right: 12, bottom: 12, pointerEvents: "box-none" }}>
-        <View class={`rounded-lg border border-border bg-popover shadow-md ${perfCollapsed() ? "w-60" : "w-72"}`}>
+        <View class={`rounded-lg bg-popover ${EDGE.md} ${perfCollapsed() ? "w-60" : "w-72"}`}>
           <View class="flex-row items-center pr-1">
             <Button
               onPress={() => perfCollapsed.update((c) => !c)}

@@ -18,7 +18,7 @@
 
 export type ToastType = "info" | "success" | "warning" | "error" | "loading";
 export type ToastPriority = "low" | "high";
-export type PauseReason = "hover" | "focus" | "region";
+export type PauseReason = "hover" | "focus" | "region" | "covered";
 
 export interface ToastRecord<D> {
   readonly id: string;

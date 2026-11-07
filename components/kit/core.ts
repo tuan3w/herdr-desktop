@@ -14,6 +14,18 @@ export const FOCUS_RING = "focus-visible:outline-2 focus-visible:outline-offset-
  */
 export const FOCUS_RING_INSET = "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring";
 
+/**
+ * The one edge of a floating surface (popover, menu, popup, dialog, toast, drag preview), by the layer it lifts. Light:
+ * the shadow token's own 1 pt ring is the edge, so the border is transparent (it keeps the geometry equal in both
+ * appearances). Dark: a shadow cannot be seen on charcoal, so the shadow is switched off and the hairline `border-border`
+ * is the edge. Two edges drawn together (a 1 pt border and the 1 pt ring) read as a 2 pt rim, which was the bug.
+ */
+export const EDGE = {
+  sm: "border border-transparent shadow-sm dark:border-border dark:shadow-none",
+  md: "border border-transparent shadow-md dark:border-border dark:shadow-none",
+  lg: "border border-transparent shadow-lg dark:border-border dark:shadow-none",
+} as const;
+
 /** Tabular figures: dates and counts must not jitter as digits change. */
 export const NUM: TextStyle = { fontVariant: ["tabular-nums"] };
 

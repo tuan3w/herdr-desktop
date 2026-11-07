@@ -2,10 +2,13 @@ import { mount, signal, Text, View } from "nsh";
 import { Button } from "nsh/base";
 
 import { Btn } from "./kit/button";
+import { CheckRow } from "./kit/check";
 import { Form } from "./kit/field-parts";
 import { Field, FieldRow, SearchField } from "./kit/fields";
 import { createForm, type FormErrors } from "./kit/form";
 import { NumberField } from "./kit/number-field";
+import { SettingRow } from "./kit/settings";
+import { Switch } from "./kit/switch";
 import { ThemeRoot } from "./kit/theme-root";
 
 /** Test entry only (`forms.test.tsx`): a form of a few kinds of field, a form of 40, and counters of what a keystroke costs. */
@@ -91,6 +94,47 @@ function MachineForm() {
   );
 }
 
+/** A required box, a number with a minimum, and a setting row of a switch: what a form must refuse and a label must do. */
+function Rules() {
+  const agree = signal(false);
+  const done = signal("");
+  const typed = signal<number | null>(null);
+  const calls = signal("");
+  const wrap = signal(false);
+  const other = signal("");
+  const form = createForm({ onFormSubmit: (values) => done.set(JSON.stringify(values)) });
+  return (
+    <View class="gap-3 p-4">
+      <Form form={form}>
+        <CheckRow name="agree" required label="I agree" checked={agree()} onChange={(v) => agree.set(v)}>
+          <Text>I agree to the terms</Text>
+        </CheckRow>
+        <NumberField
+          name="floor"
+          label="At least ten"
+          min={10}
+          value={typed()}
+          onChange={(v) => {
+            typed.set(v);
+            calls.set(`${calls()}${v},`);
+          }}
+        />
+        <Btn variant="primary" label="Send" onPress={() => form.submit()} />
+      </Form>
+      <SettingRow
+        label="Wrap the lines"
+        onPress={() => wrap.set(!wrap())}
+        control={<Switch label="Wrap" checked={wrap()} onChange={(v) => wrap.set(v)} />}
+      />
+      {/* Somewhere to put the focus: a press on a label does not move it off a field. */}
+      <Field label="Elsewhere" value={other()} onChange={(v) => other.set(v)} />
+      <Text>{`sent:${done()}`}</Text>
+      <Text>{`wrap:${wrap()}`}</Text>
+      <Text>{`calls:${calls()}`}</Text>
+    </View>
+  );
+}
+
 function Many() {
   const values = Object.fromEntries(NAMES.map((n) => [n, signal("")]));
   const started = performance.now();
@@ -123,7 +167,7 @@ function Many() {
 }
 
 function Lab() {
-  const page = signal<"machine" | "many">("machine");
+  const page = signal<"machine" | "many" | "rules">("machine");
   return (
     <ThemeRoot>
       <View class="flex-1 bg-background">
@@ -134,8 +178,18 @@ function Lab() {
           <Button onPress={() => page.set("many")} accessibilityLabel="Many fields">
             <Text>Many fields</Text>
           </Button>
+          <Button onPress={() => page.set("rules")} accessibilityLabel="Rules">
+            <Text>Rules</Text>
+          </Button>
         </View>
-        <If when={page() === "machine"} else={<Many />}>
+        <If
+          when={page() === "machine"}
+          else={
+            <If when={page() === "rules"} else={<Many />}>
+              <Rules />
+            </If>
+          }
+        >
           <MachineForm />
         </If>
       </View>

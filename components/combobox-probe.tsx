@@ -35,6 +35,8 @@ const AGENTS: ComboOption<string>[] = [
   { value: "cursor", title: "Cursor Agent", group: "Cloud" },
   { value: "creme", title: "Crème Agent" },
 ];
+/** Wider than the field: it must stay one line, cut with an ellipsis. */
+const LONG_MACHINE = "build-box-eu-west-2 (staging cluster, shared)";
 const MACHINES = [
   "laptop (lt-01)",
   "build-box (bb-02)",
@@ -43,6 +45,7 @@ const MACHINES = [
   "mac-mini (mm-05)",
   "raspberry-pi (rp-06)",
   "ci-runner (ci-07)",
+  LONG_MACHINE,
 ];
 
 const log = signal<string[]>([]);

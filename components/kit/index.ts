@@ -8,12 +8,13 @@ export { createCheckGroup, type ValueChange } from "./check-group";
 export { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "./collapsible";
 export { Autocomplete, Combobox, type ComboOption, type Suggestion } from "./combo";
 export { dialogDepth } from "./dialog-stack";
-export { FOCUS_RING, FOCUS_RING_INSET, FOCUS_RING_SIDEBAR, NUM } from "./core";
+export { EDGE, FOCUS_RING, FOCUS_RING_INSET, FOCUS_RING_SIDEBAR, NUM } from "./core";
 export { FieldRow, INPUT_CLASS, Field, Labeled, type Option, SearchField } from "./fields";
 export { SelectField } from "./select";
 export { Clipped, Kbd, Tipped } from "./hint";
 export { Skeleton, Spinner } from "./loading";
 export { NumberField, type NumberFieldProps } from "./number-field";
+export { offsetsOf, revealOffset } from "./navigation";
 export { Progress } from "./progress";
 export { RadioGroup, RadioItem } from "./radio-group";
 export { ActionMenu, type MenuAction, type MenuEntry, type MenuGroup, RowMenu } from "./menu";
@@ -22,6 +23,7 @@ export { confirmDestructive, Modal } from "./modal";
 export { PaletteDialog } from "./palette-dialog";
 export {
   closeToast,
+  coverToasts,
   focusToasts,
   notify,
   notifyPromise,

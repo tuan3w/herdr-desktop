@@ -2,6 +2,7 @@ import { cleanup, context, effect, type JSX, View } from "nsh";
 
 import type { Align, Placement, ViewRef } from "nsh/types";
 
+import { EDGE } from "./core";
 import { createHover, type Hover, type HoverTrigger } from "./hover";
 import { createOpenState, type OpenChange } from "./popup";
 import { Positioner } from "./positioner";
@@ -27,7 +28,7 @@ export const CARD_DELAY_MS = 600;
 /** How long after the pointer left before the card closes. */
 export const CARD_CLOSE_MS = 300;
 const GAP = 6;
-const CARD = "max-w-sm rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-md";
+const CARD = `max-w-sm rounded-lg bg-popover p-3 text-popover-foreground ${EDGE.md}`;
 
 /** A trigger: what its card holds and where it goes. */
 export interface CardTrigger extends HoverTrigger {

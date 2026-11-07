@@ -84,10 +84,10 @@ function Probe() {
             <TabItem label="Yellow" selected={auto() === "three"} onSelect={() => auto.set("three")} />
           </TabBar>
           <Text>{`auto=${auto()}`}</Text>
-          <TabPanel selected={auto() === "one"} keepMounted>
+          <TabPanel selected={auto() === "one"} keepMounted label="Green">
             <Draft name="kept" />
           </TabPanel>
-          <TabPanel selected={auto() === "two"}>
+          <TabPanel selected={auto() === "two"} label="Red">
             <Draft name="unkept" />
           </TabPanel>
           <RadioGroup label="Runtime" value={runtime()} onChange={(v) => runtime.set(v)} orientation="vertical">

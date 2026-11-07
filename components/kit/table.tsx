@@ -45,7 +45,8 @@ export function fittingColumns<T>(columns: Column<T>[], available: number): Colu
   return gone.size === 0 ? columns : columns.filter((c) => !gone.has(c));
 }
 
-const ROW_HEIGHT = 44;
+/** Equals `ROW.table.height` in lib/layout.ts; a copy because the kit may not import lib/layout (one-way rule in AGENTS.md). */
+const ROW_HEIGHT = 36;
 
 const CLASSES = {
   root: "rounded-lg border border-border bg-card",
@@ -128,7 +129,7 @@ export function Table<T>(props: {
         columns={columns()}
         data={data()}
         rowHeight={ROW_HEIGHT}
-        headerHeight={36}
+        headerHeight={ROW_HEIGHT}
         sort={props.sort}
         onSortChange={({ sort }) => props.onSort(sort)}
         selection={selectedRow() >= 0 ? { row: selectedRow() } : null}

@@ -4,7 +4,7 @@ import type { JSX } from "nsh";
 import type { TextStyle } from "nsh/types";
 
 import { NUM } from "./core";
-import { FocusScope, useTooltip } from "./tooltip";
+import { FocusScope, TipContent, TipText, useTooltip } from "./tooltip";
 
 /** Line breaks and spaces are not text: a wrapped line may drop the space it broke at. */
 const letters = (s: string) => s.replace(/\s/g, "").length;
@@ -26,7 +26,7 @@ export function Clipped(props: {
 }) {
   const cut = signal(false);
   const full = () => props.label ?? (typeof props.children === "string" ? props.children : "");
-  const tip = useTooltip(() => <Text class="text-xs text-popover-foreground">{full()}</Text>, {
+  const tip = useTooltip(() => <TipText>{full()}</TipText>, {
     disabled: () => !cut() || props.tip === false,
   });
   return (
@@ -60,24 +60,12 @@ export function Tipped(props: {
   class?: string;
   children?: JSX.Element;
 }) {
-  const tip = useTooltip(
-    () => (
-      <View class="flex-row items-center gap-2">
-        <Text class="text-xs font-medium text-popover-foreground">{props.label}</Text>
-        <If when={props.shortcut}>
-          <Text style={NUM} class="text-xs text-popover-foreground opacity-60">
-            {props.shortcut}
-          </Text>
-        </If>
-      </View>
-    ),
-    {
-      disabled: () => props.disabled ?? false,
-      delay: props.delay,
-      closeDelay: props.closeDelay,
-      closeOnClick: props.closeOnClick,
-    },
-  );
+  const tip = useTooltip(() => <TipContent label={props.label} shortcut={props.shortcut} />, {
+    disabled: () => props.disabled ?? false,
+    delay: props.delay,
+    closeDelay: props.closeDelay,
+    closeOnClick: props.closeOnClick,
+  });
   return (
     <View ref={tip.ref} onMouseEnter={tip.onMouseEnter} onMouseLeave={tip.onMouseLeave} class={props.class}>
       <FocusScope.Provider value={tip.focus}>{props.children}</FocusScope.Provider>

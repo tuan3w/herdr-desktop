@@ -1,14 +1,16 @@
-import { Text, View } from "nsh";
+import { announce, effect, Text, View } from "nsh";
 import { Button } from "nsh/base";
 
 import type { ViewRef } from "nsh";
 
 import { hoverTransition, pressFeedback, pressTransition } from "#lib/motion";
+import { largeTargets } from "#lib/settings";
 
 import { FOCUS_RING, FOCUS_RING_SIDEBAR } from "./core";
 import { Kbd, Tipped } from "./hint";
 import { Icon, type IconName, type IconTone } from "./icon";
 import { Spinner } from "./loading";
+import { useTriggerFocus } from "./tooltip";
 
 export type Variant = "primary" | "outline" | "ghost" | "danger";
 
@@ -32,7 +34,8 @@ const BTN_ICON: Record<Variant, IconTone> = {
 };
 
 /**
- * A button with a text label. Default 32pt; `small` is the dense-row size (28pt) and does not depress; `still` opts a
+ * A button with a text label. Default 32pt (a dialog or form action; 36 was a phone size); `small` is the dense-row size (28pt, the
+ * pointer hit target) and does not depress; Large hit targets makes both 44; `still` opts a
  * default-size button out of the press scale. `hint` shows the shortcut in a keycap after the label.
  */
 export function Btn(props: {
@@ -44,7 +47,10 @@ export function Btn(props: {
   icon?: IconName;
   hint?: string;
   still?: boolean;
-  /** Work is running: the icon becomes a spinner and presses are ignored, but the button keeps its variant and width. */
+  /**
+   * Work is running: the icon becomes a spinner, presses are ignored and the name says "busy", but the button keeps its
+   * variant, its width and the keyboard focus (`disabled` would drop it from Tab and strand a focused Save).
+   */
   loading?: boolean;
   /** The accessible name when the label alone is ambiguous (the same "Xong" on every row): it must contain `label`. */
   name?: string;
@@ -53,16 +59,26 @@ export function Btn(props: {
 }) {
   const variant = () => props.variant ?? "outline";
   const press = props.small || props.still ? undefined : pressFeedback();
+  const busy = () => props.loading === true;
+  // A busy button keeps the focus, so the screen reader is told when it turns busy (its label alone is read on arrival).
+  let wasBusy = false;
+  effect(() => {
+    const now = busy();
+    if (now && !wasBusy) announce(`${props.name ?? props.label}, busy`);
+    wasBusy = now;
+  });
   return (
     <Button
       ref={props.buttonRef}
-      onPress={props.onPress}
-      onPressDown={press?.down}
+      onPress={() => {
+        if (!busy()) props.onPress();
+      }}
+      onPressDown={press ? () => !busy() && press.down() : undefined}
       onPressUp={press?.up}
-      disabled={props.disabled || props.loading}
-      accessibilityLabel={props.loading ? `${props.name ?? props.label}, busy` : props.name}
+      disabled={props.disabled}
+      accessibilityLabel={busy() ? `${props.name ?? props.label}, busy` : props.name}
       style={[pressTransition(), press?.style]}
-      class={`flex-row items-center justify-center gap-2 rounded-md ${FOCUS_RING} ${props.small ? "min-h-8 px-3" : "min-h-9 px-4"} ${
+      class={`flex-row items-center justify-center gap-2 rounded-md ${FOCUS_RING} ${largeTargets() ? "min-h-11" : props.small ? "min-h-7" : "min-h-8"} ${props.small ? "px-3" : "px-4"} ${
         props.disabled ? "border-transparent bg-muted" : BTN[variant()]
       }`}
     >
@@ -94,7 +110,9 @@ export function Btn(props: {
 
 /**
  * A button with an icon and no visible text. `label` is required: it is what a screen reader says and what the
- * tooltip shows. 28pt box, grey; `onSidebar` for the sidebar surface.
+ * tooltip shows. 28pt box (44 under Large hit targets), grey; `onSidebar` for the sidebar surface. It is a `View` that
+ * takes presses, not nsh's `Button`: only a view reports the keyboard focus, and the tooltip (label and shortcut) must
+ * show to a keyboard user who Tabs onto the button as it does to the pointer.
  */
 export function IconButton(props: {
   icon: IconName;
@@ -105,19 +123,41 @@ export function IconButton(props: {
   selected?: boolean;
   shortcut?: string;
 }) {
+  return (
+    <Tipped label={props.label} shortcut={props.shortcut}>
+      <IconFace
+        icon={props.icon}
+        label={props.label}
+        onPress={props.onPress}
+        onSidebar={props.onSidebar}
+        selected={props.selected}
+      />
+    </Tipped>
+  );
+}
+
+/** The pressable of an `IconButton`: a component of its own so `useTriggerFocus()` reads the `Tipped` around it. */
+function IconFace(props: {
+  icon: IconName;
+  label: string;
+  onPress: () => void;
+  onSidebar?: boolean;
+  selected?: boolean;
+}) {
+  const focus = useTriggerFocus();
   const hover = () =>
     props.onSidebar ? "hover:bg-sidebar-accent active:bg-sidebar-accent" : "hover:bg-accent active:bg-accent";
   return (
-    <Tipped label={props.label} shortcut={props.shortcut}>
-      <Button
-        onPress={props.onPress}
-        accessibilityLabel={props.label}
-        selected={props.selected}
-        style={hoverTransition()}
-        class={`size-8 items-center justify-center rounded-md selected:bg-accent ${hover()} ${props.onSidebar ? FOCUS_RING_SIDEBAR : FOCUS_RING}`}
-      >
-        <Icon name={props.icon} tone={props.onSidebar ? "sidebar-foreground" : "muted-foreground"} />
-      </Button>
-    </Tipped>
+    <View
+      role="button"
+      accessibilityLabel={props.label}
+      accessibilityState={{ selected: props.selected }}
+      onPress={props.onPress}
+      {...focus}
+      style={hoverTransition()}
+      class={`${largeTargets() ? "size-11" : "size-7"} items-center justify-center rounded-md selected:bg-accent ${hover()} ${props.onSidebar ? FOCUS_RING_SIDEBAR : FOCUS_RING}`}
+    >
+      <Icon name={props.icon} tone={props.onSidebar ? "sidebar-foreground" : "muted-foreground"} />
+    </View>
   );
 }

@@ -1,7 +1,7 @@
 import { Image, Text, View } from "nsh";
 import { Button } from "nsh/base";
 
-import { Btn, FOCUS_RING, FOCUS_RING_INSET, Icon, type IconName, Spinner, Tipped } from "#kit";
+import { Btn, EDGE, FOCUS_RING, FOCUS_RING_INSET, Icon, type IconName, Spinner, Tipped } from "#kit";
 import type { Composer } from "#lib/composer";
 import type { MentionRef, PasteRef, PictureRef, Ref } from "#lib/composer-refs";
 import { fileGlyph, pictureDetail, pictureLabel } from "#lib/composer-refs";
@@ -20,7 +20,7 @@ function RemoveButton(props: { label: string; onPress: () => void; floating?: bo
     <Button
       accessibilityLabel={props.label}
       onPress={props.onPress}
-      class={`size-6 items-center justify-center rounded-full ${props.floating ? "absolute -right-2 -top-2 border border-border bg-popover shadow-sm" : "hover:bg-accent"} ${FOCUS_RING}`}
+      class={`size-6 items-center justify-center rounded-full ${props.floating ? `absolute -right-2 -top-2 bg-popover ${EDGE.sm}` : "hover:bg-accent"} ${FOCUS_RING}`}
     >
       <Icon name="x" size={12} tone="muted-foreground" />
     </Button>

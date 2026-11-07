@@ -88,10 +88,19 @@ export function TabItem(props: {
  * What a tab shows. Unmounted while it is not selected, so a hidden view costs nothing; `keepMounted` keeps it built and
  * hidden instead, for a view whose state must survive a switch (a half-typed field) and that is cheap to hold.
  */
-export function TabPanel(props: { selected: boolean; keepMounted?: boolean; class?: string; children?: JSX.Element }) {
+export function TabPanel(props: {
+  selected: boolean;
+  keepMounted?: boolean;
+  /** The tab it belongs to: with it the panel is a `region` that screen readers list by that name (nsh has no way to link a panel to its tab). */
+  label?: string;
+  class?: string;
+  children?: JSX.Element;
+}) {
   return (
     <If when={props.selected || props.keepMounted}>
       <View
+        role={props.label ? "region" : undefined}
+        accessibilityLabel={props.label}
         class={`${props.selected ? "" : "hidden"} ${props.class ?? ""}`}
         importantForAccessibility={props.selected ? "auto" : "no-hide-descendants"}
       >

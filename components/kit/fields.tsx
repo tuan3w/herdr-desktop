@@ -4,15 +4,21 @@ import { Input } from "nsh/base";
 import type { InputRef, PasteEvent } from "nsh/types";
 
 import { hoverTransition } from "#lib/motion";
+import { largeTargets } from "#lib/settings";
 
 import { IconButton } from "./button";
+import { spoken } from "./check";
 import { FieldScope, useFieldControl, type Violation } from "./field";
 import { FieldDescription, FieldError, FieldLabel, type FieldRules, FieldRoot } from "./field-parts";
 import { Icon } from "./icon";
 
 /** Text input look: hover darkens the edge, focus draws the ring color. Errors add `border-destructive`. */
-export const INPUT_CLASS =
-  "h-9 rounded-md border border-input bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground hover:border-muted-foreground/50 focus:border-ring focus:outline-2 focus:outline-offset-0 focus:outline-ring/30";
+export const INPUT_BOX =
+  "rounded-md border border-input bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground hover:border-muted-foreground/50 focus:border-ring focus:outline-2 focus:outline-offset-0 focus:outline-ring/30";
+/** The input's height: 32, and 44 under Large hit targets like `Btn` and `SelectField`, so no input is the small target. */
+export const inputHeight = () => (largeTargets() ? "h-11" : "h-8");
+/** The look with a fixed 32 height, for inputs placed by other screens; `Field`, `NumberField` and `SearchField` use the box and `inputHeight`. */
+export const INPUT_CLASS = `h-8 ${INPUT_BOX}`;
 export const INPUT_ERROR =
   "border-destructive hover:border-destructive focus:border-destructive focus:outline-destructive/30";
 
@@ -147,7 +153,7 @@ function TextControl(props: { p: TextProps }) {
       onChange={({ value }) => p.onChange(value)}
       placeholder={p.placeholder}
       accessibilityLabel={control.label() ?? (p.label || p.placeholder)}
-      accessibilityHint={control.hint()}
+      accessibilityHint={spoken({ required: p.required, readOnly: p.readOnly }, control.hint())}
       disabled={control.disabled()}
       readonly={p.readOnly}
       maxLength={p.maxLength}
@@ -170,7 +176,7 @@ function TextControl(props: { p: TextProps }) {
         p.onBlur?.();
       }}
       style={hoverTransition()}
-      class={`${INPUT_CLASS} ${p.mono ? "font-mono" : ""} ${p.multiline ? (p.tall ? "h-72 py-2" : "h-24 py-2") : ""} ${control.invalid() ? INPUT_ERROR : ""}`}
+      class={`${INPUT_BOX} ${p.multiline ? "" : inputHeight()} ${p.mono ? "font-mono" : ""} ${p.multiline ? (p.tall ? "h-72 py-2" : "h-24 py-2") : ""} ${control.invalid() ? INPUT_ERROR : ""}`}
     />
   );
 }
@@ -244,7 +250,7 @@ export function SearchField(props: {
         onFocus={() => focused.set(true)}
         onBlur={() => focused.set(false)}
         style={hoverTransition()}
-        class={`${INPUT_CLASS} pl-8 pr-8`}
+        class={`${INPUT_BOX} ${inputHeight()} pl-8 pr-8`}
       />
       <View class="pointer-events-none absolute bottom-0 left-2.5 top-0 justify-center">
         <Icon name="search" size={14} tone="muted-foreground" />

@@ -7,7 +7,7 @@ import { PaneTab } from "#components/pane-tab";
 import { ProjectEmpty } from "#components/project-empty";
 import { SessionTab } from "#components/session-tab";
 import { TabFace } from "#components/tab-face";
-import { Btn, Empty, FOCUS_RING_INSET } from "#kit";
+import { Btn, EDGE, Empty, FOCUS_RING_INSET } from "#kit";
 import { machinesOpen } from "#lib/actions";
 import {
   attach,
@@ -115,7 +115,7 @@ export function Workspace() {
         renderEmpty={() => <ProjectEmpty />}
         renderTab={(tab) => <TabFace tab={tab} />}
         renderDragPreview={(tab) => (
-          <View class="h-9 w-56 rounded-md border border-border bg-popover shadow-md">
+          <View class={`h-8 w-56 rounded-md bg-popover ${EDGE.md}`}>
             <TabFace tab={{ ...tab, closable: false }} />
           </View>
         )}

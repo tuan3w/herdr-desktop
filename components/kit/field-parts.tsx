@@ -1,5 +1,6 @@
-import { announce, cleanup, effect, type JSX, Text, untracked, View } from "nsh";
+import { announce, cleanup, effect, type JSX, signal, Text, untracked, View } from "nsh";
 
+import { drawsOwnValue, isCutOff } from "./combo-rules";
 import {
   createField,
   createTextSlot,
@@ -14,6 +15,7 @@ import {
 } from "./field";
 import { createForm, type FormController, type FormErrors } from "./form";
 import { Icon } from "./icon";
+import { TipText, useTooltip } from "./tooltip";
 
 /**
  * The parts of a field, Base UI's `Field.Root`, `Label`, `Description`, `Error`, `Validity`, `Item` and `Fieldset`, with
@@ -181,15 +183,15 @@ export function FieldItem(props: { disabled?: boolean; class?: string; children?
 }
 
 /**
- * Fields that go together: disabling it disables each of them, and its `FieldsetLegend` names the group. There is no
- * group role in this host, so the legend is the group's accessibility label.
+ * Fields that go together: disabling it disables each of them, and its `FieldsetLegend` names the group. It is a
+ * `group` named by the legend.
  */
 export function Fieldset(props: { disabled?: boolean; class?: string; children?: JSX.Element }) {
   const parent = FieldsetScope();
   const legend = createTextSlot();
   return (
     <FieldsetScope.Provider value={{ disabled: () => !!props.disabled || !!parent?.disabled(), legend }}>
-      <View accessibilityLabel={legend.text() || undefined} class={props.class ?? "gap-3"}>
+      <View role="group" accessibilityLabel={legend.text() || undefined} class={props.class ?? "gap-3"}>
         {props.children}
       </View>
     </FieldsetScope.Provider>
@@ -230,5 +232,45 @@ export function Form(props: {
     <FormScope.Provider value={form.api}>
       <View class={props.class ?? "gap-3"}>{props.children}</View>
     </FormScope.Provider>
+  );
+}
+
+/**
+ * Puts the value of a one-line input in one line at rest: a `Text` of one line over the field, ending in an ellipsis, with
+ * the whole value in a bubble when the pointer rests on it and cut. The field's own text must be transparent while
+ * `OneLine`'s `drawsOwnValue` holds (the caller sets the class), and its accessible name already carries the whole value.
+ * `padRight` is the field's right padding (room for its chevron or clear button); `mono` follows the field's font.
+ */
+export function OneLine(props: {
+  text: string;
+  focused: boolean;
+  padRight: string;
+  mono?: boolean;
+  children?: JSX.Element;
+}) {
+  const cut = signal(false);
+  const tip = useTooltip(() => <TipText>{props.text}</TipText>, { disabled: () => !cut() || props.focused });
+  return (
+    <View ref={tip.ref} onMouseEnter={tip.onMouseEnter} onMouseLeave={tip.onMouseLeave} class="relative">
+      {props.children}
+      <If when={drawsOwnValue({ text: props.text, focused: props.focused })}>
+        <View class={`pointer-events-none absolute inset-0 justify-center pl-[13px] ${props.padRight}`}>
+          <Text
+            style={{ numberOfLines: 1 }}
+            class={`min-w-0 text-sm text-foreground ${props.mono ? "font-mono" : ""}`}
+            onTextLayout={(e) =>
+              cut.set(
+                isCutOff(
+                  e.lines.map((l) => l.text),
+                  props.text,
+                ),
+              )
+            }
+          >
+            {props.text}
+          </Text>
+        </View>
+      </If>
+    </View>
   );
 }

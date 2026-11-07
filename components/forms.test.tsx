@@ -167,3 +167,38 @@ test("a form of 40 fields mounts at once and typing costs no timer: validation b
   expect(after - before).toBe(0);
   expect(app.texts()).toContain("Field f0");
 });
+
+const sent = (app: Awaited<ReturnType<typeof lab>>) => app.texts().some((t) => t.startsWith("sent:{"));
+
+test("a required box left unticked stops the submit, and the form says why instead of staying silent", async () => {
+  const app = await lab();
+  await app.press("Rules");
+  await app.waitFor("Send");
+  await app.press("Send");
+  expect(sent(app)).toBe(false);
+  // The box cannot take the focus from code, so what is wrong is in its hint (and announced).
+  await app.waitUntil(() => app.shows("label:I agree"));
+  await app.press("label:I agree");
+  await app.press("Send");
+  await app.waitUntil(() => sent(app));
+});
+
+test("pressing the words of a setting row toggles its switch", async () => {
+  const app = await lab();
+  await app.press("Rules");
+  await app.waitFor("Wrap the lines");
+  expect(app.texts()).toContain("wrap:false");
+  await app.press("Wrap the lines");
+  await app.waitUntil(() => app.texts().includes("wrap:true"));
+});
+
+test("a minimum is not reported while the digits are still being typed, only when the field is left", async () => {
+  const app = await lab();
+  await app.press("Rules");
+  await app.type("label:At least ten", "5");
+  expect(app.texts().some((t) => t.startsWith("calls:") && t.includes("10"))).toBe(false);
+  expect(app.value("label:At least ten")).toBe("5");
+  // Leaving the field is the commit: now it is clamped and reported once.
+  await app.type("label:Elsewhere", "x");
+  await app.waitUntil(() => app.texts().some((t) => t.startsWith("calls:") && t.endsWith("10,")));
+});

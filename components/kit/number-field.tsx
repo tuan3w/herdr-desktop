@@ -4,10 +4,12 @@ import { Input } from "nsh/base";
 import type { PressEvent, ViewRef } from "nsh/types";
 
 import { hoverTransition } from "#lib/motion";
+import { largeTargets } from "#lib/settings";
 
+import { spoken } from "./check";
 import { NUM } from "./core";
 import { useFieldControl } from "./field";
-import { INPUT_CLASS, INPUT_ERROR, Labeled } from "./fields";
+import { INPUT_BOX, INPUT_ERROR, inputHeight, Labeled } from "./fields";
 import {
   canBeNumber,
   commitText,
@@ -80,7 +82,7 @@ function Stepper(props: {
       onMouseLeave={props.onUp}
       onPress={props.onActivate}
       style={hoverTransition()}
-      class="size-6 items-center justify-center rounded hover:bg-accent"
+      class={`${largeTargets() ? "size-11" : "size-7"} items-center justify-center rounded hover:bg-accent active:bg-accent`}
     >
       <View class="items-center justify-center">
         <View class={`h-0.5 w-2.5 ${BAR}`} />
@@ -251,9 +253,15 @@ function NumberControl(props: { p: NumberFieldProps; value: () => number | null;
       return;
     }
     typing(value);
-    const result = commitText(value, bounds());
+    const before = untracked(props.value);
+    // Not clamped while typing: '5' on the way to '50' with a minimum of 10 must not report 10 while the box says 5. The
+    // clamp is the commit's (Return, blur, a step).
+    const result = commitText(value, { ...bounds(), allowOutOfRange: true });
     if (result.kind === "empty") set(null);
     else if (result.kind === "value") set(result.value);
+    // A text that was unreadable and is readable again, or the other way round, changes the field's validity without
+    // changing its value, which the field would never hear of: tell it, or `1.2.3` fixed back to `1.2` stays wrong until blur.
+    if (Object.is(before, untracked(props.value))) control.field.valueChanged(before);
   };
 
   const field = (
@@ -266,7 +274,7 @@ function NumberControl(props: { p: NumberFieldProps; value: () => number | null;
         placeholder={p.placeholder}
         role="spinbutton"
         accessibilityLabel={control.label() ?? (p.label || p.placeholder)}
-        accessibilityHint={control.hint()}
+        accessibilityHint={spoken({ required: p.required, readOnly: locked() }, control.hint())}
         accessibilityValue={{
           min: p.min,
           max: p.max,
@@ -320,7 +328,7 @@ function NumberControl(props: { p: NumberFieldProps; value: () => number | null;
           p.onBlur?.();
         }}
         style={{ ...hoverTransition(), ...NUM }}
-        class={`${INPUT_CLASS} ${p.steppers === false ? "" : "pr-14"} ${control.invalid() ? INPUT_ERROR : ""}`}
+        class={`${INPUT_BOX} ${inputHeight()} ${p.steppers === false ? "" : "pr-14"} ${control.invalid() ? INPUT_ERROR : ""}`}
       />
       <If when={p.steppers !== false && !locked() && !control.disabled()}>
         <View class="absolute bottom-0 right-1 top-0 flex-row items-center opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">

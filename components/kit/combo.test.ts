@@ -5,12 +5,15 @@ import {
   chipStep,
   type Choice,
   createRefiner,
+  drawsOwnValue,
   filterQuery,
   found,
   groupChoices,
   inlineText,
+  isCutOff,
   initialHighlight,
   layout,
+  listRoom,
   nextHighlight,
   pageHighlight,
   queryKey,
@@ -279,4 +282,24 @@ test("Left from the caret at the start enters at the last chip; Right past the l
   expect(chipStep(2, 1, 3)).toBe(-1);
   expect(chipStep(-1, 1, 3)).toBe(-1);
   expect(chipStep(-1, -1, 0)).toBe(-1);
+});
+
+test("a list is cut to the room beside its field, less its chrome and the more-results line, and keeps a row", () => {
+  expect(listRoom(300, false)).toBe(290);
+  expect(listRoom(300, true)).toBe(262);
+  expect(listRoom(20, true)).toBe(ROW_H);
+  expect(listRoom(Number.POSITIVE_INFINITY, false)).toBe(Number.POSITIVE_INFINITY);
+});
+
+test("a one-line input draws its own value only at rest and only when there is one", () => {
+  expect(drawsOwnValue({ text: "build-box-eu-west-2 (staging cluster, shared)", focused: false })).toBe(true);
+  expect(drawsOwnValue({ text: "build-box-eu-west-2 (staging cluster, shared)", focused: true })).toBe(false);
+  expect(drawsOwnValue({ text: "", focused: false })).toBe(false);
+});
+
+test("a value is cut off when its lines hold fewer letters than it, spaces a break dropped not counted", () => {
+  const full = "build-box-eu-west-2 (staging cluster, shared)";
+  expect(isCutOff(["build-box-eu-west-2 (staging cluster, shared)"], full)).toBe(false);
+  expect(isCutOff(["build-box-eu-west-2 (staging", "cluster, shared)"], full)).toBe(false);
+  expect(isCutOff(["build-box-eu-west-2 (stag…"], full)).toBe(true);
 });

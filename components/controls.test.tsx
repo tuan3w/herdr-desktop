@@ -168,3 +168,11 @@ test("an avatar is named when it has a label; an indeterminate bar exists only w
   await app.press("label:Test run");
   expect(app.shows("label:Loading")).toBe(false);
 });
+
+test("a tab's panel is a region named by its tab, and only the shown one is listed", async () => {
+  const app = await open("./controls-probe.tsx", DESKTOP);
+  await app.waitFor("role:region");
+  expect(app.shows("label:Green")).toBe(true);
+  await app.press("label:Red");
+  await app.waitUntil(() => app.shows("label:Red"));
+});

@@ -191,3 +191,15 @@ test("in a dialog the list is the dialog's own, and Escape closes the list befor
   await app.keyboard.press("escape");
   expect(app.shows("text:Dialog")).toBe(true);
 });
+
+test("a value wider than its one-line Autocomplete rests as one line of text, and the field keeps all of it", async () => {
+  const app = await lab();
+  const long = "build-box-eu-west-2 (staging cluster, shared)";
+  await app.type("label:Machine", "build-box-eu");
+  await app.press(`label:${long}`);
+  // the field's own text is the whole value; at rest a one-line Text shows it, cut by the box, not wrapped
+  expect(app.value("label:Machine")).toBe(long);
+  await app.type(AGENT, "");
+  expect(app.texts()).toContain(long);
+  expect(app.value("label:Machine")).toBe(long);
+});
