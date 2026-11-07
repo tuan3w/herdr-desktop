@@ -4,7 +4,6 @@ import { computed, effect, Scroll, signal, Text, View } from "nsh";
 import type { BoardProject, BoardRow } from "herdr-desktop/native";
 
 import { Opener, ProjectCard, Question } from "#components/board-card";
-import { Triage } from "#components/triage";
 import { Btn, Empty, FOCUS_RING, NUM, Swap } from "#kit";
 import { type HomeLine, homeLines, strip } from "#lib/board-items";
 import { allRows, board, projectOf, revision, reviewable } from "#lib/herdr";
@@ -61,10 +60,10 @@ function StatusLine() {
  * The inbox over the projects: the agents that wait for an answer, longest first, each with its question and the one
  * `AnswerDock`. It owns the loud treatment of an agent that waits (the signal disc): everywhere else the same agent is a
  * quiet shape and words. One agent is answered in place so the projects stay in view; the rest are counted by project
- * (`docs 4 · infra 4`, never a wall of rows) and are one `Answer one by one` away. It exists only while something waits,
+ * (`docs 4 · infra 4`, never a wall of rows); `Answer` on a row opens that agent. It exists only while something waits,
  * takes no room otherwise.
  */
-function NeedsYou(props: { onTriage: () => void; onOpen: (row: BoardRow, options?: { reply?: boolean }) => void }) {
+function NeedsYou(props: { onOpen: (row: BoardRow, options?: { reply?: boolean }) => void }) {
   const waiting = computed(() => strip(board()));
   // The inbox arriving or going pushes the cards: they glide instead of jumping.
   let had: boolean | undefined;
@@ -83,9 +82,6 @@ function NeedsYou(props: { onTriage: () => void; onOpen: (row: BoardRow, options
             </Text>
             <Swap class="text-sm text-muted-foreground" text={`${board().counts.needsYou}`} />
           </View>
-          <If when={board().counts.needsYou > 1}>
-            <Btn small label="Answer one by one" onPress={props.onTriage} />
-          </If>
         </View>
         <Each of={waiting().rows} key={(r: BoardRow) => r.key}>
           {(row) => (
@@ -125,8 +121,6 @@ export function Board(props: {
   onOpen: (row: BoardRow, options?: { reply?: boolean }) => void;
   onAddMachine?: () => void;
 }) {
-  /** Open on the walk of `Answer one by one`, starting at an agent when its own `Answer` was pressed. */
-  const triage = signal<{ at?: string } | null>(null);
   const width = signal(0);
   const columns = () => (width() >= TWO_COLUMNS_FROM ? 2 : 1);
   const lines = computed(() => homeLines(board().projects, columns(), moreOpen(), foldedProjects()));
@@ -141,8 +135,8 @@ export function Board(props: {
   });
   const several = () => machines().length > 1;
   const lonely = () => machines().length <= 1 && board().projects.length === 0;
-  // A chat is answered in its own tab, where its permission dock is; a terminal agent in the walk, at that agent.
-  const answer = (row: BoardRow) => (row.session ? props.onOpen(row) : triage.set({ at: row.key }));
+  // An agent, chat or terminal, is answered in its own tab, where the answer dock is.
+  const answer = (row: BoardRow) => props.onOpen(row);
 
   return (
     <View class="min-h-0 flex-1" onLayout={({ bounds }) => width.set(Math.min(bounds.size.width, COLUMN.home))}>
@@ -173,7 +167,7 @@ export function Board(props: {
         <Scroll class="min-h-0 flex-1" contentClass="items-center" accessibilityLabel="Projects">
           <View class={`w-full pb-8 ${PAD.page} ${GAP.section}`} style={{ maxWidth: COLUMN.home }}>
             <StatusLine />
-            <NeedsYou onTriage={() => triage.set({})} onOpen={props.onOpen} />
+            <NeedsYou onOpen={props.onOpen} />
             <Each of={lines()} key={(l: HomeLine) => l.key}>
               {(line) => (
                 <View class={`flex-row items-start ${GAP.section}`}>
@@ -197,7 +191,6 @@ export function Board(props: {
           </View>
         </Scroll>
       </If>
-      <Triage open={triage() !== null} start={triage()?.at} onClose={() => triage.set(null)} onOpen={props.onOpen} />
     </View>
   );
 }

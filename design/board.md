@@ -4,7 +4,7 @@ The Board is the overview of every agent when the person is triaging rather than
 
 ## Decided, not built yet: the table
 
-The code still draws project cards and a Needs you inbox with `Answer one by one` (`NeedsYou`, `Triage`, `Question`). Owner decision 2026-11-07: they go, in one change (principle 10 of AGENTS.md), for these reasons.
+The code still draws project cards and a Needs you inbox (`NeedsYou`, `Question`); the walk dialog and `Answer one by one` are gone, `Answer` on a row opens the agent. Owner decision 2026-11-07: they go, in one change (principle 10 of AGENTS.md), for these reasons.
 
 - **The Board is a table grouped by project**, the same grouping as the sidebar. Why: cards inside a card repeated the sidebar's list and used one third of the width for nothing.
 - **State is a filter chip, not a section.** The chips are the counts (Need you, Working, To review, Idle), said once; an agent is never listed under a second heading. Why: a Needs you section listed agents the project groups already listed.
@@ -53,7 +53,7 @@ A chip is a pressable `View` (not nsh's `Button`: it has no focus events). Its a
 
 ## Moving between waiting agents
 
-`mod+j` (`lib/shortcuts.ts`) jumps to the next agent that needs you, in any project. It never answers and never moves on by itself after an answer, so nothing slides under the person's hand. After an answer the dock says how many still wait and offers Next. Today `Triage` walks them in a dialog; it is removed with the inbox.
+`mod+j` (`lib/shortcuts.ts`) jumps to the next agent that needs you, in any project. It never answers and never moves on by itself after an answer, so nothing slides under the person's hand. After an answer the dock says how many still wait and offers Next. The dock offers it through `onNext`; the walk dialog no longer exists.
 
 ## Picking and bulk actions
 

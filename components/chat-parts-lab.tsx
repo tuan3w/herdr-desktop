@@ -4,20 +4,21 @@ import { Button } from "nsh/base";
 
 import type { DiffItem, QuestionFieldView, SessionRef, SessionView, WaitingView } from "herdr-desktop/native";
 
+import { AnswerDock } from "#components/answer-dock";
 import { NewSession } from "#components/new-session";
 import { PastSessions } from "#components/past-sessions";
 import { PermissionDiff } from "#components/permission-diff";
-import { PermissionDock } from "#components/permission-dock";
 import { SessionModeChip, SessionModelPicker } from "#components/session-config";
 import { SessionOverview } from "#components/session-overview";
 import { SessionQuestion } from "#components/session-question";
 import { Field, ThemeRoot, ToastHost } from "#kit";
+import { sessionAsk } from "#lib/ask";
 import { revision, startHerdr } from "#lib/herdr";
 
 import { endSessions } from "./chat-parts-seam";
 
 /**
- * The entry of the chat parts' tests (`permission-dock.test.tsx`, `session-question.test.tsx`, `new-session.test.tsx`,
+ * The entry of the chat parts' tests (`answer-dock.test.tsx`, `session-question.test.tsx`, `new-session.test.tsx`,
  * `session-overview.test.tsx`) and of their screenshots: `part` (a launch parameter) picks what is on the page.
  * - `live`: a real keeper driving the scripted ACP agent; the dock and the form show what the agent asks.
  * - `synthetic`: a made-up `SessionView` of a session that does not exist, to drive the dock through states the
@@ -202,7 +203,7 @@ function Synthetic() {
         </View>
       </If>
       <Text class="text-xs text-muted-foreground">{`Waiting: ${waiting().length}`}</Text>
-      <PermissionDock machine={MACHINE} id="ghost" view={view()} />
+      <AnswerDock ask={sessionAsk(MACHINE, "ghost", view())} />
       <SessionQuestion machine={MACHINE} id="ghost" view={view()} />
       <If when={params.variant === "diff" || params.variant === "full"}>
         <PermissionDiff diffs={DIFFS} />
@@ -285,7 +286,7 @@ function Live() {
       <If when={shown()}>
         {(view) => (
           <>
-            <PermissionDock machine={MACHINE} id={ref()!.id} view={view()} />
+            <AnswerDock ask={sessionAsk(MACHINE, ref()!.id, view())} />
             <SessionQuestion machine={MACHINE} id={ref()!.id} view={view()} />
             <View class="flex-row items-center gap-2">
               <SessionModeChip machine={MACHINE} id={ref()!.id} />

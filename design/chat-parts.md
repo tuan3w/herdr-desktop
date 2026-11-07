@@ -1,31 +1,34 @@
-# Chat parts: the permission dock, questions, new session, past sessions, details
+# Chat parts: the answer dock, questions, new session, past sessions, details
 
-The parts of an agent session (a chat over ACP, `Sessions`) where a mistake costs something or a failure needs words. The transcript and the composer are elsewhere; these are what the chat tab places around them. Every rule here is the same rule as the terminal prompt's answer dock (`design/pane.md`, `components/answer-dock.tsx`), adapted to what a session offers.
+The parts of an agent session (a chat over ACP, `Sessions`) where a mistake costs something or a failure needs words. The transcript and the composer are elsewhere; these are what the chat tab places around them. The answer dock (`components/answer-dock.tsx`) serves a terminal agent's menu too (`design/pane.md`).
 
-## The permission dock (`PermissionDock`)
+## The answer dock (`AnswerDock`, one for both sources)
 
-Above the composer while the first request of `SessionView.waiting` is a permission. It shows what the agent wants to do, in full, and the agent's own answers.
+One component answers a terminal agent's menu (`PromptView`, through its pane) and an ACP session's permission request (`WaitingView`, through its keeper). It takes an `Ask` (`lib/ask.ts`: `fromPrompt`, `fromWaiting`, `sessionAsk`), so the rules below are written once. It sits in the message box's place: a flat block with a hairline above it (`inline` drops that inside a card), shown while the first request of `SessionView.waiting` is a permission or a terminal prompt waits. It shows what the agent wants to do, in full, and the agent's own answers.
 
 | Part | Rule |
 |---|---|
-| Heading | What the call is (`Run a command`, `Edit a file`) from the tool kind; the agent's title under it only when it says more than the command |
-| Command box | `WaitingView.subject`, else the title, through `visibleText` (invisible and bidi characters shown as `‹U+202E›`, runs of blank lines counted). Wrapped, monospace, selectable, never cut; eight rows, then it scrolls inside the box |
-| `More below · N lines` | Shown while the end of the command has not been seen; `Read all` opens the whole text in a dialog and counts as having read it |
-| Before asking | The last thing the agent wrote since the person spoke (three lines, the rest on hover), the edits of the call that waits (`PermissionDiff`: one unified diff per file with `+2 −1` as words) and the plan folded to its current step (`PlanSteps`) |
-| Second look | `WaitingView.risk` (the same rules as the terminal prompts, `herdr_core::prompt`), with a warning glyph and the words. TSX decides nothing about risk |
-| Answers | One `AskChip` per `PermissionChoiceView`, labelled exactly as the agent sent it. A standing grant (`PermissionChoiceView.standing`) wears the warning glyph |
-| `Cancel request` | `Sessions.dismiss`: the agent hears cancelled |
-| `N more waiting` | Requests behind this one; only the first can be answered |
+| Heading | What the call is (`Run a command`, `Edit a file`) from the tool kind, or the terminal question; the agent's title under it only when it says more than the command |
+| Command box | The subject, through `visibleText` (invisible and bidi characters shown as `‹U+202E›`, runs of blank lines counted). Wrapped, monospace, selectable, never cut; eight rows, then it scrolls inside the box |
+| `More below · N lines` | Shown while the end of the command has not been seen; `Show all N lines` lifts the cap inside the dock (the box grows to 24 rows, then scrolls) and counts as having read it; `Show fewer lines` folds it back |
+| Before asking | ACP only: the last thing the agent wrote since the person spoke (three lines, the rest on hover), the edits of the call that waits (`PermissionDiff`: one unified diff per file with `+2 −1` as words) and the plan folded to its current step (`PlanSteps`) |
+| Second look | The ACP `risk`, or the first reason among a terminal menu's options (`herdr_core::prompt`), with a warning glyph and the words. TSX decides nothing about risk |
+| Answers | One chip per option, labelled exactly as the agent sent it, with its key (`1` to `3`, a quiet `Kbd`) unless the label already starts with it. Risky and rejecting are flags of the data (`AskOption.risky`, `reject`), never "the second one". A standing grant wears the warning glyph. With more than five, the last chip is `N more…` and opens every answer in place |
+| `Decline and say this` | A quiet field that means deny and say this. It exists only when an option declines without risk (`reject`: `is_negative_reply` for a terminal menu, a `reject_*` kind for ACP) |
+| `Cancel request` | ACP only: `Sessions.dismiss`; the agent hears cancelled |
+| `Nothing is sent until you choose` | The footer line while nothing was said; it gives way to the last note |
+| `N more waiting`, `Next` | Others still waiting. After an answer, `Next` visits the next agent that waits through the same function as `mod+j` (`onNext`); it never answers and the dock never moves on by itself |
 
-Safety rules, each with a test in `permission-dock.test.tsx`:
+Safety rules, each with a test in `answer-dock.test.tsx`:
 
 1. **Nothing is sent by itself**, by default or on a timer.
-2. **A press within 400 ms of a request appearing or changing is ignored**, and the answers are dimmed meanwhile. The engine refuses it too (`tooSoon`, on its own clock).
-3. **Every answer goes through `Sessions.answerPermission`** with the request and digest on screen. A refusal (`changed`: it was answered elsewhere or the request moved on) says `The request changed` on the button that was pressed and sends nothing; any other refusal is shown as the engine words it.
+2. **A press within 400 ms of a request appearing, changing or an overflow opening is ignored**, and the answers are dimmed meanwhile. The engine refuses an ACP one too (`tooSoon`, on its own clock).
+3. **Every answer goes through `ask.send`**, which reads again and sends only if what was shown is still there (`Herdr.answer` with the digest, `Sessions.answerPermission` with the request and digest). A refusal (`changed`) says `The question changed` or `The request changed` on the button that was pressed and sends nothing; any other refusal is shown as the engine words it.
 4. **Risky or standing is two presses.** The first arms the answer for 4 s and says why (`Press again to send · pushes to a remote · grants this permanently`), announced politely; the second sends. Focus stays on the button. Rejecting is never risky, except a permanent reject.
 5. **An unread long command is read first.** The first press of an allow while the end was not reached scrolls to the end instead of sending (`Read it all, then press again.`); for a risky answer the same press also arms it. Rejecting needs no reading.
 6. **The dock never takes the focus.** The digits 1 to 9 answer only while an answer has it (bound then, released with the focus).
-7. **A new request is announced** (`The agent asks: <first line of the command>`). `announce` is polite only (`docs/ACCESSIBILITY.md`).
+7. **The reply never types into a menu.** It presses the decline through rule 3, and only when that reports `sent` does it type the words: into the session for ACP, and for a terminal only once herdr shows the question gone (up to 3 s, else the words stay unsent and the dock says so). If the question changed, neither is sent.
+8. **A new request is announced** (`The agent asks: <first line of the command>`) when this dock is the place to answer; a card in the Board is silent. `announce` is polite only (`docs/ACCESSIBILITY.md`).
 
 The timers are `restartable` (`lib/timer.ts`): one per owner, gone with it.
 
@@ -77,3 +80,12 @@ Each part is a `group` with a name (`Permission request`, `Question from the age
 ## Tests and labs
 
 `components/chat-parts-lab.tsx` is the entry: `live` (a real keeper and the scripted ACP agent), `synthetic` (a made-up `SessionView` for states the scripted agent cannot reach; an answer is refused by the engine, which is how a test sees that a press went all the way) and the dialogs. Live tests end their sessions (`endSessions`). Screenshots: scenarios `permission`, `permission-armed`, `question`, `new-session`, `new-session-error`, `past-sessions`, `session-overview`.
+
+## Effect classes of a tool call
+
+`ToolItem.effect` (`{ kind: push | delete | install | publish | infra | other, text }`, from `tool_effect` in `herdr_core::prompt`) is the consequence a supervisor must hear after a turn. Only a completed command has one: a failed call is shown as a failure from its status and last `tail` line, and a push that did not finish did not push.
+
+- **External effect** (shown): the kinds `command_risk` knows (pushes, deletes, publishes and merges, infrastructure, `DELETE` requests) and installs (`npm|pnpm|yarn|bun add|install|i`, `pip install`, `cargo install|add`, `brew|apt|apt-get install`, `gem install`, `go install`). A chain takes the most consequential kind in it: publish, push, infrastructure, delete, install.
+- **Read-only** (read, search, think, fetch, `ls`, `cat`, `grep`, `git status|log|diff`) and **local write** (edit, move, build, test) have no effect and fold; TSX counts edits from `diffs`.
+- **The text is built from the command.** It names a remote and a ref, a package or a count of files only when the command states them plainly; otherwise `Pushed to a remote`, `Deleted files`, `Installed packages`. A URL (it may hold a credential), a glob, a variable or a flag it does not know is never quoted.
+- **When unsure there is no effect.** `--dry-run` (and `--check`, `git push -n`) is none; text inside quotes (`echo 'git push'`) is not a command; `bash -c '...'` is read through. A missed effect is a folded command, a false `Pushed` is a lie.

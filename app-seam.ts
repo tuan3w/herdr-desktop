@@ -45,7 +45,7 @@ export const terminal = (name: string): string => `label:Terminal, ${name} on Th
 /** An agent's row in the sidebar (the board's card has the same name, and comes later in the tree). */
 export const sidebarRow = (name: string): string => `label:/^${name}, / >> nth=0`;
 export const shown = (app: App, name: string): boolean => app.shows(terminal(name));
-export const onBoard = (app: App): boolean => app.shows("Answer one by one");
+export const onBoard = (app: App): boolean => app.shows("label:Projects");
 export const settle = (app: App): Promise<void> => app.clock!.runFor(400);
 
 /** The `mixed` fixture, once its board has arrived. */

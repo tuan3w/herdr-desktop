@@ -3,7 +3,7 @@ import { announce, cleanup, Clipboard, effect, signal, Text, untracked, View } f
 
 import type { SessionInfo, SessionView } from "herdr-desktop/native";
 
-import { PermissionDock } from "#components/permission-dock";
+import { AnswerDock } from "#components/answer-dock";
 import { SessionActivity } from "#components/session-activity";
 import { SessionComposer, type SessionComposerHandle } from "#components/session-composer";
 import { SessionHeader } from "#components/session-header";
@@ -13,6 +13,7 @@ import { SessionQuestion } from "#components/session-question";
 import { createSignin, SessionSignin } from "#components/session-signin";
 import { SessionTranscript } from "#components/session-transcript";
 import { Btn, Empty, notify } from "#kit";
+import { sessionAsk } from "#lib/ask";
 import { touched } from "#lib/code-blocks";
 import { openSession, removePanel, sessionKey } from "#lib/dock";
 import { sending } from "#lib/files";
@@ -327,9 +328,7 @@ export function SessionChat(props: {
                   waiting={() => waiting(view())}
                   opening={() => view().phase === "connecting"}
                 />
-                <If when={view().waiting[0]?.ask === "permission"}>
-                  <PermissionDock machine={props.machine} id={props.id} view={view()} />
-                </If>
+                <AnswerDock ask={sessionAsk(props.machine, props.id, view())} />
                 <If when={view().waiting[0]?.ask === "question"}>
                   <SessionQuestion machine={props.machine} id={props.id} view={view()} />
                 </If>

@@ -9,6 +9,7 @@ import { LinksDialog, openLink } from "#components/links-dialog";
 import { PaneFind } from "#components/pane-find";
 import { PaneHeader } from "#components/pane-header";
 import { Empty, notify } from "#kit";
+import { fromPrompt } from "#lib/ask";
 import { browseFiles, sending } from "#lib/files";
 import { meta } from "#lib/herdr";
 import { canShowChat, showChat } from "#lib/open-agent";
@@ -166,9 +167,7 @@ export function PaneTab(props: {
             />
             <If when={prompt()}>
               {(p) => (
-                <View class="border-t border-border px-4 py-3">
-                  <AnswerDock machine={props.machine} pane={props.pane} prompt={p()} onSent={refresh} />
-                </View>
+                <AnswerDock ask={fromPrompt(p(), { machine: props.machine, pane: props.pane })} onSent={refresh} />
               )}
             </If>
             <Composer

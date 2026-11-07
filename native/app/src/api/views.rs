@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use herdr_core::board::AgentRow;
-use herdr_core::prompt::PromptInfo;
+use herdr_core::prompt::{PromptInfo, is_negative_reply};
 use herdr_core::schema::AgentStatus;
 use herdr_core::store::Machine;
 use nsh_core::JsonValue;
@@ -335,6 +335,9 @@ pub struct PromptOption {
     pub risk_reason: Option<String>,
     /// The option grants a permission that outlives this answer ("don't ask again").
     pub standing_grant: bool,
+    /// The option declines ("No", "Deny", "Cancel"). The reply field is shown only when one does: it means
+    /// "deny and say this", and the words are sent after that option, never into the menu.
+    pub reject: bool,
     /// Pass this to `answer` with the prompt's `digest`.
     pub index: usize,
 }
@@ -366,6 +369,7 @@ impl From<&PromptInfo> for PromptView {
                     label: o.label.clone(),
                     risk_reason: o.risk.map(|r| r.reason().to_owned()),
                     standing_grant: o.standing_grant,
+                    reject: is_negative_reply(o),
                     index,
                 })
                 .collect(),
@@ -815,5 +819,44 @@ impl From<crate::notify::RecordedNotification> for TestNotification {
             pane: open.pane,
             open: n.open,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use herdr_core::prompt::{PromptInfo, QuickReply};
+
+    use super::PromptView;
+
+    fn reply(label: &str) -> QuickReply {
+        QuickReply {
+            label: label.to_owned(),
+            keys: vec![],
+            risk: None,
+            standing_grant: false,
+        }
+    }
+
+    /// The reply field is offered only where an option declines, so which options do comes from the words
+    /// the agent drew, not from where they stand in the list.
+    #[test]
+    fn the_options_that_decline_are_marked_by_their_words_not_their_place() {
+        let info = PromptInfo {
+            question: "Proceed?".to_owned(),
+            subject: None,
+            options: vec![
+                reply("1. No"),
+                reply("2. Yes"),
+                reply("3. Deny, and tell the agent why"),
+                reply("Cancel"),
+            ],
+            digest: "d".to_owned(),
+        };
+        let marks: Vec<_> = PromptView::from(&info)
+            .options
+            .iter()
+            .map(|o| o.reject)
+            .collect();
+        assert_eq!(marks, [true, false, true, true]);
     }
 }

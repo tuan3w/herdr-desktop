@@ -10,6 +10,7 @@ import { Monogram, ProjectMark } from "#components/project-parts";
 import { StatusGlyph } from "#components/status-glyph";
 import { Btn, Clipped, FOCUS_RING, FOCUS_RING_INSET, Icon, NUM, Pill } from "#kit";
 import { newSession } from "#lib/actions";
+import { fromPrompt } from "#lib/ask";
 import { openChanges } from "#lib/changes";
 import { reviewWithUndo } from "#lib/herdr";
 import { GAP, ROW } from "#lib/layout";
@@ -37,7 +38,7 @@ export interface RowProps {
   project: BoardProject;
   /** Keys of every row in display order, for Shift ranges. */
   order: () => readonly string[];
-  /** `Answer` on a row that waits: the one place a question is answered besides the agent's own tab (`Triage`, opened at this agent). */
+  /** `Answer` on a row that waits: opens that agent, where the answer dock is. */
   onAnswer: (row: BoardRow) => void;
   onOpen: (row: BoardRow, options?: { reply?: boolean }) => void;
 }
@@ -112,7 +113,7 @@ export function Question(props: { row: BoardRow; onOpen: RowProps["onOpen"] }) {
             </If>
           }
         >
-          {(prompt) => <AnswerDock machine={row().machine} pane={row().paneId} prompt={prompt()} />}
+          {(prompt) => <AnswerDock inline ask={fromPrompt(prompt(), { machine: row().machine, pane: row().paneId })} />}
         </If>
         <View class="flex-row">
           <Btn

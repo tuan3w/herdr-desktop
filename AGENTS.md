@@ -69,7 +69,7 @@ Defects found in a review of the app next to the Claude desktop app (sizes estim
 **Still open**:
 
 - Structural: the inspector (subagents, background jobs, changes, files as a tab of it), the answer dock in place, the Board as a table, Settings in the main region instead of a modal, and the Needs you inbox and project cards still drawn on the home.
-- Composer: tall for one line, `[Image #3]` beside its own thumbnail, help line outside the box.
+- Composer: tall for one line (fixed in code, unverified in a render): the help line is inside the box and a picture is a thumbnail with no `[Image #n]` text.
 - Stacked bars (tab strip, header, subagent panel, sticky region) and a single tab still drawing a strip; unaligned edges between the subagent panel, header and chat text.
 - Two neutrals (warm sidebar, blue-grey tab strip and status bar): the cause needs a screenshot before a fix.
 - A group header that looks selected; a check that means both "machine connected" and "agent done"; text cut where the person needs it (shown whole on focus or hover).

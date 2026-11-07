@@ -8,7 +8,7 @@ import { startHerdr } from "#lib/herdr";
 import { loadSidebar } from "#lib/sidebar";
 
 /**
- * The entry of `board.test.tsx`, `triage.test.tsx` and `bulk.test.tsx`: the board and the bulk bar against a scripted
+ * The entry of `board.test.tsx` and `bulk.test.tsx`: the board and the bulk bar against a scripted
  * herdr (`fixture` is a launch parameter), and a line that says what the board was asked to open. Not part of the app.
  */
 const params = host.params as { fixture?: string };

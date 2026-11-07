@@ -8,7 +8,7 @@ import { shownRows } from "#lib/sidebar";
  * needing you gets a louder header, it does not move.
  */
 
-/** Agents the strip answers in place; the rest wait behind `Answer one by one`. */
+/** Agents the strip answers in place; the rest are opened one by one with `Answer`. */
 export const STRIP_SHOWN = 1;
 /** A project with this many listed agents takes the whole width instead of half of it. */
 export const WIDE_ROWS = 6;

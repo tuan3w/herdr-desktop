@@ -22,7 +22,7 @@ What does the person need?
 
 Decided, not built yet (owner, 2026-11-07): these still open as a `Modal` and move out: settings (a page of the main region, with Machines as its own page), the agent's details (the inspector), past sessions and the file viewer (a tab), and the shortcut sheet. Until each moves it keeps the rules below.
 
-Proposed, not yet decided (design review of the kit batch): triage becomes the Board's filtered view; "The whole command" opens in place in the dock; "All answers" becomes a popover; web pages become a tab; the switcher and the links list take the palette's face; the picture viewer stays a Lightbox, pictures only (the owner's list names "picture viewers": to confirm).
+Decided and built: the dock has no dialogs. Triage is gone (the Board's filtered view is the bulk path), `Show all N lines` opens the whole command in the dock and `N more…` opens every answer in it. Proposed, not yet decided (design review of the kit batch): web pages become a tab; the switcher and the links list take the palette's face; the picture viewer stays a Lightbox, pictures only (the owner's list names "picture viewers": to confirm).
 
 ## Rules for every dialog
 
@@ -50,7 +50,7 @@ Proposed, not yet decided (design review of the kit batch): triage becomes the B
 | Sheet | Inspector overlay in a window under about 1000 pt | Settings pages | Covers the conversation: scrim, Esc, focus held |
 | Palette | Search many times a day | A list that needs a title | `PaletteDialog`, no title, instant close |
 | Info | A glance under one screen with no scroll (About) | A reference longer than a screen | A `Close` with its Esc hint; scrim closes |
-| Approval | The agent asks | A dialog: the dock answers; overflow is a popover | Whole command, risk line, keys 1 to 3, press twice for a risky one, nothing sent by time |
+| Approval | The agent asks | A dialog: the dock answers, and its overflow opens inside it | Whole command, risk line, keys 1 to 3, press twice for a risky one, nothing sent by time |
 
 - **Cost ladder** for a step: undoable for 10 s and by `mod+z`, a toast. Cheap to redo by hand, a toast. Not restorable, or stops something running, a DestructiveConfirm. Never both an Undo and a question for one action, and never a confirm after a press-twice. The confirm names the object and the consequence with numbers.
 - **Two-step**: the dialog is the second step of a risky action; a risky approval has no dialog, so it is press, then press again within 4 s (`design/attention.md`). One confirmation per action.
