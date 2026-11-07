@@ -1,8 +1,8 @@
 import { computed, Text, View } from "nsh";
 import { Herdr, Sessions } from "herdr-desktop/native";
-import { focused, parseSessionKey } from "../lib/dock";
-import { board, revision } from "../lib/herdr";
-import { NUM, Progress, Swap } from "./kit";
+import { focused, parseSessionKey } from "#lib/dock";
+import { board, revision } from "#lib/herdr";
+import { NUM, Progress, Swap } from "#kit";
 
 /**
  * The slim bar under the workspace: how many machines are connected and how many agents need you or work (the same

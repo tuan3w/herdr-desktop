@@ -1,5 +1,5 @@
 import type { BoardData, BoardProject, BoardRow } from "herdr-desktop/native";
-import { shownRows } from "./sidebar";
+import { shownRows } from "#lib/sidebar";
 
 /**
  * What the home lays out, as plain data: the `Needs you` strip, then the projects as cards in lines of one or two.

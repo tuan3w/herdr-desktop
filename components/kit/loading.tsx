@@ -1,5 +1,5 @@
 import { createMotion, cleanup, View } from "nsh";
-import { reducedMotion } from "../../lib/motion";
+import { reducedMotion } from "#lib/motion";
 import { Icon, type IconTone } from "./icon";
 
 /**

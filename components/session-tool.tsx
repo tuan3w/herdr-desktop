@@ -1,13 +1,13 @@
 import { Clipboard, Image, type JSX, Text, View } from "nsh";
 import { Button, DiffView } from "nsh/base";
 import type { DiffItem, LocationView, PartView, ToolItem, ToolStatusName } from "herdr-desktop/native";
-import { viewFile } from "../lib/files";
-import { pictureSize } from "../lib/session-pictures";
-import { hoverTransition } from "../lib/motion";
-import { outputView, shortPath, toolIcon, toolKindOf, toolLine, toolStatusText, visibleText } from "../lib/session-text";
-import { FOCUS_RING, FOCUS_RING_INSET, Icon, IconButton, notify } from "./kit";
-import { openLink } from "./links-dialog";
-import { StatusGlyph } from "./status-glyph";
+import { viewFile } from "#lib/files";
+import { pictureSize } from "#lib/session-pictures";
+import { hoverTransition } from "#lib/motion";
+import { outputView, shortPath, toolIcon, toolKindOf, toolLine, toolStatusText, visibleText } from "#lib/session-text";
+import { FOCUS_RING, FOCUS_RING_INSET, Icon, IconButton, notify } from "#kit";
+import { openLink } from "#components/links-dialog";
+import { StatusGlyph } from "#components/status-glyph";
 
 /** Lines of a call's input shown before it is cut. */
 const INPUT_LINES = 12;

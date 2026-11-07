@@ -1,5 +1,5 @@
 import type { SessionItem } from "herdr-desktop/native";
-import { diffStat, isSubagent, toolKindOf } from "./session-text";
+import { diffStat, isSubagent, toolKindOf } from "#lib/session-text";
 
 /**
  * The transcript as the rows of one virtual list. The agent's items are a flat run of messages, tool calls and thoughts;

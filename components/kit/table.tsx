@@ -1,6 +1,6 @@
 import { computed, type JSX, signal, View } from "nsh";
 import { DataTable, type DataTableSort } from "nsh/base";
-import { fold } from "../../lib/text";
+import { fold } from "#lib/text";
 import { Clipped } from "./hint";
 
 export interface Column<T> {

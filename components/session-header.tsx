@@ -1,8 +1,8 @@
 import { Text, View } from "nsh";
 import type { SessionView } from "herdr-desktop/native";
-import { agentName, phaseStatus, phaseText, sessionTitle } from "../lib/session-text";
-import { Btn, Clipped } from "./kit";
-import { StatusGlyph } from "./status-glyph";
+import { agentName, phaseStatus, phaseText, sessionTitle } from "#lib/session-text";
+import { Btn, Clipped } from "#kit";
+import { StatusGlyph } from "#components/status-glyph";
 
 /** From this much of the context window used the header says so: the agent starts to forget, which is worth a look. */
 const CONTEXT_WARN = 85;

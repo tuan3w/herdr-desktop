@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
 import type { QuestionFieldView } from "herdr-desktop/native";
-import { answerOf, placeRefusal, startState } from "./session-answers";
+import { answerOf, placeRefusal, startState } from "#lib/session-answers";
 
 const field = (over: Partial<QuestionFieldView>): QuestionFieldView => ({ name: "n", label: "N", required: false, secret: false, kind: "text", integer: false, choices: [], text: "", ticked: [], ...over });
 

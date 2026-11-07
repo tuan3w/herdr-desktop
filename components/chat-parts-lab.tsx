@@ -2,16 +2,16 @@ import { computed, host, mount, signal, Text, View } from "nsh";
 import { Button } from "nsh/base";
 import { Sessions } from "herdr-desktop/native";
 import type { DiffItem, QuestionFieldView, SessionRef, SessionView, WaitingView } from "herdr-desktop/native";
-import { revision, startHerdr } from "../lib/herdr";
+import { revision, startHerdr } from "#lib/herdr";
 import { endSessions } from "./chat-parts-seam";
-import { NewSession } from "./new-session";
-import { PastSessions } from "./past-sessions";
-import { PermissionDiff } from "./permission-diff";
-import { PermissionDock } from "./permission-dock";
-import { SessionModeChip, SessionModelPicker } from "./session-config";
-import { SessionOverview } from "./session-overview";
-import { SessionQuestion } from "./session-question";
-import { Field, ThemeRoot, ToastHost } from "./kit";
+import { NewSession } from "#components/new-session";
+import { PastSessions } from "#components/past-sessions";
+import { PermissionDiff } from "#components/permission-diff";
+import { PermissionDock } from "#components/permission-dock";
+import { SessionModeChip, SessionModelPicker } from "#components/session-config";
+import { SessionOverview } from "#components/session-overview";
+import { SessionQuestion } from "#components/session-question";
+import { Field, ThemeRoot, ToastHost } from "#kit";
 
 /**
  * The entry of the chat parts' tests (`permission-dock.test.tsx`, `session-question.test.tsx`, `new-session.test.tsx`,

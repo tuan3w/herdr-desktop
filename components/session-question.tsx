@@ -1,9 +1,9 @@
 import { announce, computed, effect, Scroll, signal, Text, untracked, View } from "nsh";
 import { Sessions } from "herdr-desktop/native";
 import type { ActionResult, QuestionFieldView, SessionView } from "herdr-desktop/native";
-import { answerOf, type FieldState, placeRefusal, startState } from "../lib/session-answers";
-import { restartable } from "../lib/timer";
-import { Btn, CheckRow, Field, Labeled, RadioGroup, RadioItem, SelectField } from "./kit";
+import { answerOf, type FieldState, placeRefusal, startState } from "#lib/session-answers";
+import { restartable } from "#lib/timer";
+import { Btn, CheckRow, Field, Labeled, RadioGroup, RadioItem, SelectField } from "#kit";
 
 /** How long the form takes no answer after it appears or changes: a keystroke aimed at what was there before must not submit it. */
 const GUARD_MS = 400;

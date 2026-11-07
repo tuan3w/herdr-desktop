@@ -1,8 +1,8 @@
 import { openUrl, Scroll, Text, View } from "nsh";
 import { Button, TextView, type TextViewCustomNode, type TextViewImage } from "nsh/base";
-import { Icon, notify } from "./kit";
-import { MermaidBlock } from "./mermaid-block";
-import { openLink } from "./links-dialog";
+import { Icon, notify } from "#kit";
+import { MermaidBlock } from "#components/mermaid-block";
+import { openLink } from "#components/links-dialog";
 
 /** Fenced blocks of this language are custom nodes: the diagram, not a block of code. Every other fence is TextView's own. */
 const EXTENSIONS = [{ name: "mermaid", language: "mermaid" }];

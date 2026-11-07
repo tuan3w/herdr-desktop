@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
-import { homeLines, STRIP_SHOWN, strip, WIDE_ROWS } from "./board-items";
-import { boardData, project, row } from "./board-rows.fixture";
+import { homeLines, STRIP_SHOWN, strip, WIDE_ROWS } from "#lib/board-items";
+import { boardData, project, row } from "#lib/board-rows.fixture";
 
 const agents = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => row(`local/${prefix}${i}`, { status: "working" }));
 const shape = (lines: ReturnType<typeof homeLines>) => lines.map((l) => l.projects.map((p) => p.name).join("+"));

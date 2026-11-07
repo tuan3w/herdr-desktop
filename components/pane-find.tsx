@@ -1,8 +1,8 @@
 import { announce, effect, keymap, signal, Text, View } from "nsh";
 import { Input } from "nsh/base";
 import type { InputRef } from "nsh/types";
-import { matchRows } from "../lib/pane-input";
-import { Btn, IconButton, INPUT_CLASS } from "./kit";
+import { matchRows } from "#lib/pane-input";
+import { Btn, IconButton, INPUT_CLASS } from "#kit";
 
 /**
  * The find bar over the rows the mirror shows (`mod+f`). Enter goes to the next match down the pane, Shift+Enter to

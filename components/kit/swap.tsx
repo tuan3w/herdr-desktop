@@ -1,5 +1,5 @@
 import { effect, Text, untracked } from "nsh";
-import { swapped } from "../../lib/motion";
+import { swapped } from "#lib/motion";
 import { NUM } from "./core";
 
 /**

@@ -2,9 +2,9 @@ import { announce, computed, effect, signal, Text, untracked, View } from "nsh";
 import { Command, type CommandItem } from "nsh/base";
 import { Files } from "herdr-desktop/native";
 import type { FolderView } from "herdr-desktop/native";
-import { arrange, joinPath, parentOf, sizeText } from "../lib/files";
-import { fileName, MAX_FILES } from "../lib/session-compose";
-import { Btn, Icon, IconButton, Modal } from "./kit";
+import { arrange, joinPath, parentOf, sizeText } from "#lib/files";
+import { fileName, MAX_FILES } from "#lib/session-compose";
+import { Btn, Icon, IconButton, Modal } from "#kit";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 

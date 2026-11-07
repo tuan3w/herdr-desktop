@@ -1,11 +1,11 @@
 import { Text, View } from "nsh";
 import type { PaneMeta } from "herdr-desktop/native";
-import { paneFit, type PaneFit } from "../lib/settings";
-import { keyLabel } from "../lib/shortcuts";
-import { statusText } from "../lib/status";
-import { agentTitle } from "./composer";
-import { ActionMenu, Btn, Clipped, IconButton, type MenuEntry } from "./kit";
-import { StatusGlyph } from "./status-glyph";
+import { paneFit, type PaneFit } from "#lib/settings";
+import { keyLabel } from "#lib/shortcuts";
+import { statusText } from "#lib/status";
+import { agentTitle } from "#components/composer";
+import { ActionMenu, Btn, Clipped, IconButton, type MenuEntry } from "#kit";
+import { StatusGlyph } from "#components/status-glyph";
 
 /**
  * The top of a pane tab: what the agent is and what it is doing (a shape and words, never colour alone), its machine

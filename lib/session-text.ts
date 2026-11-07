@@ -1,6 +1,6 @@
-import type { IconName } from "../components/kit";
+import type { IconName } from "#kit";
 import type { PhaseName, SessionItem, SessionView, ToolItem, ToolStatusName } from "herdr-desktop/native";
-import { AGENT_KINDS } from "./agent-kinds";
+import { AGENT_KINDS } from "#lib/agent-kinds";
 
 /**
  * What the chat says in words, kept out of the screens so the same sentence is spoken, shown and tested once: tool

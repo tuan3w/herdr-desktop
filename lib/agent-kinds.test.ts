@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
 import schema from "../docs/herdr-api.schema.json";
-import { AGENT_KINDS, folderError } from "./agent-kinds";
+import { AGENT_KINDS, folderError } from "#lib/agent-kinds";
 
 /** The `enum` in herdr's schema that lists `claude`: its agent kinds. */
 function schemaKinds(node: unknown): string[] | undefined {

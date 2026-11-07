@@ -3,16 +3,16 @@ import type { Accessor } from "nsh";
 import type { MenuItem } from "nsh/desktop";
 import { Herdr } from "herdr-desktop/native";
 import type { BoardData, BoardRow, PaneMeta } from "herdr-desktop/native";
-import { confirmDestructive, notify, rail, undoLast } from "../components/kit";
-import { closeTab, focused, focusedPane, groupOf, groups, lastPane, layout, moveFocused, openPane, openPanel, parsePaneKey, parseSessionKey, removePanel, rowKeyOf, selectNth, showBoard } from "./dock";
-import { allRows, board, meta, reviewable } from "./herdr";
-import { browseFiles } from "./files";
-import { canShowChat, openAgent, showChat, showTerminal } from "./open-agent";
-import { focusComposer, searchInPane, showLinks, toggleCapture } from "./pane-input";
-import { perfOpen } from "./perf";
-import { sidebarCollapsed, themeId } from "./settings";
-import { type GlobalShortcut, GLOBAL, keysOf, type ShortcutGroup } from "./shortcuts";
-import { THEMES } from "./theme/themes";
+import { confirmDestructive, notify, rail, undoLast } from "#kit";
+import { closeTab, focused, focusedPane, groupOf, groups, lastPane, layout, moveFocused, openPane, openPanel, parsePaneKey, parseSessionKey, removePanel, rowKeyOf, selectNth, showBoard } from "#lib/dock";
+import { allRows, board, meta, reviewable } from "#lib/herdr";
+import { browseFiles } from "#lib/files";
+import { canShowChat, openAgent, showChat, showTerminal } from "#lib/open-agent";
+import { focusComposer, searchInPane, showLinks, toggleCapture } from "#lib/pane-input";
+import { perfOpen } from "#lib/perf";
+import { sidebarCollapsed, themeId } from "#lib/settings";
+import { type GlobalShortcut, GLOBAL, keysOf, type ShortcutGroup } from "#lib/shortcuts";
+import { THEMES } from "#lib/theme/themes";
 
 /**
  * Everything the person can do from the keyboard, the palette or the menu, once. `globalActions` has one handler per

@@ -7,7 +7,7 @@ import { createOpenState, type OpenChange } from "./popup";
 import { Paths } from "./popup-root";
 import { type AnchorPolicy, Positioner } from "./positioner";
 import type { TriggerFocus } from "./tooltip";
-import { hoverTransition, popupEnter } from "../../lib/motion";
+import { hoverTransition, popupEnter } from "#lib/motion";
 
 /**
  * A popover (Base UI's `Popover`, non-modal): content anchored to a trigger that the user presses, for what is too big for a

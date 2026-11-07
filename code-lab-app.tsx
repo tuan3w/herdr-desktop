@@ -3,4 +3,4 @@ import "./fonts/Inter-Regular.ttf";
 import "./fonts/Inter-Medium.ttf";
 import "./fonts/IBMPlexMono-Regular.ttf";
 import "./fonts/IBMPlexMono-Medium.ttf";
-import "./components/code-lab";
+import "#components/code-lab";

@@ -1,7 +1,7 @@
 import { announce, effect, type JSX, keymap, signal, View } from "nsh";
 import { Input } from "nsh/base";
 import type { InputRef, PasteEvent } from "nsh/types";
-import { hoverTransition } from "../../lib/motion";
+import { hoverTransition } from "#lib/motion";
 import { IconButton } from "./button";
 import { FieldDescription, FieldError, FieldLabel, type FieldRules, FieldRoot } from "./field-parts";
 import { FieldScope, useFieldControl, type Violation } from "./field";

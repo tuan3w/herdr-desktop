@@ -1,5 +1,5 @@
 import { expect, test } from "nsh/test";
-import { fold } from "../../lib/text";
+import { fold } from "#lib/text";
 import { TRANSIT_MS } from "./hover";
 import {
   alignSelected,

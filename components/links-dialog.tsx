@@ -2,8 +2,8 @@ import { Clipboard, openUrl, signal, Text, View } from "nsh";
 import { Command, type CommandItem } from "nsh/base";
 import { Files, Herdr, Pages } from "herdr-desktop/native";
 import type { PaneLink } from "herdr-desktop/native";
-import { browseFiles, pageRequest, routeLink, viewFile } from "../lib/files";
-import { Modal, notify } from "./kit";
+import { browseFiles, pageRequest, routeLink, viewFile } from "#lib/files";
+import { Modal, notify } from "#kit";
 
 /** Where a pressed link is: the pane's machine, and the folder a relative path is looked for in. */
 export interface LinkContext {

@@ -1,8 +1,8 @@
 import { announce, cleanup, computed, effect, keymap, List, type Signal, signal, Text, untracked, View } from "nsh";
 import { Input } from "nsh/base";
 import type { Bounds, InputRef, ListRef, ViewRef } from "nsh/types";
-import { hoverTransition } from "../../lib/motion";
-import { timing } from "../../lib/perf";
+import { hoverTransition } from "#lib/motion";
+import { timing } from "#lib/perf";
 import {
   type AutoHighlight,
   type AutocompleteMode,

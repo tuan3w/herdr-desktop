@@ -1,20 +1,20 @@
 import { announce, Clipboard, computed, effect, signal, Text, View } from "nsh";
 import { Files, Herdr, PaneScreen } from "herdr-desktop/native";
 import type { PaneLink, PaneScreenRef } from "herdr-desktop/native";
-import { meta } from "../lib/herdr";
-import { browseFiles, sending } from "../lib/files";
-import { canShowChat, showChat } from "../lib/open-agent";
-import { registerPane, type TerminalInput } from "../lib/pane-input";
-import { announceOutput, minContrast, paneFit, paneFontSize } from "../lib/settings";
-import { keyLabel } from "../lib/shortcuts";
-import { AnswerDock } from "./answer-dock";
-import { CaptureBar } from "./capture-bar";
-import { Composer, type ComposerHandle } from "./composer";
-import { Btn, dialogDepth, Empty, notify } from "./kit";
-import { KeyRow } from "./key-row";
-import { LinksDialog, openLink } from "./links-dialog";
-import { PaneFind } from "./pane-find";
-import { PaneHeader } from "./pane-header";
+import { meta } from "#lib/herdr";
+import { browseFiles, sending } from "#lib/files";
+import { canShowChat, showChat } from "#lib/open-agent";
+import { registerPane, type TerminalInput } from "#lib/pane-input";
+import { announceOutput, minContrast, paneFit, paneFontSize } from "#lib/settings";
+import { keyLabel } from "#lib/shortcuts";
+import { AnswerDock } from "#components/answer-dock";
+import { CaptureBar } from "#components/capture-bar";
+import { Composer, type ComposerHandle } from "#components/composer";
+import { Btn, dialogDepth, Empty, notify } from "#kit";
+import { KeyRow } from "#components/key-row";
+import { LinksDialog, openLink } from "#components/links-dialog";
+import { PaneFind } from "#components/pane-find";
+import { PaneHeader } from "#components/pane-header";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 

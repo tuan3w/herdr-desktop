@@ -1,11 +1,11 @@
 import { announce, computed, effect, keymap, signal, Text, untracked, View } from "nsh";
 import { Herdr, Sessions } from "herdr-desktop/native";
 import type { AgentRoute, SessionInfo } from "herdr-desktop/native";
-import { allRows, board, revision } from "../lib/herdr";
-import { agentChoices, agentLabel, lastStart, recentFolders, rememberStart, type StartFailure, sessionFolderError, startFailure } from "../lib/new-session";
-import { Autocomplete, Btn, Field, FieldRow, Icon, Modal, notify, SelectField, Spinner } from "./kit";
-import { FolderPicker } from "./folder-picker";
-import { PastSessions } from "./past-sessions";
+import { allRows, board, revision } from "#lib/herdr";
+import { agentChoices, agentLabel, lastStart, recentFolders, rememberStart, type StartFailure, sessionFolderError, startFailure } from "#lib/new-session";
+import { Autocomplete, Btn, Field, FieldRow, Icon, Modal, notify, SelectField, Spinner } from "#kit";
+import { FolderPicker } from "#components/folder-picker";
+import { PastSessions } from "#components/past-sessions";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 /** How long a first message waits for the session to open before the session is handed over without it. */

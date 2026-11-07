@@ -1,7 +1,7 @@
 import { announce, cleanup, computed, effect, type JSX, keymap, List, Overlay, Scroll, type Signal, signal, Text, View, windowSize } from "nsh";
 import type { Bounds, ListRef, MouseEvent, OverlayPosition, Point, ScrollRef, ViewRef } from "nsh/types";
-import { fold } from "../../lib/text";
-import { hoverTransition } from "../../lib/motion";
+import { fold } from "#lib/text";
+import { hoverTransition } from "#lib/motion";
 import { FOCUS_RING } from "./core";
 import { Icon, type IconName } from "./icon";
 import { Kbd, Tipped } from "./hint";

@@ -1,5 +1,5 @@
 import { cleanup, createMotion, View } from "nsh";
-import { reducedMotion } from "../../lib/motion";
+import { reducedMotion } from "#lib/motion";
 
 /** How far along, 0 to 1, clamped; undefined when the extent is unknown (`value` null, or a range with no width). */
 export function progressRatio(value: number | null | undefined, min: number, max: number): number | undefined {

@@ -1,8 +1,8 @@
 import { expect, test } from "nsh/test";
-import { buildTheme } from "./build";
-import { CODE_MIN_CONTRAST, CODE_ROLES, codeSurfaces, PUNCTUATION_MIN_CONTRAST } from "./code";
-import { contrast, oklchToLinear, parseOklch } from "./color";
-import { THEMES } from "./themes";
+import { buildTheme } from "#lib/theme/build";
+import { CODE_MIN_CONTRAST, CODE_ROLES, codeSurfaces, PUNCTUATION_MIN_CONTRAST } from "#lib/theme/code";
+import { contrast, oklchToLinear, parseOklch } from "#lib/theme/color";
+import { THEMES } from "#lib/theme/themes";
 
 const rgb = (css: string) => oklchToLinear(parseOklch(css));
 

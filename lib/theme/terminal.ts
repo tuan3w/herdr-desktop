@@ -1,4 +1,4 @@
-import { contrast, oklchToLinear, parseOklch } from "./color";
+import { contrast, oklchToLinear, parseOklch } from "#lib/theme/color";
 
 /** The contrast every terminal text slot reaches on `term-bg` (WCAG 2 body text), except `TERM_REMAPPED`. */
 export const TERM_MIN_CONTRAST = 4.5;

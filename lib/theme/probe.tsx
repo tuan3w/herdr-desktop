@@ -1,8 +1,8 @@
 import { mount, Text, token, View } from "nsh";
 import { Button } from "nsh/base";
-import { ThemeRoot } from "../../components/kit";
-import { themeId } from "../settings";
-import { THEMES } from "./themes";
+import { ThemeRoot } from "#kit";
+import { themeId } from "#lib/settings";
+import { THEMES } from "#lib/theme/themes";
 
 /** Test entry only: shows the live `primary` token and one button per theme, to prove `ThemeRoot` really restyles. */
 function Probe() {

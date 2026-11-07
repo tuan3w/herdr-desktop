@@ -1,6 +1,6 @@
 import { expect, open, test } from "nsh/test";
 import type { App } from "nsh/test";
-import { destinationError } from "../lib/machine-rules";
+import { destinationError } from "#lib/machine-rules";
 
 const DESKTOP = { width: 1280, height: 800 };
 const NAME = "label:Name *";

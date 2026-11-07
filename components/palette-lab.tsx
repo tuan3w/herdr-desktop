@@ -1,6 +1,6 @@
 import { mount, signal, Text, View } from "nsh";
-import { Palette, type PaletteItem } from "./palette";
-import { Btn, ThemeRoot } from "./kit";
+import { Palette, type PaletteItem } from "#components/palette";
+import { Btn, ThemeRoot } from "#kit";
 
 const ITEMS: PaletteItem[] = [
   { id: "board", label: "Go to board", group: "Go", shortcut: "mod+1" },

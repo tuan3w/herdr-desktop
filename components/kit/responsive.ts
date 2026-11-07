@@ -1,5 +1,5 @@
 import { windowSize } from "nsh";
-import { sidebarCollapsed } from "../../lib/settings";
+import { sidebarCollapsed } from "#lib/settings";
 
 /**
  * Below this window width the sidebar collapses to a rail of project tiles and panes narrow. The full sidebar needs about

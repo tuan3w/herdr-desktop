@@ -1,5 +1,5 @@
 import { context, type JSX, View } from "nsh";
-import { hoverTransition, moveTransition } from "../../lib/motion";
+import { hoverTransition, moveTransition } from "#lib/motion";
 import { FOCUS_RING } from "./core";
 import { Icon } from "./icon";
 import { createOpenState, type OpenChange } from "./popup";

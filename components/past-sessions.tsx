@@ -1,9 +1,9 @@
 import { announce, computed, effect, Scroll, signal, Text, untracked, View } from "nsh";
 import { Herdr, Sessions } from "herdr-desktop/native";
 import type { AgentRoute, PastSessionsView, PastSessionView } from "herdr-desktop/native";
-import { modifiedText } from "../lib/files";
-import { agentLabel, epochSeconds, startFailure } from "../lib/new-session";
-import { Btn, CheckRow, Clipped, Empty, Icon, Modal, SelectField, Skeleton } from "./kit";
+import { modifiedText } from "#lib/files";
+import { agentLabel, epochSeconds, startFailure } from "#lib/new-session";
+import { Btn, CheckRow, Clipped, Empty, Icon, Modal, SelectField, Skeleton } from "#kit";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 /** The tallest the list grows before it scrolls inside the dialog, in points. */

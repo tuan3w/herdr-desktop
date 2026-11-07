@@ -1,10 +1,10 @@
 import { Overlay, Text, View } from "nsh";
 import { Button } from "nsh/base";
-import { hoverTransition } from "../lib/motion";
-import "../lib/native-metrics";
-import { type Health, perfCollapsed, perfOpen, perfReadings, type Reading } from "../lib/perf";
-import { keyLabel } from "../lib/shortcuts";
-import { FOCUS_RING, Icon, IconButton, NUM } from "./kit";
+import { hoverTransition } from "#lib/motion";
+import "#lib/native-metrics";
+import { type Health, perfCollapsed, perfOpen, perfReadings, type Reading } from "#lib/perf";
+import { keyLabel } from "#lib/shortcuts";
+import { FOCUS_RING, Icon, IconButton, NUM } from "#kit";
 
 const VALUE: Record<Health, string> = { ok: "text-popover-foreground", warn: "text-warning", bad: "text-destructive" };
 const SHORTCUT = keyLabel("devPanel");

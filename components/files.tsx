@@ -2,11 +2,11 @@ import { announce, computed, effect, type Signal, signal, Text, untracked, View 
 import { Command, type CommandItem } from "nsh/base";
 import { Herdr, Files as MachineFiles } from "herdr-desktop/native";
 import type { EntryView, FileData, FolderView } from "herdr-desktop/native";
-import { arrange, browsing, type Browse, type Crumb, crumbs, entryLabel, fileSort, isImageName, joinPath, parentOf, showHidden, sizeText, type SortKey, modifiedText } from "../lib/files";
-import { fold } from "../lib/text";
-import { ActionMenu, Btn, Empty, Field, Icon, IconButton, type IconName, Modal, notify, Skeleton } from "./kit";
-import { FileViewer } from "./file-viewer";
-import { type Photo, PhotoViewer } from "./photo-viewer";
+import { arrange, browsing, type Browse, type Crumb, crumbs, entryLabel, fileSort, isImageName, joinPath, parentOf, showHidden, sizeText, type SortKey, modifiedText } from "#lib/files";
+import { fold } from "#lib/text";
+import { ActionMenu, Btn, Empty, Field, Icon, IconButton, type IconName, Modal, notify, Skeleton } from "#kit";
+import { FileViewer } from "#components/file-viewer";
+import { type Photo, PhotoViewer } from "#components/photo-viewer";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 

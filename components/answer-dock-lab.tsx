@@ -1,7 +1,7 @@
 import { host, mount, signal, Text, View } from "nsh";
-import { meta, startHerdr } from "../lib/herdr";
-import { AnswerDock } from "./answer-dock";
-import { ThemeRoot, ToastHost } from "./kit";
+import { meta, startHerdr } from "#lib/herdr";
+import { AnswerDock } from "#components/answer-dock";
+import { ThemeRoot, ToastHost } from "#kit";
 
 /**
  * The entry of `answer-dock.test.tsx`: the dock of one pane of the scripted herdr (`fixture` and `pane` come from the

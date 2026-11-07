@@ -1,8 +1,8 @@
 import { mount, signal, Text, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
-import { startHerdr } from "../lib/herdr";
-import { StartAgent } from "./start-agent";
-import { Btn, ThemeRoot } from "./kit";
+import { startHerdr } from "#lib/herdr";
+import { StartAgent } from "#components/start-agent";
+import { Btn, ThemeRoot } from "#kit";
 
 /**
  * The entry of the failing half of `start-agent.test.tsx`: a herdr that answers `workspace.create` without naming what it

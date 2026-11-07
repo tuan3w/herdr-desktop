@@ -1,8 +1,8 @@
 import { announce, cleanup, computed, effect, signal, Text, untracked, View } from "nsh";
 import { Files, Herdr } from "herdr-desktop/native";
 import type { UploadView } from "herdr-desktop/native";
-import { sending, sizeText } from "../lib/files";
-import { Btn, Field, FieldRow, Icon, Modal, notify, Progress } from "./kit";
+import { sending, sizeText } from "#lib/files";
+import { Btn, Field, FieldRow, Icon, Modal, notify, Progress } from "#kit";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 

@@ -1,5 +1,5 @@
 import { signal, Storage } from "nsh";
-import { registerMetric, timing } from "./perf";
+import { registerMetric, timing } from "#lib/perf";
 
 /** The keys whose last write failed. The storage quota is shared, so one full key can fail others. */
 const failing = signal<ReadonlySet<string>>(new Set());

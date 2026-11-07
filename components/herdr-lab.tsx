@@ -1,7 +1,7 @@
 import { mount, signal, Text, View } from "nsh";
 import { Button } from "nsh/base";
 import { Herdr } from "herdr-desktop/native";
-import { allRows, reviewable } from "../lib/herdr";
+import { allRows, reviewable } from "#lib/herdr";
 
 /** Test entry only: the engine seam on one page, so `herdr.test.tsx` can drive it against the `mixed` fixture. */
 Herdr.configure({ dataDir: "", fixture: "mixed" });

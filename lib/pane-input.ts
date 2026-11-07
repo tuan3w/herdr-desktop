@@ -1,7 +1,7 @@
 import { keymap, signal } from "nsh";
 import { PaneKeys } from "herdr-desktop/native";
-import { fold } from "./text";
-import { apple, GLOBAL, keysOf } from "./shortcuts";
+import { fold } from "#lib/text";
+import { apple, GLOBAL, keysOf } from "#lib/shortcuts";
 
 /**
  * What the app's global shortcuts and the palette ask of "the tab in front". A `PaneTab` registers itself while it is

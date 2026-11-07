@@ -1,6 +1,6 @@
 import { cleanup, keymap, View } from "nsh";
-import { isSelected, rangeTo, selected, toggle } from "../lib/selection";
-import { FOCUS_RING, Icon } from "./kit";
+import { isSelected, rangeTo, selected, toggle } from "#lib/selection";
+import { FOCUS_RING, Icon } from "#kit";
 
 /**
  * The box that picks one agent for a bulk action. A press toggles it, a press with Shift picks everything from the

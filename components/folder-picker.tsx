@@ -2,8 +2,8 @@ import { announce, computed, effect, Scroll, signal, Text, untracked, View } fro
 import { Button } from "nsh/base";
 import { Files } from "herdr-desktop/native";
 import type { EntryView, FolderView } from "herdr-desktop/native";
-import { joinPath, parentOf, showHidden } from "../lib/files";
-import { Btn, Field, FOCUS_RING_INSET, Icon, IconButton, Modal, Skeleton } from "./kit";
+import { joinPath, parentOf, showHidden } from "#lib/files";
+import { Btn, Field, FOCUS_RING_INSET, Icon, IconButton, Modal, Skeleton } from "#kit";
 
 /** The tallest the list grows before it scrolls, in points, and how many folders it draws before it says to type a path. */
 const LIST_HEIGHT = 300;

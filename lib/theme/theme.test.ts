@@ -1,9 +1,9 @@
 import { expect, open, test } from "nsh/test";
 import theme from "../../theme.json";
-import { buildTheme, themeFile } from "./build";
-import { contrast, mix, oklchToHex, oklchToLinear, parseOklch } from "./color";
-import { DEFAULT_THEME_ID, THEMES, themeById } from "./themes";
-import { TERM_MIN_CONTRAST, TERM_REMAPPED } from "./terminal";
+import { buildTheme, themeFile } from "#lib/theme/build";
+import { contrast, mix, oklchToHex, oklchToLinear, parseOklch } from "#lib/theme/color";
+import { DEFAULT_THEME_ID, THEMES, themeById } from "#lib/theme/themes";
+import { TERM_MIN_CONTRAST, TERM_REMAPPED } from "#lib/theme/terminal";
 
 type Rgb = [number, number, number];
 const rgb = (css: string, over?: Rgb): Rgb => {

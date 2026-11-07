@@ -1,9 +1,9 @@
 import { announce, Clipboard, effect, Scroll, setAccessibilityFocus, signal, Text, View } from "nsh";
 import type { Accessor, ViewRef } from "nsh";
 import type { ActionKind, ActionResult, AuthMethodView, SessionView } from "herdr-desktop/native";
-import type { SessionPort } from "../lib/session";
-import { agentName, shellLine, visibleText } from "../lib/session-text";
-import { Btn, Icon, notify } from "./kit";
+import type { SessionPort } from "#lib/session";
+import { agentName, shellLine, visibleText } from "#lib/session-text";
+import { Btn, Icon, notify } from "#kit";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 

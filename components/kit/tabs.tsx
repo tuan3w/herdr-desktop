@@ -1,5 +1,5 @@
 import { context, type JSX, Text, View } from "nsh";
-import { hoverTransition } from "../../lib/motion";
+import { hoverTransition } from "#lib/motion";
 import { Badge } from "./badge";
 import { createRoving, RING, type Roving } from "./roving";
 

@@ -1,5 +1,5 @@
 import { type JSX, View } from "nsh";
-import { themeJson } from "../../lib/settings";
+import { themeJson } from "#lib/settings";
 
 /**
  * nsh has no public API to change the theme while the app runs, but its core applies the internal `uiTheme` prop

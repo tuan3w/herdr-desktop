@@ -1,10 +1,10 @@
 import { announce, computed, signal, Text, View } from "nsh";
 import { Sessions } from "herdr-desktop/native";
 import type { OptionChoiceView, OptionView } from "herdr-desktop/native";
-import { revision } from "../lib/herdr";
-import { lowersGuard, RISK_WORDS } from "../lib/session-options";
-import { restartable } from "../lib/timer";
-import { Btn, Icon, notify, SelectField } from "./kit";
+import { revision } from "#lib/herdr";
+import { lowersGuard, RISK_WORDS } from "#lib/session-options";
+import { restartable } from "#lib/timer";
+import { Btn, Icon, notify, SelectField } from "#kit";
 
 /** How long a risky mode stays waiting for its confirming press. */
 const ARM_MS = 4000;

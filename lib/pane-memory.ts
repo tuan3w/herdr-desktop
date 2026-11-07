@@ -1,7 +1,7 @@
 import { signal } from "nsh";
 import { Herdr } from "herdr-desktop/native";
-import { addPhrase, emptyPhrases, learn, parsePhrases, type PhraseMemory, removePhrase, replacePhrase } from "./phrases";
-import { emptyMemory, parseMemory, recordUse, sentKey, type SlashCommand, type SlashMemory, togglePin } from "./slash";
+import { addPhrase, emptyPhrases, learn, parsePhrases, type PhraseMemory, removePhrase, replacePhrase } from "#lib/phrases";
+import { emptyMemory, parseMemory, recordUse, sentKey, type SlashCommand, type SlashMemory, togglePin } from "#lib/slash";
 
 /**
  * What the pane's composer learns, kept in the Rust settings file (`Herdr.setting`) so it survives a restart and

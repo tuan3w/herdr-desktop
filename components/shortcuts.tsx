@@ -1,6 +1,6 @@
 import { Text, View } from "nsh";
-import { type Group, GROUPS, keysOf, keyText, type Shortcut, SHORTCUTS } from "../lib/shortcuts";
-import { Btn, Kbd, Modal } from "./kit";
+import { type Group, GROUPS, keysOf, keyText, type Shortcut, SHORTCUTS } from "#lib/shortcuts";
+import { Btn, Kbd, Modal } from "#kit";
 
 /** One line: what it does, its keys at the right edge. Read as one sentence ("New agent session: Ctrl+N"), since keycaps are decorative. */
 function Row(props: { shortcut: Shortcut }) {

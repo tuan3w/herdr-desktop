@@ -1,8 +1,8 @@
 import { colorScheme, computed, signal, Text, token, View, WebView } from "nsh";
 import { Editor } from "nsh/base";
 import { Diagrams } from "herdr-desktop/native";
-import { type DiagramColors, type DiagramResult, diagramPage, diagramTitle, parseDiagramResult } from "../lib/mermaid";
-import { Btn, Modal } from "./kit";
+import { type DiagramColors, type DiagramResult, diagramPage, diagramTitle, parseDiagramResult } from "#lib/mermaid";
+import { Btn, Modal } from "#kit";
 
 /** The most height a diagram takes in a document before it scrolls inside its frame; `Open diagram` shows it larger. */
 const INLINE_MAX = 360;

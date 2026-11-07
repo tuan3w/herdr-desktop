@@ -1,7 +1,7 @@
 import { expect, test } from "nsh/test";
-import type { SidebarItem } from "./sidebar";
-import { ageText, matches, monogram, MONOGRAM_TONES, projectFolder, projectLabel, projectSummary, QUIET_SHOWN, rowLabel, shownRows, sidebarItems } from "./sidebar";
-import { boardData, machine, project, row } from "./board-rows.fixture";
+import type { SidebarItem } from "#lib/sidebar";
+import { ageText, matches, monogram, MONOGRAM_TONES, projectFolder, projectLabel, projectSummary, QUIET_SHOWN, rowLabel, shownRows, sidebarItems } from "#lib/sidebar";
+import { boardData, machine, project, row } from "#lib/board-rows.fixture";
 
 const shape = (items: SidebarItem[]) =>
   items.map((i) => {

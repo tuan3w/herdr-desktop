@@ -18,7 +18,7 @@ import {
   TabItem,
   TabPanel,
   ThemeRoot,
-} from "./kit";
+} from "#kit";
 
 type Tab = "one" | "two" | "three";
 const ITEMS = ["m1", "m2", "m3", "m4"];

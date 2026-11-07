@@ -1,12 +1,12 @@
 import { host, mount, signal, Text, View } from "nsh";
 import { Files as MachineFiles } from "herdr-desktop/native";
-import { browseFiles, pageRequest, sending, viewFile } from "../lib/files";
-import { startHerdr } from "../lib/herdr";
-import { Files } from "./files";
-import { Btn, PopupRoot, ThemeRoot, ToastHost } from "./kit";
-import { openLink } from "./links-dialog";
-import { SendFiles } from "./send-files";
-import { WebPage } from "./web-page";
+import { browseFiles, pageRequest, sending, viewFile } from "#lib/files";
+import { startHerdr } from "#lib/herdr";
+import { Files } from "#components/files";
+import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
+import { openLink } from "#components/links-dialog";
+import { SendFiles } from "#components/send-files";
+import { WebPage } from "#components/web-page";
 
 /**
  * The entry of the file tests and of the files screenshots: the scripted herdr, a synthetic folder the test seam copied

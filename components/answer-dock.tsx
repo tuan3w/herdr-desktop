@@ -1,9 +1,9 @@
 import { announce, cleanup, computed, effect, keymap, signal, Text, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
 import type { PromptOption, PromptView } from "herdr-desktop/native";
-import { hoverTransition } from "../lib/motion";
-import { largeTargets } from "../lib/settings";
-import { Btn, FOCUS_RING, Icon, Modal, Spinner } from "./kit";
+import { hoverTransition } from "#lib/motion";
+import { largeTargets } from "#lib/settings";
+import { Btn, FOCUS_RING, Icon, Modal, Spinner } from "#kit";
 
 /**
  * How long an answer that just appeared or changed takes no press. A keystroke or click aimed at the question that was

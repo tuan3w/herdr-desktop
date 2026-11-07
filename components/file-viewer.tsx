@@ -2,10 +2,10 @@ import { Clipboard, signal, Text, View } from "nsh";
 import { Editor } from "nsh/base";
 import { Files } from "herdr-desktop/native";
 import type { FileData } from "herdr-desktop/native";
-import { modifiedText, parentOf, sizeText } from "../lib/files";
+import { modifiedText, parentOf, sizeText } from "#lib/files";
 import { held } from "#lib/list-item";
-import { Btn, Clipped, Empty, notify, Segmented } from "./kit";
-import { Markdown } from "./markdown";
+import { Btn, Clipped, Empty, notify, Segmented } from "#kit";
+import { Markdown } from "#components/markdown";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 

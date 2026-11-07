@@ -3,18 +3,18 @@ import { Button, Input } from "nsh/base";
 import type { InputRef } from "nsh/types";
 import { Files, Herdr } from "herdr-desktop/native";
 import type { ActionResult, EntryView, SessionView } from "herdr-desktop/native";
-import { joinPath, sending, sizeText } from "../lib/files";
-import { noteSent, pinCommand, slashMemory } from "../lib/pane-memory";
-import type { SessionPort } from "../lib/session";
-import { applyMention, deliveryNote, fileName, MAX_FILES, mentionAt, rankEntries, restoreText, splitQuery } from "../lib/session-compose";
-import { composerOff } from "../lib/session-text";
-import { commandText, hintFor, isPinned, matchCommands, type SlashCommand, usageKey } from "../lib/slash";
-import { FOCUS_RING, FOCUS_RING_INSET, Icon, IconButton, notify } from "./kit";
-import { AttachPicker } from "./session-attach";
-import { SessionModeChip, SessionModelPicker } from "./session-config";
+import { joinPath, sending, sizeText } from "#lib/files";
+import { noteSent, pinCommand, slashMemory } from "#lib/pane-memory";
+import type { SessionPort } from "#lib/session";
+import { applyMention, deliveryNote, fileName, MAX_FILES, mentionAt, rankEntries, restoreText, splitQuery } from "#lib/session-compose";
+import { composerOff } from "#lib/session-text";
+import { commandText, hintFor, isPinned, matchCommands, type SlashCommand, usageKey } from "#lib/slash";
+import { FOCUS_RING, FOCUS_RING_INSET, Icon, IconButton, notify } from "#kit";
+import { AttachPicker } from "#components/session-attach";
+import { SessionModeChip, SessionModelPicker } from "#components/session-config";
 import { CHAT_COLUMN } from "#lib/layout";
 import { SessionQueue } from ".\/session-queue";
-import { SlashList } from "./slash-list";
+import { SlashList } from "#components/slash-list";
 
 /** What the chat does with its message box from outside: the open of a tab, `mod+2`, `Reply…`. */
 export interface SessionComposerHandle {

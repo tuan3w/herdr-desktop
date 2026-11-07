@@ -1,4 +1,4 @@
-import { fold } from "../../lib/text";
+import { fold } from "#lib/text";
 
 /**
  * The rules under `Combobox` and `Autocomplete`, with no UI and no signals so each is a function of its arguments:

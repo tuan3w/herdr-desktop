@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
 import type { SessionItem, ToolItem } from "herdr-desktop/native";
-import { composerOff, durationText, itemLabel, oneLine, outputView, shellLine, tailText, toolLine, visibleText, workHead, workParts } from "./session-text";
+import { composerOff, durationText, itemLabel, oneLine, outputView, shellLine, tailText, toolLine, visibleText, workHead, workParts } from "#lib/session-text";
 
 const tool = (over: Partial<ToolItem>): ToolItem => ({ id: "t", title: "Tool", status: "completed", head: [], tail: [], omitted: 0, diffs: [], locations: [], parts: [], terminal: false, ...over });
 

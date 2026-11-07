@@ -2,8 +2,8 @@ import { cleanup, computed, effect, signal, untracked } from "nsh";
 import type { Accessor } from "nsh";
 import { Sessions } from "herdr-desktop/native";
 import type { ActionResult, SessionItem, SessionView, UnqueuedView } from "herdr-desktop/native";
-import { revision } from "./herdr";
-import { buildRows, type Row, unitStart } from "./session-rows";
+import { revision } from "#lib/herdr";
+import { buildRows, type Row, unitStart } from "#lib/session-rows";
 
 /**
  * One chat's data for a screen. The Rust side holds the conversation; this file pulls it the way `docs/ARCHITECTURE.md`

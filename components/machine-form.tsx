@@ -1,8 +1,8 @@
 import { announce, effect, signal, Text, untracked, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
 import type { MachineInput, MachineView, TestResult } from "herdr-desktop/native";
-import { destinationError, fieldOfRejection, NAME_MISSING, portError, sessionError } from "../lib/machine-rules";
-import { Autocomplete, Btn, Field, FieldRow, Icon, Modal, NumberField, SettingRow, Switch } from "./kit";
+import { destinationError, fieldOfRejection, NAME_MISSING, portError, sessionError } from "#lib/machine-rules";
+import { Autocomplete, Btn, Field, FieldRow, Icon, Modal, NumberField, SettingRow, Switch } from "#kit";
 
 type FieldName = "name" | "destination" | "port" | "session";
 

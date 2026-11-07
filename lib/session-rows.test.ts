@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
 import type { SessionItem, ToolStatusName } from "herdr-desktop/native";
-import { buildRows, type Row, type RowInput, spanSeconds, unitStart } from "./session-rows";
+import { buildRows, type Row, type RowInput, spanSeconds, unitStart } from "#lib/session-rows";
 
 let next = 1;
 const say = (role: "user" | "agent" | "thought", text: string): SessionItem => ({ id: next++, rev: 1, kind: "message", role, text, images: [], parts: [] });

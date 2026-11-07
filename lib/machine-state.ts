@@ -1,5 +1,5 @@
 import type { LinkStateName, MachineStatus } from "herdr-desktop/native";
-import type { AgentStatus } from "./status";
+import type { AgentStatus } from "#lib/status";
 
 /**
  * The shape (`StatusGlyph`) that stands for a machine's link, so colour is never the only signal: online is the check,

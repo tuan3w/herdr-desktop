@@ -1,5 +1,5 @@
 import type { Bounds, Point } from "nsh/types";
-import { fold } from "../../lib/text";
+import { fold } from "#lib/text";
 import { TRANSIT_MS } from "./hover";
 
 /**

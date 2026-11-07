@@ -2,15 +2,15 @@ import { colorScheme, computed, effect, openUrl, signal, Text, untracked, View }
 import { Herdr } from "herdr-desktop/native";
 import type { NotificationSupport } from "herdr-desktop/native";
 import app from "../nsh.json";
-import { revision } from "../lib/herdr";
-import type { PaneFit } from "../lib/settings";
-import { announceOutput, checkUpdates, largeTargets, minContrast, paneFit, paneFontSize, quickPhrases, reduceMotionOverride, settingsReady, themeId } from "../lib/settings";
-import { swatches } from "../lib/theme/build";
-import type { ThemeSpec } from "../lib/theme/build";
-import { availableUpdate, checkForUpdate } from "../lib/updates";
-import { THEMES } from "../lib/theme/themes";
-import { Machines } from "./machines";
-import { Btn, Modal, notify, RadioGroup, RadioItem, Segmented, type SegmentOption, SelectField, SettingRow, SettingsSection, Switch } from "./kit";
+import { revision } from "#lib/herdr";
+import type { PaneFit } from "#lib/settings";
+import { announceOutput, checkUpdates, largeTargets, minContrast, paneFit, paneFontSize, quickPhrases, reduceMotionOverride, settingsReady, themeId } from "#lib/settings";
+import { swatches } from "#lib/theme/build";
+import type { ThemeSpec } from "#lib/theme/build";
+import { availableUpdate, checkForUpdate } from "#lib/updates";
+import { THEMES } from "#lib/theme/themes";
+import { Machines } from "#components/machines";
+import { Btn, Modal, notify, RadioGroup, RadioItem, Segmented, type SegmentOption, SelectField, SettingRow, SettingsSection, Switch } from "#kit";
 
 /** The engine's settings keys of the two notification switches (`native/app/src/engine/alerts.rs`). */
 const NOTIFY_NEEDS_YOU = "notify.needsYou";

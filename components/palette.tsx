@@ -1,6 +1,6 @@
 import { announce, computed, signal, Text, View } from "nsh";
 import { Command, type CommandItem, type CommandRef } from "nsh/base";
-import { Kbd, Modal } from "./kit";
+import { Kbd, Modal } from "#kit";
 
 /** One thing the palette can run. `shortcut` is a `keymap` key shown beside it (the app binds it elsewhere). */
 export type PaletteItem = CommandItem;

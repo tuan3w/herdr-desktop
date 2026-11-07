@@ -1,5 +1,5 @@
 import { computed, effect, signal } from "nsh";
-import { allRows, board, started } from "./herdr";
+import { allRows, board, started } from "#lib/herdr";
 
 /**
  * Which agents are picked for a bulk action, by `BoardRow.key`. One selection for the whole window: the board and the

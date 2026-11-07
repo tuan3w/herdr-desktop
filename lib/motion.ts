@@ -1,6 +1,6 @@
 import { Animated, createMotion, effect, type Easing, LayoutAnimation, type MotionSpec, reduceMotion, signal, untracked } from "nsh";
 import type { ViewStyle } from "nsh/types";
-import { reduceMotionOverride } from "./settings";
+import { reduceMotionOverride } from "#lib/settings";
 
 /**
  * Less motion is wanted: the system asks for it, or the person set Settings > Reduce motion. Every motion in the app

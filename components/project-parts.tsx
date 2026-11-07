@@ -1,7 +1,7 @@
 import { Text, View } from "nsh";
 import type { BoardProject } from "herdr-desktop/native";
-import { monogram, projectState, projectSummary } from "../lib/sidebar";
-import { Badge, NUM } from "./kit";
+import { monogram, projectState, projectSummary } from "#lib/sidebar";
+import { Badge, NUM } from "#kit";
 
 /**
  * What a project says about its agents, said once: the signal dot while anything waits (the only coloured mark a project

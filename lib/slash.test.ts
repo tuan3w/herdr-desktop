@@ -15,7 +15,7 @@ import {
   unknownCommand,
   usedOf,
   countOf,
-} from "./slash";
+} from "#lib/slash";
 
 /** What the composer's command list does, ported from herdr-mobile's `slash_catalog_test`, `slash_usage_test` and `command_guard_test`. */
 const claude = commandsOf("claude");

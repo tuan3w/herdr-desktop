@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
 import type { MachineStatus } from "herdr-desktop/native";
-import { linkGlyph, linkText } from "./machine-state";
+import { linkGlyph, linkText } from "#lib/machine-state";
 
 const status = (over: Partial<MachineStatus>): MachineStatus => ({ id: "m1", name: "Build box", state: "online", newerHerdr: false, agents: 0, needsYou: 0, ...over });
 

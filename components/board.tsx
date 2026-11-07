@@ -1,15 +1,15 @@
 import { computed, effect, Scroll, signal, Text, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
 import type { BoardProject, BoardRow } from "herdr-desktop/native";
-import { allRows, board, projectOf, revision, reviewable } from "../lib/herdr";
-import { animateLayout, hoverTransition } from "../lib/motion";
-import { select } from "../lib/selection";
-import { type HomeLine, homeLines, strip } from "../lib/board-items";
-import { foldedProjects, moreOpen, shownRows } from "../lib/sidebar";
+import { allRows, board, projectOf, revision, reviewable } from "#lib/herdr";
+import { animateLayout, hoverTransition } from "#lib/motion";
+import { select } from "#lib/selection";
+import { type HomeLine, homeLines, strip } from "#lib/board-items";
+import { foldedProjects, moreOpen, shownRows } from "#lib/sidebar";
 import { COLUMN, GAP, PAD, TWO_COLUMNS_FROM } from "#lib/layout";
-import { Opener, ProjectCard, Question } from "./board-card";
-import { Btn, Empty, FOCUS_RING, NUM, Swap } from "./kit";
-import { Triage } from "./triage";
+import { Opener, ProjectCard, Question } from "#components/board-card";
+import { Btn, Empty, FOCUS_RING, NUM, Swap } from "#kit";
+import { Triage } from "#components/triage";
 
 /**
  * The status line, one count for every surface, all in the muted ink (the `Needs you` inbox just under it is the loud

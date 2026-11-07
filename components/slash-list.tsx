@@ -1,8 +1,8 @@
 import { effect, Scroll, Text, View } from "nsh";
 import { Button } from "nsh/base";
 import type { ScrollRef } from "nsh/types";
-import { commandText, type SlashCommand, usageKey } from "../lib/slash";
-import { FOCUS_RING_INSET } from "./kit";
+import { commandText, type SlashCommand, usageKey } from "#lib/slash";
+import { FOCUS_RING_INSET } from "#kit";
 
 /** One row's height in points: the list scrolls by whole rows to keep the highlighted one in view. */
 const ROW = 32;

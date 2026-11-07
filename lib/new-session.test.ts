@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
 import type { SessionInfo } from "herdr-desktop/native";
-import { agentChoices, recentFolders, sessionFolderError, startFailure } from "./new-session";
+import { agentChoices, recentFolders, sessionFolderError, startFailure } from "#lib/new-session";
 
 test("the agents a machine can run come first, and the ones it lacks follow, marked", () => {
   const choices = agentChoices([{ id: "omp", label: "omp" }]);

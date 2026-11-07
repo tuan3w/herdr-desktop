@@ -1,8 +1,8 @@
 import { signal, Text, View } from "nsh";
 import type { PlanStepView } from "herdr-desktop/native";
-import { Clipped, Icon } from "./kit";
-import { Disclosure } from "./session-tool";
-import { StatusGlyph } from "./status-glyph";
+import { Clipped, Icon } from "#kit";
+import { Disclosure } from "#components/session-tool";
+import { StatusGlyph } from "#components/status-glyph";
 
 /** `1 of 3 done` and the step being worked on (else the first still to do): the one line a collapsed plan says. */
 export function planLine(plan: readonly PlanStepView[]): { progress: string; current: string } {

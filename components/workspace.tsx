@@ -1,17 +1,17 @@
 import { cleanup, View } from "nsh";
 import { DockArea, type DockTab } from "nsh/base";
-import { machinesOpen } from "../lib/actions";
-import { attach, activated, BOARD, closeTab, focused, layout, openPane, parsePaneKey, parseSessionKey, removePanel, rowKeyOf, setLayout } from "../lib/dock";
-import { meta, rowOf } from "../lib/herdr";
-import { appear, hoverTransition } from "../lib/motion";
-import { openAgent } from "../lib/open-agent";
-import { keyLabel } from "../lib/shortcuts";
+import { machinesOpen } from "#lib/actions";
+import { attach, activated, BOARD, closeTab, focused, layout, openPane, parsePaneKey, parseSessionKey, removePanel, rowKeyOf, setLayout } from "#lib/dock";
+import { meta, rowOf } from "#lib/herdr";
+import { appear, hoverTransition } from "#lib/motion";
+import { openAgent } from "#lib/open-agent";
+import { keyLabel } from "#lib/shortcuts";
 import { ROW } from "#lib/layout";
-import { Board } from "./board";
-import { Btn, Clipped, Empty, FOCUS_RING_INSET, Icon, IconButton } from "./kit";
-import { PaneTab } from "./pane-tab";
-import { SessionTab } from "./session-tab";
-import { StatusGlyph } from "./status-glyph";
+import { Board } from "#components/board";
+import { Btn, Clipped, Empty, FOCUS_RING_INSET, Icon, IconButton } from "#kit";
+import { PaneTab } from "#components/pane-tab";
+import { SessionTab } from "#components/session-tab";
+import { StatusGlyph } from "#components/status-glyph";
 
 /**
  * The tab area: splits of tab groups the person arranges. The board is the home tab (never closable); each opened agent

@@ -1,6 +1,6 @@
 import { announce, Clipboard, effect, Image, keymap, signal, Text, untracked, View } from "nsh";
 import { Files } from "herdr-desktop/native";
-import { Btn, Modal, notify, Spinner } from "./kit";
+import { Btn, Modal, notify, Spinner } from "#kit";
 
 /** One picture of a folder: the machine it is on, its path and its name (also its alt text: a file has no other description). */
 export interface Photo {

@@ -1,6 +1,6 @@
 import { signal, Text, View } from "nsh";
 import type { PlanStatusName, PlanStepView } from "herdr-desktop/native";
-import { Btn, Icon, type IconName } from "./kit";
+import { Btn, Icon, type IconName } from "#kit";
 
 /** A step's shape: done is a check, working a loader, waiting a clock; the word is always beside it. */
 const STEP: Record<PlanStatusName, { icon: IconName; word: string }> = {

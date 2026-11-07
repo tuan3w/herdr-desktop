@@ -1,8 +1,8 @@
 import { announce, computed, effect, signal, Text, untracked, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
-import { AGENT_KINDS, folderError } from "../lib/agent-kinds";
-import { allRows, board, revision } from "../lib/herdr";
-import { Autocomplete, Btn, FieldRow, Icon, Modal, SelectField } from "./kit";
+import { AGENT_KINDS, folderError } from "#lib/agent-kinds";
+import { allRows, board, revision } from "#lib/herdr";
+import { Autocomplete, Btn, FieldRow, Icon, Modal, SelectField } from "#kit";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 

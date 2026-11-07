@@ -1,11 +1,11 @@
 import { announce, computed, effect, signal, Text, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
 import type { MachineStatus, MachineView } from "herdr-desktop/native";
-import { revision } from "../lib/herdr";
-import { linkGlyph, linkText } from "../lib/machine-state";
-import { MachineForm } from "./machine-form";
-import { StatusGlyph } from "./status-glyph";
-import { Btn, Clipped, confirmDestructive, Empty, Modal, notify, Switch } from "./kit";
+import { revision } from "#lib/herdr";
+import { linkGlyph, linkText } from "#lib/machine-state";
+import { MachineForm } from "#components/machine-form";
+import { StatusGlyph } from "#components/status-glyph";
+import { Btn, Clipped, confirmDestructive, Empty, Modal, notify, Switch } from "#kit";
 
 interface Row {
   machine: MachineView;

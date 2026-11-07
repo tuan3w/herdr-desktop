@@ -1,6 +1,6 @@
 import { Herdr } from "herdr-desktop/native";
 import type { Metrics } from "herdr-desktop/native";
-import { registerMetric } from "./perf";
+import { registerMetric } from "#lib/perf";
 
 /**
  * The Rust side's figures in the developer panel (`components/dev-panel.tsx` imports this file): the live pane path

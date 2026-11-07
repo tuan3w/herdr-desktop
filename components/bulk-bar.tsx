@@ -1,9 +1,9 @@
 import { signal, Text, View } from "nsh";
-import { allRows, board, reviewable, reviewWithUndo } from "../lib/herdr";
-import type { BulkAction } from "../lib/bulk";
-import { clear, select, selected } from "../lib/selection";
-import { BulkConfirm, pickedRows } from "./bulk-confirm";
-import { Btn, IconButton } from "./kit";
+import { allRows, board, reviewable, reviewWithUndo } from "#lib/herdr";
+import type { BulkAction } from "#lib/bulk";
+import { clear, select, selected } from "#lib/selection";
+import { BulkConfirm, pickedRows } from "#components/bulk-confirm";
+import { Btn, IconButton } from "#kit";
 
 /**
  * What can be done to the agents picked in the board or the sidebar: `Reviewed` (at once, one `Undo`), `Stop` (Esc),

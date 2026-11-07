@@ -1,9 +1,9 @@
 import { effect, signal, Storage } from "nsh";
 import type { BoardCheckout, BoardData, BoardProject, BoardRow, MachineStatus } from "herdr-desktop/native";
-import { SIDEBAR_WIDTH } from "./layout";
-import { save } from "./save";
-import { statusText } from "./status";
-import { fold } from "./text";
+import { SIDEBAR_WIDTH } from "#lib/layout";
+import { save } from "#lib/save";
+import { statusText } from "#lib/status";
+import { fold } from "#lib/text";
 
 /**
  * What the sidebar lists and how it reads it aloud. The list is the board's projects in the board's order: machines

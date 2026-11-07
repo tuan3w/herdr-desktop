@@ -1,5 +1,5 @@
 import { mount, signal, Text, View } from "nsh";
-import { ActionMenu, Btn, type MenuEntry, Modal, RowMenu, SelectField, ThemeRoot, PopupRoot } from "./kit";
+import { ActionMenu, Btn, type MenuEntry, Modal, RowMenu, SelectField, ThemeRoot, PopupRoot } from "#kit";
 
 /** Test entry only: every menu and select feature on one page, so `menus.test.tsx` can drive them without the app's data. */
 const MACHINES = Array.from({ length: 500 }, (_, i) => ({ value: `m${i + 1}`, title: `Machine ${String(i + 1).padStart(3, "0")}` }));

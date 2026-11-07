@@ -1,10 +1,10 @@
 import { host, mount, Text, View } from "nsh";
-import { machinesOpen, newSessionOpen, newSessionProject, settingsOpen } from "../lib/actions";
-import { startHerdr } from "../lib/herdr";
-import { selected } from "../lib/selection";
-import { loadSidebar } from "../lib/sidebar";
-import { PopupRoot, ThemeRoot, ToastHost } from "./kit";
-import { Sidebar } from "./sidebar";
+import { machinesOpen, newSessionOpen, newSessionProject, settingsOpen } from "#lib/actions";
+import { startHerdr } from "#lib/herdr";
+import { selected } from "#lib/selection";
+import { loadSidebar } from "#lib/sidebar";
+import { PopupRoot, ThemeRoot, ToastHost } from "#kit";
+import { Sidebar } from "#components/sidebar";
 
 const fixture = host.params.fixture;
 startHerdr("", typeof fixture === "string" ? fixture : "mixed");

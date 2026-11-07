@@ -1,5 +1,5 @@
 import { effect, signal, untracked, View } from "nsh";
-import { Btn, Field, FieldRow, Modal } from "./kit";
+import { Btn, Field, FieldRow, Modal } from "#kit";
 
 /**
  * One name to type: a new workspace, or a rename of a workspace, tab or pane. Enter or the confirm button submits the

@@ -1,5 +1,5 @@
 import { mount, Scroll, signal, Text, View } from "nsh";
-import { FOCUS_RING, Modal, Popover, PopoverClose, PopoverDescription, PopoverTitle, PopupRoot, PreviewCard, ThemeRoot, Tipped, usePopover, useTriggerFocus } from "./kit";
+import { FOCUS_RING, Modal, Popover, PopoverClose, PopoverDescription, PopoverTitle, PopupRoot, PreviewCard, ThemeRoot, Tipped, usePopover, useTriggerFocus } from "#kit";
 
 /** Test entry only: every tooltip, popover and preview-card feature on one page, so `popups.test.tsx` can drive them. */
 const last = signal("");

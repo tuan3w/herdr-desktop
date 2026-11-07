@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
 import type { EntryView } from "herdr-desktop/native";
-import { applyMention, deliveryNote, mentionAt, rankEntries, restoreText, splitQuery } from "./session-compose";
+import { applyMention, deliveryNote, mentionAt, rankEntries, restoreText, splitQuery } from "#lib/session-compose";
 
 const entry = (name: string, kind: EntryView["kind"] = "file"): EntryView => ({ name, kind, size: 0, readable: true, link: false });
 

@@ -2,13 +2,13 @@ import { announce, effect, keymap, signal, Text, View } from "nsh";
 import { Input } from "nsh/base";
 import type { InputRef } from "nsh/types";
 import { Herdr } from "herdr-desktop/native";
-import { AGENT_KINDS } from "../lib/agent-kinds";
-import { learnPhrase, noteSent, phraseMemory, pinCommand, slashMemory } from "../lib/pane-memory";
-import { quickChips } from "../lib/phrases";
-import { quickPhrases } from "../lib/settings";
-import { commandsOf, commandText, hintFor, isPinned, matchCommands, type SlashCommand, unknownCommand, usageKey } from "../lib/slash";
-import { Btn, INPUT_CLASS } from "./kit";
-import { SlashList } from "./slash-list";
+import { AGENT_KINDS } from "#lib/agent-kinds";
+import { learnPhrase, noteSent, phraseMemory, pinCommand, slashMemory } from "#lib/pane-memory";
+import { quickChips } from "#lib/phrases";
+import { quickPhrases } from "#lib/settings";
+import { commandsOf, commandText, hintFor, isPinned, matchCommands, type SlashCommand, unknownCommand, usageKey } from "#lib/slash";
+import { Btn, INPUT_CLASS } from "#kit";
+import { SlashList } from "#components/slash-list";
 
 /** What the pane tab does with its message box from outside: the key row's `/` and `@`, the board's `Reply…`. */
 export interface ComposerHandle {

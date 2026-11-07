@@ -1,9 +1,9 @@
 import { type JSX, signal, Text, View } from "nsh";
 import type { BackgroundRow, ObservedView, SubagentRow } from "herdr-desktop/native";
-import { visibleText } from "../lib/session-text";
-import { Clipped, Icon } from "./kit";
-import { Disclosure } from "./session-tool";
-import { StatusGlyph } from "./status-glyph";
+import { visibleText } from "#lib/session-text";
+import { Clipped, Icon } from "#kit";
+import { Disclosure } from "#components/session-tool";
+import { StatusGlyph } from "#components/status-glyph";
 
 const RUNNING = new Set(["running", "inProgress", "in_progress"]);
 

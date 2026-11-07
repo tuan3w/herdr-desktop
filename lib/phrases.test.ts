@@ -18,7 +18,7 @@ import {
   quickChips,
   removePhrase,
   replacePhrase,
-} from "./phrases";
+} from "#lib/phrases";
 
 /** The quick phrases and what the composer learns, ported from herdr-mobile's `quick_phrases_test` and `sent_phrases_test`. */
 const sendTimes = (text: string, times: number, from: Learned[] = []): Learned[] => {

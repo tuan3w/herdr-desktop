@@ -1,5 +1,5 @@
 import type { EntryView, QueuedView, SessionView } from "herdr-desktop/native";
-import { fold } from "./text";
+import { fold } from "#lib/text";
 
 /**
  * The rules of the chat's message box, pure: the `@` that lists files, what a send does while the agent works, how a

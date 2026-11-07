@@ -1,5 +1,5 @@
 import { expect, test } from "nsh/test";
-import { fold } from "./text";
+import { fold } from "#lib/text";
 
 test("a search ignores case, diacritics and invisible characters", () => {
   expect(fold("Crème Brûlée")).toBe("creme brulee");

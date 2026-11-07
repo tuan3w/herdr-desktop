@@ -1,11 +1,11 @@
 import { announce, Clipboard, computed, effect, signal, Text, untracked, View } from "nsh";
 import { Herdr, Sessions } from "herdr-desktop/native";
 import type { PhaseName, SessionInfo } from "herdr-desktop/native";
-import { revision } from "../lib/herdr";
-import { agentLabel } from "../lib/new-session";
-import { Btn, confirmDestructive, Icon, Modal, notify, Progress } from "./kit";
-import { PlanSteps } from "./plan-steps";
-import { SessionOption } from "./session-config";
+import { revision } from "#lib/herdr";
+import { agentLabel } from "#lib/new-session";
+import { Btn, confirmDestructive, Icon, Modal, notify, Progress } from "#kit";
+import { PlanSteps } from "#components/plan-steps";
+import { SessionOption } from "#components/session-config";
 
 /** Where the session stands, in the words the transcript's header uses. */
 const PHASE: Record<PhaseName, string> = {

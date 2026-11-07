@@ -1,5 +1,5 @@
 import { cleanup, createMotion, type JSX, keymap, View } from "nsh";
-import { DURATION, EASE_OUT, hoverTransition } from "../../lib/motion";
+import { DURATION, EASE_OUT, hoverTransition } from "#lib/motion";
 import { FOCUS_RING } from "./core";
 import { Icon } from "./icon";
 

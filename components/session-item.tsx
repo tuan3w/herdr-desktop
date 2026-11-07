@@ -2,15 +2,15 @@ import { Clipboard, effect, Image, type JSX, Text, View } from "nsh";
 import { Button } from "nsh/base";
 import { CHAT_COLUMN } from "#lib/layout";
 import type { ImageView } from "herdr-desktop/native";
-import { ofKind } from "../lib/list-item";
-import { type Arrivals, arrivals, arriving } from "../lib/motion";
-import { loadPicture, pictureSize, pictureState } from "../lib/session-pictures";
-import type { SessionModel } from "../lib/session";
-import type { Row } from "../lib/session-rows";
-import { durationText, itemLabel, toolLine, toolStatusText, visibleText, workHead, workParts } from "../lib/session-text";
-import { FOCUS_RING, Icon, IconButton, notify } from "./kit";
-import { MarkdownText } from "./markdown";
-import { DiffStat, Disclosure, PartChips, ToolDetails, ToolRow, ToolStatus } from "./session-tool";
+import { ofKind } from "#lib/list-item";
+import { type Arrivals, arrivals, arriving } from "#lib/motion";
+import { loadPicture, pictureSize, pictureState } from "#lib/session-pictures";
+import type { SessionModel } from "#lib/session";
+import type { Row } from "#lib/session-rows";
+import { durationText, itemLabel, toolLine, toolStatusText, visibleText, workHead, workParts } from "#lib/session-text";
+import { FOCUS_RING, Icon, IconButton, notify } from "#kit";
+import { MarkdownText } from "#components/markdown";
+import { DiffStat, Disclosure, PartChips, ToolDetails, ToolRow, ToolStatus } from "#components/session-tool";
 
 /** The widest a line of the conversation is: past this, text is hard to follow and the window is better left calm. */
 const COLUMN = CHAT_COLUMN;

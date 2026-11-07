@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
 import type { EntryView } from "herdr-desktop/native";
-import { arrange, crumbs, entryLabel, joinPath, modifiedText, parentOf, routeLink, sizeText } from "./files";
+import { arrange, crumbs, entryLabel, joinPath, modifiedText, parentOf, routeLink, sizeText } from "#lib/files";
 
 const entry = (name: string, patch: Partial<EntryView> = {}): EntryView => ({ name, kind: "file", size: 0, readable: true, link: false, ...patch });
 

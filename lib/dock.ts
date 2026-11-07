@@ -1,7 +1,7 @@
 import { announce, signal, Storage } from "nsh";
 import type { DockAreaLayout, DockAreaRef, DockNode, Placement } from "nsh/base";
-import { focusComposer, paneInFront } from "./pane-input";
-import { save } from "./save";
+import { focusComposer, paneInFront } from "#lib/pane-input";
+import { save } from "#lib/save";
 
 /**
  * The workspace's layout and the commands that change it. `components/workspace.tsx` renders the `DockArea` from this

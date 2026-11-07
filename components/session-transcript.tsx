@@ -2,12 +2,12 @@ import { cleanup, effect, keymap, List, signal, Text, untracked, View } from "ns
 import type { Signal } from "nsh";
 import type { ListRef } from "nsh/types";
 import { Button } from "nsh/base";
-import type { Row } from "../lib/session-rows";
-import { durationText, visibleText } from "../lib/session-text";
+import type { Row } from "#lib/session-rows";
+import { durationText, visibleText } from "#lib/session-text";
 import { CHAT_COLUMN } from "#lib/layout";
-import { appear } from "../lib/motion";
-import { FOCUS_RING, Icon } from "./kit";
-import { RowContext, SessionRow } from "./session-item";
+import { appear } from "#lib/motion";
+import { FOCUS_RING, Icon } from "#kit";
+import { RowContext, SessionRow } from "#components/session-item";
 
 /** How far from the end still counts as being at it: a streamed line or two must not unstick the view. */
 const AT_END = 64;

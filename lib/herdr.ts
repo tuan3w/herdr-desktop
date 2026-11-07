@@ -2,7 +2,7 @@ import { computed, signal } from "nsh";
 import type { Accessor } from "nsh";
 import { Herdr } from "herdr-desktop/native";
 import type { BoardData, BoardProject, BoardRow, PaneMeta } from "herdr-desktop/native";
-import { notify } from "../components/kit";
+import { notify } from "#kit";
 
 /**
  * The one window onto the Rust engine for every screen: a revision counter and what is pulled when it moves.

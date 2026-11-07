@@ -1,8 +1,8 @@
 import { announce } from "nsh";
 import { Sessions } from "herdr-desktop/native";
 import type { BoardRow } from "herdr-desktop/native";
-import { openPane, openSession, paneKey, removePanel, sessionKey } from "./dock";
-import { rowOf } from "./herdr";
+import { openPane, openSession, paneKey, removePanel, sessionKey } from "#lib/dock";
+import { rowOf } from "#lib/herdr";
 
 /**
  * Which view opens an agent. The chat is the way to work with an agent, the terminal is the fallback:

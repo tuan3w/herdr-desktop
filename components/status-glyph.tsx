@@ -1,8 +1,8 @@
 import { effect, View } from "nsh";
-import { glyphChanged } from "../lib/motion";
-import { statusText } from "../lib/status";
-import type { AgentStatus } from "../lib/status";
-import { Icon } from "./kit";
+import { glyphChanged } from "#lib/motion";
+import { statusText } from "#lib/status";
+import type { AgentStatus } from "#lib/status";
+import { Icon } from "#kit";
 
 /**
  * An agent's status as a shape, so colour is never the only signal: needs you = filled disc with a bar, working =

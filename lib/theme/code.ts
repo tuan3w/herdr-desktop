@@ -1,4 +1,4 @@
-import { contrast, mix, oklchToLinear, parseOklch } from "./color";
+import { contrast, mix, oklchToLinear, parseOklch } from "#lib/theme/color";
 
 /**
  * The code colour system: one token per kind of token the highlighter tells apart (`native/app/src/highlight/role.rs`, the

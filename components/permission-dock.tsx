@@ -2,12 +2,12 @@ import { announce, computed, effect, keymap, Scroll, signal, Text, untracked, Vi
 import type { ScrollRef } from "nsh/types";
 import { Sessions } from "herdr-desktop/native";
 import type { ActionResult, DiffItem, PermissionChoiceView, SessionView, WaitingView } from "herdr-desktop/native";
-import { restartable } from "../lib/timer";
-import { rowsOf, visibleText } from "../lib/visible-text";
-import { AskChip } from "./ask-chip";
-import { Btn, Clipped, Icon, Modal } from "./kit";
-import { PermissionDiff } from "./permission-diff";
-import { PlanSteps } from "./plan-steps";
+import { restartable } from "#lib/timer";
+import { rowsOf, visibleText } from "#lib/visible-text";
+import { AskChip } from "#components/ask-chip";
+import { Btn, Clipped, Icon, Modal } from "#kit";
+import { PermissionDiff } from "#components/permission-diff";
+import { PlanSteps } from "#components/plan-steps";
 
 /** How long an answer that just appeared or changed takes no press: a click aimed at the request before it must not land on this one. */
 const GUARD_MS = 400;

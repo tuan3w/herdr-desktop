@@ -1,11 +1,11 @@
 import { announce, computed, effect, signal, Text, untracked, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
 import type { BoardRow } from "herdr-desktop/native";
-import { board, projectOf } from "../lib/herdr";
-import { ageText } from "../lib/sidebar";
-import { AnswerDock } from "./answer-dock";
-import { Btn, Field, Icon, Modal, NUM, notify } from "./kit";
-import { StatusGlyph } from "./status-glyph";
+import { board, projectOf } from "#lib/herdr";
+import { ageText } from "#lib/sidebar";
+import { AnswerDock } from "#components/answer-dock";
+import { Btn, Field, Icon, Modal, NUM, notify } from "#kit";
+import { StatusGlyph } from "#components/status-glyph";
 
 /**
  * Answer one by one: a dialog that walks the agents that need you, longest waiting first, with their answers and a

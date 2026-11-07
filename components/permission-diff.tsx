@@ -1,7 +1,7 @@
 import { Text, View } from "nsh";
 import { DiffView } from "nsh/base";
 import type { DiffItem } from "herdr-desktop/native";
-import { visibleText } from "../lib/visible-text";
+import { visibleText } from "#lib/visible-text";
 
 /** A row of the diff, in points: the view is virtual and needs the height it may take. */
 const ROW = 20;

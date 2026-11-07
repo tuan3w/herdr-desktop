@@ -1,4 +1,4 @@
-import type { ThemeSpec } from "./build";
+import type { ThemeSpec } from "#lib/theme/build";
 
 /**
  * Themes, in picker order. To add one: add a spec here (hues and chromas only), run `bun scripts/gen-theme.mjs` if

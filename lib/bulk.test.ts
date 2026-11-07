@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
-import { planBulk } from "./bulk";
-import { row } from "./board-rows.fixture";
+import { planBulk } from "#lib/bulk";
+import { row } from "#lib/board-rows.fixture";
 
 test("an agent waiting on a question is skipped unless the person includes it, and an unreachable one never is reached", () => {
   const picked = [row("local/p1"), row("local/p2", { status: "blocked" }), row("local/p3", { status: "done" }), row("local/p4", { offline: true, status: "blocked" })];

@@ -1,6 +1,6 @@
 import { announce, effect, type JSX, Scroll, signal, Text, View } from "nsh";
 import { AlertDialog, Dialog } from "nsh/base";
-import { enterScale } from "../../lib/motion";
+import { enterScale } from "#lib/motion";
 import { newDialogId, topDialog, trackDialog } from "./dialog-stack";
 import { ToastHost } from "./notify";
 import { createOpenState, type OpenChange, type OpenReason } from "./popup";

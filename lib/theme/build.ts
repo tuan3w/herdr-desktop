@@ -1,6 +1,6 @@
-import { oklchToHex } from "./color";
-import { codeTokens } from "./code";
-import { terminalTokens } from "./terminal";
+import { oklchToHex } from "#lib/theme/color";
+import { codeTokens } from "#lib/theme/code";
+import { terminalTokens } from "#lib/theme/terminal";
 
 /**
  * A theme is a handful of choices. Lightness, contrast and the role of every token are fixed by `buildTheme`, so

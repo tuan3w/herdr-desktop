@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
 import { keymap } from "nsh";
-import { GLOBAL, keysOf, LOCAL, SHORTCUTS } from "./shortcuts";
+import { GLOBAL, keysOf, LOCAL, SHORTCUTS } from "#lib/shortcuts";
 
 /** The two key families: Apple platforms take Command for `mod`, every other Ctrl. */
 const FAMILIES = [true, false] as const;

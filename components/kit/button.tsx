@@ -1,7 +1,7 @@
 import { Text, View } from "nsh";
 import type { ViewRef } from "nsh";
 import { Button } from "nsh/base";
-import { hoverTransition, pressFeedback, pressTransition } from "../../lib/motion";
+import { hoverTransition, pressFeedback, pressTransition } from "#lib/motion";
 import { FOCUS_RING, FOCUS_RING_SIDEBAR } from "./core";
 import { Kbd, Tipped } from "./hint";
 import { Icon, type IconName, type IconTone } from "./icon";

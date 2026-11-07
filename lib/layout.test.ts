@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
 import config from "../nsh.json";
-import { HIT, RAIL_WIDTH, ROW, SIDEBAR_WIDTH, SPACE, TAILWIND, TYPE } from "./layout";
+import { HIT, RAIL_WIDTH, ROW, SIDEBAR_WIDTH, SPACE, TAILWIND, TYPE } from "#lib/layout";
 
 test("nsh.json hands the class engine the scales of lib/layout.ts: one meaning for text-sm everywhere", () => {
   // JSON has no tuples: compare as written.

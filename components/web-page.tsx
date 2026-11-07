@@ -2,8 +2,8 @@ import { announce, Clipboard, effect, openUrl, signal, untracked, View, WebView 
 import type { WebViewRef } from "nsh";
 import { Herdr, Pages } from "herdr-desktop/native";
 import type { PageView } from "herdr-desktop/native";
-import { pageRequest } from "../lib/files";
-import { Btn, Empty, Modal, notify, Spinner } from "./kit";
+import { pageRequest } from "#lib/files";
+import { Btn, Empty, Modal, notify, Spinner } from "#kit";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 

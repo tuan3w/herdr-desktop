@@ -1,8 +1,8 @@
 import { announce, cleanup, effect, keymap, Overlay, setAccessibilityFocus, signal, Text, View } from "nsh";
 import type { ViewRef } from "nsh/types";
 import { Toast, ToastStack } from "nsh/base";
-import { DURATION, reducedMotion } from "../../lib/motion";
-import { keyLabel } from "../../lib/shortcuts";
+import { DURATION, reducedMotion } from "#lib/motion";
+import { keyLabel } from "#lib/shortcuts";
 import { FOCUS_RING } from "./core";
 import { dialogDepth, topDialog } from "./dialog-stack";
 import { Kbd } from "./hint";

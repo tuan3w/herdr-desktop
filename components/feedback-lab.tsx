@@ -1,5 +1,5 @@
 import { keymap, mount, signal, Text, View } from "nsh";
-import { Btn, closeToast, confirmDestructive, focusToasts, Modal, notify, notifyPromise, ThemeRoot, ToastHost, undoLast } from "./kit";
+import { Btn, closeToast, confirmDestructive, focusToasts, Modal, notify, notifyPromise, ThemeRoot, ToastHost, undoLast } from "#kit";
 
 /**
  * The entry of `feedback.test.tsx` and of the screenshots of the toasts and dialogs: one button for each thing a toast or a

@@ -1,10 +1,10 @@
 import { computed, signal, Text, View } from "nsh";
 import { Herdr } from "herdr-desktop/native";
 import type { BoardRow } from "herdr-desktop/native";
-import { agentsText, type BulkAction, planBulk } from "../lib/bulk";
-import { allRows, board } from "../lib/herdr";
-import { clear, selected } from "../lib/selection";
-import { Btn, Field, Modal, notify, Switch } from "./kit";
+import { agentsText, type BulkAction, planBulk } from "#lib/bulk";
+import { allRows, board } from "#lib/herdr";
+import { clear, selected } from "#lib/selection";
+import { Btn, Field, Modal, notify, Switch } from "#kit";
 
 /** The picked agents as they are now: one that left the board is gone, one that changed shows its new state. */
 export const pickedRows = computed<BoardRow[]>(() => {

@@ -1,6 +1,6 @@
 import { signal } from "nsh";
 import type { EntryView } from "herdr-desktop/native";
-import { ageText } from "./sidebar";
+import { ageText } from "#lib/sidebar";
 
 /**
  * What the file browser, the viewers and pages from a machine need that is not a screen: which of them is open

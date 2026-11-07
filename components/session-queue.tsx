@@ -1,8 +1,8 @@
 import { Text, View } from "nsh";
 import type { QueuedView } from "herdr-desktop/native";
-import { fileName } from "../lib/session-compose";
-import { oneLine, visibleText } from "../lib/session-text";
-import { Btn, Icon, IconButton } from "./kit";
+import { fileName } from "#lib/session-compose";
+import { oneLine, visibleText } from "#lib/session-text";
+import { Btn, Icon, IconButton } from "#kit";
 
 /** Rows shown before `N more queued`. */
 const SHOWN = 3;

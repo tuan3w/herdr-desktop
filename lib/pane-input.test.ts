@@ -1,7 +1,7 @@
 import { expect, test } from "nsh/test";
 import { PaneKeys } from "herdr-desktop/native";
-import { captureKeystrokes, matchRows } from "./pane-input";
-import { GLOBAL, keysOf } from "./shortcuts";
+import { captureKeystrokes, matchRows } from "#lib/pane-input";
+import { GLOBAL, keysOf } from "#lib/shortcuts";
 
 /** Which keys capture mode takes for the pane and which it leaves to the app. */
 test("on Windows and Linux Ctrl is the app's key, so the app's shortcuts stay the app's and the rest of Ctrl is the pane's", () => {

@@ -1,7 +1,7 @@
 import { computed, effect, keymap, signal, Text, View } from "nsh";
 import type { ViewRef } from "nsh/types";
-import { fold } from "../../lib/text";
-import { hoverTransition } from "../../lib/motion";
+import { fold } from "#lib/text";
+import { hoverTransition } from "#lib/motion";
 import { FOCUS_RING, openOnDown } from "./core";
 import { Labeled, type Option } from "./fields";
 import { Icon } from "./icon";

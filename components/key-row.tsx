@@ -1,5 +1,5 @@
 import { View } from "nsh";
-import { Btn } from "./kit";
+import { Btn } from "#kit";
 
 interface Press {
   label: string;

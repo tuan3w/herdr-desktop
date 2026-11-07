@@ -1,5 +1,5 @@
 import { context, type JSX, View } from "nsh";
-import { hoverTransition } from "../../lib/motion";
+import { hoverTransition } from "#lib/motion";
 import { stateHint } from "./check";
 import { createRoving, type Orientation, RING, type Roving } from "./roving";
 

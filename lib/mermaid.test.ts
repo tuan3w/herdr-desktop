@@ -1,5 +1,5 @@
 import { expect, test } from "nsh/test";
-import { diagramPage, diagramTitle, parseDiagramResult } from "./mermaid";
+import { diagramPage, diagramTitle, parseDiagramResult } from "#lib/mermaid";
 
 const colors = { background: "#fff", text: "#111", line: "#555", fill: "#eee", border: "#ccc" };
 const page = (code: string, title = "Diagram: flowchart") => diagramPage({ origin: "http://127.0.0.1:4010", code, title, dark: false, colors });

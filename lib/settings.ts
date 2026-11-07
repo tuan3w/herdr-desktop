@@ -1,7 +1,7 @@
 import { computed, effect, signal, Storage } from "nsh";
-import { save } from "./save";
-import { themeFile } from "./theme/build";
-import { DEFAULT_THEME_ID, THEMES, themeById } from "./theme/themes";
+import { save } from "#lib/save";
+import { themeFile } from "#lib/theme/build";
+import { DEFAULT_THEME_ID, THEMES, themeById } from "#lib/theme/themes";
 
 /**
  * UI-only preferences, persisted in `Storage` (domain data lives in Rust). To add an option: a signal here with its

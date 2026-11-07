@@ -1,5 +1,5 @@
 import { mount, signal, Text, View } from "nsh";
-import { readMetrics } from "../lib/perf";
+import { readMetrics } from "#lib/perf";
 import { Btn } from "./kit/button";
 import { Autocomplete, Combobox, type ComboOption } from "./kit/combo";
 import { Modal } from "./kit/modal";

@@ -99,6 +99,7 @@ perf-app.tsx, perf-chat.tsx  entries of those scenarios (the app plus a driver f
 
 ## Code rules
 
+- **Project imports are absolute** through `package.json` `imports`: `#lib/<file>`, `#components/<file>`, `#kit` (never `../` or `./` for project code). Exceptions: siblings inside `components/kit/`, assets (fonts, SVG, PNG) and the `.ts` test seams in `components/`. `node scripts/absolute-imports.mjs` converts, `--check` is part of `make check`. Why not `@/`: nsh reads `resolve.alias` from the nsh.json next to the entry, which labs under `components/` do not have; `imports` is resolved by package, so it works everywhere (bundle, `nsh check`, `nsh test`).
 - **File names are kebab-case** for every `.ts`/`.tsx` file (`dev-panel.tsx`, `pane-tab.tsx`, `answer-dock.tsx`); the exported component keeps its PascalCase name (`DevPanel`). Tests sit beside what they test (`palette.test.tsx`), test entries end in `-lab`, `-probe` or `.fixture`. Rust files are `snake_case.rs` (the language's rule).
 - UI is built from the kit. A screen never pastes a kit component's class string. Colour is a semantic token class, never hex or `rgb()`: themes switch at runtime. Terminal colours are the one exception and come from `term-*` tokens.
 - Global shortcuts live in `lib/shortcuts.ts` once, always with `mod` (Ctrl on Linux and Windows), never `alt` (AltGr is Ctrl+Alt; Telex and VNI type with plain letters). Do not bind `mod+q` or `F11` (nsh reserves them). `lib/shortcuts.test.ts` enforces it and `App.test.tsx` presses every global shortcut as macOS, Windows and Linux.

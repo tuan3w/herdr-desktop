@@ -1,5 +1,5 @@
 import { effect, signal, Storage } from "nsh";
-import { save } from "./save";
+import { save } from "#lib/save";
 
 /**
  * How code blocks are drawn, as the person set it (`components/code-block.tsx`). Persisted under its own key until the

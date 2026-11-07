@@ -1,7 +1,7 @@
 import { cleanup, effect, keymap, signal, Text, untracked, View } from "nsh";
 import { Input } from "nsh/base";
 import type { PressEvent, ViewRef } from "nsh/types";
-import { hoverTransition } from "../../lib/motion";
+import { hoverTransition } from "#lib/motion";
 import { NUM } from "./core";
 import { useFieldControl } from "./field";
 import type { FieldRules } from "./field-parts";

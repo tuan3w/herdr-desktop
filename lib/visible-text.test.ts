@@ -1,5 +1,5 @@
 import { expect, test } from "nsh/test";
-import { rowsOf, visibleText } from "./visible-text";
+import { rowsOf, visibleText } from "#lib/visible-text";
 
 test("a character that hides what a command says is shown as its code point", () => {
   expect(visibleText("echo ok\u202e; rm -rf ~")).toBe("echo ok‹U+202E›; rm -rf ~");

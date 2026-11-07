@@ -2,18 +2,18 @@ import { Text, View } from "nsh";
 import { Button } from "nsh/base";
 import { Herdr } from "herdr-desktop/native";
 import type { BoardCheckout, BoardProject, BoardRow } from "herdr-desktop/native";
-import { newSession } from "../lib/actions";
-import { reviewWithUndo } from "../lib/herdr";
-import { animateLayout, appear, hoverTransition } from "../lib/motion";
-import { isSelected } from "../lib/selection";
-import { ageText, foldedProjects, moreOpen, projectFolder, projectLabel, projectTitle, QUIET_SHOWN, rowLabel, shownRows, toggleMore, toggleProject } from "../lib/sidebar";
+import { newSession } from "#lib/actions";
+import { reviewWithUndo } from "#lib/herdr";
+import { animateLayout, appear, hoverTransition } from "#lib/motion";
+import { isSelected } from "#lib/selection";
+import { ageText, foldedProjects, moreOpen, projectFolder, projectLabel, projectTitle, QUIET_SHOWN, rowLabel, shownRows, toggleMore, toggleProject } from "#lib/sidebar";
 import { GAP, ROW } from "#lib/layout";
 import { stateWord } from "#lib/status";
-import { AnswerDock } from "./answer-dock";
-import { Btn, Clipped, FOCUS_RING, FOCUS_RING_INSET, Icon, NUM, Pill } from "./kit";
-import { PickSlot } from "./pick-box";
-import { Monogram, ProjectMark } from "./project-parts";
-import { StatusGlyph } from "./status-glyph";
+import { AnswerDock } from "#components/answer-dock";
+import { Btn, Clipped, FOCUS_RING, FOCUS_RING_INSET, Icon, NUM, Pill } from "#kit";
+import { PickSlot } from "#components/pick-box";
+import { Monogram, ProjectMark } from "#components/project-parts";
+import { StatusGlyph } from "#components/status-glyph";
 
 /** What a row does when it is opened and what else the home needs to draw it. */
 export interface RowProps {

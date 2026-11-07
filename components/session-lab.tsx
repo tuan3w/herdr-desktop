@@ -1,11 +1,11 @@
 import { host, mount, signal, Text, View } from "nsh";
 import { Files as MachineFiles, Sessions } from "herdr-desktop/native";
 import type { AcpView, ActionResult, DiffItem, PlanStepView, QueuedView, SessionItem, SessionRef, SessionView, ToolItem } from "herdr-desktop/native";
-import { startHerdr } from "../lib/herdr";
-import { createSessionModel, type SessionPort } from "../lib/session";
-import { loadSettings } from "../lib/settings";
-import { Btn, PopupRoot, ThemeRoot, ToastHost } from "./kit";
-import { SessionChat, SessionTab } from "./session-tab";
+import { startHerdr } from "#lib/herdr";
+import { createSessionModel, type SessionPort } from "#lib/session";
+import { loadSettings } from "#lib/settings";
+import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
+import { SessionChat, SessionTab } from "#components/session-tab";
 
 /**
  * The entry of `session-tab.test.tsx` and the screenshots. Two modes, chosen by the launch parameter `mode`:
