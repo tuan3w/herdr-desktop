@@ -21,6 +21,7 @@ What this does **not** do, plainly:
 - Notifications are not withdrawn when the app quits, and one left from a previous run is not cleared when you come back: the freedesktop service has no call to list them, and the engine lives in the process with nothing that runs at exit. A leftover is dead: clicking it does nothing. (The engine does withdraw its own when it is stopped, which only a restart of the engine inside a running app does.)
 - No tray icon: nsh 0.4.0 has none (`docs/PARITY.md`).
 - Whether buttons show, and how, is the desktop's choice. GNOME shows them when a notification is expanded; some services show none. When the service does not advertise `actions`, the app sends no buttons and a click is the only action. **Unverified** on a real desktop; verified against the stand-in service described below.
+- **On macOS** delivery is `osascript`'s `display notification` (`native/app/src/notify/applescript.rs`): a title and a body, nothing more. No answer buttons, so a notification there is news and you answer in the app; a click does not come back to the app (macOS opens Script Editor, which owns the notification) and does not open the agent; a notification is not withdrawn when its agent stops needing you; and macOS lists it under Script Editor in System Settings > Notifications, where you allow it once. The text goes to `osascript` as arguments after `--`, never inside the script, so a command with quotes cannot become AppleScript. **Unverified** on a Mac: no Mac was available; the argument rules are unit-tested.
 
 ### The pieces
 
@@ -29,7 +30,7 @@ What this does **not** do, plainly:
 | Rules | `native/app/src/notify/policy.rs` | Pure state machine: a frame of what the board shows and an `Instant` in, notifications to show and withdraw out. No I/O, no clock. |
 | Thread | `native/app/src/notify/mod.rs` | One thread; gets "something changed" (`Input::Tick`), "window away" (`Input::Away`), presses and dismissals; asks the engine for the switches and the agents; runs answers off the thread. |
 | Engine side | `native/app/src/engine/alerts.rs` | The settings keys, the list of blocked and finished agents with their questions (starting the read of a question that has not been read), the answer path. |
-| Delivery | `native/app/src/notify/desktop.rs` | `org.freedesktop.Notifications` over the session bus with `zbus`'s blocking API: one connection, one listener thread for `ActionInvoked` and `NotificationClosed`. Connects on first use, so notifications off never touch the bus. |
+| Delivery | `native/app/src/notify/freedesktop.rs` (not macOS), `native/app/src/notify/applescript.rs` (macOS) | Linux: `org.freedesktop.Notifications` over the session bus with `zbus`'s blocking API: one connection, one listener thread for `ActionInvoked` and `NotificationClosed`. Connects on first use, so notifications off never touch the bus. macOS: see above. |
 | Test seam | `native/app/src/notify/recording.rs` | An engine started with a fixture records its notifications instead of showing them, so no test posts on the owner's desktop. |
 
 `notify-rust` 4 builds on the same `zbus` but its handle waits for a response by consuming itself (one notification can be waited on or withdrawn, not both) and every wait is a thread and a bus connection of its own, so the app talks to the service directly.

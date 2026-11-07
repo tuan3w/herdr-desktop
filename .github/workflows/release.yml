@@ -1,69 +1,173 @@
 name: release
 
-# A `vX.Y.Z` tag publishes a release. The versions in nsh.json and native/*/Cargo.toml must already be X.Y.Z (the release
-# commit moves them together: docs/RELEASING.md), and CHANGELOG.md must have a section for it, which is the release notes.
+# A `vX.Y.Z` or `vX.Y.Z-alpha.N` (also `-beta.N`, `-rc.N`) tag publishes a release; a tag with a `-` part is a GitHub
+# PRERELEASE. The versions in nsh.json and native/*/Cargo.toml must already be exactly the tag without its `v` (the release
+# commit moves them together: docs/RELEASING.md), and CHANGELOG.md must have a `## [<version>]` section, which is the
+# release notes.
+#
+# Run it by hand (Actions > release > Run workflow, or `gh workflow run release.yml -f tag=v0.1.0-alpha.1`) for a DRY RUN:
+# it checks, verifies, packages for both systems and keeps the files as workflow artifacts, but publishes nothing.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The tag this build is a dry run of (vX.Y.Z or vX.Y.Z-alpha.N). Nothing is published."
+        required: true
+        default: "v0.1.0-alpha.1"
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   CARGO_INCREMENTAL: "0"
   CARGO_TERM_COLOR: always
 
 jobs:
-  release:
+  prepare:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v4
 
       - name: The tag, nsh.json and the crates name one version
         id: version
+        env:
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]] || { echo "::error::'$TAG' is not vX.Y.Z or vX.Y.Z-(alpha|beta|rc).N"; exit 1; }
+          version="${TAG#v}"
           nsh_version="$(jq -r .version nsh.json)"
-          [ "$nsh_version" = "$version" ] || { echo "::error::tag $GITHUB_REF_NAME but nsh.json says $nsh_version"; exit 1; }
+          [ "$nsh_version" = "$version" ] || { echo "::error::tag $TAG but nsh.json says $nsh_version"; exit 1; }
           for toml in native/*/Cargo.toml; do
             crate_version="$(sed -n 's/^version = "\(.*\)"$/\1/p' "$toml" | head -1)"
-            [ "$crate_version" = "$version" ] || { echo "::error::tag $GITHUB_REF_NAME but $toml says $crate_version"; exit 1; }
+            [ "$crate_version" = "$version" ] || { echo "::error::tag $TAG but $toml says $crate_version"; exit 1; }
           done
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          prerelease=false
+          [[ "$version" == *-* ]] && prerelease=true
+          { echo "tag=$TAG"; echo "version=$version"; echo "prerelease=$prerelease"; } >> "$GITHUB_OUTPUT"
 
       - name: The release notes are the CHANGELOG section of this version
         run: |
-          awk -v v="${{ steps.version.outputs.version }}" '
-            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+          awk -v header="## [${{ steps.version.outputs.version }}]" '
+            index($0, header) == 1 { on = 1; next }
             on && /^## \[/ { exit }
             on { print }
           ' CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > release-notes.md
           [ -s release-notes.md ] || { echo "::error::CHANGELOG.md has no section for ${{ steps.version.outputs.version }}"; exit 1; }
           cat release-notes.md
 
-      - uses: ./.github/actions/setup
+      - uses: actions/upload-artifact@v4
         with:
-          mobile-token: ${{ secrets.HERDR_MOBILE_TOKEN }}
+          name: notes
+          path: release-notes.md
+          retention-days: 7
 
-      - name: make verify
+  build:
+    name: build ${{ matrix.name }}
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-24.04
+          # Apple silicon only: nsh 0.4.0 ships its macOS CLI and runtime for arm64 (nsh-macos-arm64.tar.gz) and
+          # there is no x86_64 one to build an Intel app with. macos-14 is refused for this repository; macos-15 runs.
+          - name: macos-arm64
+            os: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      - name: make verify (Linux: a real GTK window under Xvfb, with the AT-SPI audit)
+        if: runner.os == 'Linux'
         run: dbus-run-session -- xvfb-run -a env GSK_RENDERER=cairo GTK_A11Y=atspi make verify
+
+      - name: make verify-mac (no AT-SPI audit: it is Linux's accessibility bus)
+        if: runner.os == 'macOS'
+        run: make verify-mac
 
       - name: make package
         run: make package
 
-      - name: Name the tarball and checksum it
+      - name: Name the Linux tarball
+        if: runner.os == 'Linux'
         run: |
-          name="herdr-desktop-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz"
+          name="Herdr-Desktop-${{ needs.prepare.outputs.version }}-linux-x86_64.tar.gz"
+          tar -tzf ".scratch/dist/Herdr Desktop.tar.gz" | grep -E 'HerdrDesktop$|\.desktop$|\.png$|nsh/bundle\.nshc$'
           mkdir -p release
           cp ".scratch/dist/Herdr Desktop.tar.gz" "release/$name"
-          (cd release && sha256sum "$name" > "$name.sha256" && cat "$name.sha256")
+          ls -l release
+
+      - name: Name the macOS zip
+        if: runner.os == 'macOS'
+        run: |
+          app=".scratch/dist/Herdr Desktop.app"
+          test -x "$app/Contents/MacOS/"*
+          codesign --verify --deep --strict "$app"
+          name="Herdr-Desktop-${{ needs.prepare.outputs.version }}-macos-arm64.zip"
+          mkdir -p release
+          # ditto keeps permissions, symlinks and the signature; `zip` would not.
+          ditto -c -k --keepParent "$app" "release/$name"
+          ls -l release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.name }}
+          path: release/*
+          retention-days: 14
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        if: failure() && runner.os == 'Linux'
+        with:
+          name: diagnostics-linux
+          path: |
+            .scratch/a11y/
+            .scratch/shots/
+          if-no-files-found: ignore
+
+  publish:
+    # Only a pushed tag publishes; a manual run stops after the artifacts.
+    if: github.event_name == 'push'
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: notes
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: release
+
+      - name: Checksums
+        working-directory: release
+        run: |
+          sha256sum Herdr-Desktop-* > SHA256SUMS
+          cat SHA256SUMS
+          ls -l
 
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" release/* \
-            --title "Herdr Desktop ${{ steps.version.outputs.version }}" \
+          flags=()
+          [ "${{ needs.prepare.outputs.prerelease }}" = "true" ] && flags+=(--prerelease)
+          gh release create "${{ needs.prepare.outputs.tag }}" release/* \
+            --title "Herdr Desktop ${{ needs.prepare.outputs.version }}" \
             --notes-file release-notes.md \
-            --verify-tag
+            --verify-tag "${flags[@]}"

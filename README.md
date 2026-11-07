@@ -2,7 +2,7 @@
 
 A native desktop client for [herdr](https://herdr.dev), the terminal multiplexer for coding agents. It is the desktop counterpart of `herdr-mobile`: one window shows every agent on every machine, says the moment one needs you, lets you answer safely, and lets you look away.
 
-Built with [nsh](https://github.com/longbridge/nsh) (Rust + TSX, native GTK 4 widgets, no web view for the UI). Linux first. License: GPL-3.0-or-later.
+Built with [nsh](https://github.com/longbridge/nsh) (Rust + TSX, native widgets: GTK 4 on Linux, AppKit on macOS; no web view for the UI). Linux first; macOS (Apple silicon) builds are new and untried on a real Mac ([docs/MACOS.md](docs/MACOS.md)). License: GPL-3.0-or-later.
 
 ## What it does
 
@@ -17,7 +17,7 @@ Feature-by-feature status against the phone app is in [docs/PARITY.md](docs/PARI
 
 ## Status
 
-Under construction. `docs/PARITY.md` is the ledger of what is done.
+Alpha: `0.1.0-alpha.1` is the first test release (Linux x86_64 and macOS Apple silicon, from the Releases page; [CHANGELOG.md](CHANGELOG.md) says what works and what does not). `docs/PARITY.md` is the ledger of what is done.
 
 ## Build
 
@@ -30,5 +30,7 @@ make run    # dev window
 make package            # .scratch/dist/Herdr Desktop.tar.gz
 local/install.sh        # install it for your user (--uninstall removes it)
 ```
+
+On a Mac (Xcode command line tools, clang) the same commands work with `make verify-mac` in place of `make` (no AT-SPI audit) and `make package` producing `Herdr Desktop.app`. Releases are cut as in [docs/RELEASING.md](docs/RELEASING.md).
 
 [AGENTS.md](AGENTS.md) is how to work here, [DESIGN.md](DESIGN.md) the design system, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) how the pieces fit.
