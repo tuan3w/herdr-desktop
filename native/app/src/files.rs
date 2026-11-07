@@ -6,12 +6,13 @@
 //! says something moved, like the rest of the app (a tick carries no data).
 
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::{Arc, LazyLock};
 use std::time::{Duration, Instant};
 
 use herdr_core::files::{
-    self, EntryKind, FileView, Files as MachineFiles, Tunnel, UploadError, ViewKind, candidates,
+    self, EntryKind, FileView, Files as MachineFiles, Quick, QuickSearch, Tunnel, UploadError,
+    ViewKind, candidates,
 };
 use nsh_core::prelude::*;
 use parking_lot::Mutex;
@@ -152,6 +153,38 @@ pub struct Found {
     pub kind: EntryKindName,
 }
 
+/// One file found by quick open.
+#[derive(Debug, Clone, PartialEq, JsObject)]
+pub struct FileHit {
+    /// The file's path relative to the folder searched, `/` separated (`components/palette.tsx`).
+    pub path: String,
+    /// The file's name (`palette.tsx`).
+    pub name: String,
+    /// The folder part of `path` (`components`); empty for a file directly in the folder.
+    pub dir: String,
+    /// The matched characters of `path` as flat pairs `[start0, end0, start1, end1, ...]` in UTF-16 code units
+    /// (indices into the JavaScript string), sorted, with neighbours merged. Empty for an empty query.
+    pub marks: Vec<u32>,
+    /// Found only by the second pass: git ignores the file (or it is hidden). Shown after every other match.
+    pub ignored: bool,
+}
+
+/// What quick open found.
+#[derive(Debug, Clone, PartialEq, JsObject)]
+pub struct FileSearch {
+    /// The best matches first, at most the `limit` asked.
+    pub hits: Vec<FileHit>,
+    /// How many files matched in all.
+    pub total: u32,
+    /// How many paths the folder's index holds.
+    pub indexed: u32,
+    /// The walk that made the index stopped at a limit (100,000 paths, 5 seconds, 8 MB of path text): files may
+    /// be missing from it.
+    pub truncated: bool,
+    /// Microseconds the ranking took, not counting the walk.
+    pub took_us: u32,
+}
+
 /// How an upload is going.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PropEnum)]
 pub enum UploadStateName {
@@ -261,6 +294,29 @@ fn file_data(view: FileView, local: bool) -> FileData {
     }
 }
 
+/// The quick-open index of every folder asked, for the life of the app.
+static QUICK: LazyLock<Quick> = LazyLock::new(Quick::new);
+
+fn file_search(found: QuickSearch) -> FileSearch {
+    FileSearch {
+        hits: found
+            .hits
+            .into_iter()
+            .map(|h| FileHit {
+                path: h.path,
+                name: h.name,
+                dir: h.dir,
+                marks: h.marks,
+                ignored: h.ignored,
+            })
+            .collect(),
+        total: found.total as u32,
+        indexed: found.indexed as u32,
+        truncated: found.truncated,
+        took_us: found.took_us.min(u64::from(u32::MAX)) as u32,
+    }
+}
+
 /// The files of every machine: the browser, the viewers and `Send a file`. A path is absolute (or `~/`);
 /// anything else is refused with a sentence. A failure throws with the words to show: what happened and
 /// where.
@@ -349,6 +405,45 @@ impl Files {
                     format!("{target} does not exist")
                 }
             }))
+        })
+        .await
+    }
+
+    /// Quick open: the files of a project folder whose name or path matches `query`, best first, at most `limit`
+    /// of them. The words of the query (separated by spaces) must all match; a word that matches the file's name
+    /// beats one that matches only a folder, and shorter paths win ties. An empty query lists the files changed
+    /// last. Files git ignores come after every other match and only for a query of 3 letters or more (this
+    /// computer only: another machine lists what `git ls-files` lists). The first ask of a folder waits for the
+    /// walk that indexes it (at most 5 seconds, 100,000 paths); later asks answer from memory, and the index is
+    /// walked again in the background when asked after 60 seconds. Throws when the folder cannot be read.
+    pub async fn search(
+        machine: String,
+        root: String,
+        query: String,
+        limit: u32,
+    ) -> Result<FileSearch, String> {
+        let engine = engine()?;
+        run(move || {
+            let files = engine.files_of(&machine)?;
+            let found = QUICK
+                .search(&machine, &files, &root, &query, limit as usize)
+                .map_err(|e| e.message)?;
+            Ok(file_search(found))
+        })
+        .await
+    }
+
+    /// Builds or refreshes the quick-open index of a folder and resolves with how many paths it holds: call it
+    /// when the palette enters the files scope, so the first `search` does not wait for the walk. Throws when
+    /// the folder cannot be read.
+    pub async fn warm(machine: String, root: String) -> Result<u32, String> {
+        let engine = engine()?;
+        run(move || {
+            let files = engine.files_of(&machine)?;
+            QUICK
+                .warm(&machine, &files, &root)
+                .map(|n| n as u32)
+                .map_err(|e| e.message)
         })
         .await
     }
