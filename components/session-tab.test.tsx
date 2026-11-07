@@ -500,3 +500,19 @@ test("an answer that is still being written shows its open fence as it stands, a
   const shown = (a: App) => a.texts().filter((t) => !t.includes("/tmp/herdr-desktop-"));
   expect(shown(live)).toEqual(shown(whole));
 });
+
+test("a long fence being written does not take the end away: the chat keeps following it and never offers a jump", async () => {
+  const app = await open("./session-lab.tsx", { ...DESKTOP, host: { params: { mode: "scripted", scene: "code-stream", lines: 600 } } });
+  await app.waitFor("Stream a piece");
+  // The prose, the fence's opening line, then 600 lines in pieces of 20.
+  for (let i = 0; i < 2 + 30; i++) {
+    await app.press("Stream a piece");
+    await app.wait(40);
+  }
+  await app.waitUntil(() => said(app, "let value_599"));
+  // The block is far taller than the window; the end of it is on screen and the transcript is still at its end.
+  expect(said(app, "let value_0 ")).toBe(false);
+  expect(app.shows("Jump to latest")).toBe(false);
+  expect(app.shows("label:/^New messages/")).toBe(false);
+  expect(app.shows("label:/^Show all/")).toBe(false);
+});
