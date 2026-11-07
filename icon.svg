@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Herdr Desktop</title>
+  <rect width="1024" height="1024" rx="224" fill="#0d0e10"/>
+  <g fill="none" stroke="#ecedef" stroke-width="88" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M256 433V355a128 128 0 0 1 256 0V796"/>
+    <path d="M512 596a128 128 0 0 1 256 0V796"/>
+  </g>
+  <circle cx="384" cy="384" r="47" fill="#f2994a"/>
+</svg>

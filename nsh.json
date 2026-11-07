@@ -3,11 +3,22 @@
   "id": "dev.herdrmobile.herdr_desktop",
   "version": "0.1.0",
   "build": 1,
+  "icon": "icon.png",
   "appearance": "system",
   "theme": "theme.json",
   "rust": ["native/app"],
   "capabilities": {
     "clipboard": true,
-    "openUrl": { "schemes": ["https", "http", "mailto"] }
+    "openUrl": { "schemes": ["https", "http", "mailto"] },
+    "network": {
+      "http": [
+        {
+          "host": "api.github.com",
+          "methods": ["GET"],
+          "schemes": ["https"],
+          "paths": ["/repos/tuan3w/herdr-desktop/releases/latest"]
+        }
+      ]
+    }
   }
 }
