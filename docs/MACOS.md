@@ -48,7 +48,7 @@ Anything that trusts the app by its signature (a keychain item, a granted permis
 | Perf and CPU scripts, screenshots | Linux only (`/proc`, Xvfb) | `scripts/perf.mjs`, `scripts/cpu.mjs`, `make shots` |
 | Crash guard (`preload_guard`) | Linux only (an `LD_PRELOAD` allocator that breaks GTK) | `native/app/src/preload_guard.rs` |
 
-`make verify-mac` is `make verify` without `a11y`. CI runs it on `macos-15`, then packages and checks that the `.app` has its executable, an `Info.plist` and a valid ad hoc signature (`codesign --verify --deep --strict`).
+`make verify-mac` is `make verify` without `a11y`, and with only a smoke subset of the TSX tests. CI does not run it on a push: `ci.yml` packages and signs the app (and checks that the `.app` has its executable, an `Info.plist` and the self-signed signature) and lints on `macos-15`; the slow checks (`nsh check`, both crates' fmt/clippy/tests, every TSX test) are `tests.yml`, nightly and by hand; a stable release runs `make verify-mac` itself. `docs/RELEASING.md` has the timings and the commands.
 
 ## Unverified
 
