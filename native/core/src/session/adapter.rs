@@ -65,7 +65,14 @@ pub(super) fn ensure_script(home: &Path) -> std::io::Result<PathBuf> {
     if std::fs::read_to_string(&path).is_ok_and(|have| have == KEEPER_SCRIPT) {
         return Ok(path);
     }
-    let tmp = dir.join(format!("keeper-desktop.py.{}.tmp", std::process::id()));
+    // Two hosts of one home (the hub's and one made for a command) may write at once: a name of their own each,
+    // or one renames the other's file away and its own rename fails with ENOENT.
+    static WRITES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let tmp = dir.join(format!(
+        "keeper-desktop.py.{}.{}.tmp",
+        std::process::id(),
+        WRITES.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
     let mut file = std::fs::OpenOptions::new()
         .write(true)
         .create(true)

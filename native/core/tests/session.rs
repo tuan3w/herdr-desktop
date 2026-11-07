@@ -33,13 +33,10 @@ fn find_in_path(name: &str) -> PathBuf {
         .unwrap_or_else(|| panic!("{name} is not installed"))
 }
 
-/// herdr-mobile's scripted agent, from the sibling checkout the session crates are built from.
+/// The scripted agent: herdr-mobile's `fake_acp_agent.py` plus what this app's tests need, kept in this repository so the
+/// tests run on a machine (CI) that has no herdr-mobile checkout.
 fn fake_agent() -> PathBuf {
-    let here = Path::new(env!("CARGO_MANIFEST_DIR"));
-    here.ancestors()
-        .map(|a| a.join("herdr-mobile/app/test/support/fake_acp_agent.py"))
-        .find(|p| p.is_file())
-        .expect("herdr-mobile is checked out next to herdr-desktop")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/support/fake_acp_agent.py")
 }
 
 /// Polls until the condition holds; a test never sleeps a fixed time.
@@ -710,10 +707,11 @@ fn only_a_keeper_this_app_started_is_ended_by_it() {
 
     // A keeper somebody else started (the phone, a terminal) is not ours.
     let foreign = rig.local().start("omp", &rig.cwd()).expect("start");
-    assert!(matches!(
-        hub.kill(LOCAL, &foreign.id),
-        Err(KeeperError::NotOwned(_))
-    ));
+    let refused = hub.kill(LOCAL, &foreign.id);
+    assert!(
+        matches!(refused, Err(KeeperError::NotOwned(_))),
+        "{refused:?}"
+    );
     assert!(
         rig.local()
             .list()
