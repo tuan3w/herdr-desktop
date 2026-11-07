@@ -1,11 +1,12 @@
 import { expect, test } from "nsh/test";
-import { ENTRY, FIRST, openAgents, ready } from "../app-seam";
+import { ENTRY, FIRST, openTerminals, ready } from "../app-seam";
 
 ENTRY.path = "../App.tsx";
 
 test("the developer panel shows what the app itself uses and how fast a watched pane is read and parsed", async () => {
   const app = await ready();
-  await openAgents(app, FIRST);
+  // A watched pane is the terminal: the sidebar opens a chat for this agent, so switch to its mirror.
+  await openTerminals(app, FIRST);
   await app.keyboard.press("mod+shift+d");
   // the panel refreshes twice a second: wait for the line that needs a real read to have happened
   await app.waitUntil(() => app.texts().some((t) => /µs\/row/.test(t)));

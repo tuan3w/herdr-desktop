@@ -12,7 +12,8 @@ import { commandText, hintFor, isPinned, matchCommands, type SlashCommand, usage
 import { FOCUS_RING, FOCUS_RING_INSET, Icon, IconButton, notify } from "./kit";
 import { AttachPicker } from "./session-attach";
 import { SessionModeChip, SessionModelPicker } from "./session-config";
-import { SessionQueue } from "./session-queue";
+import { CHAT_COLUMN } from "#lib/layout";
+import { SessionQueue } from ".\/session-queue";
 import { SlashList } from "./slash-list";
 
 /** What the chat does with its message box from outside: the open of a tab, `mod+2`, `Reply…`. */
@@ -304,7 +305,7 @@ export function SessionComposer(props: {
   const note = () => error() || deliveryNote(view());
 
   return (
-    <View class="w-full max-w-[780px] gap-1.5 self-center px-4 pb-3 pt-1">
+    <View class={`${CHAT_COLUMN} gap-2 pb-4 pt-2`}>
       <If when={view().queue.length > 0}>
         <SessionQueue queue={view().queue} onTakeBack={(q) => void takeBack(q.id)} onSendNow={() => void sendNow()} />
       </If>
@@ -320,12 +321,12 @@ export function SessionComposer(props: {
       <If when={listed() === "mention"}>
         <MentionList entries={files4mention()} dir={query().dir} highlighted={Math.min(picked(), files4mention().length - 1)} onPick={pickMention} />
       </If>
-      <View class="gap-1 rounded-2xl border border-input bg-card px-3 pb-2 pt-2 focus-within:border-ring">
+      <View class="gap-2 rounded-2xl border border-input bg-card px-4 pb-3 pt-3 focus-within:border-ring">
         <If when={files().length > 0}>
-          <View class="flex-row flex-wrap gap-1.5 pb-1" role="list" accessibilityLabel="Attached files">
+          <View class="flex-row flex-wrap gap-2 pb-1" role="list" accessibilityLabel="Attached files">
             <Each of={files()} key={(p: string) => p}>
               {(path) => (
-                <View role="group" accessibilityLabel={`Attached: ${fileName(path())}`} class="h-7 flex-row items-center gap-1.5 rounded-md bg-muted pl-2 pr-0.5">
+                <View role="group" accessibilityLabel={`Attached: ${fileName(path())}`} class="h-8 flex-row items-center gap-2 rounded-md bg-muted pl-2 pr-1">
                   <Icon name="file" size={12} tone="muted-foreground" />
                   <Text class="max-w-[200px] text-xs text-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
                     {fileName(path())}

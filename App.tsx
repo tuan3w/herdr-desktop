@@ -23,16 +23,17 @@ import { StartAgent } from "./components/start-agent";
 import { StatusBar } from "./components/status-bar";
 import { WebPage } from "./components/web-page";
 import { Workspace } from "./components/workspace";
-import { notify, PopupRoot, RAIL_WIDTH, rail, Skeleton, snug, ThemeRoot, ToastHost } from "./components/kit";
+import { notify, PopupRoot, rail, Skeleton, snug, ThemeRoot, ToastHost } from "./components/kit";
 import { actions, appMenu, globalActions, machinesOpen, naming, newAgentOpen, newSessionOpen, newSessionProject, palette, runAction, settingsOpen, shortcutsOpen } from "./lib/actions";
 import { dockReady, loadDock, openPane, openSession, showBoard } from "./lib/dock";
 import { openTarget } from "./lib/open-agent";
 import { board, startHerdr } from "./lib/herdr";
-import { hoverTransition } from "./lib/motion";
+import { hoverTransition, motionReady } from "./lib/motion";
 import { saveFailures } from "./lib/save";
 import { loadSettings, settingsReady } from "./lib/settings";
 import { type GlobalShortcut, GLOBAL, keysOf } from "./lib/shortcuts";
-import { loadSidebar, SIDEBAR_WIDTH, sidebarReady, sidebarWidth } from "./lib/sidebar";
+import { loadSidebar, sidebarReady, sidebarWidth } from "./lib/sidebar";
+import { RAIL_WIDTH, SIDEBAR_WIDTH } from "#lib/layout";
 
 // A test opens the app with `host: { params: { fixture } }`: the engine then runs against the scripted herdr (the Rust
 // side honours it only with HERDR_DESKTOP_TEST=1). In the real app `host.params` is empty.
@@ -90,6 +91,8 @@ function App() {
     } else if (loading) {
       loading = false;
       announce("Loaded");
+      // What is on screen now does not move; what arrives from here on does.
+      setTimeout(() => motionReady.set(true), 600);
     }
   });
   // A full storage must never be silent: the newest changes are then only in memory. One warning per 30 s.

@@ -511,7 +511,7 @@ function Row(props: { pos: () => number; core: Core; picked: (c: Choice) => bool
       onMouseEnter={() => core.nav.set(props.pos(), "pointer")}
       accessibilityState={{ selected: current(), disabled: choice()?.disabled }}
       accessibilityLabel={choice() ? rowName(choice()!, chosen()) : ""}
-      class={`h-8 flex-row items-center gap-2 rounded-md px-2 ${current() ? "bg-accent" : ""} ${choice()?.disabled ? "opacity-50" : ""}`}
+      class={`h-9 flex-row items-center gap-2 rounded-md px-3 ${current() ? "bg-accent" : ""} ${choice()?.disabled ? "opacity-50" : ""}`}
     >
       <Clipped class="max-w-[70%] shrink-0 text-sm text-popover-foreground">{choice()?.title ?? ""}</Clipped>
       <View class="min-w-0 flex-1">
@@ -546,7 +546,7 @@ function Rows(props: { core: Core; picked: (c: Choice) => boolean; onPick: (pos:
       <If
         when={core.model.count() > 0}
         else={
-          <View class="h-8 flex-row items-center gap-2 px-2">
+          <View class="h-9 flex-row items-center gap-2 px-3">
             <If when={props.loading}>
               <Spinner size={14} tone="muted-foreground" />
             </If>
@@ -568,7 +568,7 @@ function Rows(props: { core: Core; picked: (c: Choice) => boolean; onPick: (pos:
             <If
               when={row() >= 0}
               else={
-                <View class="h-7 justify-end px-2 pb-1">
+                <View class="h-8 justify-end px-3 pb-1">
                   <Text class="text-xs font-medium text-muted-foreground">{l().names[-row() - 1]}</Text>
                 </View>
               }
@@ -859,7 +859,7 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
   const stateHint = () => [props.required && "required", props.readOnly && "read only", invalid() && "invalid"].filter(Boolean).join(", ") || undefined;
   const hasValue = () => values().length > 0;
   const clearable = () => editable() && hasValue() && (props.multiple === true ? props.clear === true : !!props.onClear);
-  const small = () => (props.small ? "h-7 text-xs" : "");
+  const small = () => (props.small ? "h-8 text-xs" : "");
 
   const input = (
     <View
@@ -985,11 +985,11 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
       onMouseLeave={() => {
         pointerOver = false;
       }}
-      class={`relative min-h-8 flex-row flex-wrap items-center gap-1 rounded-md border bg-card py-1 pl-1.5 pr-8 ${core.focused() ? "border-ring" : invalid() ? "border-destructive" : "border-input hover:border-muted-foreground/50"}`}
+      class={`relative min-h-9 flex-row flex-wrap items-center gap-1 rounded-md border bg-card py-1 pl-2 pr-8 ${core.focused() ? "border-ring" : invalid() ? "border-destructive" : "border-input hover:border-muted-foreground/50"}`}
     >
       <Each of={chips()} key={(c: { value: string; text: string }) => c.value}>
         {(chip, index) => (
-          <View class={`h-6 flex-row items-center gap-0.5 rounded bg-muted pl-2 pr-0.5 ${chipCursor() === index() ? "outline-2 outline-ring" : ""}`}>
+          <View class={`h-6 flex-row items-center gap-1 rounded bg-muted pl-2 pr-1 ${chipCursor() === index() ? "outline-2 outline-ring" : ""}`}>
             <Text class="max-w-48 line-clamp-1 text-xs text-foreground">
               {chip().text}
             </Text>

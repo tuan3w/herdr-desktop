@@ -4,13 +4,15 @@ import { Herdr } from "herdr-desktop/native";
 import type { BoardCheckout, BoardProject, BoardRow } from "herdr-desktop/native";
 import { newSession } from "../lib/actions";
 import { reviewWithUndo } from "../lib/herdr";
-import { hoverTransition } from "../lib/motion";
-import { isSelected, selected } from "../lib/selection";
+import { animateLayout, appear, hoverTransition } from "../lib/motion";
+import { isSelected } from "../lib/selection";
 import { ageText, foldedProjects, moreOpen, projectFolder, projectLabel, projectTitle, QUIET_SHOWN, rowLabel, shownRows, toggleMore, toggleProject } from "../lib/sidebar";
+import { GAP, ROW } from "#lib/layout";
+import { stateWord } from "#lib/status";
 import { AnswerDock } from "./answer-dock";
 import { Btn, Clipped, FOCUS_RING, FOCUS_RING_INSET, Icon, NUM, Pill } from "./kit";
-import { PickBox } from "./pick-box";
-import { Monogram, StateChips } from "./project-parts";
+import { PickSlot } from "./pick-box";
+import { Monogram, ProjectMark } from "./project-parts";
 import { StatusGlyph } from "./status-glyph";
 
 /** What a row does when it is opened and what else the home needs to draw it. */
@@ -19,27 +21,25 @@ export interface RowProps {
   project: BoardProject;
   /** Keys of every row in display order, for Shift ranges. */
   order: () => readonly string[];
-  /** The agent's question is answered in the `Needs you` strip above, so this row does not repeat the answers. */
-  answeredAbove?: boolean;
+  /** `Answer` on a row that waits: the one place a question is answered besides the agent's own tab (`Triage`, opened at this agent). */
+  onAnswer: (row: BoardRow) => void;
   onOpen: (row: BoardRow, options?: { reply?: boolean }) => void;
 }
 
 /**
- * The picking box shows on hover or focus, and always once anything is picked (so a range can be built without
- * hunting for it); it stays in the accessibility tree and Tab either way.
+ * `waiting for you · claude · hotfix · terminal`: what the agent is doing in words (a quiet shape says it too, a word
+ * does not depend on seeing it), the agent, its checkout when the project has several, and whether it is a chat or a
+ * terminal; the inbox adds the project in front and leaves the state out (the inbox is the state).
  */
-const pickClass = () => (selected().length > 0 ? "" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100");
-
-/** `claude · hotfix · terminal`: the agent, its checkout when the project has several, and whether it is a chat or a terminal; the strip adds the project in front. */
-function detail(row: BoardRow, project: BoardProject, withProject: boolean): string {
+function detail(row: BoardRow, project: BoardProject, inbox: boolean): string {
   const named = project.checkouts.length > 1 ? project.checkouts.find((c) => c.path === row.checkout)?.name : undefined;
   // The main checkout is called what the project is: saying it twice adds nothing.
   const checkout = named?.toLowerCase() === project.name.toLowerCase() ? undefined : named;
-  return [withProject ? project.name : "", row.agent, checkout, row.session ? "chat" : "terminal"].filter(Boolean).join(" · ");
+  return [inbox ? project.name : stateWord(row.status, row.reviewed), row.agent, checkout, row.session ? "chat" : "terminal"].filter(Boolean).join(" · ");
 }
 
-/** The part of a row that opens the agent: glyph, name, what it is, how long; a chat adds what the agent said last. */
-export function Opener(props: Pick<RowProps, "row" | "project" | "onOpen"> & { withProject?: boolean }) {
+/** The part of a row that opens the agent: glyph, name, what it is, how long; a chat adds what the agent said last. `loud` is the inbox's. */
+export function Opener(props: Pick<RowProps, "row" | "project" | "onOpen"> & { loud?: boolean }) {
   const row = () => props.row;
   return (
     <Button
@@ -47,12 +47,12 @@ export function Opener(props: Pick<RowProps, "row" | "project" | "onOpen"> & { w
       selected={isSelected(row().key)}
       accessibilityLabel={rowLabel(row(), props.project.name)}
       style={hoverTransition()}
-      class={`min-w-0 flex-1 flex-row items-center gap-3 rounded-md px-2 py-1.5 hover:bg-accent selected:bg-accent ${FOCUS_RING_INSET}`}
+      class={`min-w-0 flex-1 flex-row items-center gap-3 rounded-md hover:bg-accent selected:bg-accent ${ROW.agent.class} ${FOCUS_RING_INSET}`}
     >
-      <StatusGlyph status={row().status} />
+      <StatusGlyph status={row().status} size={props.loud ? 16 : 12} loud={props.loud} id={row().key} />
       <View class="min-w-0 flex-1">
         <Clipped class="text-sm font-medium text-foreground">{row().name}</Clipped>
-        <Clipped class="text-xs text-muted-foreground">{detail(row(), props.project, props.withProject === true)}</Clipped>
+        <Clipped class="text-xs text-muted-foreground">{detail(row(), props.project, props.loud === true)}</Clipped>
         <If when={row().lastMessage}>{(line) => <Clipped class="text-xs text-muted-foreground">{line()}</Clipped>}</If>
       </View>
       <If when={row().offline}>
@@ -66,15 +66,16 @@ export function Opener(props: Pick<RowProps, "row" | "project" | "onOpen"> & { w
 }
 
 /**
- * What an agent that needs you asks, under its name: the answers when the question is one the app understands (the one
- * `AnswerDock`, the same behaviour everywhere), else the last rows of its screen so the person can see for themselves,
- * and `Reply…` (opens the pane with the message box). A chat is answered in its own tab, where its permission dock is.
+ * What an agent that needs you asks, under its name, in the inbox: the answers when the question is one the app
+ * understands (the one `AnswerDock`, the same behaviour everywhere), else the last rows of its screen so the person can see
+ * for themselves, and `Reply…` (opens the pane with the message box). A chat is answered in its own tab, where its
+ * permission dock is.
  */
 export function Question(props: { row: BoardRow; onOpen: RowProps["onOpen"] }) {
   const row = () => props.row;
   return (
-    <If when={!row().session} else={<Text class="px-3 pb-1.5 text-xs font-medium text-signal">Waiting for your answer in the chat</Text>}>
-      <View class="gap-2 px-3 pb-1.5">
+    <If when={!row().session} else={<Text class="pb-2 text-xs text-muted-foreground">Waiting for your answer in the chat</Text>}>
+      <View class="gap-3 pb-2">
         <If
           when={row().prompt}
           else={
@@ -95,30 +96,26 @@ export function Question(props: { row: BoardRow; onOpen: RowProps["onOpen"] }) {
   );
 }
 
-/** One agent of a project: a line, and under it what it asks while it needs you. A machine that is not connected dims it. */
+/**
+ * One agent of a project: a line. An agent that needs you is said quietly (a small muted shape, `waiting for you` in its
+ * meta line) with `Answer` beside it: the question and its chips are in the inbox, never repeated on the card. A machine
+ * that is not connected dims it.
+ */
 export function AgentRow(props: RowProps) {
   const row = () => props.row;
   const asking = () => row().status === "blocked" && !row().offline;
   return (
-    <View class={`group ${row().offline ? "opacity-60" : ""}`}>
-      <View class="flex-row items-center gap-1">
-        <View class={pickClass()}>
-          <PickBox rowKey={row().key} name={row().name} order={props.order} />
-        </View>
-        <Opener row={props.row} project={props.project} onOpen={props.onOpen} />
-        <If when={row().status === "done" && !row().offline}>
-          <View class="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
-            <Btn small variant="ghost" label="Reviewed" name={`Reviewed: ${row().name}`} onPress={() => reviewWithUndo([row()])} />
-          </View>
-        </If>
-      </View>
+    <View style={appear(row().key)} class={`group/row relative flex-row items-center gap-2 pr-1 ${row().offline ? "opacity-60" : ""}`}>
+      <Opener row={props.row} project={props.project} onOpen={props.onOpen} />
       <If when={asking()}>
-        <If when={!props.answeredAbove} else={<Text class="px-12 pb-1.5 text-xs text-muted-foreground">Answer it in Needs you, above</Text>}>
-          <View class="pl-9">
-            <Question row={props.row} onOpen={props.onOpen} />
-          </View>
-        </If>
+        <Btn small variant="ghost" label="Answer" name={`Answer: ${row().name}`} onPress={() => props.onAnswer(row())} />
       </If>
+      <If when={row().status === "done" && !row().offline}>
+        <View class="opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100">
+          <Btn small variant="ghost" label="Reviewed" name={`Reviewed: ${row().name}`} onPress={() => reviewWithUndo([row()])} />
+        </View>
+      </If>
+      <PickSlot rowKey={row().key} name={row().name} order={props.order} surface="card" />
     </View>
   );
 }
@@ -128,15 +125,14 @@ export interface CardProps {
   project: BoardProject;
   several: boolean;
   order: () => readonly string[];
-  /** Keys of the agents the strip answers. */
-  inStrip: () => ReadonlySet<string>;
+  onAnswer: RowProps["onAnswer"];
   onOpen: RowProps["onOpen"];
 }
 
 /**
- * A project: its name (a button that folds it), where it lives, what its agents are doing as shape and number chips, the
- * checkouts that have agents, then its agents, those that need you first. A project that needs you has the loud chip in
- * its header and keeps its place: only a pin moves a project. `New agent session in <project>` starts a chat in its folder.
+ * A project: its name (a button that folds it), where it lives, its one aggregate (the signal dot while something waits and
+ * the counts in words), the checkouts that have agents, then its agents, those that need you first. A project that needs
+ * you keeps its place: only a pin moves a project. `New agent session in <project>` starts a chat in its folder.
  */
 export function ProjectCard(props: CardProps) {
   const p = () => props.project;
@@ -146,19 +142,25 @@ export function ProjectCard(props: CardProps) {
   const open = () => moreOpen().includes(p().key);
   const worktrees = () => p().checkouts.length > 1 || p().checkouts.some((c) => c.linked);
   return (
-    <View role="group" accessibilityLabel={projectLabel(p())} class={`min-w-0 flex-1 gap-1 rounded-lg border border-border bg-card p-2 ${p().offline ? "opacity-60" : ""}`}>
-      <View class="group flex-row items-center gap-2">
+    <View role="group" accessibilityLabel={projectLabel(p())} style={appear(p().key)} class={`min-w-0 flex-1 rounded-xl border border-border bg-card p-2 ${GAP.rows} ${p().offline ? "opacity-60" : ""}`}>
+      <View class="group flex-row items-center gap-3">
         <View
           role="button"
           accessibilityLabel={projectTitle(p(), props.several)}
           accessibilityState={{ expanded: !isFolded() }}
-          onPress={() => toggleProject(p().key)}
+          onPress={() => {
+            animateLayout();
+            toggleProject(p().key);
+          }}
           style={hoverTransition()}
-          class={`min-w-0 flex-1 flex-row items-center gap-2 rounded-md py-1 pl-1 pr-2 hover:bg-accent ${FOCUS_RING}`}
+          class={`min-w-0 flex-1 flex-row items-center gap-3 rounded-md hover:bg-accent ${ROW.project.class} ${FOCUS_RING}`}
         >
           <Icon name={isFolded() ? "chevron-right" : "chevron-down"} size={14} tone="muted-foreground" />
-          <Monogram name={p().name} size={24} />
-          <Clipped class="shrink text-sm font-semibold text-foreground">{p().name}</Clipped>
+          <Monogram name={p().name} size={28} />
+          <View class="min-w-0 shrink">
+            <Clipped class="text-base font-semibold text-foreground">{p().name}</Clipped>
+            <ProjectMark project={p()} decorative />
+          </View>
           <If when={props.several}>
             <Pill text={p().machineName} />
           </If>
@@ -166,37 +168,39 @@ export function ProjectCard(props: CardProps) {
             <Text class="text-xs text-muted-foreground">Pinned</Text>
           </If>
         </View>
-        <StateChips project={p()} />
         <View class="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
           <Btn small variant="ghost" label={p().pinned ? "Unpin" : "Pin"} name={`${p().pinned ? "Unpin" : "Pin"} ${p().name}`} onPress={() => Herdr.pinProject(p().key, !p().pinned)} />
         </View>
       </View>
       <If when={!isFolded()}>
         <If when={worktrees()}>
-          <View class="flex-row flex-wrap items-center gap-1.5 px-1 pb-1">
+          <View class="flex-row flex-wrap items-center gap-2 px-3 pb-2">
             <Each of={p().checkouts} key={(c: BoardCheckout) => c.path}>
               {(c) => <Pill text={`${c().name} · ${c().linked ? "worktree" : "main"}`} />}
             </Each>
           </View>
         </If>
         <Each of={rows().shown} key={(r: BoardRow) => r.key}>
-          {(row) => <AgentRow row={row()} project={p()} order={props.order} answeredAbove={props.inStrip().has(row().key)} onOpen={props.onOpen} />}
+          {(row) => <AgentRow row={row()} project={p()} order={props.order} onAnswer={props.onAnswer} onOpen={props.onOpen} />}
         </Each>
         <If when={quiet() > QUIET_SHOWN}>
           <View class="flex-row">
             <View
               role="button"
-              onPress={() => toggleMore(p().key)}
+              onPress={() => {
+                animateLayout();
+                toggleMore(p().key);
+              }}
               accessibilityLabel={open() ? `Show fewer idle in ${p().name}` : `${quiet() - QUIET_SHOWN} more idle in ${p().name}`}
               accessibilityState={{ expanded: open() }}
               style={hoverTransition()}
-              class={`rounded-md px-2 py-1 hover:bg-accent ${FOCUS_RING}`}
+              class={`rounded-md hover:bg-accent ${ROW.more.class} justify-center ${FOCUS_RING}`}
             >
               <Text class="text-xs text-muted-foreground">{open() ? "Show fewer idle" : `${quiet() - QUIET_SHOWN} more idle`}</Text>
             </View>
           </View>
         </If>
-        <View class="flex-row">
+        <View class="flex-row px-1 pt-1">
           <Btn
             small
             variant="ghost"

@@ -3,6 +3,7 @@ import { Editor } from "nsh/base";
 import { Files } from "herdr-desktop/native";
 import type { FileData } from "herdr-desktop/native";
 import { modifiedText, parentOf, sizeText } from "../lib/files";
+import { held } from "#lib/list-item";
 import { Btn, Clipped, Empty, notify, Segmented } from "./kit";
 import { Markdown } from "./markdown";
 
@@ -20,14 +21,14 @@ const BODY = "h-[400px]";
  */
 export function FileViewer(props: { machine: string; machineName: string; data: FileData; line?: number; onBack: () => void }) {
   const mode = signal<"preview" | "source">("preview");
-  const data = () => props.data;
+  const data = held(() => props.data);
   const meta = () => [sizeText(data().size), modifiedText(data().modified, Math.floor(Date.now() / 1000)), props.machineName].filter(Boolean).join(" · ");
   const failed = (what: string) => (e: unknown) => notify(`${what}: ${reason(e)}`, { type: "error" });
   return (
     <View class="gap-3">
       <View class="flex-row items-center gap-2">
         <Btn small icon="arrow-left" label="Files" name="Back to the folder" onPress={props.onBack} />
-        <View class="min-w-0 flex-1 gap-0.5">
+        <View class="min-w-0 flex-1 gap-1">
           <Clipped class="text-sm font-medium text-foreground">{data().name}</Clipped>
           <Clipped class="text-xs text-muted-foreground">{meta()}</Clipped>
         </View>

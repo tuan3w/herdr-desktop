@@ -56,13 +56,22 @@ test("the projects keep their order when an agent changes state, and a pin moves
   await app.waitUntil(() => app.texts().indexOf("web") < app.texts().indexOf("notes"));
 });
 
-test("what has waited longest is an inbox at the top with its answers, and the agent's own row points to it instead of repeating them", async () => {
+test("what has waited longest is the inbox at the top with its answers; the other waiting agent's row only says it waits and has Answer", async () => {
   const app = await lab();
   await app.waitFor("Do you want to proceed?");
   expect(app.shows("label:Needs you")).toBe(true);
+  // One set of chips for the whole home: the inbox's. The waiting rows below repeat nothing of the question.
   expect(app.count("label:1. Yes")).toBe(1);
-  expect(app.count("Answer it in Needs you, above")).toBe(1);
+  expect(app.count("label:/^Answer: /")).toBe(2);
   expect(has(app, "Answer one by one")).toBe(true);
+});
+
+test("Answer on a waiting row opens the walk at that agent, with its own question", async () => {
+  const app = await lab("mixed");
+  await app.waitFor("Do you want to proceed?");
+  await app.press("label:Answer: auth");
+  await app.waitFor("Approve writing hello.txt with content 'hello omq'?");
+  expect(app.shows("label:/^auth, omp, needs you/")).toBe(true);
 });
 
 test("a blocked agent shows what it asks, in full, and pressing an answer sends that option's keys", async () => {
@@ -143,7 +152,9 @@ test("a project lists the idle agents it has room for and folds the rest into on
 test("twenty blocked agents across five projects: the inbox answers one, the rest wait behind one button, every project is a card", async () => {
   const app = await lab("storm");
   await app.waitFor("20 need you");
-  expect(has(app, "19 more waiting")).toBe(true);
+  // The rest are counted by project, not listed: twenty waiting agents are one phrase, not twenty rows.
+  expect(app.texts().some((t) => t.startsWith("19 more waiting · ") && t.includes("docs 4"))).toBe(true);
+  expect(app.count("label:/^Answer: /")).toBe(20);
   expect(has(app, "Answer one by one")).toBe(true);
   for (const name of ["docs", "infra", "payments-api", "tools", "web"]) expect(app.shows(`label:/^${name}, This computer, 4 need you/`)).toBe(true);
 });

@@ -181,7 +181,7 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null> }
             <ActionMenu label="Folder options" entries={options()} />
           </View>
         </View>
-        <View class="flex-row flex-wrap items-center gap-0.5" role="navigation" accessibilityLabel="Folder path">
+        <View class="flex-row flex-wrap items-center gap-1" role="navigation" accessibilityLabel="Folder path">
           <Each of={crumbs(here())} key={(c: Crumb) => c.path}>
             {(c) => <Btn small variant="ghost" label={c().name} name={`Go to ${c().path}`} onPress={() => void go(c().path)} />}
           </Each>
@@ -200,9 +200,9 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null> }
         </If>
         <If when={!failure() && loading() && listing() === null}>
           <View class="h-[300px] gap-2" accessibilityLabel="Loading the folder" accessibilityState={{ busy: true }}>
-            <Skeleton class="h-8 w-full" />
-            <Skeleton class="h-8 w-full" />
-            <Skeleton class="h-8 w-full" />
+            <Skeleton class="h-9 w-full" />
+            <Skeleton class="h-9 w-full" />
+            <Skeleton class="h-9 w-full" />
           </View>
         </If>
         <If when={!failure() && listing() !== null}>
@@ -215,9 +215,9 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null> }
             searchAccessibilityLabel="Find in this folder"
             placeholder="Find in this folder"
             searchBarClass="mb-1 rounded-md border border-border px-3"
-            searchClass="h-8 text-sm"
+            searchClass="h-9 text-sm"
             listClass="h-[290px]"
-            itemClass="group flex-row items-center rounded-md px-3 py-1.5 focus:bg-accent hover:bg-accent"
+            itemClass="group flex-row items-center rounded-md px-3 py-2 focus:bg-accent hover:bg-accent"
             groupClass="px-3 pb-1 pt-2 text-xs font-medium text-muted-foreground"
             renderItem={(item) => <EntryRow entry={() => byName().get(item.id)} now={readAt} />}
             onQueryChange={({ query: q }) => query.set(q)}

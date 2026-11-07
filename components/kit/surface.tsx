@@ -23,7 +23,7 @@ const PILL_TEXT: Record<Tone, string> = {
 /** A status tag: a word or a date, tinted by tone, in a small rounded rectangle. Not pressable. */
 export function Pill(props: { text: string; tone?: Tone }) {
   return (
-    <View class={`self-start rounded px-1.5 py-px ${PILL[props.tone ?? "neutral"]}`}>
+    <View class={`self-start rounded px-2 py-px ${PILL[props.tone ?? "neutral"]}`}>
       <Text style={NUM} class={`text-xs ${PILL_TEXT[props.tone ?? "neutral"]}`}>
         {props.text}
       </Text>

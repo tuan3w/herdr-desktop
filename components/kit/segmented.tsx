@@ -16,13 +16,13 @@ export interface SegmentOption<T extends string> {
  */
 export function Segmented<T extends string>(props: { value: T; onChange: (value: T) => void; options: SegmentOption<T>[]; iconOnly?: boolean; label?: string }) {
   return (
-    <RadioGroup value={props.value} onChange={props.onChange} label={props.label} class="flex-row gap-0.5 self-start rounded-lg bg-muted p-0.5">
+    <RadioGroup value={props.value} onChange={props.onChange} label={props.label} class="flex-row gap-1 self-start rounded-lg bg-muted p-1">
       <Each of={props.options} key={(o: SegmentOption<T>) => o.value}>
         {(o) => (
           <RadioItem
             value={o().value}
             label={o().label}
-            class={`h-7 flex-row items-center gap-1.5 rounded-md hover:bg-card/60 checked:bg-card checked:shadow-sm ${props.iconOnly ? "w-7 justify-center" : "px-3"}`}
+            class={`h-8 flex-row items-center gap-2 rounded-md hover:bg-card/60 checked:bg-card checked:shadow-sm ${props.iconOnly ? "w-8 justify-center" : "px-3"}`}
           >
             <If when={o().icon}>
               {(name) => (

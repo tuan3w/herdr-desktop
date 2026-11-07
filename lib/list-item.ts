@@ -11,3 +11,16 @@ export function ofKind<I extends { kind: string }, K extends I["kind"]>(item: ()
     return last!;
   };
 }
+
+/**
+ * A prop that is cleared while its view is being taken down (`<If when={file()}>` sets the value to null before the
+ * view's effects are disposed): the last real value is read instead of `null`, so nothing in the leaving view throws.
+ */
+export function held<T>(read: () => T | null | undefined): () => T {
+  let last: T | undefined;
+  return () => {
+    const now = read();
+    if (now !== null && now !== undefined) last = now;
+    return last as T;
+  };
+}

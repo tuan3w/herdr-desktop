@@ -176,7 +176,7 @@ export function NewSession(props: { open: boolean; onClose: () => void; onStarte
   const problem = (said: () => StartFailure) => (
     <View class="flex-row items-start gap-2">
       <Icon name="alert" size={16} tone="destructive" />
-      <View class="min-w-0 flex-1 gap-0.5">
+      <View class="min-w-0 flex-1 gap-1">
         <Text class="text-sm text-destructive">{said().text}</Text>
         <Text class="text-sm text-foreground">{said().next}</Text>
       </View>

@@ -164,7 +164,7 @@ export function SelectField<T extends string>(props: SelectFieldProps<T>) {
       }}
       onLayout={({ bounds }) => width.set(bounds.size.width)}
       style={hoverTransition()}
-      class={`flex-row items-center justify-between gap-2 rounded-md border bg-card px-2.5 ${props.invalid ? "border-destructive" : "border-input"} ${props.disabled ? "opacity-50" : "hover:bg-accent"} ${FOCUS_RING} ${props.small ? "h-7" : "h-8"}`}
+      class={`flex-row items-center justify-between gap-2 rounded-md border bg-card px-3 ${props.invalid ? "border-destructive" : "border-input"} ${props.disabled ? "opacity-50" : "hover:bg-accent"} ${FOCUS_RING} ${props.small ? "h-8" : "h-9"}`}
     >
       <Text class={`line-clamp-1 min-w-0 flex-1 ${props.small ? "text-xs" : "text-sm"} ${title() ? "text-foreground" : "text-muted-foreground"}`}>
         {title() || props.placeholder || "Select…"}

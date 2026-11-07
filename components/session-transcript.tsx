@@ -4,6 +4,8 @@ import type { ListRef } from "nsh/types";
 import { Button } from "nsh/base";
 import type { Row } from "../lib/session-rows";
 import { durationText, visibleText } from "../lib/session-text";
+import { CHAT_COLUMN } from "#lib/layout";
+import { appear } from "../lib/motion";
 import { FOCUS_RING, Icon } from "./kit";
 import { RowContext, SessionRow } from "./session-item";
 
@@ -31,7 +33,7 @@ function Footer(props: { ctx: RowContext }) {
     return v.endedReason ? `Session ended: ${visibleText(v.endedReason)}` : "Session ended";
   };
   return (
-    <View class="min-h-8 w-full max-w-[780px] self-center px-4 py-1">
+    <View class={`min-h-9 py-2 ${CHAT_COLUMN}`}>
       <If when={ended()}>
         {(text) => (
           <View role="group" accessibilityLabel={text()} class="items-center py-1">
@@ -150,10 +152,10 @@ export function SessionTranscript(props: {
         role="list"
         accessibilityLabel="Conversation"
         class="min-h-0 flex-1"
-        contentClass="gap-0.5 pb-4 pt-2"
+        contentClass="gap-2 pb-6 pt-4"
         footer={() => <Footer ctx={props.ctx} />}
         empty={() => (
-          <View class="w-full max-w-[780px] self-center px-4 py-8">
+          <View class={`py-8 ${CHAT_COLUMN}`}>
             <Text class="text-sm text-muted-foreground">{props.opening() ? "Opening the session…" : "Nothing here yet. Ask anything below."}</Text>
           </View>
         )}
@@ -162,11 +164,11 @@ export function SessionTranscript(props: {
       </List>
       <If when={pill()}>
         {(label) => (
-          <View class="absolute bottom-3 left-0 right-0 items-center">
+          <View style={appear()} class="absolute bottom-3 left-0 right-0 items-center">
             <Button
               onPress={jump}
               accessibilityLabel={label()}
-              class={`h-8 flex-row items-center gap-1.5 rounded-full border border-border bg-popover px-3 ${FOCUS_RING}`}
+              class={`h-9 flex-row items-center gap-2 rounded-full border border-border bg-popover px-3 ${FOCUS_RING}`}
             >
               <Icon name="chevron-down" size={14} tone={props.waiting() ? "signal" : "muted-foreground"} />
               <Text class={`text-sm font-medium ${props.waiting() ? "text-signal" : "text-popover-foreground"}`}>{label()}</Text>

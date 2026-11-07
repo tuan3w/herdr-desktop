@@ -244,3 +244,36 @@ export const SCENARIOS: Record<string, Scenario> = {
     },
   },
 };
+
+// The code labs (`components/code-lab.tsx`; `docs/specs/chat-craft.md`, "Code"). Synthetic samples in every language, a fence
+// that is still being written, diffs, a block of 3,000 lines, and nsh's own code views beside ours.
+const code = (params: Record<string, unknown>, steps: Scenario["steps"] = (app) => app.wait(900)): Scenario => ({
+  fixture: "empty",
+  entry: "../code-lab-app.tsx",
+  params,
+  steps,
+});
+export const CODE_SCENARIOS: Record<string, Scenario> = {
+  "code-one-ts": code({ part: "one", lang: "ts", numbers: true }),
+  "code-one-tsx": code({ part: "one", lang: "tsx" }),
+  "code-one-rust": code({ part: "one", lang: "rust" }),
+  "code-one-python": code({ part: "one", lang: "python" }),
+  "code-one-go": code({ part: "one", lang: "go" }),
+  "code-one-bash": code({ part: "one", lang: "bash" }),
+  "code-one-sql": code({ part: "one", lang: "sql" }),
+  "code-one-yaml": code({ part: "one", lang: "yaml" }),
+  "code-one-html": code({ part: "one", lang: "html" }),
+  "code-one-markdown": code({ part: "one", lang: "markdown" }),
+  "code-one-css": code({ part: "one", lang: "css" }),
+  "code-languages": code({ part: "languages", from: 0, count: 6, fold: 7 }),
+  "code-stream": code({ part: "stream", lang: "ts", chunk: 9 }, (app) => app.wait(1100)),
+  "code-diff": code({ part: "diff" }),
+  "code-diff-split": code({ part: "diff", layout: "split" }),
+  "code-patch": code({ part: "patch" }),
+  "code-long": code({ part: "long", lines: 3000 }, (app) => app.wait(1500)),
+  "code-compare-ts": code({ part: "compare", lang: "ts" }, (app) => app.wait(3000)),
+  "code-compare-rust": code({ part: "compare", lang: "rust" }, (app) => app.wait(3000)),
+  "code-host-diff": code({ part: "host-diff" }, (app) => app.wait(3000)),
+  "code-inline": code({ part: "inline" }),
+};
+Object.assign(SCENARIOS, CODE_SCENARIOS);

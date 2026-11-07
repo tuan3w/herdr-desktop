@@ -57,7 +57,7 @@ export function CaptureBar(props: { machine: string; pane: string; name: string;
     <View
       role="group"
       accessibilityLabel={`Typing into ${props.name}`}
-      class="flex-row items-center gap-3 border-t-2 border-primary bg-accent px-3 py-1.5"
+      class="flex-row items-center gap-3 border-t-2 border-primary bg-accent px-4 py-3"
     >
       <Text class="min-w-0 flex-1 text-sm font-medium text-accent-foreground">{`Typing into ${props.name} · ${leave} to leave`}</Text>
       <Input

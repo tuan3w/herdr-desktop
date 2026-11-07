@@ -19,9 +19,6 @@ export const compact = () => windowSize().width < COMPACT_WIDTH;
 /** True while the sidebar is an icon rail: a narrow window, or the user kept it collapsed. Reactive. */
 export const rail = () => compact() || sidebarCollapsed();
 
-/** Width of the rail in points: 40pt tiles and 8pt padding either side. */
-export const RAIL_WIDTH = 56;
-
 /** Below this window width two-pane screens show one pane at a time and side-by-side columns stack. */
 export const NARROW_WIDTH = 860;
 

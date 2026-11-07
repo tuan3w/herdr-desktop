@@ -121,9 +121,9 @@ export function AttachPicker(props: { open: boolean; machine: string; folder: st
             searchAccessibilityLabel="Find in this folder"
             placeholder="Find in this folder"
             searchBarClass="mb-1 rounded-md border border-border px-3"
-            searchClass="h-8 text-sm"
+            searchClass="h-9 text-sm"
             listClass="h-[260px]"
-            itemClass="group flex-row items-center rounded-md px-3 py-1.5 focus:bg-accent hover:bg-accent"
+            itemClass="group flex-row items-center rounded-md px-3 py-2 focus:bg-accent hover:bg-accent"
             groupClass="px-3 pb-1 pt-2 text-xs font-medium text-muted-foreground"
             renderItem={(item) => {
               const entry = () => byName().get(item.id);

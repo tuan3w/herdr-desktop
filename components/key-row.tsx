@@ -53,7 +53,7 @@ export const keysFor = (agent: boolean): Press[] => (agent ? AGENT : SHELL);
  */
 export function KeyRow(props: { agent: boolean; disabled: boolean; onKeys: (keys: string[]) => void; onInsert: (text: string) => void }) {
   return (
-    <View role="toolbar" accessibilityLabel="Keys" class="flex-row flex-wrap gap-1.5 border-t border-border bg-card px-3 py-1.5">
+    <View role="toolbar" accessibilityLabel="Keys" class="flex-row flex-wrap gap-2 border-t border-border bg-card px-4 py-3">
       <Each of={keysFor(props.agent)} key={(p: Press) => p.name}>
         {(press) => (
           <Btn

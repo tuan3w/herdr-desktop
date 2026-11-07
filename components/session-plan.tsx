@@ -22,12 +22,12 @@ export function SessionPlan(props: { plan: readonly PlanStepView[]; running: boo
   const shown = () => props.plan.length > 0 && (props.running || props.plan.some((s) => s.status !== "completed"));
   return (
     <If when={shown()}>
-      <View class="border-b border-border px-2 py-0.5">
+      <View class="border-b border-border px-2 py-1">
         <Disclosure
           label={`Plan, ${line().progress}${line().current ? `, now ${line().current}` : ""}`}
           open={open()}
           onPress={() => open.update((o) => !o)}
-          class="min-h-8 flex-row items-center gap-2 rounded-md px-2"
+          class="min-h-9 flex-row items-center gap-2 rounded-md px-2"
         >
           <Icon name={open() ? "chevron-down" : "chevron-right"} size={14} tone="muted-foreground" />
           <Text class="text-sm font-medium text-foreground">Plan</Text>
@@ -45,7 +45,7 @@ export function SessionPlan(props: { plan: readonly PlanStepView[]; running: boo
                 <View
                   role="group"
                   accessibilityLabel={`${step().content}, ${step().status === "completed" ? "done" : step().status === "inProgress" ? "in progress" : "to do"}`}
-                  class="flex-row items-start gap-2 py-0.5"
+                  class="flex-row items-start gap-2 py-1"
                 >
                   <View class="pt-1">
                     <StatusGlyph status={step().status === "completed" ? "done" : step().status === "inProgress" ? "working" : "idle"} size={12} />

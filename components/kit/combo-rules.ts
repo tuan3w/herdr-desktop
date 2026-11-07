@@ -163,8 +163,8 @@ export function createRefiner(maxDepth = 12) {
 }
 
 /** Option rows and group headings, in points: fixed, so a row's place is arithmetic and nothing is measured. */
-export const ROW_H = 32;
-export const HEAD_H = 28;
+export const ROW_H = 36;
+export const HEAD_H = 32;
 
 /** The group of each option (index into `names`); `names[g]` is empty for options without one. */
 export interface Groups {

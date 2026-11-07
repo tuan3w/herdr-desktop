@@ -1,4 +1,5 @@
 import { oklchToHex } from "./color";
+import { codeTokens } from "./code";
 import { terminalTokens } from "./terminal";
 
 /**
@@ -83,6 +84,7 @@ export function buildTheme(spec: ThemeSpec): BuiltTheme {
     // Darker than `ring`: it also draws over the selected row's fill, where 0.62 falls to 3.0:1 or less.
     "sidebar-ring": o(0.58, p.chroma, p.hue),
     ...terminalTokens(ink, paper, "light"),
+    ...codeTokens(spec, "light"),
   };
 
   const dark: Tokens = {
@@ -118,6 +120,7 @@ export function buildTheme(spec: ThemeSpec): BuiltTheme {
     "sidebar-border": o(1, 0, 0, 0.08),
     "sidebar-ring": o(0.64, p.chroma, p.hue),
     ...terminalTokens(ink, paper, "dark"),
+    ...codeTokens(spec, "dark"),
   };
 
   return {

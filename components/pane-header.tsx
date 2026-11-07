@@ -49,8 +49,8 @@ export function PaneHeader(props: {
   ];
   const where = () => [props.info.agent && agentTitle(props.info.agent), props.info.machineName, props.info.cwd].filter(Boolean).join(" · ");
   return (
-    <View class="flex-row items-center gap-3 border-b border-border bg-card px-3 py-2">
-      <StatusGlyph status={props.info.status} size={16} />
+    <View class="min-h-14 flex-row items-center gap-3 border-b border-border bg-card px-6 py-2">
+      <StatusGlyph status={props.info.status} />
       <View class="min-w-0 flex-1 gap-0.5">
         <View class="flex-row items-center gap-2">
           <Text role="header" class="shrink text-sm font-semibold text-foreground" style={{ numberOfLines: 1 }}>

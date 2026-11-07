@@ -59,7 +59,7 @@ export function Btn(props: {
       disabled={props.disabled || props.loading}
       accessibilityLabel={props.loading ? `${props.name ?? props.label}, busy` : props.name}
       style={[pressTransition(), press?.style]}
-      class={`flex-row items-center justify-center gap-1.5 rounded-md ${FOCUS_RING} ${props.small ? "h-7 px-2.5" : "h-8 px-3"} ${
+      class={`flex-row items-center justify-center gap-2 rounded-md ${FOCUS_RING} ${props.small ? "min-h-8 px-3" : "min-h-9 px-4"} ${
         props.disabled ? "border-transparent bg-muted" : BTN[variant()]
       }`}
     >
@@ -102,7 +102,7 @@ export function IconButton(props: {
         accessibilityLabel={props.label}
         selected={props.selected}
         style={hoverTransition()}
-        class={`size-7 items-center justify-center rounded-md selected:bg-accent ${hover()} ${props.onSidebar ? FOCUS_RING_SIDEBAR : FOCUS_RING}`}
+        class={`size-8 items-center justify-center rounded-md selected:bg-accent ${hover()} ${props.onSidebar ? FOCUS_RING_SIDEBAR : FOCUS_RING}`}
       >
         <Icon name={props.icon} tone={props.onSidebar ? "sidebar-foreground" : "muted-foreground"} />
       </Button>

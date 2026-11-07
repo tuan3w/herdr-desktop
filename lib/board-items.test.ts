@@ -41,3 +41,15 @@ test("idle agents beyond the first few do not make a card wide while they fold, 
   expect(shape(homeLines(projects, 2, [], []))).toEqual(["q+r"]);
   expect(shape(homeLines(projects, 2, [quiet.key], []))).toEqual(["q", "r"]);
 });
+
+test("the agents the strip does not show are counted per project, in the order they have waited, not listed", () => {
+  const docs = project("docs", [1, 2, 3].map((n) => row(`local/d${n}`, { status: "blocked" })));
+  const infra = project("infra", [1, 2].map((n) => row(`local/i${n}`, { status: "blocked" })));
+  const board = boardData([docs, infra], { needsYou: [docs.rows[0], infra.rows[0], docs.rows[1], infra.rows[1], docs.rows[2]] });
+  const s = strip(board);
+  expect(s.more).toBe(4);
+  expect(s.moreIn).toEqual([
+    { name: "infra", count: 2 },
+    { name: "docs", count: 2 },
+  ]);
+});

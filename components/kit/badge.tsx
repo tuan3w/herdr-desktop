@@ -1,5 +1,5 @@
-import { Text, View } from "nsh";
-import { NUM } from "./core";
+import { View } from "nsh";
+import { Swap } from "./swap";
 
 export type BadgeTone = "neutral" | "signal" | "primary" | "danger";
 
@@ -42,11 +42,9 @@ export function Badge(props: { count?: number; dot?: boolean; tone?: BadgeTone; 
           <View
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
-            class={look().fill ? `min-w-5 items-center rounded-full px-1.5 py-px ${look().fill}` : "items-center"}
+            class={look().fill ? `min-w-5 items-center rounded-full px-2 py-px ${look().fill}` : "items-center"}
           >
-            <Text style={NUM} class={`text-xs ${look().fill ? "font-medium" : ""} ${look().ink}`}>
-              {text()}
-            </Text>
+            <Swap text={text()} class={`text-xs ${look().fill ? "font-medium" : ""} ${look().ink}`} />
           </View>
         }
       >

@@ -6,7 +6,7 @@ import { Btn, Kbd, Modal } from "./kit";
 function Row(props: { shortcut: Shortcut }) {
   const keys = () => keysOf(props.shortcut).map(keyText);
   return (
-    <View accessibilityLabel={`${props.shortcut.label}: ${keys().join(", ")}`} class="h-7 flex-row items-center justify-between gap-3">
+    <View accessibilityLabel={`${props.shortcut.label}: ${keys().join(", ")}`} class="h-8 flex-row items-center justify-between gap-3">
       <Text class="min-w-0 line-clamp-1 flex-1 text-sm text-foreground">
         {props.shortcut.label}
       </Text>
@@ -31,7 +31,7 @@ export function Shortcuts(props: { open: boolean; onClose: () => void }) {
         <Each of={GROUPS} key={(g: Group) => g.id}>
           {(g, index) => (
             <View class={`flex-row gap-4 pb-3 ${index() > 0 ? "border-t border-border pt-3" : ""}`}>
-              <Text role="header" class="w-32 shrink-0 pt-1.5 text-xs font-medium text-muted-foreground">
+              <Text role="header" class="w-32 shrink-0 pt-2 text-xs font-medium text-muted-foreground">
                 {g().title}
               </Text>
               <View class="min-w-0 flex-1">

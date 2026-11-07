@@ -39,7 +39,7 @@ export function MarkdownText(props: { source: string; machine: string; folder: s
       <Button
         accessibilityLabel={`Image: ${name}`}
         onPress={() => (local ? press(img.src) : notify(`${img.src} is on the web and is not loaded`))}
-        class="my-1 flex-row items-center gap-1.5 self-start rounded-md border border-border bg-muted px-2 py-1 hover:bg-accent"
+        class="my-1 flex-row items-center gap-2 self-start rounded-md border border-border bg-muted px-2 py-1 hover:bg-accent"
       >
         <Icon name="image" size={14} tone="muted-foreground" />
         <Text class="text-sm text-foreground">{`Image: ${name}`}</Text>

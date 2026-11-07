@@ -19,7 +19,7 @@ function stateText(u: UploadView): string {
 function Row(props: { upload: UploadView; onReplace: (upload: UploadView) => void; onForget: (id: number) => void }) {
   const u = () => props.upload;
   return (
-    <View class="gap-1.5 rounded-md border border-border bg-card p-3" accessibilityLabel={`${u().name}, ${stateText(u())}`}>
+    <View class="gap-2 rounded-md border border-border bg-card p-3" accessibilityLabel={`${u().name}, ${stateText(u())}`}>
       <View class="flex-row items-center gap-2">
         <Icon name={u().state === "done" ? "circle-check" : u().state === "running" ? "upload" : "alert"} size={16} tone={u().state === "failed" ? "destructive" : "muted-foreground"} />
         <Text class="min-w-0 flex-1 text-sm font-medium text-foreground">{u().name}</Text>

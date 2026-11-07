@@ -1,5 +1,5 @@
 import { cleanup, keymap, View } from "nsh";
-import { isSelected, rangeTo, toggle } from "../lib/selection";
+import { isSelected, rangeTo, selected, toggle } from "../lib/selection";
 import { FOCUS_RING, Icon } from "./kit";
 
 /**
@@ -35,6 +35,22 @@ export function PickBox(props: { rowKey: string; name: string; order: () => read
         <If when={checked()}>
           <Icon name="check" size={12} tone="primary-foreground" />
         </If>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * The place of a row's glyph while the row is looked at: the box that picks the agent for a bulk action covers the glyph
+ * when the pointer is on this slot or the focus is anywhere in the row, and on every row once anything is picked (so a
+ * range can be built without hunting). It sits over the row's left padding, so a row spends no width on a column of
+ * boxes that is empty most of the time. The row is the `group/row` that holds it.
+ */
+export function PickSlot(props: { rowKey: string; name: string; order: () => readonly string[]; surface: "sidebar" | "card"; nested?: boolean }) {
+  return (
+    <View class={`group/pick absolute inset-y-0 w-7 justify-center ${props.nested ? "left-4" : "left-1"}`}>
+      <View class={`rounded-md ${props.surface === "sidebar" ? "bg-sidebar" : "bg-card"} ${selected().length > 0 ? "" : "opacity-0 group-hover/pick:opacity-100 group-focus-within/row:opacity-100"}`}>
+        <PickBox rowKey={props.rowKey} name={props.name} order={props.order} />
       </View>
     </View>
   );

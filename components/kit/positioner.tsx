@@ -1,5 +1,5 @@
-import { type JSX, Overlay } from "nsh";
-import type { Align, Bounds, OverlayPosition, Placement, Point, ViewRef } from "nsh/types";
+import { type JSX, type Motion, Overlay } from "nsh";
+import type { Align, Bounds, OverlayPosition, Placement, Point, ViewRef, ViewStyle } from "nsh/types";
 
 /**
  * Where popups are placed (Base UI's `Positioner`) and the geometry rules around that. An `Overlay` places itself against
@@ -116,6 +116,8 @@ export function Positioner(props: {
   label?: string;
   hint?: string;
   class?: string;
+  /** The popup's own style: a popover's entrance (`popupEnter`). */
+  style?: ViewStyle | Motion["style"];
   children?: JSX.Element;
 }) {
   let hung: Hung | undefined;
@@ -127,7 +129,7 @@ export function Positioner(props: {
       align={props.align ?? "center"}
       offset={props.offset ?? 6}
       margin={props.margin ?? 8}
-      style={props.noPointer ? { pointerEvents: "none" } : undefined}
+      style={props.noPointer ? [{ pointerEvents: "none" }, props.style] : props.style}
       role={props.role}
       accessibilityLabel={props.label}
       accessibilityHint={props.hint}

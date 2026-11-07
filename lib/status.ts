@@ -16,3 +16,21 @@ export function statusText(status: AgentStatus, reviewed = false): string {
       return "status unknown";
   }
 }
+
+/**
+ * The quiet word a row says for a state, in its meta line: the shape is small and muted, so the word carries what the colour
+ * no longer shouts. Empty for idle and unknown (a row that does nothing says nothing).
+ */
+export function stateWord(status: AgentStatus, reviewed = false): string {
+  switch (status) {
+    case "blocked":
+      return "waiting for you";
+    case "working":
+      return "working";
+    case "done":
+      return reviewed ? "done" : "done, to review";
+    case "idle":
+    case "unknown":
+      return "";
+  }
+}

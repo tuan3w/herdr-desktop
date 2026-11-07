@@ -134,7 +134,7 @@ export function FieldError(props: { match?: boolean | ValidityKey; children?: st
   };
   return (
     <If when={shown()}>
-      <View class="gap-0.5">
+      <View class="gap-1">
         <Each of={lines()} key="index">
           {(line) => (
             <View class="flex-row items-center gap-1">

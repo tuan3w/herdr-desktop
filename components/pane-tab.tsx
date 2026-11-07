@@ -149,7 +149,7 @@ export function PaneTab(props: { machine: string; pane: string; active: boolean;
               onCopyPaneId={() => copy(props.pane, "Pane id copied")}
             />
             <If when={i().feedState === "stale"}>
-              <View role="alert" class="border-b border-border bg-muted px-3 py-1.5">
+              <View role="alert" class="border-b border-border bg-muted px-3 py-2">
                 <Text class="text-xs text-foreground">{`${i().machineName} is not connected. This is the last text it showed; typing is off until it reconnects.`}</Text>
               </View>
             </If>
@@ -180,7 +180,7 @@ export function PaneTab(props: { machine: string; pane: string; active: boolean;
             <If
               when={capturing()}
               else={
-                <View class="flex-row items-center gap-2 px-3 py-1">
+                <View class="flex-row items-center gap-3 px-4 py-2">
                   <Text class="min-w-0 flex-1 text-xs text-muted-foreground">Mirror: type with Mirror mode or the composer</Text>
                   <Btn small label="Mirror mode" name="Mirror mode, type into the pane" hint={keyLabel("capture")} disabled={!live()} onPress={toggleCapture} />
                 </View>
@@ -189,7 +189,11 @@ export function PaneTab(props: { machine: string; pane: string; active: boolean;
               <CaptureBar machine={props.machine} pane={props.pane} name={i().name} onLeave={leaveCapture} />
             </If>
             <If when={prompt()}>
-              {(p) => <AnswerDock machine={props.machine} pane={props.pane} prompt={p()} onSent={refresh} />}
+              {(p) => (
+                <View class="border-t border-border px-4 py-3">
+                  <AnswerDock machine={props.machine} pane={props.pane} prompt={p()} onSent={refresh} />
+                </View>
+              )}
             </If>
             <Composer
               machine={props.machine}

@@ -1,6 +1,6 @@
 # herdr-desktop design
 
-herdr-desktop is a quiet, dense, keyboard-first desktop tool for someone who supervises coding agents all day. It looks like a page, not a dashboard: a white surface, a sidebar one shade off it, text in two greys, hairlines instead of boxes, and colour spent only where it means something (the main button, one "needs you" signal, status text). The home is organised by project (a repository with its worktrees, or a folder) with state shown on every row and project header, never as the grouping; the loudest thing on any screen is what needs the person, everything else is quiet and nothing moves at rest. If a screen has more borders, capsules, weights or colours than the same screen would in Notion, remove them. Four themes (Harbor, Container, Chart, Graphite), each light and dark, change only where that colour goes. Every action the user cannot trivially reverse says what happened and offers a way back.
+herdr-desktop is a quiet, dense, keyboard-first desktop tool for someone who supervises coding agents all day. It looks like a page, not a dashboard: a white surface, a sidebar one shade off it, text in two greys, hairlines instead of boxes, and colour spent only where it means something (the main button, one "needs you" signal, status text). The home is organised by project (a repository with its worktrees, or a folder) with state shown on every row and project header, never as the grouping; the loudest thing on any screen is what needs the person, everything else is quiet, motion only explains a change and nothing moves at rest. If a screen has more borders, capsules, weights or colours than the same screen would in Notion, remove them. Four themes (Harbor, Container, Chart, Graphite), each light and dark, change only where that colour goes. Every action the user cannot trivially reverse says what happened and offers a way back.
 
 Read the file that matches your change before writing UI:
 
@@ -21,21 +21,23 @@ Read the file that matches your change before writing UI:
 | files, a viewer, a picture, a diagram, a page from a machine, sending a file | [design/files.md](design/files.md) |
 | the chat's permission dock, a question form, New session, Past sessions, session details | [design/chat-parts.md](design/chat-parts.md) |
 | feedback, undo, delete, shortcuts, settings, window size | [design/patterns.md](design/patterns.md) |
+| spacing, type sizes, row heights, radii, widths, elevation | [design/foundations.md](design/foundations.md) |
+| where the signal colour may appear, what a waiting agent looks like on each surface | [design/attention.md](design/attention.md) |
 | anything that moves | [design/motion.md](design/motion.md) |
 | the chat tab: the conversation, work groups, tool rows, the message box, queue, attachments | [design/chat.md](design/chat.md) |
 
-Tokens come from `lib/theme/` (`theme.json` is the default theme's generated copy), motion values from `lib/motion.ts`, the UI kit from `components/kit/` (import everything from `./kit`, never from a file inside it). Those are the source of truth; these docs describe them. `docs/ACCESSIBILITY.md` is the checklist every screen answers to.
+Tokens come from `lib/theme/` (`theme.json` is the default theme's generated copy), sizes from `lib/layout.ts` (with the `"tailwind"` scale of `nsh.json`), motion values from `lib/motion.ts`, the UI kit from `components/kit/` (import everything from `./kit`, never from a file inside it). Those are the source of truth; these docs describe them. `docs/ACCESSIBILITY.md` is the checklist every screen answers to.
 
 ## The look: quiet
 
 Check every new screen against these before anything else.
 
-1. **No boxes.** A list is plain rows (`h-9`, `rounded-md`, `hover:bg-accent`), not cards. No border under every row; a hairline only under a header or between major sections. The one exception is the home, whose unit is the project: a project is a hairline card holding its agents as plain rows, and the `Needs you` inbox is one more (`design/board.md`).
+1. **No boxes.** A list is plain rows (`ROW`, `rounded-md`, `hover:bg-accent`), not cards. No border under every row; a hairline only under a header or between major sections. The one exception is the home, whose unit is the project: a project is a hairline card holding its agents as plain rows, and the `Needs you` inbox is one more (`design/board.md`).
 2. **Two greys, two weights.** Text is `foreground` or `muted-foreground`. Body is regular, row titles and labels `font-medium`, only a page title is `font-bold`. Nothing is uppercase.
-3. **Colour is rare.** Grey everywhere; `primary` for the main button and checked boxes; `signal` for what needs the user; status colours as text. A tinted background is a `Pill` and nothing else.
-4. **Words, not capsules.** Ages, counts and machine names are plain muted text joined by ` · `. A count is a grey number; only one that needs the user is a capsule.
+3. **Colour is rare.** Grey everywhere; `primary` for the main button and checked boxes; `signal` only for an agent in the inbox and one dot per project (said once per agent per view, `design/attention.md`); status colours as text. A tinted background is a `Pill` and nothing else.
+4. **Words, not capsules.** Ages, counts and machine names are plain muted text joined by ` · `. A count is a grey number; there is no capsule.
 5. **Actions on demand.** Per-row actions appear on hover or focus (`group` + `group-hover:opacity-100 group-focus-within:opacity-100`); they stay pressable and in the accessibility tree. Page-level actions stay visible.
-6. **Small controls.** Buttons and inputs 32pt, dense buttons 28pt, icons 16pt at 1.5 stroke in grey, rows 28 to 40pt.
+6. **Room, not size.** Text is 15 pt with 13-pt meta, controls 36 pt (dense 32), an agent row 56 pt with 8 pt of padding above and below, icons 16 pt at 1.5 stroke in grey, 24 pt between sections (`design/foundations.md`).
 7. **Status is a shape first.** Needs you = filled with bar, working = half, done = check, idle = empty ring, unknown = dashed ring, then a word, then colour. Colour is never the only signal.
 
 ## Rules

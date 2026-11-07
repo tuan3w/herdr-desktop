@@ -2,7 +2,7 @@ import { computed, Text, View } from "nsh";
 import { Herdr, Sessions } from "herdr-desktop/native";
 import { focused, parseSessionKey } from "../lib/dock";
 import { board, revision } from "../lib/herdr";
-import { NUM, Progress } from "./kit";
+import { NUM, Progress, Swap } from "./kit";
 
 /**
  * The slim bar under the workspace: how many machines are connected and how many agents need you or work (the same
@@ -27,16 +27,16 @@ export function StatusBar() {
     return `${connected()} of ${total} machines connected`;
   };
   return (
-    <View role="group" accessibilityLabel="Status" class="h-7 flex-row items-center justify-between gap-4 border-t border-border bg-sidebar px-3">
+    <View role="group" accessibilityLabel="Status" class="h-8 flex-row items-center justify-between gap-4 border-t border-border bg-sidebar px-4">
       <View class="flex-row items-center gap-3">
         <Text style={NUM} class={`text-xs ${connected() === machines().length ? "text-muted-foreground" : "font-medium text-foreground"}`}>
           {hosts()}
         </Text>
         <If when={board().counts.needsYou > 0}>
-          <Text style={NUM} class="text-xs font-medium text-signal">{`${board().counts.needsYou} need${board().counts.needsYou === 1 ? "s" : ""} you`}</Text>
+          <Swap class="text-xs font-medium text-foreground" text={`${board().counts.needsYou} need${board().counts.needsYou === 1 ? "s" : ""} you`} />
         </If>
         <If when={board().counts.working > 0}>
-          <Text style={NUM} class="text-xs text-muted-foreground">{`${board().counts.working} working`}</Text>
+          <Swap class="text-xs text-muted-foreground" text={`${board().counts.working} working`} />
         </If>
       </View>
       <If when={context() !== null}>

@@ -23,7 +23,7 @@ const act = (action: BulkAction, row: BoardRow, text: string) =>
 
 function Names(props: { rows: readonly BoardRow[] }) {
   return (
-    <View class="gap-0.5">
+    <View class="gap-1">
       <Each of={props.rows} key={(r) => r.key}>
         {(r) => <Text class="text-sm text-foreground">{`${r().name} · ${r().machineName}`}</Text>}
       </Each>

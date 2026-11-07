@@ -31,7 +31,7 @@ export function DevPanel() {
               onPress={() => perfCollapsed.update((c) => !c)}
               accessibilityLabel={perfCollapsed() ? "Expand dev panel" : "Collapse dev panel"}
               style={hoverTransition()}
-              class={`h-7 min-w-0 flex-1 flex-row items-center gap-1.5 rounded-md px-2 hover:bg-accent ${FOCUS_RING}`}
+              class={`h-8 min-w-0 flex-1 flex-row items-center gap-2 rounded-md px-2 hover:bg-accent ${FOCUS_RING}`}
             >
               <Icon name={perfCollapsed() ? "chevron-right" : "chevron-down"} size={12} tone="muted-foreground" />
               <Text class="text-xs font-semibold text-popover-foreground">Dev</Text>
@@ -44,7 +44,7 @@ export function DevPanel() {
             <IconButton icon="x" label="Close dev panel" shortcut={SHORTCUT} onPress={() => perfOpen.set(false)} />
           </View>
           <If when={!perfCollapsed()}>
-            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" class="gap-0.5 px-3 pb-2.5">
+            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" class="gap-1 px-3 pb-3">
               <Each of={perfReadings()} key={(r: Reading) => r.id}>
                 {(r) => (
                   <View class="flex-row items-baseline justify-between gap-3">

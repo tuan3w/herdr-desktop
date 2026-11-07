@@ -1,7 +1,9 @@
-import { Clipboard, Image, type JSX, Text, View } from "nsh";
+import { Clipboard, effect, Image, type JSX, Text, View } from "nsh";
 import { Button } from "nsh/base";
+import { CHAT_COLUMN } from "#lib/layout";
 import type { ImageView } from "herdr-desktop/native";
 import { ofKind } from "../lib/list-item";
+import { type Arrivals, arrivals, arriving } from "../lib/motion";
 import { loadPicture, pictureSize, pictureState } from "../lib/session-pictures";
 import type { SessionModel } from "../lib/session";
 import type { Row } from "../lib/session-rows";
@@ -11,7 +13,7 @@ import { MarkdownText } from "./markdown";
 import { DiffStat, Disclosure, PartChips, ToolDetails, ToolRow, ToolStatus } from "./session-tool";
 
 /** The widest a line of the conversation is: past this, text is hard to follow and the window is better left calm. */
-const COLUMN = "w-full max-w-[780px] self-center px-4";
+const COLUMN = CHAT_COLUMN;
 
 /** Where a chat is: what a row needs to open files and to remember what is open. */
 export interface RowContext {
@@ -57,7 +59,7 @@ function Picture(props: { image: ImageView; ctx: RowContext }) {
         <Button
           onPress={() => void loadPicture(props.ctx.machine, props.ctx.id, props.image)}
           accessibilityLabel={`Load picture, ${what()}`}
-          class={`h-8 flex-row items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 hover:bg-accent ${FOCUS_RING}`}
+          class={`h-9 flex-row items-center gap-2 rounded-md border border-border bg-muted px-3 hover:bg-accent ${FOCUS_RING}`}
         >
           <Icon name="image" size={14} tone="muted-foreground" />
           <Text class="text-sm text-foreground">{what()}</Text>
@@ -83,7 +85,7 @@ function UserRow(props: { row: Extract<Row, { kind: "user" }>; ctx: RowContext }
   const text = () => visibleText(props.row.item.text ?? "");
   return (
     <Line class="items-end pt-3">
-      <View role="group" accessibilityLabel={itemLabel(props.row.item)} class="max-w-[85%] rounded-2xl bg-muted px-3.5 py-2">
+      <View role="group" accessibilityLabel={itemLabel(props.row.item)} class="max-w-[85%] rounded-2xl bg-muted px-4 py-2">
         <Text style={{ userSelect: "text" }} class="text-sm text-foreground">
           {text()}
         </Text>
@@ -132,7 +134,7 @@ function WorkRow(props: { row: Extract<Row, { kind: "work" }>; model: SessionMod
         onPress={() => props.model.toggle(props.row)}
         label={`${head()}, ${parts().join(", ")}`}
         open={work().open}
-        class="-ml-2 min-h-8 flex-row items-center gap-1.5 self-start rounded-md px-2"
+        class="-ml-2 min-h-9 flex-row items-center gap-2 self-start rounded-md px-2"
       >
         <Icon name={work().open ? "chevron-down" : "chevron-right"} size={14} tone="muted-foreground" />
         <Text class="text-sm text-muted-foreground">{head()}</Text>
@@ -151,7 +153,7 @@ function ThoughtRow(props: { row: Extract<Row, { kind: "thought" }>; ctx: RowCon
         onPress={() => props.ctx.model.toggle(props.row)}
         label={label()}
         open={props.row.open}
-        class="-ml-2 min-h-7 flex-row items-center gap-2 self-start rounded-md px-2"
+        class="-ml-2 min-h-8 flex-row items-center gap-2 self-start rounded-md px-2"
       >
         <Icon name="lightbulb" size={14} tone="muted-foreground" />
         <Text class="text-sm text-muted-foreground">{label()}</Text>
@@ -190,7 +192,7 @@ function SubagentRow(props: { row: Extract<Row, { kind: "subagent" }>; ctx: RowC
   const tool = () => props.row.item.tool!;
   const line = () => toolLine(tool(), props.ctx.cwd);
   return (
-    <Line class="py-0.5">
+    <Line class="py-1">
       <View class="rounded-lg border border-border">
         <Disclosure
           onPress={() => props.ctx.model.toggle(props.row)}
@@ -229,7 +231,7 @@ type Tone = "failed" | "warning";
 function NoteRow(props: { text: string; title?: string | null; label: string; tone?: Tone }) {
   return (
     <Line class="items-center py-1">
-      <View role="group" accessibilityLabel={props.label} class="flex-row flex-wrap items-center justify-center gap-1.5">
+      <View role="group" accessibilityLabel={props.label} class="flex-row flex-wrap items-center justify-center gap-2">
         <If when={props.tone}>
           <Icon name="alert" size={12} tone={props.tone === "failed" ? "destructive" : "warning"} />
         </If>
@@ -244,6 +246,17 @@ function NoteRow(props: { text: string; title?: string | null; label: string; to
 
 /** The tone a notice's `severity` asks for (`error`, `warning`; anything else is quiet). */
 const toneOf = (severity: string | null | undefined): Tone | undefined => (severity === "error" ? "failed" : severity === "warning" ? "warning" : undefined);
+
+/** The arrivals of each conversation: one list of seen keys per session model, so a cell asks the list it belongs to. */
+const ARRIVALS = new WeakMap<object, Arrivals>();
+function arrivedIn(model: SessionModel): Arrivals {
+  let list = ARRIVALS.get(model);
+  if (!list) {
+    list = arrivals();
+    ARRIVALS.set(model, list);
+  }
+  return list;
+}
 
 /**
  * One row of the conversation. The list recycles its cells, so each kind reads its own last row (`ofKind`) and the
@@ -261,8 +274,11 @@ export function SessionRow(props: { row: () => Row; ctx: RowContext }) {
   const earlier = ofKind(props.row, "earlier");
   const other = ofKind(props.row, "other");
   const kind = () => props.row().kind;
+  // A line that arrives rises in; the cell is recycled, so this is decided per key, not per cell (`arrivals`).
+  const arrival = arriving(arrivedIn(props.ctx.model).isNew);
+  effect(() => arrival.show(props.row().key));
   return (
-    <>
+    <View style={arrival.style}>
       <If when={kind() === "user"}>
         <UserRow row={user()} ctx={props.ctx} />
       </If>
@@ -298,6 +314,6 @@ export function SessionRow(props: { row: () => Row; ctx: RowContext }) {
       <If when={kind() === "other"}>
         <NoteRow text={visibleText(other().item.text ?? "Update")} label={itemLabel(other().item)} />
       </If>
-    </>
+    </View>
   );
 }

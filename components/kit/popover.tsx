@@ -7,7 +7,7 @@ import { createOpenState, type OpenChange } from "./popup";
 import { Paths } from "./popup-root";
 import { type AnchorPolicy, Positioner } from "./positioner";
 import type { TriggerFocus } from "./tooltip";
-import { hoverTransition } from "../../lib/motion";
+import { hoverTransition, popupEnter } from "../../lib/motion";
 
 /**
  * A popover (Base UI's `Popover`, non-modal): content anchored to a trigger that the user presses, for what is too big for a
@@ -199,6 +199,7 @@ export function Popover(props: {
             onMouseEnter={props.openOnHover ? hover.popupEnter : undefined}
             onMouseLeave={props.openOnHover ? hover.popupLeave : undefined}
             class={`${POPUP} ${props.popupClass ?? ""}`}
+            style={popupEnter(props.side ?? "bottom")}
           >
             {props.children}
           </Positioner>
@@ -243,7 +244,7 @@ export function PopoverClose(props: { label?: string; class?: string }) {
       onFocus={scope.focus.onFocus}
       onBlur={scope.focus.onBlur}
       style={hoverTransition()}
-      class={`size-7 items-center justify-center rounded-md hover:bg-accent ${FOCUS_RING} ${props.class ?? ""}`}
+      class={`size-8 items-center justify-center rounded-md hover:bg-accent ${FOCUS_RING} ${props.class ?? ""}`}
     >
       <Icon name="x" tone="muted-foreground" />
     </View>

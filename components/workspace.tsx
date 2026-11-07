@@ -3,9 +3,10 @@ import { DockArea, type DockTab } from "nsh/base";
 import { machinesOpen } from "../lib/actions";
 import { attach, activated, BOARD, closeTab, focused, layout, openPane, parsePaneKey, parseSessionKey, removePanel, rowKeyOf, setLayout } from "../lib/dock";
 import { meta, rowOf } from "../lib/herdr";
-import { hoverTransition } from "../lib/motion";
+import { appear, hoverTransition } from "../lib/motion";
 import { openAgent } from "../lib/open-agent";
 import { keyLabel } from "../lib/shortcuts";
+import { ROW } from "#lib/layout";
 import { Board } from "./board";
 import { Btn, Clipped, Empty, FOCUS_RING_INSET, Icon, IconButton } from "./kit";
 import { PaneTab } from "./pane-tab";
@@ -64,7 +65,7 @@ function TabFace(props: { tab: DockTab }) {
   const name = () => (props.tab.panel === BOARD ? "Board" : chat ? (row()?.name ?? "Chat") : gone() ? "Agent gone" : (info()?.name ?? at?.pane ?? ""));
   const status = () => (chat ? (row()?.status ?? "unknown") : gone() ? "unknown" : (info()?.status ?? "unknown"));
   return (
-    <View class="max-w-56 flex-row items-center gap-2">
+    <View style={appear(props.tab.panel)} class="max-w-56 flex-row items-center gap-2">
       <If when={props.tab.panel === BOARD} else={<StatusGlyph status={status()} size={12} />}>
         <Icon name="list" size={14} tone="muted-foreground" />
       </If>
@@ -101,7 +102,7 @@ export function Workspace() {
       renderDropIndicator={() => <View class="size-full" />}
       groupClass="bg-background"
       tabBarClass="flex-row border-b border-border bg-sidebar"
-      tabClass={`h-9 flex-row items-center border-r border-border px-3 selected:bg-background ${FOCUS_RING_INSET}`}
+      tabClass={`${ROW.tab.class} flex-row items-center border-r border-border selected:bg-background ${FOCUS_RING_INSET}`}
       tabStyle={hoverTransition()}
       contentClass="min-h-0 flex-1"
       dropIndicatorClass="rounded-md border-2 border-primary bg-primary/10"

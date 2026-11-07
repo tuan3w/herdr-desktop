@@ -54,7 +54,7 @@ export function TabItem(props: { label: string; selected: boolean; onSelect: () 
       disabled={props.disabled}
       onPress={props.onSelect}
       style={hoverTransition()}
-      class={`h-7 flex-row items-center gap-1.5 rounded-md px-2.5 hover:bg-accent/60 selected:bg-accent disabled:opacity-50 ${mark.lit() ? "bg-accent/60" : ""} ${mark.ring() ? RING : ""}`}
+      class={`h-8 flex-row items-center gap-2 rounded-md px-3 hover:bg-accent/60 selected:bg-accent disabled:opacity-50 ${mark.lit() ? "bg-accent/60" : ""} ${mark.ring() ? RING : ""}`}
     >
       <Text class={`text-sm font-medium ${props.selected ? "text-foreground" : "text-muted-foreground"}`}>{props.label}</Text>
       <Badge count={props.count} />

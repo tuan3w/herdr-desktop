@@ -7,6 +7,7 @@ import { machinesOpen, newSession, settingsOpen, sidebarSearch } from "../lib/ac
 import { BOARD, focused, rowKeyOf, showBoard } from "../lib/dock";
 import { board, projectOf, revision, rowOf, started } from "../lib/herdr";
 import { linkGlyph, linkText } from "../lib/machine-state";
+import { ROW } from "#lib/layout";
 import { ofKind } from "../lib/list-item";
 import { hoverTransition } from "../lib/motion";
 import { openAgent } from "../lib/open-agent";
@@ -14,13 +15,14 @@ import { isSelected, rangeTo, toggle } from "../lib/selection";
 import { sidebarCollapsed } from "../lib/settings";
 import { keyLabel } from "../lib/shortcuts";
 import { ageText, foldedProjects, moreOpen, projectFolder, projectLabel, projectState, rowLabel, type SidebarItem, sidebarItems, toggleMore, toggleProject } from "../lib/sidebar";
+import { stateWord } from "#lib/status";
 import { ActionMenu, Badge, Btn, Clipped, compact, FOCUS_RING_SIDEBAR, Icon, type IconName, IconButton, Kbd, NUM, Popover, PopoverTitle, rail, SearchField, snug, Tipped, usePopover } from "./kit";
-import { PickBox } from "./pick-box";
-import { Monogram, StateChips } from "./project-parts";
+import { PickSlot } from "./pick-box";
+import { Monogram, ProjectMark } from "./project-parts";
 import { StatusGlyph } from "./status-glyph";
 
 /** Hover and the open tab are a quiet fill, nothing else. The focus ring is inset: see `FOCUS_RING_SIDEBAR`. */
-const ROW = `rounded-md hover:bg-sidebar-accent/60 selected:bg-sidebar-accent ${FOCUS_RING_SIDEBAR}`;
+const FILL = `rounded-md hover:bg-sidebar-accent/60 selected:bg-sidebar-accent ${FOCUS_RING_SIDEBAR}`;
 
 const query = signal("");
 
@@ -52,9 +54,9 @@ function NavRow(props: { icon: IconName; label: string; name?: string; shortcut?
         selected={props.selected}
         accessibilityLabel={props.name ?? props.label}
         style={hoverTransition()}
-        class={`h-7 flex-row items-center ${ROW} ${rail() ? "w-10 justify-center" : "justify-between px-2"}`}
+        class={`flex-row items-center ${FILL} ${rail() ? "size-11 justify-center" : `justify-between ${ROW.nav.class}`}`}
       >
-        <View class="flex-row items-center gap-2.5">
+        <View class="flex-row items-center gap-3">
           <Icon name={props.icon} tone={props.selected ? "sidebar-foreground" : "muted-foreground"} />
           <If when={!rail()}>
             <Text class="text-sm text-sidebar-foreground">{props.label}</Text>
@@ -72,7 +74,7 @@ function MachineGlyph(props: { status: MachineStatus }) {
   const label = () => `${props.status.name}, ${linkText(props.status)}`;
   return (
     <Tipped label={label()} class="items-center">
-      <Button onPress={() => machinesOpen.set(true)} accessibilityLabel={label()} style={hoverTransition()} class={`h-7 w-10 items-center justify-center ${ROW}`}>
+      <Button onPress={() => machinesOpen.set(true)} accessibilityLabel={label()} style={hoverTransition()} class={`size-11 items-center justify-center ${FILL}`}>
         <StatusGlyph status={linkGlyph(props.status.state)} />
       </Button>
     </Tipped>
@@ -89,11 +91,13 @@ function Host(props: { item: () => Extract<SidebarItem, { kind: "host" }> }) {
   const line = () => linkText(s());
   const label = () => `${s().name}, ${line()}`;
   return (
-    <View class="mt-2 gap-0.5">
-      <Button onPress={() => machinesOpen.set(true)} accessibilityLabel={label()} style={hoverTransition()} class={`min-h-7 flex-row items-center gap-2 px-2 py-0.5 ${ROW}`}>
+    <View class="mt-4 gap-1">
+      <Button onPress={() => machinesOpen.set(true)} accessibilityLabel={label()} style={hoverTransition()} class={`min-h-8 flex-row items-center gap-2 px-3 py-1 ${FILL}`}>
         <StatusGlyph status={linkGlyph(s().state)} size={12} />
         <Clipped class="min-w-0 flex-1 text-xs font-medium text-muted-foreground">{s().name}</Clipped>
-        <Badge onSidebar tone="signal" count={s().needsYou} />
+        <Text style={NUM} class="text-xs text-muted-foreground">
+          {s().needsYou > 0 ? `${s().needsYou}` : ""}
+        </Text>
       </Button>
       <If when={s().state !== "online"}>
         <Clipped lines={2} class="px-2 text-xs text-muted-foreground">
@@ -118,27 +122,28 @@ function projectEntries(project: BoardProject) {
 }
 
 /**
- * A project: fold button, name, its state as shape and number chips, and (on hover or focus, over the chips) its menu.
+ * A project: fold button, name, its one aggregate (the signal dot and the number while something waits) and, on hover or
+ * focus over it, its menu.
  * The row reads its item and holds no state, because the list recycles cells.
  */
 function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> }) {
   const p = () => props.item().project;
   return (
-    <View class={`group mt-1 ${p().offline ? "opacity-60" : ""}`}>
+    <View class={`group mt-3 ${p().offline ? "opacity-60" : ""}`}>
       <View
         role="button"
         onPress={() => toggleProject(p().key)}
         accessibilityLabel={projectLabel(p())}
         accessibilityState={{ expanded: !props.item().folded }}
         style={hoverTransition()}
-        class={`min-h-8 flex-row items-center gap-1.5 px-1.5 py-1 ${ROW}`}
+        class={`flex-row items-center gap-2 ${ROW.project.class} ${FILL}`}
       >
-        <Icon name={props.item().folded ? "chevron-right" : "chevron-down"} size={12} tone="muted-foreground" />
+        <Icon name={props.item().folded ? "chevron-right" : "chevron-down"} size={14} tone="muted-foreground" />
         <Clipped class="min-w-0 flex-1 text-sm font-medium text-sidebar-foreground">{p().name}</Clipped>
         <If when={p().pinned}>
           <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" class="size-1.5 rounded-full bg-sidebar-foreground" />
         </If>
-        <StateChips project={p()} onSidebar />
+        <ProjectMark project={p()} compact onSidebar />
       </View>
       <View class="absolute bottom-0 right-0 top-0 justify-center bg-sidebar pl-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
         <ActionMenu label={`Options for ${p().name}`} entries={projectEntries(p())} />
@@ -151,7 +156,7 @@ function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> 
 function Checkout(props: { item: () => Extract<SidebarItem, { kind: "checkout" }> }) {
   const c = () => props.item().checkout;
   return (
-    <View class="flex-row items-center gap-1.5 pl-5 pr-2 pt-1" accessibilityLabel={c().linked ? `${c().name}, worktree` : `${c().name}, main checkout`}>
+    <View class="flex-row items-center gap-2 pl-8 pr-3 pt-2" accessibilityLabel={c().linked ? `${c().name}, worktree` : `${c().name}, main checkout`}>
       <Clipped class="min-w-0 shrink text-xs text-muted-foreground">{c().name}</Clipped>
       <Text class="text-xs text-muted-foreground">{c().linked ? "worktree" : "main"}</Text>
     </View>
@@ -175,16 +180,16 @@ function useRowKeys(row: () => BoardRow) {
   return { onFocus: () => focus.set(true), onBlur: () => focus.set(false) };
 }
 
-/** An agent in two lines: its state as a shape, its name and how long, and under it what it is (the agent, chat or terminal). */
+/**
+ * An agent in two lines: its state as a quiet shape, its name and how long, and under it what it is doing in words and
+ * what it is (the agent, chat or terminal). The box that picks it for a bulk action takes the glyph's place on hover.
+ */
 function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
   const row = () => props.item().row;
   const keys = useRowKeys(row);
-  const sub = () => [row().agent, row().session ? "chat" : "terminal", row().offline ? "offline" : ""].filter(Boolean).join(" · ");
+  const sub = () => [stateWord(row().status, row().reviewed), row().agent, row().session ? "chat" : "", row().offline ? "offline" : ""].filter(Boolean).join(" · ");
   return (
-    <View class={`group flex-row items-center ${props.item().nested ? "pl-3" : ""}`}>
-      <View class={`pl-1 ${isSelected(row().key) ? "" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}>
-        <PickBox rowKey={row().key} name={row().name} order={rowKeys} />
-      </View>
+    <View class={`group/row relative ${props.item().nested ? "pl-3" : ""}`}>
       <View
         role="button"
         onPress={() => void openAgent(row())}
@@ -193,9 +198,9 @@ function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
         onFocus={keys.onFocus}
         onBlur={keys.onBlur}
         style={hoverTransition()}
-        class={`min-h-10 min-w-0 flex-1 flex-row items-center gap-2.5 px-2 py-1 ${ROW} ${row().offline ? "opacity-60" : ""}`}
+        class={`min-w-0 flex-row items-center gap-3 ${ROW.agent.class} ${FILL} ${row().offline ? "opacity-60" : ""}`}
       >
-        <StatusGlyph status={row().status} />
+        <StatusGlyph status={row().status} id={row().key} />
         <View class="min-w-0 flex-1">
           <View class="flex-row items-center gap-2">
             <Clipped class="min-w-0 flex-1 text-sm text-sidebar-foreground">{row().name}</Clipped>
@@ -206,6 +211,7 @@ function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
           <Clipped class="text-xs text-muted-foreground">{sub()}</Clipped>
         </View>
       </View>
+      <PickSlot rowKey={row().key} name={row().name} order={rowKeys} surface="sidebar" nested={props.item().nested} />
     </View>
   );
 }
@@ -220,7 +226,7 @@ function More(props: { item: () => Extract<SidebarItem, { kind: "more" }> }) {
       accessibilityLabel={`${text()} in ${nameOf(it().project)}`}
       accessibilityState={{ expanded: it().open }}
       style={hoverTransition()}
-      class={`h-7 justify-center pl-8 pr-2 ${ROW}`}
+      class={`min-h-9 justify-center pl-9 pr-3 ${FILL}`}
     >
       <Text class="text-xs text-muted-foreground">{text()}</Text>
     </View>
@@ -230,7 +236,7 @@ function More(props: { item: () => Extract<SidebarItem, { kind: "more" }> }) {
 /** The tree: machines, projects, checkouts, agents. Rows are recycled, so each reads its item and holds nothing of its own. */
 function Tree() {
   return (
-    <List each={items()} keyExtractor={(i: SidebarItem) => i.key} estimatedItemSize={44} class="min-h-0 flex-1" contentClass="gap-0.5" accessibilityLabel="Projects and agents">
+    <List each={items()} keyExtractor={(i: SidebarItem) => i.key} estimatedItemSize={ROW.agent.height} class="min-h-0 flex-1" contentClass="gap-1" accessibilityLabel="Projects and agents">
       {(item) => {
         const host = ofKind(item, "host");
         const project = ofKind(item, "project");
@@ -274,7 +280,7 @@ function RailAgent(props: { row: BoardRow; project: BoardProject }) {
       }}
       {...popover.focus}
       style={hoverTransition()}
-      class={`min-h-9 flex-row items-center gap-2.5 rounded-md px-2 py-1 hover:bg-accent ${FOCUS_RING_SIDEBAR} ${props.row.offline ? "opacity-60" : ""}`}
+      class={`min-h-11 flex-row items-center gap-3 rounded-md px-3 py-2 hover:bg-accent ${FOCUS_RING_SIDEBAR} ${props.row.offline ? "opacity-60" : ""}`}
     >
       <StatusGlyph status={props.row.status} />
       <Clipped class="min-w-0 flex-1 text-sm text-foreground">{props.row.name}</Clipped>
@@ -286,10 +292,10 @@ function RailAgent(props: { row: BoardRow; project: BoardProject }) {
 }
 
 /**
- * A project in the rail: a tile with its first letters and, in a corner, what it is doing: the signal count with the
- * filled disc when something needs you, else the quiet half ring while something works. Pinned projects carry a small
- * dot, the project being worked in is lit. A press opens a popover with the project's agents (the sidebar cannot widen
- * in a narrow window); its name and state are the tooltip and the accessible name.
+ * A project in the rail: a tile with its first letters and, in a corner, the signal dot while something waits (the number
+ * is the tooltip and the accessible name; the rail has no room for words). Pinned projects carry a small ink dot, the
+ * project being worked in is lit. A press opens a popover with the project's agents (the sidebar cannot widen in a
+ * narrow window).
  */
 function RailTile(props: { project: BoardProject }) {
   const p = () => props.project;
@@ -311,23 +317,16 @@ function RailTile(props: { project: BoardProject }) {
             onFocus={t.onFocus}
             onBlur={t.onBlur}
             style={hoverTransition()}
-            class={`size-10 items-center justify-center rounded-lg hover:bg-sidebar-accent/60 ${lit() ? "bg-sidebar-accent" : ""} ${p().offline ? "opacity-60" : ""} ${FOCUS_RING_SIDEBAR}`}
+            class={`size-11 items-center justify-center rounded-lg hover:bg-sidebar-accent/60 ${lit() ? "bg-sidebar-accent" : ""} ${p().offline ? "opacity-60" : ""} ${FOCUS_RING_SIDEBAR}`}
           >
             <Monogram name={p().name} size={32} />
             <If when={p().needsYou > 0}>
-              <View class="absolute -right-0.5 -top-0.5 flex-row items-center gap-0.5 rounded-full bg-sidebar-primary px-1 py-px">
-                <Text style={NUM} class="text-xs font-semibold text-sidebar-primary-foreground">
-                  {`${p().needsYou}`}
-                </Text>
-              </View>
-            </If>
-            <If when={p().needsYou === 0 && p().working > 0}>
-              <View class="absolute -right-0.5 -top-0.5 rounded-full bg-sidebar p-0.5">
-                <StatusGlyph status="working" size={12} />
+              <View class="absolute right-0.5 top-0.5">
+                <Badge onSidebar dot tone="signal" />
               </View>
             </If>
             <If when={p().pinned}>
-              <View class="absolute bottom-0.5 right-0.5 size-1.5 rounded-full bg-sidebar-foreground" />
+              <View class="absolute bottom-1 right-1 size-1.5 rounded-full bg-sidebar-foreground" />
             </If>
           </View>
         </Tipped>
@@ -345,7 +344,7 @@ function RailTile(props: { project: BoardProject }) {
 /** The rail: one tile per project in the board's order, in a column that scrolls when there are many. */
 function Rail() {
   return (
-    <Scroll class="min-h-0 flex-1" contentClass="items-center gap-1.5 py-1" accessibilityLabel="Projects">
+    <Scroll class="min-h-0 flex-1" contentClass="items-center gap-2 py-1" accessibilityLabel="Projects">
       <Each of={board().projects} key={(p: BoardProject) => p.key}>
         {(project) => <RailTile project={project()} />}
       </Each>
@@ -379,8 +378,8 @@ export function Sidebar() {
   const needs = () => board().counts.needsYou;
   const empty = () => items().length === 0;
   return (
-    <View class="size-full gap-3 bg-sidebar px-2 py-3">
-      <View class={`h-8 flex-row items-center ${rail() ? "justify-center" : "justify-between pl-2"}`}>
+    <View class="size-full gap-4 bg-sidebar px-3 py-4">
+      <View class={`h-10 flex-row items-center ${rail() ? "justify-center" : "justify-between pl-3"}`}>
         <If when={!rail() || compact()}>
           <View class="flex-row items-center gap-2">
             <View class="size-5 items-center justify-center rounded-md bg-sidebar-accent">
@@ -395,7 +394,7 @@ export function Sidebar() {
           <CollapseButton />
         </If>
       </View>
-      <View class="gap-0.5">
+      <View class="gap-1">
         <View class="pb-2">
           <NavRow icon="plus" label="New agent session" shortcut={keyLabel("newAgent")} onPress={() => newSession()}>
             <If when={!snug()}>
@@ -403,22 +402,8 @@ export function Sidebar() {
             </If>
           </NavRow>
         </View>
-        <NavRow
-          icon="list"
-          label="Board"
-          name={needs() > 0 ? `Board, ${needs()} need you` : "Board"}
-          shortcut={keyLabel("board")}
-          selected={focused() === BOARD}
-          onPress={() => void showBoard()}
-          mark={
-            <If when={needs() > 0}>
-              <View class="absolute right-1 top-0.5">
-                <Badge onSidebar dot tone="signal" />
-              </View>
-            </If>
-          }
-        >
-          <Badge onSidebar count={needs()} tone="signal" />
+        <NavRow icon="list" label="Board" name={needs() > 0 ? `Board, ${needs()} need you` : "Board"} shortcut={keyLabel("board")} selected={focused() === BOARD} onPress={() => void showBoard()}>
+          <Badge onSidebar count={needs()} />
         </NavRow>
       </View>
       <If when={rail()}>
@@ -435,7 +420,7 @@ export function Sidebar() {
         <Rail />
       </If>
       <If when={!rail() && empty()}>
-        <Text class="px-2 text-xs text-muted-foreground">{query().trim() ? "No project or agent matches" : board().statusLine}</Text>
+        <Text class="px-3 text-xs text-muted-foreground">{query().trim() ? "No project or agent matches" : board().statusLine}</Text>
       </If>
       <NavRow icon="sliders" label="Settings" shortcut={keyLabel("settings")} onPress={() => settingsOpen.set(true)} />
     </View>

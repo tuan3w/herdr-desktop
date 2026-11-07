@@ -9,7 +9,7 @@ import { Icon } from "./icon";
 
 /** Text input look: hover darkens the edge, focus draws the ring color. Errors add `border-destructive`. */
 export const INPUT_CLASS =
-  "h-8 rounded-md border border-input bg-card px-2.5 text-sm text-foreground placeholder:text-muted-foreground hover:border-muted-foreground/50 focus:border-ring focus:outline-2 focus:outline-offset-0 focus:outline-ring/30";
+  "h-9 rounded-md border border-input bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground hover:border-muted-foreground/50 focus:border-ring focus:outline-2 focus:outline-offset-0 focus:outline-ring/30";
 export const INPUT_ERROR = "border-destructive hover:border-destructive focus:border-destructive focus:outline-destructive/30";
 
 /** The line under a control: the field's error, or the hint while there is none. `reserve` keeps the room of one line. */

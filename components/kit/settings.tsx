@@ -23,7 +23,7 @@ export function SettingsSection(props: { title: string; children?: JSX.Element }
  */
 export function SettingRow(props: { label: string; description?: string; control?: JSX.Element; stacked?: boolean }) {
   return (
-    <View class={`gap-3 py-3.5 ${props.stacked ? "" : "flex-row items-center justify-between"}`}>
+    <View class={`gap-3 py-4 ${props.stacked ? "" : "flex-row items-center justify-between"}`}>
       <View class={`gap-1 ${props.stacked ? "" : "min-w-0 flex-1 pr-6"}`}>
         <Text class="text-sm text-foreground">{props.label}</Text>
         <If when={props.description}>

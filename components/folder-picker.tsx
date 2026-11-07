@@ -94,8 +94,8 @@ export function FolderPicker(props: { open: boolean; machine: string; start: str
         </If>
         <If when={loading() && listing() === null}>
           <View accessibilityLabel="Loading folders" class="gap-1">
-            <Skeleton class="h-8 w-full" />
-            <Skeleton class="h-8 w-full" />
+            <Skeleton class="h-9 w-full" />
+            <Skeleton class="h-9 w-full" />
           </View>
         </If>
         <If when={listing()}>
@@ -106,7 +106,7 @@ export function FolderPicker(props: { open: boolean; machine: string; start: str
                   <Button
                     accessibilityLabel={`Open ${entry().name}`}
                     onPress={() => void go(joinPath(here(), entry().name))}
-                    class={`h-8 flex-row items-center gap-2 rounded-md px-2 hover:bg-accent ${entry().readable ? "" : "opacity-60"} ${FOCUS_RING_INSET}`}
+                    class={`h-9 flex-row items-center gap-2 rounded-md px-2 hover:bg-accent ${entry().readable ? "" : "opacity-60"} ${FOCUS_RING_INSET}`}
                   >
                     <Icon name="folder" size={16} tone="muted-foreground" />
                     <Text class="min-w-0 flex-1 text-sm text-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>

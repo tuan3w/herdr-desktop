@@ -78,7 +78,7 @@ export function ToolRow(props: { tool: ToolItem; cwd: string; open: boolean; onT
       onPress={props.onToggle}
       label={`Tool: ${said()}, ${toolStatusText(props.tool.status)}`}
       open={props.open}
-      class="min-h-7 flex-row items-center gap-2 rounded-md px-2 py-1"
+      class="min-h-8 flex-row items-center gap-2 rounded-md px-2 py-1"
     >
       <Icon name={toolIcon(line().kind)} size={14} tone="muted-foreground" />
       <Text class="min-w-0 flex-1 text-sm text-muted-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
@@ -121,7 +121,7 @@ function Edit(props: { diff: DiffItem; machine: string; cwd: string }) {
         <Button
           onPress={() => viewFile(props.machine, props.diff.path)}
           accessibilityLabel={`Open ${shortPath(props.diff.path, props.cwd)}`}
-          class={`min-w-0 flex-1 flex-row items-center gap-1.5 rounded-md py-0.5 ${FOCUS_RING}`}
+          class={`min-w-0 flex-1 flex-row items-center gap-2 rounded-md py-1 ${FOCUS_RING}`}
         >
           <Icon name="file" size={12} tone="muted-foreground" />
           <Text class="min-w-0 font-mono text-xs text-foreground underline" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
@@ -193,7 +193,7 @@ export function PartChips(props: { parts: readonly PartView[]; machine: string; 
                 onPress={press}
                 disabled={!path() && !(part().uri && /^https?:\/\//i.test(part().uri!))}
                 accessibilityLabel={`${part().partKind === "audio" ? "Sound" : part().partKind === "image" ? "Picture" : "File"}: ${part().name}${detail() ? `, ${detail()}` : ""}`}
-                class={`h-8 max-w-[360px] flex-row items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 hover:bg-accent ${FOCUS_RING}`}
+                class={`h-9 max-w-[360px] flex-row items-center gap-2 rounded-md border border-border bg-muted px-3 hover:bg-accent ${FOCUS_RING}`}
               >
                 <Icon name={part().partKind === "image" ? "image" : "file"} size={14} tone="muted-foreground" />
                 <Text class="min-w-0 text-sm text-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
@@ -215,13 +215,13 @@ export function PartChips(props: { parts: readonly PartView[]; machine: string; 
 function Locations(props: { locations: readonly LocationView[]; machine: string; cwd: string; all: boolean }) {
   const shown = () => (props.all ? props.locations : props.locations.slice(0, 4));
   return (
-    <View role="list" accessibilityLabel="Files it touched" class="gap-0.5">
+    <View role="list" accessibilityLabel="Files it touched" class="gap-1">
       <Each of={shown() as LocationView[]} key="index">
         {(loc) => (
           <Button
             onPress={() => viewFile(props.machine, loc().path, loc().line)}
             accessibilityLabel={`Open ${shortPath(loc().path, props.cwd)}${loc().line ? ` at line ${loc().line}` : ""}`}
-            class={`flex-row items-center gap-1.5 self-start rounded-md py-0.5 ${FOCUS_RING}`}
+            class={`flex-row items-center gap-2 self-start rounded-md py-1 ${FOCUS_RING}`}
           >
             <Icon name="file" size={12} tone="muted-foreground" />
             <Text class="font-mono text-xs text-foreground underline">{`${shortPath(loc().path, props.cwd)}${loc().line ? `:${loc().line}` : ""}`}</Text>

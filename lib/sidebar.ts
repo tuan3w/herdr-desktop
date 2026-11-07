@@ -1,5 +1,6 @@
 import { effect, signal, Storage } from "nsh";
 import type { BoardCheckout, BoardData, BoardProject, BoardRow, MachineStatus } from "herdr-desktop/native";
+import { SIDEBAR_WIDTH } from "./layout";
 import { save } from "./save";
 import { statusText } from "./status";
 import { fold } from "./text";
@@ -22,8 +23,7 @@ export type SidebarItem =
 const KEY = "herdr.sidebar.v1";
 
 /** The sidebar's width in points: the person drags its edge, and a compact window overrides it with the rail. */
-export const SIDEBAR_WIDTH = { default: 260, min: 200, max: 480, narrow: 220 };
-export const sidebarWidth = signal(SIDEBAR_WIDTH.default);
+export const sidebarWidth = signal<number>(SIDEBAR_WIDTH.default);
 
 /**
  * Projects the person folded, by `BoardProject.key`, in the sidebar and on the home alike: one state for both lists. A
@@ -94,6 +94,24 @@ export function projectState(project: Pick<BoardProject, "needsYou" | "working" 
   if (project.working > 0) parts.push(`${project.working} working`);
   if (project.toReview > 0) parts.push(`${project.toReview} to review`);
   return parts.join(", ");
+}
+
+/**
+ * What a project's header says in words, the quiet half of its one aggregate (the signal dot, when something waits, is the
+ * other half). `compact` (the sidebar) is the one number that matters: `2` while something waits, else `2 working`, else
+ * `1 to review`; the card lists every part: `2 waiting · 2 working · 1 to review`. Empty when all are zero.
+ */
+export function projectSummary(project: Pick<BoardProject, "needsYou" | "working" | "toReview">, compact: boolean): string {
+  if (compact) {
+    if (project.needsYou > 0) return `${project.needsYou}`;
+    if (project.working > 0) return `${project.working} working`;
+    return project.toReview > 0 ? `${project.toReview} to review` : "";
+  }
+  const parts: string[] = [];
+  if (project.needsYou > 0) parts.push(`${project.needsYou} waiting`);
+  if (project.working > 0) parts.push(`${project.working} working`);
+  if (project.toReview > 0) parts.push(`${project.toReview} to review`);
+  return parts.join(" · ");
 }
 
 /** `payments-api` or, when the board spans several machines, `payments-api on build-box`. */

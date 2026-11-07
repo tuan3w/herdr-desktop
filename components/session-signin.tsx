@@ -75,7 +75,7 @@ export function createSignin(port: SessionPort): Signin {
 function AgentMethod(props: { method: AuthMethodView; signin: Signin; onNode: (id: string, node: ViewRef) => void }) {
   const working = () => props.signin.busy() === props.method.id;
   return (
-    <View class="gap-1.5">
+    <View class="gap-2">
       <View class="flex-row">
         <Btn
           variant="primary"
@@ -101,7 +101,7 @@ function TerminalMethod(props: { method: AuthMethodView; where: string; signin: 
   const reopening = () => props.signin.busy() === "reopen";
   return (
     <View class="gap-2">
-      <View class="gap-0.5">
+      <View class="gap-1">
         <View class="flex-row items-center gap-2">
           <Icon name="terminal" size={16} tone="muted-foreground" />
           <Text role="header" class="text-sm font-medium text-foreground">

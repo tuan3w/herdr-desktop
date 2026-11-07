@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
 import type { SidebarItem } from "./sidebar";
-import { ageText, matches, monogram, MONOGRAM_TONES, projectFolder, projectLabel, QUIET_SHOWN, rowLabel, shownRows, sidebarItems } from "./sidebar";
+import { ageText, matches, monogram, MONOGRAM_TONES, projectFolder, projectLabel, projectSummary, QUIET_SHOWN, rowLabel, shownRows, sidebarItems } from "./sidebar";
 import { boardData, machine, project, row } from "./board-rows.fixture";
 
 const shape = (items: SidebarItem[]) =>
@@ -119,4 +119,13 @@ test("a project's monogram is its first letters and keeps its tint whatever else
 
 test("ages read as a glance wants them", () => {
   expect([null, 10, 90, 3500, 7300, 200000].map(ageText)).toEqual(["", "just now", "2 min", "58 min", "2 h", "2 d"]);
+});
+
+test("a project says what it does once: the number alone in the sidebar, every part in words on a card", () => {
+  const mixed = { needsYou: 2, working: 1, toReview: 3 };
+  expect(projectSummary(mixed, true)).toBe("2");
+  expect(projectSummary(mixed, false)).toBe("2 waiting · 1 working · 3 to review");
+  expect(projectSummary({ needsYou: 0, working: 2, toReview: 1 }, true)).toBe("2 working");
+  expect(projectSummary({ needsYou: 0, working: 0, toReview: 1 }, true)).toBe("1 to review");
+  expect(projectSummary({ needsYou: 0, working: 0, toReview: 0 }, false)).toBe("");
 });

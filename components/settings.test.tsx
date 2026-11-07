@@ -2,7 +2,7 @@ import { expect, open, test } from "nsh/test";
 import type { App } from "nsh/test";
 import app from "../nsh.json";
 
-const DESKTOP = { width: 1280, height: 1000 };
+const DESKTOP = { width: 1280, height: 1400 };
 const KEY = "herdr.settings.v1";
 
 const saved = (a: App): Record<string, unknown> => JSON.parse(a.storage()[KEY] ?? "{}");
@@ -10,6 +10,7 @@ const saved = (a: App): Record<string, unknown> => JSON.parse(a.storage()[KEY] ?
 async function inSettings(options: Parameters<typeof open>[1] = DESKTOP): Promise<App> {
   const a = await open("./machines-lab.tsx", options);
   await a.press("Open settings");
+  await a.waitFor("Look");
   return a;
 }
 

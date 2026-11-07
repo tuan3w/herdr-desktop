@@ -166,7 +166,7 @@ export function SessionQuestion(props: { machine: string; id: string; view: Sess
             >
               <Each of={f().kind === "bool" ? [{ value: "0", title: "Yes" }, { value: "1", title: "No" }] : titles()} key="index">
                 {(c) => (
-                  <RadioItem value={c().value} label={c().title} class="h-8 flex-row items-center gap-2 rounded-md px-1 hover:bg-accent">
+                  <RadioItem value={c().value} label={c().title} class="h-9 flex-row items-center gap-2 rounded-md px-1 hover:bg-accent">
                     <View class="size-4 items-center justify-center rounded-full border border-input group-checked:border-primary">
                       <View class="size-2 rounded-full bg-transparent group-checked:bg-primary" />
                     </View>
@@ -204,8 +204,8 @@ export function SessionQuestion(props: { machine: string; id: string; view: Sess
   return (
     <If when={request()}>
       {(w) => (
-        <View role="group" accessibilityLabel="Question from the agent" class="gap-2.5 border-t border-border bg-background px-4 py-3">
-          <View class="gap-0.5">
+        <View role="group" accessibilityLabel="Question from the agent" class="gap-3 border-t border-border bg-background px-4 py-3">
+          <View class="gap-1">
             <Text role="header" class="text-sm font-medium text-foreground">
               The agent asks
             </Text>

@@ -23,8 +23,8 @@ const reason = (e: unknown): string => (e instanceof Error ? e.message : String(
 /** One fact of the session: its name above, its value below, and an optional action (copy). */
 function Detail(props: { label: string; value: string; mono?: boolean; action?: { label: string; onPress: () => void } }) {
   return (
-    <View class="flex-row items-start justify-between gap-3 py-1.5">
-      <View class="min-w-0 flex-1 gap-0.5">
+    <View class="flex-row items-start justify-between gap-3 py-2">
+      <View class="min-w-0 flex-1 gap-1">
         <Text class="text-xs text-muted-foreground">{props.label}</Text>
         <Text style={{ userSelect: "text" }} class={`text-sm text-foreground ${props.mono ? "font-mono" : ""}`}>
           {props.value}
@@ -120,14 +120,14 @@ export function SessionOverview(props: { open: boolean; onClose: () => void; mac
         />
         <Detail label="State" value={state()} />
         <If when={view()?.contextPercent !== undefined && view()?.contextPercent !== null}>
-          <View class="gap-1 py-1.5">
+          <View class="gap-1 py-2">
             <Text class="text-xs text-muted-foreground">Context</Text>
             <Progress label="Context used" value={view()?.contextPercent ?? 0} valueText={`${Math.round(view()?.contextPercent ?? 0)} percent of the context is used`} />
             <Text class="text-sm text-foreground">{`${Math.round(view()?.contextPercent ?? 0)}% used`}</Text>
           </View>
         </If>
         <If when={(view()?.options.length ?? 0) > 0}>
-          <View class="gap-2 py-1.5">
+          <View class="gap-2 py-2">
             <Text class="text-xs text-muted-foreground">Settings</Text>
             <Each of={view()?.options ?? []} key="index">
               {(option) => <SessionOption machine={props.machine} id={props.id} optionId={option().id} />}

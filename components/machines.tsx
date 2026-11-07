@@ -21,10 +21,10 @@ function Agents(props: { status: MachineStatus | undefined }) {
   return (
     <If when={props.status && props.status.state === "online" ? props.status : undefined}>
       {(status) => (
-        <View class="items-end gap-0.5">
+        <View class="items-end gap-1">
           <Text class="text-sm text-muted-foreground">{plural(status().agents, "agent", "agents")}</Text>
           <If when={status().needsYou > 0}>
-            <View class="flex-row items-center gap-1.5">
+            <View class="flex-row items-center gap-2">
               <StatusGlyph status="blocked" size={12} />
               <Text class="text-sm font-medium text-foreground">{`${status().needsYou} need you`}</Text>
             </View>
@@ -111,7 +111,7 @@ export function Machines(props: { open: boolean; onClose: () => void }) {
             {(row) => (
               <View class="flex-row items-center gap-3 border-b border-border py-3">
                 <StatusGlyph status={row().status ? linkGlyph(row().status!.state) : "unknown"} size={16} />
-                <View class="min-w-0 flex-1 gap-0.5">
+                <View class="min-w-0 flex-1 gap-1">
                   <Clipped class="text-sm font-medium text-foreground">{row().machine.name}</Clipped>
                   <Clipped lines={2} class="text-sm text-muted-foreground">{row().status ? linkText(row().status!) : "Not started"}</Clipped>
                   <If when={!row().machine.local}>

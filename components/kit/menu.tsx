@@ -178,8 +178,8 @@ const POPUP = "min-w-52 rounded-lg border border-border bg-popover p-1 text-popo
 const POPUP_INSET = 5;
 /** `POPUP_INSET` on both sides: what a popup is taller than its rows. */
 const CHROME = POPUP_INSET * 2;
-const ITEM_HEIGHT = 32;
-const HEADING_HEIGHT = 28;
+const ITEM_HEIGHT = 36;
+const HEADING_HEIGHT = 32;
 /** A divider's line (1) and its margins (4 and 4). */
 const DIVIDER_HEIGHT = 9;
 const MARGIN = 8;
@@ -187,9 +187,9 @@ const MARGIN = 8;
 const MAX_ROWS_HEIGHT = 384;
 /** Above this many rows a scrolling menu is a `List`: only the rows in view exist. */
 const VIRTUAL_ROWS = 30;
-const ITEM = "h-8 flex-row items-center gap-2.5 rounded-md px-2";
+const ITEM = "h-9 flex-row items-center gap-3 rounded-md px-3";
 /** A choice list's rows hang like its trigger's text: the trigger has a border (1) and 10pt of padding. */
-const CHOICE_ITEM = "h-8 flex-row items-center gap-2.5 rounded-md px-1.5";
+const CHOICE_ITEM = "h-9 flex-row items-center gap-3 rounded-md px-2";
 /** The pointer must rest this long on a submenu's row, with no other submenu open, before it opens. */
 const OPEN_DELAY = 100;
 /** A press on the trigger this soon after a hover opened the menu keeps it open: the user meant to open it (Base UI's `PATIENT_CLICK_THRESHOLD`). */
@@ -493,7 +493,7 @@ function Panel(props: {
           <View role="none" class="mx-1 my-1 h-px bg-border" />
         </If>
         <If when={row().kind === "label"}>
-          <View class={`h-7 justify-end pb-1 ${config.choice ? "px-1.5" : "px-2"}`}>
+          <View class={`h-8 justify-end pb-1 ${config.choice ? "px-2" : "px-3"}`}>
             <Text role="header" class="line-clamp-1 text-xs font-medium text-muted-foreground">
               {row().label}
             </Text>
@@ -825,7 +825,7 @@ export function ActionMenu(props: {
             if (props.openOnHover) intent.leaveTrigger(true);
           }}
           style={hoverTransition()}
-          class={`size-7 items-center justify-center rounded-md hover:bg-accent active:bg-accent ${state.open() ? "bg-accent" : ""} ${props.disabled ? "opacity-50" : ""} ${FOCUS_RING}`}
+          class={`size-8 items-center justify-center rounded-md hover:bg-accent active:bg-accent ${state.open() ? "bg-accent" : ""} ${props.disabled ? "opacity-50" : ""} ${FOCUS_RING}`}
         >
           <Icon name={props.icon ?? "ellipsis"} tone="muted-foreground" />
         </View>

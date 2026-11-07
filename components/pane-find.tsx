@@ -59,7 +59,7 @@ export function PaneFind(props: { rows: () => Promise<string[]>; scrollToRow: (r
   });
 
   return (
-    <View class="flex-row items-center gap-2 border-b border-border bg-card px-3 py-1.5">
+    <View class="flex-row items-center gap-2 border-b border-border bg-card px-3 py-2">
       <Input
         ref={(node: InputRef) => {
           field = node;

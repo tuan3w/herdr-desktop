@@ -13,7 +13,7 @@ import { StatusGlyph } from "./status-glyph";
  * with the count: an agent that stops waiting leaves the walk and the next one takes its place, and when none is left it
  * says `All clear`. The walk follows an agent by its key: a newcomer in the list never swaps the one being read.
  */
-export function Triage(props: { open: boolean; onClose: () => void; onOpen: (row: BoardRow) => void }) {
+export function Triage(props: { open: boolean; start?: string; onClose: () => void; onOpen: (row: BoardRow) => void }) {
   const waiting = computed(() => board().needsYou.filter((r) => !r.offline));
   const current = signal<string | undefined>(undefined);
   /** Where the current agent last stood, so the walk goes on from there once it is answered and leaves the list. */
@@ -21,7 +21,8 @@ export function Triage(props: { open: boolean; onClose: () => void; onOpen: (row
   const message = signal("");
   const sentNote = signal("");
 
-  // Starts at the first when opened; afterwards keeps to the agent being read, or to its place once it is gone.
+  // Starts at `start` (the agent whose `Answer` opened it) or the first when opened; afterwards keeps to the agent being
+  // read, or to its place once it is gone.
   effect(() => {
     const rows = waiting();
     if (!props.open) {
@@ -34,7 +35,8 @@ export function Triage(props: { open: boolean; onClose: () => void; onOpen: (row
       place = at;
       return;
     }
-    const next = rows[Math.min(place, rows.length - 1)];
+    const started = untracked(current) === undefined ? rows.findIndex((r) => r.key === props.start) : -1;
+    const next = rows[started >= 0 ? started : Math.min(place, rows.length - 1)];
     current.set(next?.key);
     place = next ? rows.indexOf(next) : 0;
     message.set("");
@@ -101,7 +103,7 @@ export function Triage(props: { open: boolean; onClose: () => void; onOpen: (row
         {(r) => (
           <View class="gap-3">
             <View class="flex-row items-center gap-3">
-              <StatusGlyph status={r().status} />
+              <StatusGlyph status={r().status} size={16} loud />
               <View class="min-w-0 flex-1">
                 <Text class="text-sm font-medium text-foreground">{r().name}</Text>
                 <Text class="text-xs text-muted-foreground">{[projectOf(r().project)?.name ?? r().cwd?.split("/").filter(Boolean).pop(), r().agent, r().session ? "chat" : "terminal", r().machineName].filter(Boolean).join(" · ")}</Text>

@@ -16,7 +16,9 @@ import {
   queryWords,
   reconcileTyped,
   removeAt,
+  HEAD_H,
   revealOffset,
+  ROW_H,
   rowOf,
   startJob,
   stepJob,
@@ -134,8 +136,8 @@ test("a limit keeps the best matches, not the first groups, and says how many we
 test("revealing scrolls the least: up to the row's top, down to its bottom, and the first of a group brings its heading", () => {
   const plain = layout([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], undefined, -1);
   expect(revealOffset(plain, 3, 0, 224)).toBeUndefined();
-  expect(revealOffset(plain, 9, 0, 224)).toBe(10 * 32 - 224);
-  expect(revealOffset(plain, 1, 100, 224)).toBe(32);
+  expect(revealOffset(plain, 9, 0, 224)).toBe(10 * ROW_H - 224);
+  expect(revealOffset(plain, 1, 100, 224)).toBe(ROW_H);
   const choices: Choice[] = [
     { value: "1", title: "A", group: "X" },
     { value: "2", title: "B", group: "X" },
@@ -143,8 +145,8 @@ test("revealing scrolls the least: up to the row's top, down to its bottom, and 
   ];
   const grouped = layout([0, 1, 2], groupChoices(choices), -1);
   expect(rowOf(grouped, 2)).toBe(4);
-  // Row 3 is Y's heading (28 tall, at 28 + 64 = 92): arriving at C from below brings it into view.
-  expect(revealOffset(grouped, 2, 120, 64)).toBe(92);
+  // Row 3 is Y's heading (HEAD_H tall, below the heading of X and two rows): arriving at C from below brings it into view.
+  expect(revealOffset(grouped, 2, 120, 64)).toBe(HEAD_H + 2 * ROW_H);
 });
 
 const walk = (count: number, from: number, dir: 1 | -1, o: Partial<Parameters<typeof nextHighlight>[3]> = {}) =>

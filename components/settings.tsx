@@ -39,14 +39,14 @@ function ThemePreview(props: { spec: ThemeSpec }) {
       class="h-14 flex-row overflow-hidden rounded-md border border-border"
       style={{ backgroundColor: sw().page }}
     >
-      <View class="w-8 gap-1.5 p-1.5" style={{ backgroundColor: sw().sidebar }}>
+      <View class="w-8 gap-2 p-2" style={{ backgroundColor: sw().sidebar }}>
         <View class="h-1.5 w-full rounded-full" style={{ backgroundColor: sw().signal }} />
         <View class="h-1 w-full rounded-full opacity-40" style={{ backgroundColor: sw().page }} />
         <View class="h-1 w-3/4 rounded-full opacity-40" style={{ backgroundColor: sw().page }} />
       </View>
-      <View class="flex-1 gap-1.5 p-2">
+      <View class="flex-1 gap-2 p-2">
         <View class="h-1.5 w-10 rounded-full" style={{ backgroundColor: sw().ink }} />
-        <View class="flex-1 justify-end rounded-sm p-1.5" style={{ backgroundColor: sw().card }}>
+        <View class="flex-1 justify-end rounded-sm p-2" style={{ backgroundColor: sw().card }}>
           <View class="h-2.5 w-9 rounded-sm" style={{ backgroundColor: sw().primary }} />
         </View>
       </View>
@@ -67,7 +67,7 @@ function ThemePicker() {
               class="min-w-0 flex-1 gap-2 rounded-lg border border-border bg-background p-2 hover:bg-accent checked:border-primary checked:bg-accent"
             >
               <ThemePreview spec={spec()} />
-              <Text class="px-0.5 text-sm font-medium text-foreground">{spec().name}</Text>
+              <Text class="px-1 text-sm font-medium text-foreground">{spec().name}</Text>
             </RadioItem>
           )}
         </Each>

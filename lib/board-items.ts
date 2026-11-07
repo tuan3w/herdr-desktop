@@ -11,19 +11,27 @@ import { shownRows } from "./sidebar";
 export const STRIP_SHOWN = 1;
 /** A project with this many listed agents takes the whole width instead of half of it. */
 export const WIDE_ROWS = 6;
-/** The home is two columns from this width (points of the home itself, not of the window). */
-export const TWO_COLUMNS_FROM = 760;
 
-/** The agents waiting for an answer that the strip shows, longest waiting first, and how many more wait. */
+/** The agents waiting for an answer that the strip shows, longest waiting first, how many more wait, and where. */
 export interface Strip {
   rows: BoardRow[];
   more: number;
+  /** The ones not shown, counted per project in the order their first one has waited (`docs 4`, `infra 4`): twenty waiting agents are five short phrases, not twenty rows. */
+  moreIn: { name: string; count: number }[];
 }
 
 /** The strip's agents: those that need you and can be answered (a machine that is not connected cannot). */
 export function strip(data: BoardData): Strip {
   const waiting = data.needsYou.filter((r) => !r.offline);
-  return { rows: waiting.slice(0, STRIP_SHOWN), more: Math.max(0, waiting.length - STRIP_SHOWN) };
+  const rest = waiting.slice(STRIP_SHOWN);
+  const moreIn: Strip["moreIn"] = [];
+  for (const row of rest) {
+    const name = data.projects.find((p) => p.key === row.project)?.name ?? row.name;
+    const group = moreIn.find((g) => g.name === name);
+    if (group) group.count += 1;
+    else moreIn.push({ name, count: 1 });
+  }
+  return { rows: waiting.slice(0, STRIP_SHOWN), more: rest.length, moreIn };
 }
 
 /** One line of cards. */

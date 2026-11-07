@@ -228,18 +228,18 @@ export function SessionChat(props: { machine: string; id: string; active: boolea
               onShowTerminal={observedPane ? () => void showTerminal(props.machine, observedPane) : undefined}
             />
             <If when={view().connectionLost}>
-              <View role="alert" class="flex-row items-center gap-2 border-b border-border bg-muted px-4 py-1.5">
+              <View role="alert" class="flex-row items-center gap-2 border-b border-border bg-muted px-4 py-2">
                 <Text class="min-w-0 flex-1 text-xs text-foreground">{`Not connected to ${machineName()}. The agent keeps running; reconnect to carry on.`}</Text>
                 <Btn small label="Reconnect" loading={reconnecting()} onPress={() => void reconnect()} />
               </View>
             </If>
             <If when={view().observed && view().observed!.link !== "following" && view().observed!.linkText}>
-              <View class="border-b border-border bg-muted px-4 py-1.5">
+              <View class="border-b border-border bg-muted px-4 py-2">
                 <Text class="text-xs text-muted-foreground">{view().observed!.linkText}</Text>
               </View>
             </If>
             <If when={view().observed?.problem}>
-              <View role="alert" class="border-b border-border bg-muted px-4 py-1.5">
+              <View role="alert" class="border-b border-border bg-muted px-4 py-2">
                 <Text class="text-xs text-foreground">{view().observed!.problem}</Text>
               </View>
             </If>

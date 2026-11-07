@@ -23,7 +23,7 @@ function SubagentLine(props: { row: SubagentRow }) {
     <View
       role="group"
       accessibilityLabel={`Subagent ${props.row.name}, ${props.row.status}, ${props.row.toolCount} tool calls. ${visibleText(props.row.assignment)}`}
-      class="gap-0.5 py-1"
+      class="gap-1 py-1"
     >
       <View class="flex-row items-center gap-2">
         {failed() ? <Icon name="x" size={12} tone="destructive" /> : <StatusGlyph status={glyph(props.row.status)} size={12} />}
@@ -66,14 +66,14 @@ function Group(props: { title: string; summary: string; children: JSX.Element })
         label={`${props.title}, ${props.summary}`}
         open={open()}
         onPress={() => open.update((o) => !o)}
-        class="min-h-8 flex-row items-center gap-2 rounded-md px-2"
+        class="min-h-9 flex-row items-center gap-2 rounded-md px-2"
       >
         <Icon name={open() ? "chevron-down" : "chevron-right"} size={14} tone="muted-foreground" />
         <Text class="text-sm font-medium text-foreground">{props.title}</Text>
         <Text class="text-sm text-muted-foreground">{`· ${props.summary}`}</Text>
       </Disclosure>
       <If when={open()}>
-        <View class="gap-0.5 px-2 pb-2 pl-8">{props.children}</View>
+        <View class="gap-1 px-2 pb-2 pl-8">{props.children}</View>
       </If>
     </View>
   );
@@ -89,7 +89,7 @@ export function SessionActivity(props: { observed: ObservedView }) {
   const background = () => props.observed.background;
   return (
     <If when={subagents().length > 0 || background().length > 0}>
-      <View class="border-b border-border px-2 py-0.5">
+      <View class="border-b border-border px-2 py-1">
         <If when={subagents().length > 0}>
           <Group title="Subagents" summary={count(subagents().map((s) => ({ running: RUNNING.has(s.status) })))}>
             <Each of={subagents()} key="index">

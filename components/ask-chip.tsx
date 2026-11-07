@@ -40,12 +40,12 @@ export function AskChip(props: {
       onFocus={props.onFocus}
       onBlur={props.onBlur}
       style={hoverTransition()}
-      class={`max-w-full flex-row items-center gap-2 rounded-md border px-3 py-1.5 hover:bg-accent ${largeTargets() ? "min-h-11" : "min-h-8"} ${
+      class={`max-w-full flex-row items-center gap-2 rounded-md border px-3 py-2 hover:bg-accent ${largeTargets() ? "min-h-11" : "min-h-9"} ${
         props.dim ? "opacity-50" : ""
       } ${props.armed ? "border-warning bg-warning/20 dark:bg-warning/12" : "border-input bg-card"} ${FOCUS_RING}`}
     >
       <If when={props.risky}>
-        <Icon name="alert" size={14} tone="warning" />
+        <Icon name="alert" size={14} tone="muted-foreground" />
       </If>
       <View class="shrink gap-0.5">
         <Text class="text-sm font-medium text-foreground">{props.refused ?? props.label}</Text>

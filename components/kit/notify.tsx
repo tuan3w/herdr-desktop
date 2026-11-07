@@ -274,7 +274,7 @@ function ToastButton(props: { label: string; text?: string; icon: "undo" | "x"; 
       onPress={props.onPress}
       onFocus={props.onFocus}
       onBlur={props.onBlur}
-      class={`h-7 flex-row items-center justify-center gap-1.5 rounded-md hover:bg-accent active:bg-accent ${FOCUS_RING} ${props.text ? "px-2.5" : "w-7"}`}
+      class={`h-8 flex-row items-center justify-center gap-2 rounded-md hover:bg-accent active:bg-accent ${FOCUS_RING} ${props.text ? "px-3" : "w-8"}`}
     >
       <Icon name={props.icon} size={14} tone={props.disabled ? "muted-foreground" : "foreground"} />
       <If when={props.text}>
@@ -302,7 +302,7 @@ function ToastItem(props: { toast: () => ToastRecord<Data> }) {
       transitionStatus={props.toast().status}
       swipeDirection="down"
       onDismissRequest={() => closeToast(id)}
-      class="group flex-row items-center gap-3 rounded-lg border border-border bg-popover py-2 pl-3.5 pr-2 shadow-lg"
+      class="group flex-row items-center gap-3 rounded-lg border border-border bg-popover py-2 pl-4 pr-2 shadow-lg"
     >
       <ToastIcon type={props.toast().type} />
       {/* Never cut: a toast is read once, and what it says is what the user acts on. */}

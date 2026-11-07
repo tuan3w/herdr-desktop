@@ -150,7 +150,7 @@ export function Composer(props: {
 
   const note = () => error() || hint();
   return (
-    <View class="gap-1.5 border-t border-border bg-card px-3 pb-2 pt-2">
+    <View class="gap-2 border-t border-border bg-card px-4 pb-3 pt-3">
       <If when={matches().length > 0 && focused()}>
         <SlashList
           commands={matches()}
@@ -161,7 +161,7 @@ export function Composer(props: {
         />
       </If>
       <If when={chips().length > 0}>
-        <View class="flex-row flex-wrap gap-1.5">
+        <View class="flex-row flex-wrap gap-2">
           <Each of={chips()} key={(c: string) => c}>
             {(phrase) => (
               <Btn
@@ -181,7 +181,7 @@ export function Composer(props: {
       </If>
       <If when={held()}>
         {(h) => (
-          <View class="flex-row flex-wrap items-center gap-2 rounded-md border border-border bg-muted px-3 py-1.5">
+          <View class="flex-row flex-wrap items-center gap-2 rounded-md border border-border bg-muted px-3 py-2">
             <Text class="min-w-0 flex-1 text-xs text-foreground">
               {`/${h().word} isn’t one of ${agentTitle(props.agent)}’s commands. Sent as it is, it goes to the agent as a message.`}
             </Text>
@@ -218,7 +218,7 @@ export function Composer(props: {
             onFocus={() => focused.set(true)}
             onBlur={() => focused.set(false)}
             style={{ height: height() }}
-            class={`${INPUT_CLASS} py-1.5`}
+            class={`${INPUT_CLASS} py-2`}
           />
         </View>
         <Btn label="Send" name="Send message" variant="primary" disabled={props.disabled || value().trim() === ""} onPress={() => submit(value())} />

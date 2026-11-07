@@ -228,8 +228,8 @@ export function PermissionDock(props: { machine: string; id: string; view: Sessi
   return (
     <If when={request()}>
       {(w) => (
-        <View role="group" accessibilityLabel="Permission request" class="gap-2.5 border-t border-border bg-background px-4 py-3">
-          <View class="gap-0.5">
+        <View role="group" accessibilityLabel="Permission request" class="gap-3 border-t border-border bg-background px-4 py-3">
+          <View class="gap-1">
             <Text role="header" class="text-sm font-medium text-foreground">
               {KIND_WORDS[w().toolKind ?? ""] ?? "Permission request"}
             </Text>
@@ -239,7 +239,7 @@ export function PermissionDock(props: { machine: string; id: string; view: Sessi
           </View>
           <If when={around().said}>
             {(said) => (
-              <View class="gap-0.5">
+              <View class="gap-1">
                 <Text class="text-xs text-muted-foreground">The agent said before asking</Text>
                 <Clipped lines={3} class="text-sm text-foreground">
                   {visibleText(said())}

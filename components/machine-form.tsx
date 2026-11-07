@@ -209,7 +209,7 @@ export function MachineForm(props: { open: boolean; machine?: MachineView; onClo
           description="Off keeps the machine listed without connecting to it."
           control={<Switch label="Connect to this machine" checked={enabled()} onChange={(v) => enabled.set(v)} />}
         />
-        <View class="gap-1 rounded-md bg-muted px-3 py-2.5">
+        <View class="gap-1 rounded-md bg-muted px-3 py-3">
           <Text class="text-sm text-foreground">ssh signs you in: it uses your ssh config, keys and agent. There is no password or key to enter here.</Text>
           <Text class="text-sm text-muted-foreground">
             {`Password login is not supported. If the host is new to you or asks for a password, run ssh ${target()} once in a terminal to trust the host and log in.`}
