@@ -58,6 +58,11 @@ runs:
 
     - uses: oven-sh/setup-bun@v2
 
+    - name: Dev tools (oxlint, oxfmt)
+      shell: bash
+      # `make check` runs them from node_modules; the lockfile pins the versions.
+      run: bun install --frozen-lockfile
+
     - uses: actions/setup-node@v4
       with:
         node-version: "22"

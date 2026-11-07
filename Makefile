@@ -35,6 +35,8 @@ hooks:
 check:
 	nsh check
 	node scripts/absolute-imports.mjs --check
+	node_modules/.bin/oxlint --deny-warnings
+	node_modules/.bin/oxfmt --check
 
 test:
 	nsh test

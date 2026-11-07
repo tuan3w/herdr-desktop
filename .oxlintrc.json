@@ -9,9 +9,17 @@
     "typescript/consistent-type-imports": "error",
     "import/no-cycle": "error",
     "import/no-duplicates": "error",
-    "eqeqeq": "error",
+    // `x == null` is the one deliberate loose comparison (null or undefined).
+    "eqeqeq": ["error", "always", { "null": "ignore" }],
     "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
     "no-console": ["warn", { "allow": ["warn", "error"] }],
+
+    // The app strips terminal escape sequences (ESC, BEL, C0 controls): matching control characters is the job.
+    "no-control-regex": "off",
+    // Loops that wait on a value another turn changes (polling a page, a viewport) look unmodified to the rule.
+    "no-unmodified-loop-condition": "off",
+    // Small arrays, clearer code: spreading in `map` is fine here.
+    "oxc/no-map-spread": "off",
 
     // A step-by-step test, a keystroke sequence or a retry presses one thing after another: awaiting in a loop is the point.
     "no-await-in-loop": "off",
@@ -29,7 +37,19 @@
   },
   "overrides": [
     {
-      "files": ["**/*.test.ts", "**/*.test.tsx", "**/*-lab.tsx", "**/*-probe.tsx", "**/*.fixture.tsx", ".perf/**", ".shots/**", ".a11y/**", "perf-*.tsx", "code-lab-app.tsx", "scripts/**"],
+      "files": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*-lab.tsx",
+        "**/*-probe.tsx",
+        "**/*.fixture.tsx",
+        ".perf/**",
+        ".shots/**",
+        ".a11y/**",
+        "perf-*.tsx",
+        "code-lab-app.tsx",
+        "scripts/**"
+      ],
       "rules": { "no-console": "off" }
     }
   ]
