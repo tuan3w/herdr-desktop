@@ -32,7 +32,7 @@ import {
   usePopover,
   useTriggerFocus,
 } from "#kit";
-import { machinesOpen, newSession, settingsOpen, sidebarSearch } from "#lib/actions";
+import { newSession, openSettings, settingsPage, sidebarSearch } from "#lib/actions";
 import { checkoutsOf, openChanges } from "#lib/changes";
 import { BOARD, context, focused, rowKeyOf, showBoard } from "#lib/dock";
 import { board, projectOf, revision, rowOf, started } from "#lib/herdr";
@@ -127,7 +127,7 @@ function MachineGlyph(props: { status: MachineStatus }) {
   return (
     <Tipped label={label()} class="items-center">
       <Button
-        onPress={() => machinesOpen.set(true)}
+        onPress={() => openSettings("machines")}
         accessibilityLabel={label()}
         style={hoverTransition()}
         class={`size-11 items-center justify-center ${FILL}`}
@@ -221,7 +221,7 @@ function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> 
           accessibilityLabel={projectLabel(p())}
           accessibilityState={{ selected: context() === p().key }}
           style={hoverTransition()}
-          class={`min-w-0 flex-1 flex-row items-center gap-2 ${ROW.project.class} ${FILL}`}
+          class={`min-w-0 flex-1 flex-row items-center gap-2 group-hover:mr-16 group-focus-within:mr-16 ${ROW.project.class} ${FILL}`}
         >
           <Clipped class="min-w-0 flex-1 text-sm font-medium text-sidebar-foreground">{p().name}</Clipped>
           <If when={p().pinned}>
@@ -241,7 +241,7 @@ function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> 
           </If>
         </View>
       </View>
-      <View class="absolute bottom-0 right-0 top-0 flex-row items-center bg-sidebar pl-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+      <View class="absolute bottom-0 right-0 top-0 flex-row items-center pl-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
         <IconButton
           onSidebar
           icon="plus"
@@ -616,7 +616,13 @@ export function Sidebar() {
       <If when={!rail()}>
         <SidebarFooter />
       </If>
-      <NavRow icon="sliders" label="Settings" shortcut={keyLabel("settings")} onPress={() => settingsOpen.set(true)} />
+      <NavRow
+        icon="sliders"
+        label="Settings"
+        shortcut={keyLabel("settings")}
+        selected={settingsPage() !== null}
+        onPress={() => openSettings()}
+      />
     </View>
   );
 }
