@@ -4,11 +4,6 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
-### Fixed
-
-- **The app no longer closes by itself on Linux when a chat is replaced or closed.** On a computer whose shell preloads a jemalloc (`LD_PRELOAD=libjemalloc.so.2`) with GTK 4.22 on glibc 2.43, pressing `Show terminal` (or closing a tab) could take the whole window down without a message. The app now starts again, before it opens a window, without a preloaded library that breaks GTK (one line on the terminal names it; `HERDR_DESKTOP_KEEP_PRELOAD=1` keeps it).
-- **A chat answer selects as one piece.** A drag now crosses paragraphs, lists, code blocks and tables; `Copy message` stays for taking a whole answer in one press.
-
 ## [0.1.0-alpha.1] - 2026-11-07
 
 The first alpha of Herdr Desktop: the desktop counterpart of the Herdr phone app, for the people who run coding agents under [herdr](https://herdr.dev) and want one window for all of them. It is for trying, not for relying on: read "Known issues" first. Linux (x86_64) and macOS (Apple silicon) packages are built from the same commit by the same checks, but the author has only ever run it on Linux; **the macOS build is brand new and has never been run on a Mac by the author**, so tell us what breaks there.
@@ -19,7 +14,7 @@ The first alpha of Herdr Desktop: the desktop counterpart of the Herdr phone app
 - **A calm home.** An agent that needs you is said once: loudly in the `Needs you` inbox, and as a small quiet shape and the words `waiting for you` everywhere else, with one orange dot per project. Twenty waiting agents are one answer in place and a sentence (`19 more waiting · docs 4 · infra 4`), not twenty alarms. Text, rows and spacing are larger (15-pt text, 56-pt agent rows, a 300-pt sidebar), and cards, messages, tabs and counts move briefly when something arrives or changes (not when you switch tabs, and never with reduced motion).
 - **Answer safely.** A permission prompt from a terminal agent becomes buttons that show the exact command. A risky answer takes two presses (the first arms it for four seconds and says why), a button pressed just as the question changed is ignored, and nothing is sent when the pane no longer shows the question you saw.
 - **Watch and steer a pane.** A live mirror of the terminal (fit to the width, actual size, or wrapped lines), a composer, a key row, an opt-in typing mode with a visible way out, links in the output, slash commands, and quick phrases learned on your computer.
-- **Agent sessions.** Agents that speak ACP (for example `omp acp`) can be started from the app with a chat transcript, a permission dock with the same safety rules, replay after you close and reopen the app, and a sign-in card for agents that ask. Chats of Claude Code, Codex and omp running in a terminal pane can be shown as a chat (`Show chat`).
+- **Agent chats.** Agents that speak ACP (for example `omp acp`) open as native chat tabs: a transcript where a drag selects across paragraphs, lists, code blocks and tables (`Copy message` takes a whole answer), a permission dock with the same safety rules as terminal prompts, questions the agent asks, a queue for messages sent while it works, a sign-in card for agents that ask, and replay after you close and reopen the app. Chats of Claude Code, Codex and omp running in a terminal pane are read from their own logs and can be shown as a chat (`Show chat`).
 - **Many machines.** This computer plus any machine you can reach with `ssh`: your `~/.ssh/config`, agent and jump hosts are used, a changed host key stops that machine, and a machine that is out never affects another.
 - **Files and pages.** Browse and view files on a machine (code, Markdown, images), send a file to it, and open a page a machine serves (`localhost:5173`) through a tunnel.
 - **Notifications** (off by default) when an agent needs you while the window is away, with at most three at a time and then a summary.
@@ -37,6 +32,8 @@ The first alpha of Herdr Desktop: the desktop counterpart of the Herdr phone app
 - **Linux: screen reader limits.** Announcements are polite only (the toolkit cannot send an assertive one), and there is no tray icon. The accessibility audit runs on Linux only; there is no equivalent check on macOS yet.
 - **Linux: a preloaded allocator.** A shell profile that sets `LD_PRELOAD` to jemalloc 5.3.1 made GTK 4.22 crash the whole app whenever a window's widgets changed (a chat tab replaced by a terminal, a tab closed). The app now starts itself again without that preload and says so on stderr (`HERDR_DESKTOP_KEEP_PRELOAD=1` keeps it). Other preloaded allocators were not tried.
 - **Remote machines need `python3` and `ssh` keys.** A machine without `python3` cannot be reached through the fast path; password logins are not supported (run `ssh <machine>` once in a terminal to trust the host and log in); the update check does not offer newer alphas or pre-releases.
+- **Code in chat is not coloured yet.** The syntax highlighter is built but not wired into chat messages; code blocks show as plain monospace text.
+- **Focus and screen readers are only partly checked.** Where keyboard focus lands after closing a dialog or tab, and how it reads in Orca or VoiceOver, was checked through the accessibility tree in tests, not by listening.
 - **Untested corner:** sending a file to a machine by dropping it on a pane has no automated test. `docs/PARITY.md` lists every feature of the phone app and where it stands.
 
 ### Install on Linux (x86_64)
