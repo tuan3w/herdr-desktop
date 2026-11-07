@@ -80,6 +80,8 @@ scripts/                gen-theme, perf, cpu, check-docs, atspi_audit, sync-sche
 | any UI | `DESIGN.md` (the quiet look, the rules, the closed lists) |
 | colour, theme, a token, terminal colours | `design/colors.md`, `design/themes.md` |
 | text, fonts, copy | `design/typography.md` |
+| spacing, type, sizes, layout numbers | `design/foundations.md`, `lib/layout.ts` |
+| how attention, state and counts are shown (once per agent per view) | `design/attention.md` |
 | a component or the sidebar | `design/components.md` |
 | a field, validation, a form | `design/forms.md`, `design/inputs.md` |
 | a menu, select, combobox | `design/menus.md`, `design/combobox.md` |
