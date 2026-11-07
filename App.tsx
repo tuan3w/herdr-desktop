@@ -13,7 +13,6 @@ import { isAvailable, Menu, Window } from "nsh/desktop";
 import { BulkBar } from "#components/bulk-bar";
 import { DevPanel } from "#components/dev-panel";
 import { Files } from "#components/files";
-import { Machines } from "#components/machines";
 import { NameDialog } from "#components/name-dialog";
 import { NewSession } from "#components/new-session";
 import { Palette } from "#components/palette";
@@ -30,13 +29,12 @@ import { notify, PopupRoot, rail, Skeleton, snug, ThemeRoot, ToastHost } from "#
 import {
   appMenu,
   globalActions,
-  machinesOpen,
   naming,
   newAgentOpen,
   newSessionOpen,
   newSessionProject,
   palette,
-  settingsOpen,
+  settingsPage,
   shortcutsOpen,
 } from "#lib/actions";
 import { BOARD, dockReady, focused, loadDock, openPane, openSession, showBoard, startDock } from "#lib/dock";
@@ -175,7 +173,13 @@ function App() {
           <ResizablePanel class="min-w-0">
             <If when={ready()} else={<LoadingScreen />}>
               <View class="size-full">
-                <Workspace />
+                {/* Hidden, not unmounted: the open tabs, scroll places and panes are still there when Settings closes. */}
+                <View class={settingsPage() === null ? "min-h-0 min-w-0 flex-1" : "hidden"}>
+                  <Workspace />
+                </View>
+                <If when={settingsPage() !== null}>
+                  <Settings />
+                </If>
                 <BulkBar />
                 <StatusBar />
               </View>
@@ -185,8 +189,6 @@ function App() {
         <Palette open={palette()} onClose={() => palette.set(false)} />
         <Switcher open={switcherOpen()} onClose={() => switcherOpen.set(false)} />
         <Shortcuts open={shortcutsOpen()} onClose={() => shortcutsOpen.set(false)} />
-        <Settings open={settingsOpen()} onClose={() => settingsOpen.set(false)} />
-        <Machines open={machinesOpen()} onClose={() => machinesOpen.set(false)} />
         <Files />
         <WebPage />
         <SendFiles />

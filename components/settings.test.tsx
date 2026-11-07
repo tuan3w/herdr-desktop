@@ -9,10 +9,22 @@ const KEY = "herdr.settings.v1";
 
 const saved = (a: App): Record<string, unknown> => JSON.parse(a.storage()[KEY] ?? "{}");
 
-async function inSettings(options: Parameters<typeof open>[1] = DESKTOP): Promise<App> {
+/** Settings is a page beside the lab's buttons: it opens on Look, and `page` goes to another one by its nav entry. */
+/** A row that only that page has, to wait for it. */
+const FIRST_ROW: Record<string, string> = {
+  Notifications: "label:Notify me when an agent needs me",
+  Accessibility: "label:Announce agent output",
+  About: "label:Check for updates",
+};
+
+async function inSettings(options: Parameters<typeof open>[1] = DESKTOP, page?: string): Promise<App> {
   const a = await open("./machines-lab.tsx", options);
   await a.press("Open settings");
-  await a.waitFor("Look");
+  await a.waitFor("label:Settings sections");
+  if (page) {
+    await a.press(`label:${page}`);
+    await a.waitFor(FIRST_ROW[page]);
+  }
   return a;
 }
 
@@ -21,13 +33,14 @@ test("each option applies at once and is saved at once, with no Save button", as
   expect(a.texts()).toContain("announce=false motion=false");
   expect(a.shows("Save")).toBe(false);
 
-  await a.press("label:Announce agent output");
-  expect(a.texts()).toContain("announce=true motion=false");
-  await a.waitUntil(() => saved(a).announceOutput === true);
-
   await a.press("label:/^Chart/");
   expect(a.texts().some((t) => t.endsWith("theme=chart"))).toBe(true);
   await a.waitUntil(() => saved(a).themeId === "chart");
+
+  await a.press("label:Accessibility");
+  await a.press("label:Announce agent output");
+  expect(a.texts()).toContain("announce=true motion=false");
+  await a.waitUntil(() => saved(a).announceOutput === true);
 });
 
 test("the pane font size and the minimum contrast are chosen from their lists, and 1 means off", async () => {
@@ -61,6 +74,7 @@ test("what was chosen before is what the window opens with, and a saved value ou
   // the controls show the loaded values, including a font size that is not a round number
   expect(a.shows("label:Pane font size: 17 pt")).toBe(true);
   expect(a.shows("label:Minimum contrast: 7")).toBe(true);
+  await a.press("label:Accessibility");
   await a.press("label:Announce agent output");
   await a.waitUntil(() => saved(a).announceOutput === false);
   expect(Object.keys(saved(a))).not.toContain("paneFit");
@@ -111,32 +125,44 @@ test("Always show scrollbars is off until chosen, is saved at once and is what t
 });
 
 test("Reduce motion turns the app's own transitions off even when the system does not ask", async () => {
-  const a = await inSettings();
+  const a = await inSettings(DESKTOP, "Accessibility");
   expect(a.texts()).toContain("press=eased");
   await a.press("label:Reduce motion");
   expect(a.texts()).toContain("press=still");
   await a.press("label:Reduce motion");
   expect(a.texts()).toContain("press=eased");
 
-  const system = await inSettings({ ...DESKTOP, reducedMotion: true });
+  const system = await inSettings({ ...DESKTOP, reducedMotion: true }, "Accessibility");
   expect(system.texts()).toContain("press=still");
 });
 
-test("About names the app's version from nsh.json, and Machines opens the machine list", async () => {
-  const a = await inSettings();
+test("About names the app's version from nsh.json, and Machines is a page of Settings with its own list", async () => {
+  const a = await inSettings(DESKTOP, "About");
   expect(a.shows(`Version ${app.version}`)).toBe(true);
-  await a.press("label:Manage machines");
+  await a.press("label:Machines");
   await a.waitFor("Add machine");
-  await a.press("Close");
-  await a.waitFor("Add machine", { state: "gone" });
-  // Settings is still open under it
-  expect(a.shows("label:Reduce motion")).toBe(true);
+  expect(a.shows("This computer")).toBe(true);
+  // a page, not a dialog: the nav is still there and Close leaves Settings altogether
+  expect(a.shows("label:Settings sections")).toBe(true);
+  await a.press("label:Close settings");
+  await a.waitFor("label:Settings sections", { state: "gone" });
+});
+
+test("Escape goes one layer back: a machine's form, then Settings", async () => {
+  const a = await inSettings(DESKTOP, undefined);
+  await a.press("label:Machines");
+  await a.press("Add machine");
+  await a.waitFor("label:Name *");
+  await a.keyboard.press("escape");
+  await a.waitFor("label:Name *", { state: "gone" });
+  expect(a.shows("label:Settings sections")).toBe(true);
+  await a.keyboard.press("escape");
+  await a.waitFor("label:Settings sections", { state: "gone" });
 });
 
 test("notifications are off until switched on, the choice is stored by the engine, and the second switch needs the first", async () => {
-  const a = await inSettings({ ...DESKTOP, height: 1400 });
+  const a = await inSettings({ ...DESKTOP, height: 1400 }, "Notifications");
   expect(a.texts()).toContain("notify=false/false");
-  expect(a.shows("Notifications")).toBe(true);
   expect(a.enabled("label:Notify me when an agent needs me")).toBe(true);
   expect(a.enabled("label:Also when an agent finishes")).toBe(false);
 

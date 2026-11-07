@@ -4,7 +4,7 @@ import type { MachineStatus } from "herdr-desktop/native";
 
 import { FooterLines } from "#components/sidebar-footer";
 import { Btn, PopupRoot, ThemeRoot } from "#kit";
-import { machinesOpen } from "#lib/actions";
+import { settingsPage } from "#lib/actions";
 
 const m = (id: string, over: Partial<MachineStatus>): MachineStatus => ({
   id,
@@ -41,7 +41,7 @@ function Lab() {
         <View class="gap-1 p-4">
           <Btn label="Show a stale and a stuck machine" onPress={() => set.set("mixed")} />
           <Btn label="Show six down" onPress={() => set.set("many")} />
-          <Text>{`machines dialog ${machinesOpen() ? "open" : "closed"}`}</Text>
+          <Text>{`settings page ${settingsPage() ?? "closed"}`}</Text>
         </View>
       </PopupRoot>
     </ThemeRoot>

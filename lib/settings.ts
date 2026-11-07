@@ -37,7 +37,7 @@ export const announceOutput = signal(false);
 export const largeTargets = signal(false);
 /** Reduce motion regardless of the system setting. */
 export const reduceMotionOverride = signal(false);
-/** Ask GitHub for a newer release when Settings opens (`lib/updates.ts`). On by default: the request is all that leaves the computer. */
+/** Ask GitHub for a newer release when the About page of Settings is shown (`lib/updates.ts`). On by default: the request is all that leaves the computer. */
 export const checkUpdates = signal(true);
 /** Wrap long lines of code instead of scrolling sideways (`components/code-block.tsx`). */
 export const codeWrap = signal(false);

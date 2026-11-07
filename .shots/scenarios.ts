@@ -240,6 +240,8 @@ export const SCENARIOS: Record<string, Scenario> = {
     steps: async (app) => {
       await app.keyboard.press("ctrl+,");
       await app.wait(400);
+      await app.press("label:Notifications");
+      await app.wait(300);
       await app.press("label:Notify me when an agent needs me");
       await app.wait(600);
     },

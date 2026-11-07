@@ -20,6 +20,8 @@ async function inSettings(
 ): Promise<App> {
   const a = await open("./machines-lab.tsx", { ...DESKTOP, network, storage });
   await a.press("Open settings");
+  // The check is made when About is shown: nothing leaves the computer unless the person looks at it.
+  await a.press("label:About");
   return a;
 }
 

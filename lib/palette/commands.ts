@@ -1,6 +1,6 @@
 import type { CommandSpec } from "herdr-desktop/native";
 
-import { type Action, actions, runAction, settingsOpen } from "#lib/actions";
+import { type Action, actions, openSettings, runAction } from "#lib/actions";
 import {
   announceOutput,
   checkUpdates,
@@ -151,7 +151,7 @@ export function paletteCommands(): PaletteCommand[] {
       kind: "setting",
       disabled: false,
     },
-    run: () => settingsOpen.set(true),
+    run: () => openSettings(),
   });
   for (const t of TWO_STEP)
     out.push({

@@ -6,7 +6,7 @@ import type { MachineStatus } from "herdr-desktop/native";
 
 import { StatusGlyph } from "#components/status-glyph";
 import { Btn, FOCUS_RING_SIDEBAR } from "#kit";
-import { machinesOpen } from "#lib/actions";
+import { openSettings } from "#lib/actions";
 import { revision, started } from "#lib/herdr";
 import { linkGlyph, linkText } from "#lib/machine-state";
 import { hoverTransition } from "#lib/motion";
@@ -28,7 +28,7 @@ const statuses = computed<MachineStatus[]>(() => {
  */
 function Line(props: { machine: MachineStatus }) {
   const m = () => props.machine;
-  const open = () => machinesOpen.set(true);
+  const open = () => openSettings("machines");
   return (
     <View class="gap-1">
       <Button

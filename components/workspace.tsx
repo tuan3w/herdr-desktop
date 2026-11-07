@@ -8,7 +8,7 @@ import { ProjectEmpty } from "#components/project-empty";
 import { SessionTab } from "#components/session-tab";
 import { TabFace } from "#components/tab-face";
 import { Btn, EDGE, Empty, FOCUS_RING_INSET } from "#kit";
-import { machinesOpen } from "#lib/actions";
+import { openSettings } from "#lib/actions";
 import {
   attach,
   activated,
@@ -103,7 +103,7 @@ export function Workspace() {
           id === BOARD ? (
             <Board
               onOpen={(row, options) => void openAgent(row, options)}
-              onAddMachine={() => machinesOpen.set(true)}
+              onAddMachine={() => openSettings("machines")}
             />
           ) : id.startsWith("session:") ? (
             <SessionPanel id={id} />

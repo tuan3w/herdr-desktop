@@ -1,11 +1,11 @@
 import { Herdr } from "herdr-desktop/native";
 import { mount, signal, Text, View } from "nsh";
 
-import { Machines } from "#components/machines";
 import { NameDialog } from "#components/name-dialog";
 import { Settings } from "#components/settings";
 import { StartAgent } from "#components/start-agent";
-import { Btn, ThemeRoot } from "#kit";
+import { Btn, PopupRoot, ThemeRoot } from "#kit";
+import { openSettings, settingsPage } from "#lib/actions";
 import { revision, startHerdr } from "#lib/herdr";
 import { pressTransition } from "#lib/motion";
 import {
@@ -22,15 +22,13 @@ import {
 } from "#lib/settings";
 
 /**
- * The entry of `machines.test.tsx`, `settings.test.tsx`, `start-agent.test.tsx` and `name-dialog.test.tsx`: the dialogs of
+ * The entry of `machines.test.tsx`, `settings.test.tsx`, `start-agent.test.tsx` and `name-dialog.test.tsx`: the pages and dialogs of
  * this area over the `mixed` fixture's scripted herdr, one button to open each, and readouts of what they did. Not part of the app.
  */
 startHerdr("", "mixed");
 void loadSettings();
 
 function Lab() {
-  const machines = signal(false);
-  const settings = signal(false);
   const start = signal(false);
   const name = signal<{ open: boolean; initial?: string; confirm: string; title: string }>({
     open: false,
@@ -68,48 +66,53 @@ function Lab() {
 
   return (
     <ThemeRoot>
-      <View class="flex-1 gap-2 bg-background p-4">
-        <View class="flex-row flex-wrap gap-2">
-          <Btn label="Open machines" onPress={() => machines.set(true)} />
-          <Btn label="Open settings" onPress={() => settings.set(true)} />
-          <Btn label="Open start agent" onPress={() => start.set(true)} />
-          <Btn
-            label="Rename workspace"
-            onPress={() => name.set({ open: true, initial: "payments", confirm: "Rename", title: "Rename workspace" })}
-          />
-          <Btn
-            label="New workspace"
-            onPress={() => name.set({ open: true, confirm: "Create", title: "New workspace" })}
-          />
-          <Btn label="Show requests" onPress={show} />
-          <Btn label="Forget the remote machine" onPress={forget} />
-          <Btn label="Script ssh failures" onPress={scriptSsh} />
+      <PopupRoot class="flex-1 bg-background">
+        <View class="gap-2 p-4">
+          <View class="flex-row flex-wrap gap-2">
+            <Btn label="Open machines" onPress={() => openSettings("machines")} />
+            <Btn label="Open settings" onPress={() => openSettings()} />
+            <Btn label="Open start agent" onPress={() => start.set(true)} />
+            <Btn
+              label="Rename workspace"
+              onPress={() =>
+                name.set({ open: true, initial: "payments", confirm: "Rename", title: "Rename workspace" })
+              }
+            />
+            <Btn
+              label="New workspace"
+              onPress={() => name.set({ open: true, confirm: "Create", title: "New workspace" })}
+            />
+            <Btn label="Show requests" onPress={show} />
+            <Btn label="Forget the remote machine" onPress={forget} />
+            <Btn label="Script ssh failures" onPress={scriptSsh} />
+          </View>
+          <Text>{`machines=${count()}`}</Text>
+          <Text>{started()}</Text>
+          <Text>{named()}</Text>
+          <Text>{requests()}</Text>
+          <Text>{`font=${paneFontSize()} contrast=${minContrast()} theme=${themeId()}`}</Text>
+          <Text>{`announce=${announceOutput()} motion=${reduceMotionOverride()}`}</Text>
+          <Text>{`code=${codeWrap()}/${codeLineNumbers()}/${codeWhitespace()}/${diffSplit()}`}</Text>
+          <Text>{`notify=${(revision(), Herdr.setting("notify.needsYou") === true)}/${(revision(), Herdr.setting("notify.alsoDone") === true)}`}</Text>
+          <Text>{`press=${pressTransition() === undefined ? "still" : "eased"}`}</Text>
         </View>
-        <Text>{`machines=${count()}`}</Text>
-        <Text>{started()}</Text>
-        <Text>{named()}</Text>
-        <Text>{requests()}</Text>
-        <Text>{`font=${paneFontSize()} contrast=${minContrast()} theme=${themeId()}`}</Text>
-        <Text>{`announce=${announceOutput()} motion=${reduceMotionOverride()}`}</Text>
-        <Text>{`code=${codeWrap()}/${codeLineNumbers()}/${codeWhitespace()}/${diffSplit()}`}</Text>
-        <Text>{`notify=${(revision(), Herdr.setting("notify.needsYou") === true)}/${(revision(), Herdr.setting("notify.alsoDone") === true)}`}</Text>
-        <Text>{`press=${pressTransition() === undefined ? "still" : "eased"}`}</Text>
-      </View>
-      <Machines open={machines()} onClose={() => machines.set(false)} />
-      <Settings open={settings()} onClose={() => settings.set(false)} />
-      <StartAgent
-        open={start()}
-        onClose={() => start.set(false)}
-        onStarted={(machine, pane) => started.set(`started ${machine} ${pane}`)}
-      />
-      <NameDialog
-        open={name().open}
-        title={name().title}
-        initial={name().initial}
-        confirm={name().confirm}
-        onClose={() => name.set({ ...name(), open: false })}
-        onSubmit={(value) => named.set(`named ${value}`)}
-      />
+        <If when={settingsPage() !== null}>
+          <Settings />
+        </If>
+        <StartAgent
+          open={start()}
+          onClose={() => start.set(false)}
+          onStarted={(machine, pane) => started.set(`started ${machine} ${pane}`)}
+        />
+        <NameDialog
+          open={name().open}
+          title={name().title}
+          initial={name().initial}
+          confirm={name().confirm}
+          onClose={() => name.set({ ...name(), open: false })}
+          onSubmit={(value) => named.set(`named ${value}`)}
+        />
+      </PopupRoot>
     </ThemeRoot>
   );
 }

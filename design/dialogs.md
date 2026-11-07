@@ -20,7 +20,7 @@ What does the person need?
       └── A picture the person must see large → Lightbox (pictures only)
 ```
 
-Decided, not built yet (owner, 2026-11-07): these still open as a `Modal` and move out: settings (a page of the main region, with Machines as its own page), the agent's details (the inspector; today a popover under the chat's title, no longer a `Modal`), past sessions and the file viewer (a tab), and the shortcut sheet. Until each moves it keeps the rules below.
+Decided and built: Settings is a page of the main region and Machines a page of it (`design/patterns.md`). Decided, not built yet (owner, 2026-11-07): these still open as a `Modal` and move out: the agent's details (the inspector; today a popover under the chat's title, no longer a `Modal`), past sessions and the file viewer (a tab), and the shortcut sheet. Until each moves it keeps the rules below.
 
 Decided and built: the dock has no dialogs, and neither has bulk answering (`BulkAnswer` is a part of the Board's page with a two-press button and a lasting result toast, not a confirm). Triage is gone (the Board's filtered view is the bulk path), `Show all N lines` opens the whole command in the dock and `N more…` opens every answer in it. Proposed, not yet decided (design review of the kit batch): web pages become a tab; the switcher and the links list take the palette's face; the picture viewer stays a Lightbox, pictures only (the owner's list names "picture viewers": to confirm).
 

@@ -1,9 +1,9 @@
 import { Herdr } from "herdr-desktop/native";
-import { announce, effect, signal, Text, untracked, View } from "nsh";
+import { announce, cleanup, signal, Text, View } from "nsh";
 
 import type { MachineInput, MachineView, TestResult } from "herdr-desktop/native";
 
-import { Autocomplete, Btn, Field, FieldRow, Icon, Modal, NumberField, SettingRow, Switch } from "#kit";
+import { Autocomplete, Btn, Field, FieldRow, Icon, NumberField, SettingRow, Switch } from "#kit";
 import { destinationError, fieldOfRejection, NAME_MISSING, portError, sessionError } from "#lib/machine-rules";
 
 type FieldName = "name" | "destination" | "port" | "session";
@@ -25,41 +25,25 @@ const reason = (e: unknown): string => (e instanceof Error ? e.message : String(
  * through a failed save or a failed test. `Test connection` connects once without adding anything.
  */
 export function MachineForm(props: {
-  open: boolean;
   machine?: MachineView;
   onClose: () => void;
   onSaved: (machine: MachineView) => void;
 }) {
-  const name = signal("");
-  const dest = signal("");
-  const port = signal<number | null>(null);
-  const session = signal("");
-  const enabled = signal(true);
+  // The form is mounted fresh each time it opens, so every field starts from the machine's own values.
+  const m = props.machine;
+  const name = signal(m?.name ?? "");
+  const dest = signal(m?.dest ?? "");
+  const port = signal<number | null>(m?.port ?? null);
+  const session = signal(m?.session ?? "");
+  const enabled = signal(m?.enabled ?? true);
   const touched = signal<Partial<Record<FieldName, boolean>>>({});
   const rejection = signal<Rejection | undefined>(undefined);
   const result = signal<TestResult | undefined>(undefined);
   const testing = signal(false);
-  const hosts = signal<string[]>([]);
-  /** Counts tests started and forms opened: a test that finishes after the form was closed or reopened is not shown. */
+  const hosts = signal<string[]>(Herdr.sshHosts());
+  /** Counts tests started: a test that finishes after the form was closed is not shown. */
   let generation = 0;
-
-  effect(() => {
-    if (!props.open) return;
-    untracked(() => {
-      const m = props.machine;
-      name.set(m?.name ?? "");
-      dest.set(m?.dest ?? "");
-      port.set(m?.port ?? null);
-      session.set(m?.session ?? "");
-      enabled.set(m?.enabled ?? true);
-      touched.set({});
-      rejection.set(undefined);
-      result.set(undefined);
-      testing.set(false);
-      generation++;
-      hosts.set(Herdr.sshHosts());
-    });
-  });
+  cleanup(() => generation++);
 
   const rules = (): Record<FieldName, string | undefined> => ({
     name: name().trim() === "" ? NAME_MISSING : undefined,
@@ -128,125 +112,121 @@ export function MachineForm(props: {
   const editing = () => props.machine !== undefined;
 
   return (
-    <Modal
-      open={props.open}
-      onClose={() => props.onClose()}
-      title={editing() ? `Edit ${props.machine?.name ?? "machine"}` : "Add machine"}
-      description="Another computer where herdr runs, reached over ssh."
-      disablePointerDismissal
-      actions={
-        <>
-          <Btn variant="ghost" label="Cancel" onPress={() => props.onClose()} />
-          <Btn label="Test connection" loading={testing()} onPress={() => void test()} />
-          <Btn variant="primary" label={editing() ? "Save" : "Add"} hint="↵" onPress={save} />
-        </>
-      }
-    >
-      <View class="gap-3">
-        <FieldRow>
-          <Field
-            autoFocus
-            required
-            label="Name *"
-            placeholder="build-box"
-            reserve
-            value={name()}
-            onChange={(v) => {
-              name.set(v);
-              edited();
-            }}
-            onSubmit={save}
-            onBlur={() => touch("name")}
-            error={errorOf("name")}
-          />
-        </FieldRow>
-        <FieldRow>
-          <Autocomplete
-            required
-            label="Destination *"
-            placeholder="user@host or an ssh config alias"
-            mono
-            reserve
-            value={dest()}
-            onChange={(v) => {
-              dest.set(v);
-              edited();
-            }}
-            suggestions={hosts()}
-            onSubmit={save}
-            onBlur={() => touch("destination")}
-            error={errorOf("destination")}
-            hint={errorOf("destination") ? undefined : "Hosts of your ssh config are suggested."}
-          />
-        </FieldRow>
-        <View class="flex-row items-start gap-3">
-          <NumberField
-            label="Port"
-            placeholder="22"
-            min={1}
-            max={65535}
-            allowOutOfRange
-            steppers={false}
-            format={{ maximumFractionDigits: 0, useGrouping: false }}
-            reserve
-            value={port()}
-            onChange={(v) => {
-              port.set(v);
-              edited();
-            }}
-            onSubmit={save}
-            onBlur={() => touch("port")}
-            error={errorOf("port")}
-          />
-          <Field
-            mono
-            label="herdr session"
-            placeholder="default"
-            reserve
-            value={session()}
-            onChange={(v) => {
-              session.set(v);
-              edited();
-            }}
-            onSubmit={save}
-            onBlur={() => touch("session")}
-            error={errorOf("session")}
-          />
-        </View>
-        <SettingRow
-          label="Switched on"
-          description="Off keeps the machine listed without connecting to it."
-          control={<Switch label="Connect to this machine" checked={enabled()} onChange={(v) => enabled.set(v)} />}
-        />
-        <View class="gap-1 rounded-md bg-muted px-3 py-3">
-          <Text class="text-sm text-foreground">
-            ssh signs you in: it uses your ssh config, keys and agent. There is no password or key to enter here.
-          </Text>
-          <Text class="text-sm text-muted-foreground">
-            {`Password login is not supported. If the host is new to you or asks for a password, run ssh ${target()} once in a terminal to trust the host and log in.`}
-          </Text>
-        </View>
-        <If when={result()}>
-          {(outcome) => (
-            <View class="flex-row items-start gap-2">
-              <Icon
-                name={outcome().ok ? "circle-check" : "alert"}
-                size={16}
-                tone={outcome().ok ? "success" : "destructive"}
-              />
-              <Text class={`min-w-0 flex-1 text-sm ${outcome().ok ? "text-foreground" : "text-destructive"}`}>
-                {outcome().message}
-              </Text>
-            </View>
-          )}
-        </If>
-        <If when={rejection() && rejection()?.field === undefined}>
-          <View class="flex-row items-start gap-2">
-            <Icon name="alert" size={16} tone="destructive" />
-            <Text class="min-w-0 flex-1 text-sm text-destructive">{rejection()?.message ?? ""}</Text>
-          </View>
-        </If>
+    <View class="gap-4">
+      <View class="gap-1">
+        <Text role="header" class="text-base font-medium text-foreground">
+          {editing() ? `Edit ${props.machine?.name ?? "machine"}` : "Add machine"}
+        </Text>
+        <Text class="text-sm text-muted-foreground">Another computer where herdr runs, reached over ssh.</Text>
       </View>
-    </Modal>
+      <FieldRow>
+        <Field
+          autoFocus
+          required
+          label="Name *"
+          placeholder="build-box"
+          reserve
+          value={name()}
+          onChange={(v) => {
+            name.set(v);
+            edited();
+          }}
+          onSubmit={save}
+          onBlur={() => touch("name")}
+          error={errorOf("name")}
+        />
+      </FieldRow>
+      <FieldRow>
+        <Autocomplete
+          required
+          label="Destination *"
+          placeholder="user@host or an ssh config alias"
+          mono
+          reserve
+          value={dest()}
+          onChange={(v) => {
+            dest.set(v);
+            edited();
+          }}
+          suggestions={hosts()}
+          onSubmit={save}
+          onBlur={() => touch("destination")}
+          error={errorOf("destination")}
+          hint={errorOf("destination") ? undefined : "Hosts of your ssh config are suggested."}
+        />
+      </FieldRow>
+      <View class="flex-row items-start gap-3">
+        <NumberField
+          label="Port"
+          placeholder="22"
+          min={1}
+          max={65535}
+          allowOutOfRange
+          steppers={false}
+          format={{ maximumFractionDigits: 0, useGrouping: false }}
+          reserve
+          value={port()}
+          onChange={(v) => {
+            port.set(v);
+            edited();
+          }}
+          onSubmit={save}
+          onBlur={() => touch("port")}
+          error={errorOf("port")}
+        />
+        <Field
+          mono
+          label="herdr session"
+          placeholder="default"
+          reserve
+          value={session()}
+          onChange={(v) => {
+            session.set(v);
+            edited();
+          }}
+          onSubmit={save}
+          onBlur={() => touch("session")}
+          error={errorOf("session")}
+        />
+      </View>
+      <SettingRow
+        label="Switched on"
+        description="Off keeps the machine listed without connecting to it."
+        control={<Switch label="Connect to this machine" checked={enabled()} onChange={(v) => enabled.set(v)} />}
+      />
+      <View class="gap-1 rounded-md bg-muted px-3 py-3">
+        <Text class="text-sm text-foreground">
+          ssh signs you in: it uses your ssh config, keys and agent. There is no password or key to enter here.
+        </Text>
+        <Text class="text-sm text-muted-foreground">
+          {`Password login is not supported. If the host is new to you or asks for a password, run ssh ${target()} once in a terminal to trust the host and log in.`}
+        </Text>
+      </View>
+      <If when={result()}>
+        {(outcome) => (
+          <View class="flex-row items-start gap-2">
+            <Icon
+              name={outcome().ok ? "circle-check" : "alert"}
+              size={16}
+              tone={outcome().ok ? "success" : "destructive"}
+            />
+            <Text class={`min-w-0 flex-1 text-sm ${outcome().ok ? "text-foreground" : "text-destructive"}`}>
+              {outcome().message}
+            </Text>
+          </View>
+        )}
+      </If>
+      <If when={rejection() && rejection()?.field === undefined}>
+        <View class="flex-row items-start gap-2">
+          <Icon name="alert" size={16} tone="destructive" />
+          <Text class="min-w-0 flex-1 text-sm text-destructive">{rejection()?.message ?? ""}</Text>
+        </View>
+      </If>
+      <View class="flex-row items-center justify-end gap-2">
+        <Btn variant="ghost" label="Cancel" onPress={() => props.onClose()} />
+        <Btn label="Test connection" loading={testing()} onPress={() => void test()} />
+        <Btn variant="primary" label={editing() ? "Save" : "Add"} hint="↵" onPress={save} />
+      </View>
+    </View>
   );
 }

@@ -1,7 +1,7 @@
 import { Herdr } from "herdr-desktop/native";
 import { announce } from "nsh";
 
-import { machinesOpen } from "#lib/actions";
+import { openSettings } from "#lib/actions";
 import { moveFocused } from "#lib/dock";
 import { viewFile } from "#lib/files";
 import { projectOf, rowOf } from "#lib/herdr";
@@ -52,7 +52,7 @@ export async function openResult(
     case "project":
       return openProject(hit.target);
     case "machine":
-      machinesOpen.set(true);
+      openSettings("machines");
       return true;
     default:
       commands.get(hit.target)?.run();

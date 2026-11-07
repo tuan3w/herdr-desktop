@@ -2,7 +2,7 @@ import { Herdr, Sessions } from "herdr-desktop/native";
 import { announce, Clipboard } from "nsh";
 
 import { confirmDestructive, notify } from "#kit";
-import { machinesOpen, naming, newSession } from "#lib/actions";
+import { naming, newSession, openSettings } from "#lib/actions";
 import { context, focusComposerSoon, moveFocused, removePanel, paneKey } from "#lib/dock";
 import { browseFiles, viewFile } from "#lib/files";
 import { projectOf, reviewWithUndo, rowOf } from "#lib/herdr";
@@ -52,7 +52,7 @@ export function actionsFor(row: PaletteRow, commands: ReadonlyMap<string, Palett
       return projectActions(hit.target);
     case "machine":
       return [
-        { id: "edit", label: "Open Machines…", keys: keyText("enter"), run: () => machinesOpen.set(true) },
+        { id: "edit", label: "Open Machines…", keys: keyText("enter"), run: () => openSettings("machines") },
         {
           id: "reconnect",
           label: "Reconnect",

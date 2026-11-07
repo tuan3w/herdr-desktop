@@ -138,7 +138,7 @@ test("the top buttons open what they say: new agent session, settings", async ()
   expect(app.shows("new session dialog open")).toBe(true);
   expect(app.shows("new session folder none")).toBe(true);
   await app.press("label:Settings");
-  expect(app.shows("settings dialog open")).toBe(true);
+  expect(app.shows("settings page look")).toBe(true);
 });
 
 test("agents are picked with the box at the row's left, and Shift picks everything from the last pick", async () => {

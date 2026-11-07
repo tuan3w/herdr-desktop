@@ -1,11 +1,11 @@
 import { Herdr } from "herdr-desktop/native";
-import { announce, computed, effect, signal, Text, View } from "nsh";
+import { announce, cleanup, computed, effect, signal, Text, View } from "nsh";
 
 import type { MachineStatus, MachineView } from "herdr-desktop/native";
 
 import { MachineForm } from "#components/machine-form";
 import { StatusGlyph } from "#components/status-glyph";
-import { Btn, Clipped, confirmDestructive, Empty, Modal, notify, Switch } from "#kit";
+import { Btn, Clipped, confirmDestructive, Empty, notify, Switch } from "#kit";
 import { revision } from "#lib/herdr";
 import { linkGlyph, linkText } from "#lib/machine-state";
 
@@ -37,16 +37,20 @@ function Agents(props: { status: MachineStatus | undefined }) {
   );
 }
 
+/** The machine being added (`{}`) or edited, or `null` for the list. Settings' Escape reads it: one layer back before it closes. */
+export const machineForm = signal<{ machine?: MachineView } | null>(null);
+
 /**
- * The machines herdr is read from: this computer, which is always listed, and the ones added over ssh. Each row says
- * how its link is (a shape and words: `reconnecting in 4 s`, `Needs attention: <what to do>`), how many agents it has and
- * how many need the person, and offers what can be done about it: switch it off, `Retry`, `Edit`, `Remove` (which asks
- * first). The list follows the engine's revision, and a retry's countdown ticks once a second while the list is open.
+ * The machines herdr is read from, as a page of Settings: this computer, which is always listed, and the ones added over ssh.
+ * Each row says how its link is (a shape and words: `reconnecting in 4 s`, `Needs attention: <what to do>`), how many agents it
+ * has and how many need the person, and offers what can be done about it: switch it off, `Retry`, `Edit`, `Remove` (which asks
+ * first). Add and Edit replace the list with the form in the same page (`MachineForm`), never a dialog over a dialog. The list
+ * follows the engine's revision, and a retry's countdown ticks once a second while the page is open.
  */
-export function Machines(props: { open: boolean; onClose: () => void }) {
-  /** Moves after this dialog changed a machine and once a second for a countdown: the engine's tick may come a moment later. */
+export function Machines() {
+  /** Moves after this page changed a machine and once a second for a countdown: the engine's tick may come a moment later. */
   const local = signal(0);
-  const form = signal<{ open: boolean; machine?: MachineView }>({ open: false });
+  cleanup(() => machineForm.set(null));
 
   const rows = computed<Row[]>(() => {
     revision();
@@ -56,7 +60,6 @@ export function Machines(props: { open: boolean; onClose: () => void }) {
   });
 
   effect(() => {
-    if (!props.open) return;
     const timer = setInterval(() => {
       if (rows().some((r) => r.status?.retryInSecs !== null && r.status?.retryInSecs !== undefined))
         local.update((n) => n + 1);
@@ -99,76 +102,73 @@ export function Machines(props: { open: boolean; onClose: () => void }) {
     }
   };
 
-  const openForm = (machine?: MachineView) => form.set({ open: true, machine });
+  const openForm = (machine?: MachineView) => machineForm.set({ machine });
 
   return (
-    <>
-      <Modal
-        open={props.open}
-        onClose={() => props.onClose()}
-        title="Machines"
-        description="Where herdr runs. Other computers are reached over ssh with your own ssh config and keys."
-        wide
-        actions={
-          <>
-            <Btn variant="ghost" label="Close" onPress={() => props.onClose()} />
+    <If
+      when={machineForm()}
+      else={
+        <View class="gap-3">
+          <View class="flex-row items-start justify-between gap-6">
+            <Text class="min-w-0 flex-1 text-sm text-muted-foreground">
+              Where herdr runs. Other computers are reached over ssh with your own ssh config and keys.
+            </Text>
             <Btn variant="primary" icon="plus" label="Add machine" onPress={() => openForm()} />
-          </>
-        }
-      >
-        <View class="gap-1">
-          <Each of={rows()} key={(r: Row) => r.machine.id}>
-            {(row) => (
-              <View class="flex-row items-center gap-3 border-b border-border py-3">
-                <StatusGlyph status={row().status ? linkGlyph(row().status!.state) : "unknown"} size={16} />
-                <View class="min-w-0 flex-1 gap-1">
-                  <Clipped class="text-sm font-medium text-foreground">{row().machine.name}</Clipped>
-                  <Clipped lines={2} class="text-sm text-muted-foreground">
-                    {row().status ? linkText(row().status!) : "Not started"}
-                  </Clipped>
-                  <If when={!row().machine.local}>
-                    <Clipped class="text-xs text-muted-foreground">
-                      {`${row().machine.dest}${row().machine.port ? `:${row().machine.port}` : ""}${row().machine.session ? ` · session ${row().machine.session}` : ""}`}
+          </View>
+          <View>
+            <Each of={rows()} key={(r: Row) => r.machine.id}>
+              {(row) => (
+                <View class="flex-row items-center gap-3 border-t border-border py-3">
+                  <StatusGlyph status={row().status ? linkGlyph(row().status!.state) : "unknown"} size={16} />
+                  <View class="min-w-0 flex-1 gap-1">
+                    <Clipped class="text-sm font-medium text-foreground">{row().machine.name}</Clipped>
+                    <Clipped lines={2} class="text-xs text-muted-foreground">
+                      {row().status ? linkText(row().status!) : "Not started"}
                     </Clipped>
-                  </If>
-                </View>
-                <Agents status={row().status} />
-                <If when={!row().machine.local}>
-                  <View class="flex-row items-center gap-2">
-                    <If when={row().status?.state === "offline" || row().status?.state === "attention"}>
+                    <If when={!row().machine.local}>
+                      <Clipped class="text-xs text-muted-foreground">
+                        {`${row().machine.dest}${row().machine.port ? `:${row().machine.port}` : ""}${row().machine.session ? ` · session ${row().machine.session}` : ""}`}
+                      </Clipped>
+                    </If>
+                  </View>
+                  <Agents status={row().status} />
+                  <If when={!row().machine.local}>
+                    <View class="flex-row items-center gap-2">
+                      <If when={row().status?.state === "offline" || row().status?.state === "attention"}>
+                        <Btn
+                          small
+                          label="Retry"
+                          name={`Retry ${row().machine.name}`}
+                          onPress={() => {
+                            Herdr.reconnect(row().machine.id);
+                            local.update((n) => n + 1);
+                          }}
+                        />
+                      </If>
+                      <Switch
+                        label={`Connect to ${row().machine.name}`}
+                        checked={row().machine.enabled}
+                        onChange={(on) => switchOn(row().machine, on)}
+                      />
                       <Btn
                         small
-                        label="Retry"
-                        name={`Retry ${row().machine.name}`}
-                        onPress={() => {
-                          Herdr.reconnect(row().machine.id);
-                          local.update((n) => n + 1);
-                        }}
+                        label="Edit"
+                        name={`Edit ${row().machine.name}`}
+                        onPress={() => openForm(row().machine)}
                       />
-                    </If>
-                    <Switch
-                      label={`Connect to ${row().machine.name}`}
-                      checked={row().machine.enabled}
-                      onChange={(on) => switchOn(row().machine, on)}
-                    />
-                    <Btn
-                      small
-                      label="Edit"
-                      name={`Edit ${row().machine.name}`}
-                      onPress={() => openForm(row().machine)}
-                    />
-                    <Btn
-                      small
-                      variant="danger"
-                      label="Remove"
-                      name={`Remove ${row().machine.name}`}
-                      onPress={() => void remove(row().machine)}
-                    />
-                  </View>
-                </If>
-              </View>
-            )}
-          </Each>
+                      <Btn
+                        small
+                        variant="danger"
+                        label="Remove"
+                        name={`Remove ${row().machine.name}`}
+                        onPress={() => void remove(row().machine)}
+                      />
+                    </View>
+                  </If>
+                </View>
+              )}
+            </Each>
+          </View>
           <If when={rows().length <= 1}>
             <Empty
               title="Only this computer"
@@ -176,13 +176,15 @@ export function Machines(props: { open: boolean; onClose: () => void }) {
             />
           </If>
         </View>
-      </Modal>
-      <MachineForm
-        open={form().open}
-        machine={form().machine}
-        onClose={() => form.set({ ...form(), open: false })}
-        onSaved={() => local.update((n) => n + 1)}
-      />
-    </>
+      }
+    >
+      {(open) => (
+        <MachineForm
+          machine={open().machine}
+          onClose={() => machineForm.set(null)}
+          onSaved={() => local.update((n) => n + 1)}
+        />
+      )}
+    </If>
   );
 }

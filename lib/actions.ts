@@ -56,8 +56,22 @@ import { THEMES } from "#lib/theme/themes";
 /** Which dialogs are open. They live here so a key, a menu item and a palette entry open the same one. */
 export { palette } from "#lib/palette/controller";
 export const shortcutsOpen = signal(false);
-export const settingsOpen = signal(false);
-export const machinesOpen = signal(false);
+
+/** The pages of Settings, in the order of its nav. Machines is one of them, not a dialog of its own. */
+export type SettingsPage = "look" | "notifications" | "accessibility" | "machines" | "about";
+
+/**
+ * The page of Settings in the main region, or `null` while the workspace is shown. It is not a dialog: a question that waits
+ * stays visible in the sidebar and in the answer dock while a font is chosen.
+ */
+export const settingsPage = signal<SettingsPage | null>(null);
+
+export const closeSettings = (): void => settingsPage.set(null);
+
+/** Opens Settings on `page`; without one, on the page that was last in front (Look the first time). */
+export function openSettings(page?: SettingsPage): void {
+  settingsPage.set(page ?? settingsPage() ?? "look");
+}
 /** `Start a terminal agent…`: the form that starts an agent in a new herdr tab or workspace. */
 export const newAgentOpen = signal(false);
 /** `New agent session`: the form that starts a chat with an agent, and the project it was asked from (its machine and folder). */
@@ -367,7 +381,7 @@ export const globalActions: Record<GlobalShortcut, () => void> = {
   quoteCopied: () => (chatInFront() ? void quoteCopied() : announce("Open a chat first")),
   search: () => (paneInFront() ? searchInPane() : announce("Open a pane first")),
   newAgent: () => newSession(),
-  settings: () => settingsOpen.set(true),
+  settings: () => openSettings(),
   shortcuts: () => shortcutsOpen.update((open) => !open),
   devPanel: () => perfOpen.update((open) => !open),
 };
@@ -384,7 +398,7 @@ const extra: Record<string, () => void> = {
   closePane: () => void closeInHerdr("pane"),
   closeHerdrTab: () => void closeInHerdr("tab"),
   closeWorkspace: () => void closeInHerdr("workspace"),
-  machines: () => machinesOpen.set(true),
+  machines: () => openSettings("machines"),
   startTerminalAgent: () => newAgentOpen.set(true),
   showChat: () => void toggleView("chat"),
   showTerminal: () => void toggleView("terminal"),

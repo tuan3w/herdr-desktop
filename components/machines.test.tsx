@@ -17,8 +17,16 @@ async function inMachines(): Promise<App> {
   return app;
 }
 
+/** Opens the add form; a press the headless harness lost (the list redraws as the engine answers) is made again. */
+async function openAddForm(app: App) {
+  for (let attempt = 0; attempt < 5 && !app.shows(NAME); attempt++) {
+    await app.press("Add machine");
+    await app.waitFor(NAME, { timeout: 2000 }).catch(() => undefined);
+  }
+}
+
 async function addMachine(app: App, name: string, dest = UNREACHABLE) {
-  await app.press("Add machine");
+  await openAddForm(app);
   await app.type(NAME, name);
   await app.type(DEST, dest);
   await app.press("Add");

@@ -16,7 +16,7 @@ test("a stale or stuck machine is one line with what happened, a Fix button only
   expect(app.shows("Old laptop")).toBe(false);
   expect(app.shows("label:Fix Build box")).toBe(false);
   await app.press("label:Fix GPU rig");
-  expect(app.shows("machines dialog open")).toBe(true);
+  expect(app.shows("settings page machines")).toBe(true);
 });
 
 test("past three broken machines the rest fold into one line that opens them", async () => {

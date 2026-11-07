@@ -4,6 +4,12 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+- **Settings and Machines are pages, not dialogs.** Settings opens in the
+  main area with a list of its pages at the left (Look, Notifications,
+  Accessibility, Machines, About), so the sidebar, and any question waiting
+  in it, stays in view. Machines lists each computer with its live, stale or
+  offline state; adding or editing one happens in the same page, and `Esc`
+  steps back from the form, then closes Settings.
 - **Questions are answered where you type.** When an agent asks for
   permission, or a terminal agent shows a menu, its chat shows the question
   and its answers in place of the message box, and the box comes back, with

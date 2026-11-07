@@ -3,7 +3,7 @@ import { host, mount, Text, View } from "nsh";
 
 import { Sidebar } from "#components/sidebar";
 import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
-import { machinesOpen, newSessionOpen, newSessionProject, settingsOpen } from "#lib/actions";
+import { newSessionOpen, newSessionProject, settingsPage } from "#lib/actions";
 import { focused, paneKey } from "#lib/dock";
 import { allRows, board, revision, startHerdr } from "#lib/herdr";
 import { selected } from "#lib/selection";
@@ -56,10 +56,9 @@ function Lab() {
           />
           <Btn label="Go to the last agent" onPress={() => goTo("last")} />
           <Btn label="Go to the first agent" onPress={() => goTo("first")} />
-          <Text>{`machines dialog ${machinesOpen() ? "open" : "closed"}`}</Text>
           <Text>{`new session dialog ${newSessionOpen() ? "open" : "closed"}`}</Text>
           <Text>{`new session folder ${newSessionProject()?.folder ?? "none"}`}</Text>
-          <Text>{`settings dialog ${settingsOpen() ? "open" : "closed"}`}</Text>
+          <Text>{`settings page ${settingsPage() ?? "closed"}`}</Text>
           <Text>{`picked ${selected().length}`}</Text>
           <Text>{`board tick ${revision()}`}</Text>
           <Text>{`tree offset ${Math.round(treeOffset())}`}</Text>
