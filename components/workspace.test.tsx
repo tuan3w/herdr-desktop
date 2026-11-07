@@ -68,9 +68,7 @@ test("a layout saved by the first version is split by project: each project keep
   // The migrated tab is in its project, a fresh mirror of the same pane.
   await app.keyboard.press("mod+shift+]");
   await settle(app);
-  await app.keyboard.press("mod+shift+[");
-  await settle(app);
-  expect(shown(app, FIRST) || app.count("role:tab") > 0).toBe(true);
+  expect(shown(app, FIRST)).toBe(true);
 });
 
 test("an unreadable saved layout opens the board alone", async () => {
@@ -101,7 +99,7 @@ test("every drag has a command: move the tab to another group, down, and back, f
   const app = await ready();
   const run = async (command: string) => {
     await app.keyboard.press("mod+k");
-    await app.type("label:Search commands", command);
+    await app.type("label:Search agents, projects and commands", command);
     await app.press(`label:${command}`);
     await settle(app);
   };
@@ -121,8 +119,8 @@ test("closing a pane in herdr asks first, and says what it will stop", async () 
     return "Cancel";
   });
   await app.keyboard.press("mod+k");
-  await app.type("label:Search commands", "Close pane in herdr");
-  await app.press("label:Close pane in herdr…");
+  await app.type("label:Search agents, projects and commands", "Close pane in herdr");
+  await app.press("label:/^Close pane in herdr…/");
   await settle(app);
   expect(asked).toHaveLength(1);
   expect(asked[0]).toContain(FIRST);
@@ -135,8 +133,8 @@ test("closing a pane in herdr, once confirmed, closes the pane and removes its t
   await openAgents(app, FIRST);
   app.onDialog(() => "Close pane");
   await app.keyboard.press("mod+k");
-  await app.type("label:Search commands", "Close pane in herdr");
-  await app.press("label:Close pane in herdr…");
+  await app.type("label:Search agents, projects and commands", "Close pane in herdr");
+  await app.press("label:/^Close pane in herdr…/");
   await app.waitUntil(() => Herdr.testRequests("pane.close").length === 1);
   await settle(app);
   expect(app.count("role:tab")).toBe(0);
@@ -154,12 +152,12 @@ test("a pane that herdr drops while its tab is open leaves a tab that says so an
   expect(shown(app, DONE)).toBe(false);
   await app.press("label:Close this tab");
   await settle(app);
-  expect(app.count("role:tab")).toBe(1);
+  expect(app.count("role:tab")).toBe(0);
 });
 
 async function palette(app: App, command: string) {
   await app.keyboard.press("mod+k");
-  await app.type("label:Search commands", command);
+  await app.type("label:Search agents, projects and commands", command);
   await app.press(`label:${command}`);
   await settle(app);
 }
@@ -180,13 +178,13 @@ test("pane commands are dimmed on the board, where there is no pane to act on", 
   const app = await ready();
   await app.keyboard.press("mod+k");
   // The palette lists as many commands as fit: a search brings the one asked for into view.
-  await app.type("label:Search commands", "pane");
-  expect(app.enabled("label:Rename pane…")).toBe(false);
-  expect(app.enabled("label:Close pane in herdr…")).toBe(false);
-  expect(app.enabled("label:Show terminal")).toBe(false);
-  await app.clear("label:Search commands");
-  await app.type("label:Search commands", "workspace");
-  expect(app.enabled("label:New workspace…")).toBe(true);
+  await app.type("label:Search agents, projects and commands", "pane");
+  expect(app.enabled("label:/^Rename pane…/")).toBe(false);
+  expect(app.enabled("label:/^Close pane in herdr…/")).toBe(false);
+  expect(app.enabled("label:/^Show terminal/")).toBe(false);
+  await app.clear("label:Search agents, projects and commands");
+  await app.type("label:Search agents, projects and commands", "workspace");
+  expect(app.enabled("label:/^New workspace…/")).toBe(true);
 });
 
 test("a new workspace from the palette asks for a name and is created in herdr under it", async () => {
@@ -224,7 +222,7 @@ test("a terminal agent that was shown as a terminal opens as one again until Sho
   await openTerminals(app, FIRST);
   await app.keyboard.press("mod+w");
   await settle(app);
-  expect(app.count("role:tab")).toBe(1);
+  expect(app.count("role:tab")).toBe(0);
   await openAgents(app, FIRST);
   expect(shown(app, FIRST)).toBe(true);
 });

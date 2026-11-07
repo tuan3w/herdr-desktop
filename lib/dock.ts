@@ -673,7 +673,22 @@ export const showBoard = (): Promise<void> => openPanel(BOARD);
 
 /** Closes a tab as a person closes a view: the pane keeps running. The board stays; a project that loses its last tab stays, empty. */
 export function closeTab(key: string): void {
-  if (key !== BOARD && key !== "") area?.closePanel(key);
+  if (key === BOARD || key === "") return;
+  leave(key, () => area?.closePanel(key));
+}
+
+/** How long the area has to report an edit before it is taken to have refused it. */
+const REFUSED_MS = 100;
+
+/**
+ * Takes `key` out through the area and makes sure it went: the area will not close or remove the last tab it shows (it
+ * would be left empty), but a project may have none, and its layout is ours to set.
+ */
+function leave(key: string, through: () => void): void {
+  through();
+  setTimeout(() => {
+    if (panelsOf(layout()).includes(key)) setLayout(withoutPanels(layout(), new Set([key])));
+  }, REFUSED_MS);
 }
 
 /**
@@ -683,7 +698,7 @@ export function closeTab(key: string): void {
 export function removePanel(key: string): void {
   forgetView(key);
   const holder = holderOf(key);
-  if (holder === context()) area?.removePanel(key);
+  if (holder === context()) leave(key, () => area?.removePanel(key));
   else if (holder !== undefined) editSaved(holder, (l) => withoutPanels(l, new Set([key])));
 }
 

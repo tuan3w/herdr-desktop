@@ -1,4 +1,4 @@
-import { computed, effect, signal, Text, untracked, View } from "nsh";
+import { computed, effect, keymap, signal, Text, untracked, View } from "nsh";
 import { Command, type CommandItem, type CommandRef } from "nsh/base";
 
 import { Monogram } from "#components/project-parts";
@@ -72,11 +72,20 @@ export function Switcher(props: { open: boolean; onClose: () => void }) {
     }, 0);
   });
 
-  const choose = (id: string) => {
+  const choose = (id: string, here = false) => {
     const item = byId().get(id);
     props.onClose();
-    if (item) void openSwitcherItem(item);
+    if (item) void openSwitcherItem(item, { here });
   };
+
+  // Shift+Enter opens the highlighted agent here, in the workspace shown, instead of in its project's.
+  effect(() => {
+    if (!props.open) return;
+    return keymap.bind(
+      { "shift+enter": () => highlighted() !== null && choose(highlighted()!, true) },
+      { when: "always" },
+    );
+  });
 
   return (
     <Modal open={props.open} onClose={() => props.onClose()} title="Switch to…">
@@ -105,7 +114,7 @@ export function Switcher(props: { open: boolean; onClose: () => void }) {
           }
           footer={
             <View class="flex-row items-center gap-3 px-3 pt-3">
-              <Text class="flex-1 text-xs text-muted-foreground">{`Enter opens · Esc goes back · ${keyLabel("switcher")} next`}</Text>
+              <Text class="flex-1 text-xs text-muted-foreground">{`Enter opens · Shift+Enter opens here · Esc goes back · ${keyLabel("switcher")} next`}</Text>
               <Text
                 accessibilityElementsHidden
                 importantForAccessibility="no-hide-descendants"

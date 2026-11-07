@@ -68,6 +68,8 @@ What the monitor's columns are (`nsh::perf`, one line a second while GTK draws; 
 | `open 2 more panes in splits` | `Ctrl+\` splits and two more terminal tabs: mounting a pane tab into a new group |
 | `stream 8 panes, 3 open in splits` | The same stream with three panes open, each in its own split: reads scale with the open panes (20 a second each, 60 in all), not with the 8 that update |
 | `close panes` | Closing the three tabs and going back to the board |
+| `switch project x20` | Two projects with a pane open each, then 20 project switches by key (`ctrl+shift+[` / `]`) 450 ms apart: the swap commit, and whether memory, threads, descriptors and watched panes stay flat |
+| `idle after 20 switches` | The board again, at rest: no pane watched, no frames |
 | `permission storm: 20 blocked at once` | The snapshot swapped for `storm.json` (20 agents blocked in 5 projects): one burst of events is one rebuild of the board |
 | `idle with 20 blocked` | The same board at rest: the blocked agents' pulse or chips must not draw frames |
 | `200 agents arrive` | The snapshot swapped for `fixtures/herdr/big.json` (200 agents, 31 workspaces, 25 projects, 3 of them repositories with 6 linked worktrees, 12 blocked): the commit and the memory of mounting them |
@@ -163,3 +165,7 @@ How the scenarios are driven (traps found while writing them, all about the `--t
 - **Wayland and X11 sessions**: only Xvfb was run.
 - **Remote links**: the relay sends whole answers; projections and row deltas are optional optimisations to add only if a measured remote-link bottleneck asks for them. No scenario drives an ssh machine.
 - **Release package size and start time**: the Linux package is one 70 MB executable (`make package`) before the highlighter, which adds about 28 MB raw and 3 MB gzipped by the bake-off in `docs/specs/chat-craft.md` (not measured in a release package: a release build was not made); cold-start time of a release build is unmeasured, the headless start above is the development host.
+
+## Project switch (`switch project x20`, one run, Xvfb + cairo, debug host)
+
+Each switch is one commit of 28.4 ms JS p95 plus 19.1 ms core p95 (the swap of a layout with a pane mirror and a chat or project card: about 48 ms, under the 50 ms budget of `docs/specs/context-switching.md`, and the first row is in that commit, so well under 120 ms). Frame p95 is 14.8 ms, CPU-drawn (a GPU is expected to do better; unverified). After 20 switches the figures are flat: RSS 372 to 375 MB (the Rust side's own 354 to 358), threads 75 to 75, descriptors 19 to 19, panes watched 1 to 1 (0 once the board is shown again). Budgets in `.perf/budgets.json` are this run x 1.5, from one run (`--runs 5` would be better; unmeasured). Not measured: the `PaneScreen` first-row time on a GPU.

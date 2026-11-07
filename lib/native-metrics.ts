@@ -48,4 +48,5 @@ registerMetric({
   },
 });
 registerMetric({ id: "memory", label: "Memory", read: () => `${current().rssMb.toFixed(0)} MB` });
+registerMetric({ id: "watched", label: "Panes watched", read: () => `${current().watchedPanes}` });
 registerMetric({ id: "process", label: "Threads · fds", read: () => `${current().threads} · ${current().openFds}` });

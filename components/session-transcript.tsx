@@ -109,6 +109,8 @@ export function SessionTranscript(props: {
         setTimeout(jump, 0);
         return;
       }
+      // A list reports its size once it scrolls: go to the end first, which also makes the report, then back up.
+      setTimeout(() => list?.scrollToEnd({ animated: false }), 0);
       setTimeout(() => {
         if (!pending) return;
         pending = undefined;

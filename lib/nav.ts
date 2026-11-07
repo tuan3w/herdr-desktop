@@ -201,8 +201,8 @@ const named = (row: BoardRow): string => {
   return project && project.name !== row.name ? `${row.name}, ${project.name}` : row.name;
 };
 
-async function goAgent(row: BoardRow): Promise<void> {
-  await openAgent(row);
+async function goAgent(row: BoardRow, options?: { here?: boolean }): Promise<void> {
+  await openAgent(row, options);
   announce(`Switched to ${named(row)}`);
 }
 
@@ -383,13 +383,13 @@ function projectItem(project: BoardProject, several: boolean): SwitcherItem {
   };
 }
 
-/** Opens what a Switcher row stands for. The agent in front stays where it is. */
-export async function openSwitcherItem(item: SwitcherItem): Promise<void> {
+/** Opens what a Switcher row stands for (`here`: an agent's tab in the workspace shown). The agent in front stays where it is. */
+export async function openSwitcherItem(item: SwitcherItem, options: { here?: boolean } = {}): Promise<void> {
   if (item.here) return;
   if (item.kind === "project") {
     openProject(item.id.slice(PROJECT.length));
     return;
   }
   const row = rowOf(item.id.slice(AGENT.length));
-  if (row) await goAgent(row);
+  if (row) await goAgent(row, options);
 }

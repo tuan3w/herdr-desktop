@@ -12,6 +12,7 @@ import {
   openTerminals,
   ready,
   SECOND,
+  savedDock,
   settle,
   sidebarRow,
   WEB,
@@ -25,6 +26,8 @@ ENTRY.path = "../App.tsx";
  * (`lib/nav.ts`, `components/switcher.tsx`), against the `mixed` fixture: the projects `payments` (five agents) and `web`.
  */
 
+/** The palette's search field: open while the palette is. */
+const PALETTE = "label:Search agents, projects and commands";
 const FILTER = "label:Filter recent agents and projects";
 const tap = async (app: App, keys: string) => {
   await app.keyboard.press(keys);
@@ -256,13 +259,13 @@ test("typing into a pane: Ctrl+K and Ctrl+E reach the pane, and the palette is C
   for (const key of ["ctrl+k", "ctrl+e", "ctrl+w", "ctrl+["]) await app.keyboard.press(key);
   await app.waitUntil(() => sentKeys().length === 4);
   expect(sentKeys()).toEqual(["w1:p1: ctrl+k", "w1:p1: ctrl+e", "w1:p1: ctrl+w", "w1:p1: ctrl+["]);
-  expect(app.shows("Command palette")).toBe(false);
+  expect(app.shows(PALETTE)).toBe(false);
   expect(app.shows("Switch to…")).toBe(false);
   expect(app.count("role:tab")).toBe(1);
 
   await app.keyboard.press("mod+shift+p");
   await settle(app);
-  expect(app.shows("Command palette")).toBe(true);
+  expect(app.shows(PALETTE)).toBe(true);
 });
 
 test("out of the mode the same keys are the app's again", async () => {
@@ -274,6 +277,40 @@ test("out of the mode the same keys are the app's again", async () => {
   expect(app.shows("label:/^Typing into /")).toBe(false);
   await app.keyboard.press("mod+k");
   await settle(app);
-  expect(app.shows("Command palette")).toBe(true);
+  expect(app.shows(PALETTE)).toBe(true);
   expect(sentKeys()).toEqual([]);
+});
+
+test("Shift+Enter in the Switcher opens the agent here: its tab joins the workspace shown and leaves its project's", async () => {
+  const app = await ready();
+  await openAgents(app, FIRST, WEB);
+  await tap(app, "mod+e");
+  await app.press(`label:/^${FIRST}, .*, 2 of \\d+$/`);
+  // (the row was pressed to focus the list in the headless harness: it opened FIRST in its project, undo that)
+  await tap(app, "mod+shift+[");
+  await tap(app, "mod+e");
+  await app.keyboard.press("shift+enter");
+  await settle(app);
+  const doc = await savedDock(app);
+  const shown = doc.contexts[doc.current].layout;
+  const panels = JSON.stringify(shown);
+  expect(panels).toContain("w2:p1");
+  expect(panels).toContain("w1:p1");
+  const payments = Object.entries(doc.contexts).find(
+    ([k, c]) => k !== doc.current && JSON.stringify(c.layout).includes("w1:p1"),
+  );
+  expect(payments).toBeUndefined();
+});
+
+test("a project's name in the sidebar shows its workspace, and its chevron alone folds it", async () => {
+  const app = await ready();
+  await app.press("label:Fold payments >> nth=0");
+  expect(app.shows("label:Unfold payments")).toBe(true);
+  // Folding changed nothing about what is shown.
+  expect(app.count("role:tab")).toBe(1);
+  await app.press("label:/^payments, This computer/ >> nth=0");
+  await settle(app);
+  // The project has no tab open: its own card, without a fold control.
+  expect(app.shows("label:payments, no tabs open")).toBe(true);
+  expect(app.shows("label:/^(Fold|Unfold) payments$/ >> nth=1")).toBe(false);
 });

@@ -94,6 +94,23 @@ export function enterScale(open: () => boolean) {
 }
 
 /**
+ * The command palette opening: it fades in and scales from 0.98 in `DURATION.context` (120 ms), shorter than a dialog's
+ * entrance because it opens many times a day. Closing is instant. Nothing under reduced motion.
+ */
+export function paletteEnter(open: () => boolean) {
+  const motion = createMotion();
+  effect(() => {
+    if (open() && !reducedMotion())
+      void motion.play({
+        keyframes: { opacity: [0, 1], scale: [0.98, 1] },
+        duration: DURATION.context,
+        easing: EASE_OUT,
+      });
+  });
+  return motion.style;
+}
+
+/**
  * Set a moment after the first screen of the app is up. What is on screen when the window opens does not move: only what
  * arrives afterwards (a card, a message, a tab, the inbox) does, so opening the app is never a show.
  */

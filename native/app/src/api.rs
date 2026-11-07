@@ -98,9 +98,14 @@ impl Herdr {
         herdr_core::version().to_owned()
     }
 
-    /// Figures about the live pane path and the process, read now, for the developer panel. Needs no engine.
+    /// Figures about the live pane path and the process, read now, for the developer panel. Works without an
+    /// engine (`watchedPanes` is then 0).
     pub fn metrics() -> crate::metrics::Metrics {
-        crate::metrics::read()
+        let mut metrics = crate::metrics::read();
+        if let Ok(engine) = engine() {
+            metrics.watched_panes = engine.watching() as u32;
+        }
+        metrics
     }
 
     /// Starts the engine: opens the data directory, connects to every machine that is switched on and

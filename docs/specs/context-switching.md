@@ -23,7 +23,7 @@ Scope note: `docs/specs/agent-orchestration-landscape.md` (sibling research) arr
 | D11 | Motion | One new motion: incoming-only 120 ms opacity entrance on a project switch (amends `design/motion.md`); palette open reuses `enterScale()` | Cross-fading the outgoing workspace (a delay); animating the live mirror |
 | D12 | Unread / pins | Quiet unread = bold name + count in the spoken label (chats only; terminals keep state); pins for projects (exist) and agents; `Recent` is a palette/switcher group, never a sidebar list | Unread dots and counters (a wall of marks) |
 
-Phases (section 8): P0 spikes, P1 switcher + MRU + history, P2 project contexts, P3 palette v2, P4 action panel + two-step, P5 file quick open, P6 unread, pins, message search.
+Phases (section 8): P0 spikes, P1 switcher + MRU + history and P2 project contexts are built (`design/context.md`); P3 palette v2, P4 action panel + two-step, P5 file quick open, P6 unread, pins, message search.
 
 ## 1. Research: what the best tools do
 
@@ -48,26 +48,10 @@ Phases (section 8): P0 spikes, P1 switcher + MRU + history, P2 project contexts,
 
 ## 2. The model
 
-### 2.1 Context, Home, and what restores
+### 2.1 Built: contexts, history, MRU, the Switcher
 
-A person supervising 20 agents thinks "the payments API", then "the infra repo", then "what needs me". Three levels, three gestures:
+Context model, what restores, MRU, history, `previous` and the Switcher are built: `design/context.md`. Still to build from this section:
 
-| Level | Is | Gesture | Restores |
-|---|---|---|---|
-| Home | the board (all projects, `Needs you` inbox) | `mod+1` (exists) | its layout (board plus anything left there) |
-| Project context | one `BoardProject` + its tab groups | switcher, palette `#`, sidebar project name, `mod+shift+[ ]` | layout, focused tab, drafts, scroll |
-| Agent | a chat or terminal tab | switcher `@`, sidebar row, `mod+j`, `ctrl+tab` | focus, the tab's own state |
-
-Rules (each tested): (1) **a tab belongs to its agent's project context**; opening an agent from anywhere (palette, notification, inbox, `mod+j`) switches to that context and shows the tab in it; an agent already open somewhere is focused where it is. (2) `Open here` (action panel) puts a foreign tab into the current context on purpose (comparing two agents of different projects): the only way a tab leaves its home. (3) An empty project context shows `renderEmpty`: the project's own card (the board's project card component: agents, state, `New session in <project>`), so a context is never blank. (4) Closing the last tab of a context does not delete the context. (5) Pane screens are never restored from storage (they are live); a restored pane tab is a fresh `PaneScreen` on the same pane.
-
-Home stays a context because the supervisor's first question is "does anything need me" and one key (`mod+1`) must always answer it, then return. Back/forward make that round trip free.
-
-### 2.2 Navigation history and MRU
-
-- **MRU** (persisted, Rust): `noteVisit(kind: "agent"|"project", key)` on every deliberate arrival (tab becomes focused for >= 1 s, or any command-driven open). `Herdr.recent(kind, limit)` returns keys newest first, skipping gone rows. Two lists: agents (global) and projects.
-- **History** (session-only, TSX `lib/nav.ts`): a stack of locations `(context, tab)`, capped at 50, consecutive duplicates collapsed, a location whose agent vanished is skipped. `mod+[` back, `mod+]` forward; a new deliberate navigation truncates forward. Clicking between tabs of one group does not push; commands, palette picks and context switches do. Browser semantics, as VS Code's `navigateBack` ([docs](https://code.visualstudio.com/docs/editing/editingevolved)).
-- **Previous** (the Alt-Tab / `Ctrl-^` / tmux `l` reflex): `ctrl+tab` swaps the two most recent *agents* (crossing contexts), `ctrl+shift+tab` the two most recent *projects*. A tap, no list; repeating returns. With one project they coincide.
-- **Switcher** (`mod+e`): an overlay of the MRU list (agents and projects interleaved) with row 2 highlighted; `mod+e` again moves down, `mod+shift+e` up, `Enter` commits, `Escape` returns to where you were (Zed's contract, [docs](https://zed.dev/docs/tab-switcher)). It is the palette's empty-state `Recent` list at a smaller footprint, the same component, not a second one.
 - **Unread** (D12): `BoardRow.unread?: number` (new, Rust): agent-authored items (`message` role agent, `notice`) since the tab was last in front with the window active; chats only (terminal agents' marker is their state and `reviewed`). Rendered as the name in `font-medium` (bold-equivalent, Orca's choice) in the sidebar row, tab face, palette and switcher row; spoken as `, 3 new messages`; no dot, no colour. `Herdr.markSeen(rowKey)` on focus; persisted in `recents.json` so a restart does not re-mark everything.
 - **Pins**: projects (exists: `pinProject`) and agents (`Herdr.pinAgent(rowKey, bool)`, settings `agents.pinned`, pruned when the pane/session is gone; a terminal agent's pane id dies with the pane, said in the action's hint). Pinned agents sort first inside their project and under `Pinned` in the empty palette.
 
@@ -154,20 +138,9 @@ Disabled actions stay listed with a reason (the existing rule). Hover buttons an
 - **No result:** `No match for “zzz”` plus rows (keyboard-reachable): `Search messages for “zzz”` (switch scope), `Search files for “zzz”` when a project is in focus, `New agent session…` with the text pre-filled (never sent), `Open path…` when the query looks like a path (`Files.find`). Mirrors Orca's Create row.
 - **Privacy:** history is local (`<dataDir>/recents.json`, 0600, atomic): ids, counts, timestamps, and typed query prefixes that led to a pick (40 characters, last 200). Never pane contents, last messages or previews: those exist in memory only while the palette is open. Settings > Privacy: `Clear palette history` (everything but pins), `Remember searches` off (no query prefixes). Drafts: section 4.
 
-## 4. Per-project layouts: persistence and swap
+## 4. Per-project layouts
 
-| Data | Where | Shape | Size and limits |
-|---|---|---|---|
-| Layouts | TSX `Storage` `herdr.dock.v2` | `{ v: 2, current: "home" or projectKey, home: Layout, contexts: { [projectKey]: { layout, focused, savedAt } } }` (center only, as `readLayout` does) | ~0.5 KB per context, cap 60 (LRU), pruned when the project is gone 30 days; written after the 500 ms quiet period like today |
-| View state | `herdr.views.v1` | `{ [panelKey]: { scroll?: { atEnd: boolean, item?: number, offset?: number } } }`, and drafts only if the setting is on | scroll only a few bytes; drafts cap 32 x 64 KB |
-| Drafts | memory always; disk only with `Remember unsent messages` (off: drafts can hold pasted secrets) | `{ text, caret }` | survives context switches, not restarts by default |
-| MRU, frecency, pins, seen counters | Rust `recents.json` | arrays of `{ kind, id, visits[10], count }` | ~100 B per item, 2,000 items cap 200 KB |
-
-**Why the swap needs a store.** `DockArea` keeps a panel's signals, input text and scroll while its key stays in the layout, and drops it (`Unrender`) when "a layout that no longer lists it" is set (`.scratch/nsh-0.4.0/docs/dev/dock.md:66-77`). Swapping `layout` to another project's tabs therefore unmounts the old project's composers: drafts and scroll must live in `lib/view-state.ts`, which composers (`composer.tsx`, `session-composer.tsx`, today a local `signal("")`) and lists read and write. Rejected alternative: one `DockArea` per project, all mounted, the others `display: none`: exact state for free, but every hidden `PaneScreen` keeps watching at 20 Hz and every hidden chat holds one of the four keeper attachments per machine (`ARCHITECTURE.md` section 5); it would need pause and detach logic anyway, and it cannot restore after a restart.
-
-**Swap mechanics (`lib/dock.ts`).** `contexts` replaces the single layout: `setLayout(next)` writes into `contexts[current]`; `switchContext(key)` saves the outgoing state, sets `layout` and `focused`, calls `area.selectPanel`, calls `chosen(focused)` (the 150 ms `pin` race of `activated` applies), announces `payments api, 3 tabs, 1 needs you`, and starts the entrance (section 7). Panels of the outgoing context unmount and stop their `watchPane` (`onPanelRemove`); the incoming ones read the cached screen first (`Herdr.readPane` fills the cache), so the first row paints from cache. Chat tabs reattach from the keeper's replay.
-
-**Migration v1 to v2 (clean cutover).** On first run after the board is non-empty: bucket every panel of `herdr.dock.v1` by `rowOf(rowKeyOf(panel))?.project`; known ones form that project's context, unknown ones (offline machine, vanished agent) stay in Home and are adopted when their row resolves (`adopt()` runs on each context switch); the old key is deleted after the v2 write succeeds. `readLayout` stays the parser for each layout (it already drops unknown and repeated panels).
+Built (P2): `design/context.md`.
 
 ## 5. Data and performance
 
@@ -223,26 +196,12 @@ Rows beyond `limit` (default 50; 200 in single-scope browsing) show `N more: kee
 
 ## 7. Motion
 
-Existing law: `design/motion.md` says screen and tab switches never animate (keyboard repeated all day). This spec keeps it for tabs and adds one deliberate exception, because a project switch changes the whole working set and orientation is worth 120 ms:
-
-| Thing | Motion | Rule |
-|---|---|---|
-| Palette and Switcher open/close | `enterScale()` (0.97 to 1, 220 ms, `EASE_OUT`); closing is instant | nothing with `reducedMotion()` |
-| Results appearing | none (rows appear at once; typing is the interaction) | |
-| Chip change | selected fill eases 150 ms (`hoverTransition()`) | |
-| Action panel / argument step | none (it replaces the list; the title changes) | focus order explains it |
-| Project switch | incoming workspace area opacity 0.88 to 1, 120 ms, `EASE_OUT`; **no fade-out** (never a delay); skipped when a second switch comes within 400 ms (key held) and under `reducedMotion()` | never touches `PaneScreen` rows; only the area's wrapper (S3 checks it costs no extra relayout) |
-| Tab switch inside a context | none (unchanged) | |
-
-`design/motion.md` and its table change in the same change (a new `contextEnter` value in `lib/motion.ts`, one row under "What animates", the exception named under "What never animates"). DesignPass owns that file today: coordinate before editing.
+The project-switch entrance is built (`design/context.md`, `design/motion.md`); the palette and Switcher open with `enterScale()`.
 
 ## 8. Phased plan
 
 | Phase | Size | Builds | Files | Acceptance |
 |---|---|---|---|---|
-| **P0 spikes** | S, 1 d | S1 real `ctrl+tab` delivery on a display and whether any release hook exists; S2 `Command` with `filterable={false}`, `renderItem` reading accessors, chips in `searchPrefix`, `footer`; S3 layout swap cost, hidden-tab unmount, wrapper opacity; S4 `Tab`, `Shift+Enter`, `Right` bound `when: "always"` inside the kit `Modal`; S5 QuickJS time of fold+fuzzy over 2,000 strings (decides D7 with a number) and marshalling 50 `SearchHit`s; S6 `ignore` walk of 100k paths | `docs/ARCHITECTURE.md` (results), throwaway labs | each spike yields a recorded number or a fallback; D7 confirmed or reversed |
-| **P1 switcher, MRU, history** | M, 3-4 d | `recents.json` store, `noteVisit/recent`, `lib/nav.ts`, `ctrl+tab` pair, `mod+e` Switcher (palette in `Recent` scope), `mod+[ ]`, capture release rule | `native/core/src/store/recents.rs`, `native/app/src/search.rs` (recent only), `lib/shortcuts.ts`, `lib/actions.ts`, `lib/pane-input.ts`, `components/capture-bar.tsx`, `components/palette.tsx`, `App.test.tsx`, `shortcuts.test.ts` | `ctrl+tab` swaps two agents across projects in a test; history survives agent removal; capture mode forwards `ctrl+n/z/j/f/b/w/p/e` and still honours `mod+shift+k`, `mod+shift+p`; Switcher cycles with `mod+e`, commits with `Enter`, `Escape` returns |
-| **P2 project contexts** | L, 6-8 d | dock v2 store and migration, `switchContext`, `lib/view-state.ts` (drafts, scroll anchor), sidebar project name switches, notification and inbox routing, project `renderEmpty`, entrance motion | `lib/dock.ts`, `lib/view-state.ts`, `components/workspace.tsx`, `components/sidebar.tsx`, `components/composer.tsx`, `components/session-composer.tsx`, `lib/open-agent.ts`, `App.tsx`, `lib/motion.ts`, `design/motion.md`, `design/board.md` | switch A to B to A returns identical layout, focused tab, draft text and chat scroll anchor; v1 migrates (fixture); project switch to first row < 120 ms in `.perf`; 20 switches leave RSS and watcher count flat (`Herdr.metrics()`) |
 | **P3 palette v2** | L, 6-8 d | Rust search (`searchOpen/search/searchClose`), scopes, prefixes, chips, ranking, frecency, rows, footer preview, empty and no-result states, a11y wiring, new kit icons (`file`, `terminal`, `message`, `folder`) | `native/core/src/search/*`, `native/app/src/search.rs`, `components/palette.tsx`, `lib/palette/{state,rows,scopes}.ts`, `lib/actions.ts` (`CommandSpec`), `components/kit/icons`, `DESIGN.md` closed list, `.perf/scenarios.test.tsx` | keystroke budget met on the 2,000 and 5,000 sets; order does not change when a fixture flips a state while open; `dinh` finds `Định`; count announced once; `make a11y` `palette` scenario green |
 | **P4 actions and two-step** | M, 3-4 d | action panel, `args`, verbs, undo and confirm wiring, tips | `lib/palette/hit-actions.ts`, `lib/actions.ts`, `components/palette.tsx`, `components/name-dialog.tsx` reuse | `new session pay` reaches step 2 filtered; `Backspace` removes the chip; destructive actions confirm, reversible show `Undo`; every action's shortcut is its `GLOBAL` key |
 | **P5 file quick open** | M, 4-5 d | `Files.search`, local `ignore` index, remote `fs.py tree`, `mod+p` | `native/core/src/files/quick.rs`, `native/core/src/ssh/fs.py`, `native/app/src/files.rs`, `lib/files.ts`, `components/palette.tsx`, `native/core/tests/files.rs` | `ui/pal` finds `components/palette.tsx` locally and over the `localhost` ssh test; gitignored files only second; injection test passes; 100k-path budget measured |
@@ -331,9 +290,5 @@ Glyphs: `(!)` needs you, `(~)` working, `(v)` done, `(o)` idle, `[P]` project mo
 
 ## 10. Open questions for the owner
 
-1. **Can a tab live outside its agent's project?** Recommended: only through the explicit `Open here` action; default routing sends every open to the agent's project context (keeps "return exactly as left" true). Alternative: free mixing, simpler code, weaker guarantee.
-2. **May a project switch animate (incoming opacity, 120 ms) although `design/motion.md` forbids tab and screen switch animation?** Recommended: yes, as the single documented exception; the reduced-motion and repeat guards apply.
-3. **Capture mode: release plain `Ctrl+letter` shortcuts to the pane (palette moves to `mod+shift+p` while capturing)?** Recommended: yes; it fixes today's theft of Ctrl+K N Z F J B W and keeps the escape hatches.
-4. **Persist unsent drafts across restarts?** Recommended: no by default (a draft can hold a pasted secret), kept in memory across switches always, one Settings switch to remember them.
-5. **`ctrl+tab` as a tap (previous agent) now, and ask nsh upstream for a key-release event so it can become hold-to-cycle later?** Recommended: yes; the Switcher on `mod+e` covers deep cycling meanwhile.
+1-5. Decided by the owner and built: a tab lives outside its project only through `Open here`; a project switch may animate (120 ms, incoming only); capture mode releases plain Ctrl chords to the pane; drafts are kept in memory across switches and never written; `ctrl+tab` is a tap.
 6. **Transcript content search: titles, last message and 8 pane rows only (v1), or an index of conversation content?** Per [agent-orchestration-landscape.md](agent-orchestration-landscape.md) (its sources, not re-fetched here) Cursor (`Cmd+K`, local index), Devin Desktop (`Cmd+K`), JetBrains Air (`Ctrl+F`, archived sessions too) and cmux (`⌘⌥F`) search content; users will expect it. Recommended: ship the cheap scope now with the UI saying exactly what it searches, then an **in-memory** index of attached sessions and observed logs (no disk); an on-disk index only after the owner accepts storing transcript text (opt-in setting, 0600 file, one `Clear` button, never synced).

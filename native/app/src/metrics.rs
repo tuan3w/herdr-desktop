@@ -260,6 +260,7 @@ impl Recorder {
             rss_mb: 0.0,
             threads: 0,
             open_fds: 0,
+            watched_panes: 0,
         }
     }
 }
@@ -318,6 +319,8 @@ pub struct Metrics {
     pub threads: u32,
     /// Open file descriptors of the app.
     pub open_fds: u32,
+    /// Panes with a mirror open (`watchPane`); an unwatched pane is never read. Flat across project switches.
+    pub watched_panes: u32,
 }
 
 /// The recorded figures plus the process's own, read now.

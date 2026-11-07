@@ -102,6 +102,18 @@ export const SCENARIOS: Record<string, Scenario> = {
   },
   palette: {
     fixture: "mixed",
+  // A project switch: two agents open in `payments`, then the next project (`web`, nothing open: its own card).
+  "context-switch": {
+    fixture: "mixed",
+    steps: async (app) => {
+      for (const keys of ["ctrl+j", "ctrl+j", "ctrl+shift+]"]) {
+        await app.keyboard.press(keys);
+        await app.wait(600);
+      }
+    },
+  },
+  // The command palette (`design/palette.md`): empty (what needs you, what was visited, suggestions), a query, a scope, the
+  // actions of a row, a two-step command, the empty app, nothing found, and the files of a project (in the palette lab).
     steps: async (app) => {
       await app.keyboard.press("ctrl+k");
       await app.wait(400);

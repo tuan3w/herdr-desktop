@@ -297,6 +297,30 @@ test("away from the end the view holds still and a pill counts what is new; the 
   expect(app.shows("Jump to latest")).toBe(false);
 });
 
+test("a chat put away and brought back is where it was left: scrolled away stays scrolled away, at the end stays at the end", async () => {
+  const app = await scripted("long");
+  await app.waitFor(label("^Agent: Answer 200"));
+  // At the end: away and back, the end is shown and no pill.
+  await app.press("Go away");
+  await app.press("Come back");
+  await app.waitFor(label("^Agent: Answer 200"));
+  expect(app.shows("Jump to latest")).toBe(false);
+
+  await app.scroll("label:Conversation", -4000);
+  await app.waitFor("Jump to latest");
+  await app.waitUntil(() => !app.shows(label("^Agent: Answer 200")));
+  // The position is written when the scrolling goes quiet.
+  await app.wait(800);
+  await app.press("Go away");
+  expect(app.shows("label:Conversation")).toBe(false);
+  await app.press("Come back");
+  await app.waitFor("label:Conversation");
+  await app.waitFor("Jump to latest");
+  await app.wait(2000);
+  expect(app.shows(label("^Agent: Answer 200"))).toBe(false);
+  expect(app.shows("Jump to latest")).toBe(true);
+});
+
 test("a request that waits is what the pill says when the person is away from the end", async () => {
   const app = await scripted("long");
   await app.waitFor(label("^Agent: Answer 200"));

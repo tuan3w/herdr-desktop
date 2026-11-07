@@ -33,6 +33,7 @@ export function ProjectEmpty() {
             <ProjectCard
               project={p()}
               several={several()}
+              fold={false}
               order={() => p().rows.map((r) => r.key)}
               onAnswer={(row) => void openAgent(row, { reply: true })}
               onOpen={(row, options) => void openAgent(row, options)}

@@ -17,6 +17,7 @@ const lab = (extra: { width?: number; storage?: Record<string, string> } = {}) =
 
 const row = (name: string) => `label:/^${name}, /`;
 const PAYMENTS = "label:/^payments, This computer, 2 need you/";
+const FOLD_PAYMENTS = "label:Fold payments";
 const ready = async (extra: Parameters<typeof lab>[0] = {}) => {
   const app = await lab(extra);
   await app.waitFor("label:Board, 2 need you");
@@ -81,7 +82,7 @@ test("a search narrows to the projects and agents that match every word, ignorin
 
 test("a folded project hides its agents, keeps its header and chips, and stays folded after a restart", async () => {
   const app = await ready();
-  await app.press(PAYMENTS);
+  await app.press(FOLD_PAYMENTS);
   expect(app.shows(row("Refactor ledger"))).toBe(false);
   expect(app.shows(PAYMENTS)).toBe(true);
   await app.clock!.runFor(100);
@@ -92,7 +93,7 @@ test("a folded project hides its agents, keeps its header and chips, and stays f
   expect(again.shows(row("Refactor ledger"))).toBe(false);
   expect(again.shows(row("Weekly notes"))).toBe(false);
   expect(again.shows("label:/^web, This computer/")).toBe(true);
-  await again.press(PAYMENTS);
+  await again.press("label:Unfold payments");
   expect(again.shows(row("Refactor ledger"))).toBe(true);
 });
 

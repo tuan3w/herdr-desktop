@@ -578,10 +578,13 @@ function Scripted() {
     const timer = setInterval(() => (piece < upTo ? writeMore() : clearInterval(timer)), params.autostream);
     cleanup(() => clearInterval(timer));
   }
+  // The chat unmounted and mounted again, as a project switch does: where it was left comes back (`lib/view-state.ts`).
+  const away = signal(false);
   return (
     <View class="min-h-0 flex-1">
       <If when={!params.quiet}>
         <View class="flex-row flex-wrap items-center gap-2 border-b border-border p-2">
+          <Btn small label={away() ? "Come back" : "Go away"} onPress={() => away.update((a) => !a)} />
           <Btn small label="Agent says more" onPress={() => lab.stream(" And more text arrives.")} />
           <Btn small label="Stream a piece" onPress={writeMore} />
           <Btn
@@ -650,7 +653,9 @@ function Scripted() {
         <Text class="px-3 text-xs text-muted-foreground">{`Tree: ${tree}`}</Text>
         <Text class="px-3 py-1 text-xs text-muted-foreground">{`Log: ${lab.log().join(" | ") || "nothing yet"}`}</Text>
       </If>
-      <SessionChat machine="local" id="scripted" active port={lab.port} open={false} />
+      <If when={!away()}>
+        <SessionChat machine="local" id="scripted" active port={lab.port} open={false} />
+      </If>
     </View>
   );
 }

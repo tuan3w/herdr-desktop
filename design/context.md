@@ -6,7 +6,7 @@ A person supervising twenty agents thinks "the payments API", then "the infra re
 
 - **Home** (`HOME`): the board, and whatever was left there. The one context outside any project. `mod+1` shows it; the board tab is never closable, so Home is never empty.
 - **A project** (`BoardProject.key`): its own layout (groups, splits, sizes, the displayed tab of each group) and its own focused tab. It may hold no tab: the workspace then shows the project's own card (`ProjectEmpty`: agents, state, `New agent session`), so a context is never blank. Closing the last tab does not delete the context.
-- **Agents** are destinations inside contexts. A tab belongs to its agent's project: `openPanel` of an agent open somewhere shows it where it is (its context comes back with it); otherwise it is added to the project's context, which is shown (`homeOf`). `openPanel(key, { here: true })` puts it in the context shown instead and moves it out of the one that had it (a tab is in one context only). There is no gesture for `here` yet: the action panel of the palette (P4) gets it.
+- **Agents** are destinations inside contexts. A tab belongs to its agent's project: `openPanel` of an agent open somewhere shows it where it is (its context comes back with it); otherwise it is added to the project's context, which is shown (`homeOf`). `openPanel(key, { here: true })` puts it in the context shown instead and moves it out of the one that had it (a tab is in one context only). `Open here` is `Shift+Enter` in the Switcher and an item of a project's menu (its first agent); the action panel of the palette reuses `{ here: true }`.
 
 ## What comes back
 
@@ -16,7 +16,7 @@ A person supervising twenty agents thinks "the payments API", then "the infra re
 |---|---|---|
 | Layouts | `Storage` `herdr.dock.v2`: `{ v, current, home, contexts, strays }` (`readDock`, `writeDock`) | written after a 500 ms quiet period; the newest `CONTEXT_CAP` contexts, the shown one always; a context whose project the board lacks is dropped after `GONE_AFTER_MS` |
 | Drafts | memory (`lib/view-state.ts`, `draftOf`, `setDraft`) | across switches, never across a restart: a draft can hold a pasted secret |
-| Chat scroll | `Storage` `herdr.views.v1` (`anchorOf`, `setAnchor`): at the end, or this far above it | across restarts; `ANCHOR_CAP` entries |
+| Chat scroll | `Storage` `herdr.views.v1` (`anchorOf`, `setAnchor`): at the end, or this far above it; a chat reopens there once enough of it is loaded, else at the end | across restarts; `ANCHOR_CAP` entries |
 | Visits | Rust `recents.json` (`Herdr.visit`, `recents`, `forget`) | ids, the last ten times, a count; never pane contents |
 
 The file of the first version (`herdr.dock.v1`, one layout) opens as the Home as it was and is split by project when the board first knows its panels (`bucket`, `adopt`); a panel whose project is unknown stays in Home as a stray and is adopted when its row turns up. The old key is removed only after the new one was written.
@@ -32,6 +32,10 @@ The file of the first version (`herdr.dock.v1`, one layout) opens as the Home as
 
 `ctrl+tab` is spelled with `ctrl`, not `mod`, and carries `always` (a text field uses Tab). Nothing can report a key release in nsh 0.4.0, so there is no hold-to-cycle.
 
+## Where a person presses
+
+In the sidebar and on a project's card the name shows the project's workspace and the chevron alone folds it; the card of a project with no tab open has no fold control. The rail's popover has `Show project`. A project's menu has `Switch to this project` and `Open here`.
+
 ## Typing into a pane
 
 While capture mode is on (`mod+shift+k`) the pane owns every plain Ctrl chord a terminal can send (`capturedBy`: a letter, and `[ ] \ /`); the app keeps what a terminal cannot encode (every chord with Shift, `ctrl+tab`, `mod+,`, `mod+<digit>`, function keys). The palette is `mod+shift+p` there (`mod+k` also outside the mode). See `design/pane.md`.
@@ -39,6 +43,10 @@ While capture mode is on (`mod+shift+k`) the pane owns every plain Ctrl chord a 
 ## Motion
 
 A project switch is the one deliberate exception to "switching never animates": the incoming workspace fades from `CONTEXT_FROM` to 1 in `DURATION.context` (`contextEnter`), with no fade-out and nothing waiting for it; skipped when a second switch comes within `CONTEXT_REPEAT_MS` and under reduced motion. It moves the area's wrapper, never a pane's rows.
+
+## Measured
+
+`Herdr.metrics()` has `watchedPanes` (flat across switches: a mirror stops watching when its tab unmounts). The `.perf` scenario `switch project x20` presses `ctrl+shift+[` and `]` twenty times and reports the commit time, memory, threads, descriptors and watched panes (`docs/PERFORMANCE.md`).
 
 ## Calm
 

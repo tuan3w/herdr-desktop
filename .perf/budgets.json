@@ -84,6 +84,20 @@
       "jsP95": 2,
       "memMB": 398
     },
+    "switch project x20": {
+      "cpu": 18,
+      "frameP95": 22.3,
+      "over": 5,
+      "jsP95": 42.6,
+      "memMB": 430
+    },
+    "idle after 20 switches": {
+      "cpu": 3,
+      "frameP95": 20.8,
+      "over": 5,
+      "jsP95": 2,
+      "memMB": 430
+    },
     "permission storm: 20 blocked at once": {
       "cpu": 19,
       "frameP95": 7.82,

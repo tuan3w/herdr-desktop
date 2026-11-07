@@ -55,7 +55,7 @@ test(
 
     await mark(app, "palette typing");
     for (const ch of "settings") {
-      await app.type("label:Search commands", ch);
+      await app.type("label:Search agents, projects and commands", ch);
       await app.wait(150);
     }
     await app.wait(1500);
@@ -129,6 +129,20 @@ test(
       await app.keyboard.press("ctrl+w");
       await app.wait(300);
     }
+    await app.keyboard.press("ctrl+1");
+    await app.wait(800);
+
+    // Two projects each with an open pane, then 20 switches by key, one every 450 ms (more than the entrance's repeat
+    // guard, so each one plays). The row's JS and core time per commit is the swap; its metrics say whether memory,
+    // threads, descriptors and watched panes stay flat (compare with the row before).
+    await openTerminal(app, "Styling pass");
+    await mark(app, "switch project x20");
+    for (let i = 0; i < 20; i++) {
+      await app.keyboard.press(i % 2 === 0 ? "ctrl+shift+[" : "ctrl+shift+]");
+      await app.wait(450);
+    }
+    await mark(app, "idle after 20 switches");
+    await app.wait(3000);
     await app.keyboard.press("ctrl+1");
     await app.wait(800);
 

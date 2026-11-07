@@ -13,6 +13,7 @@ import { newSession } from "#lib/actions";
 import { reviewWithUndo } from "#lib/herdr";
 import { GAP, ROW } from "#lib/layout";
 import { animateLayout, appear, hoverTransition } from "#lib/motion";
+import { openProject } from "#lib/nav";
 import { isSelected } from "#lib/selection";
 import {
   ageText,
@@ -172,16 +173,18 @@ export interface CardProps {
   order: () => readonly string[];
   onAnswer: RowProps["onAnswer"];
   onOpen: RowProps["onOpen"];
+  /** Without the fold control (default shown): the card of a project with no tab open is its whole view. */
+  fold?: boolean;
 }
 
 /**
- * A project: its name (a button that folds it), where it lives, its one aggregate (the signal dot while something waits and
+ * A project: its name (a button that shows the project's workspace) beside a fold control, where it lives, its one aggregate (the signal dot while something waits and
  * the counts in words), the checkouts that have agents, then its agents, those that need you first. A project that needs
  * you keeps its place: only a pin moves a project. `New agent session in <project>` starts a chat in its folder.
  */
 export function ProjectCard(props: CardProps) {
   const p = () => props.project;
-  const isFolded = () => foldedProjects().includes(p().key);
+  const isFolded = () => props.fold !== false && foldedProjects().includes(p().key);
   const rows = () => shownRows(p().rows, moreOpen().includes(p().key));
   const quiet = () => p().rows.filter((r) => r.status === "idle" || r.status === "unknown").length;
   const open = () => moreOpen().includes(p().key);
@@ -194,18 +197,28 @@ export function ProjectCard(props: CardProps) {
       class={`min-w-0 flex-1 rounded-xl border border-border bg-card p-2 ${GAP.rows} ${p().offline ? "opacity-60" : ""}`}
     >
       <View class="group flex-row items-center gap-3">
+        <If when={props.fold !== false}>
+          <View
+            role="button"
+            accessibilityLabel={`${isFolded() ? "Unfold" : "Fold"} ${p().name}`}
+            accessibilityState={{ expanded: !isFolded() }}
+            onPress={() => {
+              animateLayout();
+              toggleProject(p().key);
+            }}
+            style={hoverTransition()}
+            class={`size-9 items-center justify-center rounded-md hover:bg-accent ${FOCUS_RING}`}
+          >
+            <Icon name={isFolded() ? "chevron-right" : "chevron-down"} size={14} tone="muted-foreground" />
+          </View>
+        </If>
         <View
           role="button"
           accessibilityLabel={projectTitle(p(), props.several)}
-          accessibilityState={{ expanded: !isFolded() }}
-          onPress={() => {
-            animateLayout();
-            toggleProject(p().key);
-          }}
+          onPress={() => openProject(p().key)}
           style={hoverTransition()}
           class={`min-w-0 flex-1 flex-row items-center gap-3 rounded-md hover:bg-accent ${ROW.project.class} ${FOCUS_RING}`}
         >
-          <Icon name={isFolded() ? "chevron-right" : "chevron-down"} size={14} tone="muted-foreground" />
           <Monogram name={p().name} size={28} />
           <View class="min-w-0 shrink">
             <Clipped class="text-base font-semibold text-foreground">{p().name}</Clipped>

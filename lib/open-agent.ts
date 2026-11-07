@@ -39,9 +39,9 @@ export function viewOf(row: BoardRow): "chat" | "terminal" {
     : "terminal";
 }
 
-/** Opens an agent in its view; `reply` (the board's `Reply…`) also puts the keyboard in a terminal's message box. */
-export async function openAgent(row: BoardRow, options?: { reply?: boolean }): Promise<void> {
-  if (viewOf(row) === "chat") await openSession(row.machine, row.session ? row.paneId : `pane:${row.paneId}`);
+/** Opens an agent in its view; `here` puts its tab in the context shown instead of its project's (and moves it); `reply` (the board's `Reply…`) also puts the keyboard in a terminal's message box. */
+export async function openAgent(row: BoardRow, options?: { reply?: boolean; here?: boolean }): Promise<void> {
+  if (viewOf(row) === "chat") await openSession(row.machine, row.session ? row.paneId : `pane:${row.paneId}`, options);
   else await openPane(row.machine, row.paneId, options);
 }
 

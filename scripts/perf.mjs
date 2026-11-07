@@ -155,6 +155,7 @@ function figures(r) {
     rss: m.rssMb ?? null,
     threads: m.threads ?? null,
     fds: m.openFds ?? null,
+    watched: m.watchedPanes ?? null,
   };
 }
 
@@ -265,6 +266,7 @@ const rust = aggregate.map((row) => [
   fmt(0)(row.cell.rss),
   fmt(0)(row.cell.threads),
   fmt(0)(row.cell.fds),
+  fmt(0)(row.cell.watched),
 ]);
 console.log("\nRust metrics (`Herdr.metrics()` at the end of the scenario; reads/s while the stream still ran):\n");
 print(
@@ -277,6 +279,7 @@ print(
     "rss MB",
     "threads",
     "fds",
+    "panes watched",
   ],
   rust,
 );

@@ -171,6 +171,15 @@ function projectEntries(project: BoardProject) {
   return [
     { label: "Switch to this project", onSelect: () => openProject(project.key) },
     {
+      label: "Open here",
+      // The project's first agent (those that need you come first) as a tab of the workspace shown, not of its project.
+      onSelect: () => {
+        const row = project.rows[0];
+        if (row) void openAgent(row, { here: true });
+      },
+      disabled: project.rows.length === 0,
+    },
+    {
       label: project.pinned ? "Unpin" : "Pin to the top",
       onSelect: () => Herdr.pinProject(project.key, !project.pinned),
     },
@@ -191,24 +200,35 @@ function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> 
   const p = () => props.item().project;
   return (
     <View class={`group mt-3 ${p().offline ? "opacity-60" : ""}`}>
-      <View
-        role="button"
-        onPress={() => toggleProject(p().key)}
-        accessibilityLabel={projectLabel(p())}
-        accessibilityState={{ expanded: !props.item().folded, selected: context() === p().key }}
-        style={hoverTransition()}
-        class={`flex-row items-center gap-2 ${ROW.project.class} ${FILL}`}
-      >
-        <Icon name={props.item().folded ? "chevron-right" : "chevron-down"} size={14} tone="muted-foreground" />
-        <Clipped class="min-w-0 flex-1 text-sm font-medium text-sidebar-foreground">{p().name}</Clipped>
-        <If when={p().pinned}>
-          <View
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            class="size-1.5 rounded-full bg-sidebar-foreground"
-          />
-        </If>
-        <ProjectMark project={p()} compact onSidebar />
+      <View class="flex-row items-center">
+        <View
+          role="button"
+          onPress={() => toggleProject(p().key)}
+          accessibilityLabel={`${props.item().folded ? "Unfold" : "Fold"} ${p().name}`}
+          accessibilityState={{ expanded: !props.item().folded }}
+          style={hoverTransition()}
+          class={`size-8 items-center justify-center ${FILL}`}
+        >
+          <Icon name={props.item().folded ? "chevron-right" : "chevron-down"} size={14} tone="muted-foreground" />
+        </View>
+        <View
+          role="button"
+          onPress={() => openProject(p().key)}
+          accessibilityLabel={projectLabel(p())}
+          accessibilityState={{ selected: context() === p().key }}
+          style={hoverTransition()}
+          class={`min-w-0 flex-1 flex-row items-center gap-2 ${ROW.project.class} ${FILL}`}
+        >
+          <Clipped class="min-w-0 flex-1 text-sm font-medium text-sidebar-foreground">{p().name}</Clipped>
+          <If when={p().pinned}>
+            <View
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              class="size-1.5 rounded-full bg-sidebar-foreground"
+            />
+          </If>
+          <ProjectMark project={p()} compact onSidebar />
+        </View>
       </View>
       <View class="absolute bottom-0 right-0 top-0 justify-center bg-sidebar pl-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
         <ActionMenu label={`Options for ${p().name}`} entries={projectEntries(p())} />

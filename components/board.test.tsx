@@ -126,7 +126,7 @@ test("Reviewed takes the agent out of 'to review' with one Undo that puts it bac
 test("'1 to review' picks exactly the finished agents, opens the project folded over them, and Reviewed in the bar clears them under one Undo", async () => {
   const app = await lab();
   await app.waitFor("1 to review");
-  await app.press("label:payments-api");
+  await app.press("label:Fold payments-api");
   expect(has(app, "Fix rounding in refunds")).toBe(false);
 
   await app.press("label:1 to review, select them");
