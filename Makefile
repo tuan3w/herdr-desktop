@@ -7,9 +7,14 @@ export HERDR_DESKTOP_TEST := 1
 CORE := native/core/Cargo.toml
 APP  := native/app/Cargo.toml
 
-.PHONY: verify check test core docs a11y run package theme perf cpu schema shots
+.PHONY: verify verify-mac check test core docs a11y run package theme perf cpu schema shots
 
+# Linux: everything. `a11y` needs AT-SPI (dbus, Xvfb, python3-gi), which only Linux has.
 verify: check test core docs a11y
+
+# macOS: the same minus `a11y`. The AT-SPI audit, the screenshots (`shots`) and the CPU/frame scripts (`perf`, `cpu`)
+# read Linux's accessibility bus and /proc; nothing replaces them on a Mac yet, and docs/ACCESSIBILITY.md says so.
+verify-mac: check test core docs
 
 check:
 	nsh check
@@ -33,11 +38,14 @@ docs:
 a11y:
 	dbus-run-session -- xvfb-run -a python3 scripts/atspi_audit.py
 
+# The window and the package are for the system running make.
+HOST_TARGET := $(if $(filter Darwin,$(shell uname -s)),macos,linux)
+
 run:
-	nsh run . --target linux
+	nsh run . --target $(HOST_TARGET)
 
 package:
-	nsh package . --target linux -o .scratch/dist
+	nsh package . --target $(HOST_TARGET) -o .scratch/dist
 
 # Only after the default theme's spec changes.
 theme:

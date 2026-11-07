@@ -1,16 +1,12 @@
 name: Set up Herdr Desktop
 description: >
-  System packages, nsh 0.4.0, the pinned Rust toolchain with a cache keyed on the Cargo.lock files, bun, and the sibling
-  checkout that path dependencies on herdr-mobile need. One place, so ci.yml and release.yml build the same way.
-inputs:
-  mobile-token:
-    description: Token that can read tuan3w/herdr-mobile; only used while native/core has a path dependency on it.
-    required: false
-    default: ""
+  System packages (Linux), nsh 0.4.0, the pinned Rust toolchain with a cache keyed on the Cargo.lock files, bun and node.
+  One place, so ci.yml and release.yml build the same way on Linux and macOS.
 runs:
   using: composite
   steps:
-    - name: System packages
+    - name: System packages (Linux)
+      if: runner.os == 'Linux'
       shell: bash
       # GTK and WebKitGTK dev files (nsh's Linux platform links WebKitGTK even when no web view opens), clang for
       # QuickJS, and what the AT-SPI audit and the screenshots need on a display-less runner.
@@ -21,7 +17,8 @@ runs:
 
     - name: nsh 0.4.0
       shell: bash
-      # Pinned: nsh 0.4.0 is the API the app is written for (AGENTS.md: do not upgrade unless asked).
+      # Pinned: nsh 0.4.0 is the API the app is written for (AGENTS.md: do not upgrade unless asked). The installer
+      # links nsh into ~/.local/bin on both systems.
       run: |
         NSH_VERSION=v0.4.0 sh -c "$(curl -fsSL https://nsh.dev/install.sh)"
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -39,21 +36,11 @@ runs:
           ~/.cargo/registry
           ~/.cargo/git
           target
-        key: rust-${{ runner.os }}-${{ hashFiles('native/core/Cargo.lock', 'native/app/Cargo.lock', 'rust-toolchain.toml') }}
-        restore-keys: rust-${{ runner.os }}-
+        key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('native/core/Cargo.lock', 'native/app/Cargo.lock', 'rust-toolchain.toml') }}
+        restore-keys: rust-${{ runner.os }}-${{ runner.arch }}-
 
     - uses: oven-sh/setup-bun@v2
 
-    - name: herdr-mobile next to this checkout
-      shell: bash
-      env:
-        TOKEN: ${{ inputs.mobile-token }}
-      # native/core may depend on herdr-mobile's crates by path (`../../../herdr-mobile/rust/crates/...`); that path is the
-      # parent of the checkout. Step 6.1 of the plan swaps them for pinned git dependencies, and then this step does nothing.
-      run: |
-        if grep -q herdr-mobile native/core/Cargo.toml; then
-          dest="$(cd .. && pwd)/herdr-mobile"
-          header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
-          echo "::add-mask::$header"
-          git -c "http.https://github.com/.extraheader=$header" clone --depth 1 https://github.com/tuan3w/herdr-mobile.git "$dest"
-        fi
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "22"

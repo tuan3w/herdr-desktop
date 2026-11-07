@@ -17,14 +17,12 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  verify:
+  linux:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-        with:
-          mobile-token: ${{ secrets.HERDR_MOBILE_TOKEN }}
 
       - name: theme.json matches its generator
         # `make theme` only after the default theme's spec changes; a drift means someone edited one without the other.
@@ -46,8 +44,45 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: diagnostics
+          name: diagnostics-linux
           path: |
             .scratch/a11y/
             .scratch/shots/
           if-no-files-found: ignore
+
+  macos:
+    # Apple silicon. Intel Macs are not built: nsh 0.4.0 ships its macOS CLI and runtime for arm64 only
+    # (nsh-macos-arm64.tar.gz is the one macOS asset of the v0.4.0 release).
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      - name: make verify-mac
+        # nsh check, nsh test (headless: no window server is needed), core (fmt, clippy, tests of both crates), docs.
+        # What Linux adds and macOS skips: the AT-SPI audit (`make a11y`), the Xvfb screenshots and the perf/cpu scripts.
+        # They read Linux's accessibility bus and /proc, so a Mac has no equivalent gate yet.
+        run: make verify-mac
+
+      - name: make package
+        # nsh signs the .app ad hoc (no Apple developer account): Gatekeeper wants a first right-click, Open.
+        run: make package
+
+      - name: The .app is a bundle with its executable
+        run: |
+          app=".scratch/dist/Herdr Desktop.app"
+          ls -la "$app/Contents" "$app/Contents/MacOS"
+          test -x "$app/Contents/MacOS/"*
+          plutil -p "$app/Contents/Info.plist" | grep -E 'CFBundle(Identifier|ShortVersionString)'
+          codesign --verify --deep --strict "$app"
+
+      - name: Zip the app (ditto keeps permissions and the signature; upload-artifact would not)
+        run: ditto -c -k --keepParent ".scratch/dist/Herdr Desktop.app" Herdr-Desktop-macos-arm64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Herdr-Desktop-macos-arm64
+          path: Herdr-Desktop-macos-arm64.zip
+          retention-days: 7
+          if-no-files-found: error
