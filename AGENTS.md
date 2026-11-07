@@ -131,6 +131,7 @@ Semantic (Conventional Commits): `type(scope): subject`, imperative, lower case,
 
 ## Writing things down
 
+- **Screenshots are not committed**, except the few the README shows (`docs/screenshots/`, three images): a gallery goes out of date and costs git space for ever. `make shots` writes to the ignored `.scratch/shots/`.
 - Facts go next to what they describe: a hard-won fact about a subsystem goes in its doc under `docs/`. Give the reason next to the rule, with the failure that taught it.
 - `DESIGN.md` is the design system, not a changelog.
 - Mark what was not measured or run (unverified), so a claim never outlives its evidence.

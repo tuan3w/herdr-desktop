@@ -15,6 +15,12 @@ Built with [nsh](https://github.com/longbridge/nsh) (Rust + TSX, native widgets:
 
 Feature-by-feature status against the phone app is in [docs/PARITY.md](docs/PARITY.md).
 
+## A look
+
+<p><img src="docs/screenshots/home.png" alt="Home: projects, a Needs you inbox" width="440"> <img src="docs/screenshots/chat.png" alt="Chat with tool rows, a diff and a subagent" width="440"></p>
+
+Illustrations from scripted data, not a gallery: they date. `make shots` takes current ones into `.scratch/shots/` (not committed).
+
 ## Status
 
 Alpha: `0.1.0-alpha.1` is the first test release (Linux x86_64 and macOS Apple silicon, from the Releases page; [CHANGELOG.md](CHANGELOG.md) says what works and what does not). `docs/PARITY.md` is the ledger of what is done.
