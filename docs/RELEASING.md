@@ -109,9 +109,11 @@ Measured on `macos-15` runners (3 cores) on 2026-11-07; every number is a job or
 
 | | Before (`ci.yml`, per push) | After |
 |---|---|---|
-| `macos-package`, warm | 2 min 16 s to 2 min 30 s (setup 60 s, `make package` 67 to 89 s, zip and upload 5 s) | **69 s** (setup 36 s, `make package` 22 s, zip and upload 5 s) |
-| `macos-check` / `macos-lint`, warm | 3 min 36 s (setup 62 s, `make verify-mac` 155 s) | **72 s** (checks 6 s, toolchain 8 s, nsh 15 s, cache 16 s, `nsh check` 15 s) |
-| `macos-package`, cold | 7 min 43 s to 8 min 37 s | about 11 min (`make package` 622 s, with three other macOS jobs running) |
+| `macos-package`, warm | 2 min 16 s to 2 min 30 s (setup 60 s, `make package` 67 to 89 s, zip and upload 5 s) | **69 to 85 s** over three runs on main (setup 36 to 45 s, `make package` 20 to 22 s, zip and upload 5 to 8 s); the spread is how fast the runner restores 1 GB |
+| `macos-check` / `macos-lint`, warm | 3 min 36 s (setup 62 s, `make verify-mac` 155 s) | **50 s** (63 and 72 s in the two runs before the toolchain install was moved into the background: oxlint, oxfmt, imports, theme, docs and rustfmt 6 s, nsh 11 s, cache 12 s, `nsh check` 10 s) |
+| `macos-package`, cold | 7 min 43 s to 8 min 37 s | 11 min 20 s (`make package` 622 s; three other macOS jobs were running) |
+| `macos-lint`, cold | | 5 min 26 s (`nsh check` 265 s: the TypeScript compiler download and `cargo check` of about 500 crates) |
+| `tests.yml` (everything slow) | | warm cache: 15 min (`nsh check` 4 min cold, both crates 102 s, every TSX test 12 min for 955 tests) |
 | Linux jobs per push (4) | about 8 min | none (`ci-linux.yml`, by hand) |
 | TSX change only, warm | same as any warm run | `make package` 21 s: no Rust is compiled |
 | Rust change, warm | same | `make package` 101 s, plus a 17 s cache save |
@@ -122,7 +124,7 @@ What each change saved:
 - **`scripts/ci-mtimes.sh`: 73 s to 22 s of `make package`.** Cargo calls a path crate fresh by file mtimes, and a checkout makes every file newer than the cached outputs, so every run recompiled `herdr-core` and `herdr-desktop-native` twice (debug for the types, release for the runner) and relinked a 91 MB binary. The script gives the files whose content equals what `target/` was built from the age of the cache. The cache key names `native/**`, so a change there saves a fresh cache and the next run (a TSX-only one too) is quick again. A cache saved by a cancelled run is never kept: it would be half-full under the key of a full one.
 - **Debug stays in the cache.** `nsh package` builds the app crate in debug first (to read the types of the native module) and only then the release runner. A cache of `target/release` alone made the debug step 2 min 2 s instead of 24 s: restoring the 1.2 GB of debug is 5 to 10 s.
 - **nsh from `actions/cache`** (607 MB): 9 to 16 s to restore against 11 to 27 s for `curl | sh`: a small saving, but no dependency on the download being quick on that day.
-- **Minimal Rust profile, `RUSTUP_TOOLCHAIN` set:** 7 s; the toolchain file's `components` (clippy, rustfmt) are only installed by the jobs that use them (`macos-lint`: rustfmt; `tests.yml`: both).
+- **Minimal Rust profile, `RUSTUP_TOOLCHAIN` set, installed in the background (`scripts/ci-toolchain.sh`):** the 7 s overlap the restore of nsh and of the cargo cache (lint went from 63 to 50 s); the toolchain file's `components` (clippy, rustfmt) are only installed by the jobs that use them (`macos-lint`: rustfmt; `tests.yml`: both).
 - **No `bun install` and no `setup-node` in `macos-package`:** 3 s. The package job reads no `node_modules`; the lint job needs bun for oxlint and oxfmt (its own `setup-bun`, 3 s) and uses the runner's node.
 - **A smaller cache per job:** registry index and crates, git db and `target/` only (no `~/.cargo/registry/src`, which cargo unpacks again in seconds). `target/` is 2.9 GB, 826 MB compressed; restore is 17 s, against 29 s for the 2.9 GB plus registry before.
 - **`macos-lint` has its own cache:** `nsh check` is tsc plus `cargo check --all-targets` of the app crate, which needs the Rust toolchain and check artifacts (1.8 GB, 496 MB compressed). Cold it takes 265 s, warm 15 s; the oxlint, oxfmt, imports, theme, docs and rustfmt steps are 1 to 8 s each.
