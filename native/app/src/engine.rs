@@ -187,6 +187,10 @@ impl Engine {
             revision: AtomicU64::new(1),
             warnings,
             on_tick: config.on_tick,
+            media: Arc::new(herdr_core::files::MediaCache::new(
+                store.dir().join("cache").join("media"),
+                herdr_core::files::MEDIA_CAP,
+            )),
             store,
             local_socket,
             ssh,
@@ -207,6 +211,8 @@ impl Engine {
 
         // Copies of remote pictures from an earlier run are only a cache: start empty.
         let _ = std::fs::remove_dir_all(fleet.files_cache());
+        // Part files of copies that were running when the last run ended are not copies; the finished ones stay (within the cap).
+        fleet.media.start();
 
         let mut threads = Vec::new();
         let spawn = |name: String, body: Box<dyn FnOnce() + Send>| {
@@ -332,6 +338,8 @@ pub struct Fleet {
     warnings: Vec<String>,
     on_tick: Arc<dyn Fn() + Send + Sync>,
     store: Store,
+    /// Copies of other machines' videos and sounds while they play (`<dataDir>/cache/media`, capped).
+    media: Arc<herdr_core::files::MediaCache>,
     local_socket: PathBuf,
     ssh: Option<SshClient>,
     /// Agent sessions: each machine's keeper, the listings and the attached conversations.

@@ -84,6 +84,11 @@ impl Fleet {
     pub fn files_cache(&self) -> PathBuf {
         self.store.dir().join("cache").join("files")
     }
+
+    /// The cache that copies of other machines' videos and sounds are played from (`files::fetch`).
+    pub fn media_cache(&self) -> Arc<herdr_core::files::MediaCache> {
+        self.media.clone()
+    }
 }
 
 impl Fleet {

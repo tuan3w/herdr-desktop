@@ -9,7 +9,13 @@
 //! A path reaches the remote machine as one argument of one `ssh` command, quoted by [`crate::ssh::shq`]
 //! inside the generated command, so a crafted name is only ever a name.
 
+mod archive;
+mod cache;
+mod json;
+mod lines;
 mod local;
+mod media;
+mod peek;
 mod quick;
 mod remote;
 mod resolve;
@@ -18,11 +24,26 @@ mod upload;
 mod view;
 mod walk;
 
+#[cfg(test)]
+mod testmem;
+
 use std::path::PathBuf;
 
 use thiserror::Error;
 
+pub use archive::{
+    ArchiveEntry, LIST_LIMIT as ARCHIVE_LIMIT, Listing as ArchiveListing, is_archive_name,
+    list as list_archive,
+};
+pub use cache::{CHUNK as MEDIA_CHUNK, DEFAULT_CAP as MEDIA_CAP, FetchError, MediaCache, fetch};
+pub use json::{is_minified as json_minified, pretty as pretty_json};
+pub use lines::{
+    Index as LineIndex, LINE_MAX, STRIDE as LINE_STRIDE, find as find_line, read_lines,
+    scan as scan_lines, size_of as lines_size,
+};
 pub use local::LocalFiles;
+pub use media::{Codecs, MediaKind, media_kind, probe_codecs};
+pub use peek::{PEEK_BYTES, Peek, detect as detect_type, peek};
 pub use quick::{
     Hot, HotPaths, IGNORED_FROM, MentionHit, Mentions, Quick, QuickHit, QuickSearch, REFRESH_AFTER,
 };
@@ -30,7 +51,10 @@ pub use remote::{FS_SCRIPT, RemoteFiles};
 pub use resolve::{candidates, parent, path_from_uri, uri_from_path};
 pub use tunnel::{Tunnel, TunnelError, free_port, localhost_port};
 pub use upload::{UploadError, upload};
-pub use view::{FileView, IMAGE_CAP, TEXT_CAP, ViewKind, open, view_kind};
+pub use view::{
+    CLIPBOARD_IMAGE_CAP, FileView, IMAGE_CAP, TEXT_CAP, ViewKind, image_data_url, open, size_text,
+    view_kind,
+};
 pub use walk::{
     IGNORED_PATHS, IGNORED_SKIP, TREE_BYTES, TREE_PATHS, TREE_TIME, Tree, TreeEntry, TreeLimits,
     keep_name, keep_path,

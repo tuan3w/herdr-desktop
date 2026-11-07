@@ -13,6 +13,10 @@ use herdr_core::files::{
     Tunnel, UploadError, ViewKind, candidates, join, localhost_port, open, parent, path_from_uri,
     upload, uri_from_path, validate_path,
 };
+use herdr_core::files::{
+    FetchError, LineIndex, MEDIA_CHUNK, MediaCache, fetch, find_line, list_archive, peek,
+    probe_codecs, read_lines, scan_lines,
+};
 use herdr_core::ssh::{SshClient, SshTarget};
 
 /// A stand-in `ssh` that runs the remote command locally. `-O` requests are logged and succeed.
@@ -385,22 +389,45 @@ fn text_markdown_binary_and_folders_are_told_apart_by_what_they_hold() {
 }
 
 #[test]
-fn a_big_text_file_shows_its_start_cut_at_a_character_and_says_so() {
+fn a_text_file_over_the_cap_is_paged_not_cut_and_a_binary_one_is_not_text() {
     on_both(|files, work| {
-        // Three-byte characters, so the cap falls inside one.
-        let body = "日".repeat((TEXT_CAP as usize) / 3 + 1000);
-        std::fs::write(work.join("big.txt"), &body).unwrap();
+        std::fs::write(
+            work.join("big.txt"),
+            "日".repeat((TEXT_CAP as usize) / 3 + 1000),
+        )
+        .unwrap();
         let v = view(files, &work.join("big.txt"), &work.join("cache")).unwrap();
-        let text = v.text.unwrap();
-        assert!(text.len() as u64 <= TEXT_CAP && text.len() as u64 > TEXT_CAP - 3);
-        assert!(
-            body.starts_with(&text),
-            "what is shown is the real start of the file"
+        assert_eq!((v.kind, v.large), (ViewKind::Text, true));
+        assert_eq!(
+            v.text, None,
+            "nothing of it is held: the viewer pages through it"
         );
-        assert!(
-            v.notice.unwrap().starts_with("Showing the first 4.0 MB of"),
-            "the cut is said, never silent"
-        );
+        let mut binary = vec![0u8; TEXT_CAP as usize + 10];
+        binary[100] = 1;
+        std::fs::write(work.join("big.bin"), binary).unwrap();
+        let v = view(files, &work.join("big.bin"), &work.join("cache")).unwrap();
+        assert_eq!((v.kind, v.large), (ViewKind::Binary, false));
+    });
+}
+
+#[test]
+fn media_pdf_archives_and_tables_are_told_apart_by_name_and_read_nothing() {
+    on_both(|files, work| {
+        for (name, kind) in [
+            ("clip.mp4", ViewKind::Video),
+            ("tone.flac", ViewKind::Audio),
+            ("paper.pdf", ViewKind::Pdf),
+            ("bundle.zip", ViewKind::Archive),
+            ("rows.csv", ViewKind::Csv),
+        ] {
+            std::fs::write(work.join(name), "a,b\n1,2\n").unwrap();
+            let v = view(files, &work.join(name), &work.join("cache")).unwrap();
+            assert_eq!(v.kind, kind, "{name}");
+        }
+        let video = view(files, &work.join("clip.mp4"), &work.join("cache")).unwrap();
+        assert_eq!((video.text, video.image), (None, None));
+        let table = view(files, &work.join("rows.csv"), &work.join("cache")).unwrap();
+        assert_eq!(table.text.as_deref(), Some("a,b\n1,2\n"));
     });
 }
 
@@ -902,4 +929,156 @@ fn real_ssh_lists_uploads_and_forwards() {
         TcpStream::connect(("127.0.0.1", tunnel.local_port())).is_err(),
         "the port is closed once the tunnel is"
     );
+}
+
+// ---- media, archives, big text: the same readers over a machine that is reached by ssh ----------------------------
+
+fn pattern(n: usize) -> Vec<u8> {
+    (0..n).map(|i| (i % 251) as u8).collect()
+}
+
+#[test]
+fn another_machines_video_is_copied_in_one_megabyte_reads_into_a_cache_that_holds_its_cap() {
+    on_both(|files, work| {
+        let data = pattern(MEDIA_CHUNK * 5 / 2);
+        std::fs::write(work.join("clip.mp4"), &data).unwrap();
+        std::fs::write(work.join("other.mp4"), pattern(MEDIA_CHUNK * 2)).unwrap();
+        let cache = MediaCache::new(work.join("cache"), 4 * MEDIA_CHUNK as u64);
+        let one = |name: &str, cancel: &AtomicBool| {
+            let path = s(&work.join(name));
+            let stat = files.stat(&path).unwrap();
+            let mut last = (0, 0);
+            let copy = fetch(
+                files,
+                &cache,
+                "m",
+                &path,
+                stat.size,
+                stat.modified,
+                cancel,
+                &mut |d, t| last = (d, t),
+            )?;
+            assert_eq!(last.0, last.1, "the last progress is the whole file");
+            Ok::<_, FetchError>(copy)
+        };
+        let copy = one("clip.mp4", &AtomicBool::new(false)).unwrap();
+        assert_eq!(std::fs::read(&copy).unwrap(), data, "a byte-exact copy");
+        cache.unpin(&copy);
+        // A second file does not fit beside the first: the first goes, and the folder stays within its cap.
+        let other = one("other.mp4", &AtomicBool::new(false)).unwrap();
+        assert!(!copy.exists() && other.exists());
+        assert!(cache.used() <= cache.cap());
+        // A cancel leaves no part file behind.
+        cache.unpin(&other);
+        let cancelled = one("clip.mp4", &AtomicBool::new(true)).unwrap_err();
+        assert_eq!(cancelled, FetchError::Cancelled);
+        let names: Vec<_> = std::fs::read_dir(work.join("cache"))
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .collect();
+        assert!(
+            names.iter().all(|p| p.extension().unwrap() != "part"),
+            "{names:?}"
+        );
+    });
+}
+
+#[test]
+fn the_codecs_of_a_movie_are_read_from_its_headers_on_both_machines() {
+    on_both(|files, work| {
+        let mp4 = |kind: &[u8; 4], body: &[u8]| {
+            let mut out = ((body.len() + 8) as u32).to_be_bytes().to_vec();
+            out.extend_from_slice(kind);
+            out.extend_from_slice(body);
+            out
+        };
+        let mut hdlr = vec![0u8; 8];
+        hdlr.extend_from_slice(b"vide");
+        let mut stsd = vec![0, 0, 0, 0, 0, 0, 0, 1];
+        stsd.extend(mp4(b"hvc1", &[0; 8]));
+        let stbl = mp4(b"stbl", &mp4(b"stsd", &stsd));
+        let mdia = [mp4(b"hdlr", &hdlr), mp4(b"minf", &stbl)].concat();
+        let moov = mp4(b"moov", &mp4(b"trak", &mp4(b"mdia", &mdia)));
+        let movie = [
+            mp4(b"ftyp", b"isom\0\0\0\0isom"),
+            mp4(b"mdat", &pattern(300_000)),
+            moov,
+        ]
+        .concat();
+        std::fs::write(work.join("clip.mp4"), movie).unwrap();
+        let codecs = probe_codecs(files, &s(&work.join("clip.mp4"))).unwrap();
+        assert_eq!(codecs.video.as_deref(), Some("H.265"));
+        assert_eq!(codecs.describe().as_deref(), Some("H.265 video"));
+    });
+}
+
+#[test]
+fn a_peek_shows_four_kilobytes_of_a_binary_and_names_it() {
+    on_both(|files, work| {
+        let mut elf = b"\x7fELF\x02\x01\x01".to_vec();
+        elf.extend(pattern(200_000));
+        std::fs::write(work.join("tool"), elf).unwrap();
+        let p = peek(files, &s(&work.join("tool"))).unwrap();
+        assert_eq!((p.size, p.shown, p.rows.len()), (200_007, 4096, 256));
+        assert_eq!(p.detected.as_deref(), Some("ELF executable"));
+        assert!(
+            p.rows[0].starts_with("00000000  7f 45 4c 46 02 01 01 00"),
+            "{}",
+            p.rows[0]
+        );
+    });
+}
+
+#[test]
+fn an_archive_is_listed_without_unpacking_it_on_both_machines() {
+    on_both(|files, work| {
+        let zip = work.join("a.zip");
+        let status = std::process::Command::new("python3")
+            .args(["-c", "import sys,zipfile; z=zipfile.ZipFile(sys.argv[1],'w'); z.writestr('src/main.rs','fn main(){}'); z.writestr('README.md','hi'); z.close()"])
+            .arg(&zip)
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let listing = list_archive(files, &s(&zip)).unwrap();
+        assert_eq!(listing.format, "zip");
+        let names: Vec<_> = listing
+            .entries
+            .iter()
+            .map(|e| (e.name.as_str(), e.size))
+            .collect();
+        assert_eq!(names, vec![("src/main.rs", 11), ("README.md", 2)]);
+    });
+}
+
+#[test]
+fn a_big_log_is_paged_and_searched_by_lines_on_both_machines() {
+    on_both(|files, work| {
+        let log: String = (0..60_000)
+            .map(|i| {
+                format!(
+                    "{i:06} {}\n",
+                    if i == 45_678 { "the NEEDLE" } else { "hay" }
+                )
+            })
+            .collect();
+        std::fs::write(work.join("big.log"), &log).unwrap();
+        let path = s(&work.join("big.log"));
+        let size = files.stat(&path).unwrap().size;
+        let index = parking_lot::Mutex::new(LineIndex::new(size));
+        scan_lines(files, &path, &index, &AtomicBool::new(false)).unwrap();
+        assert_eq!(index.lock().lines, 60_000);
+        let page = read_lines(files, &path, &index, 45_670, 3).unwrap();
+        assert_eq!(page, vec!["045670 hay", "045671 hay", "045672 hay"]);
+        let hit = find_line(
+            files,
+            &path,
+            &index,
+            "needle",
+            None,
+            true,
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        assert_eq!(hit, Some(45_678));
+    });
 }

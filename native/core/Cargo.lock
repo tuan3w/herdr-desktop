@@ -257,6 +257,7 @@ dependencies = [
  "flate2",
  "ignore",
  "image",
+ "memchr",
  "nucleo-matcher",
  "parking_lot",
  "regex",

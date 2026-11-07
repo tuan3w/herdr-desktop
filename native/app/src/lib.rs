@@ -28,6 +28,7 @@ pub mod files;
 pub mod fixture;
 pub mod git;
 pub mod highlight;
+pub mod media;
 pub mod metrics;
 pub mod notify;
 pub mod pane_screen;

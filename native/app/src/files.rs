@@ -89,7 +89,17 @@ pub enum ViewKindName {
     Markdown,
     /// A picture.
     Image,
-    /// Not text: only its size is shown.
+    /// Comma or tab separated values, shown as a table.
+    Csv,
+    /// A video the player plays.
+    Video,
+    /// Sound the player plays.
+    Audio,
+    /// A PDF: the system's viewer shows it.
+    Pdf,
+    /// An archive whose contents are listed.
+    Archive,
+    /// Not text: a hex peek of its start, its size and what its bytes announce.
     Binary,
 }
 
@@ -99,6 +109,11 @@ impl From<ViewKind> for ViewKindName {
             ViewKind::Text => Self::Text,
             ViewKind::Markdown => Self::Markdown,
             ViewKind::Image => Self::Image,
+            ViewKind::Csv => Self::Csv,
+            ViewKind::Video => Self::Video,
+            ViewKind::Audio => Self::Audio,
+            ViewKind::Pdf => Self::Pdf,
+            ViewKind::Archive => Self::Archive,
             ViewKind::Binary => Self::Binary,
         }
     }
@@ -118,15 +133,17 @@ pub struct FileData {
     pub modified: Option<f64>,
     /// How to show it.
     pub kind: ViewKindName,
-    /// The text of `text` and `markdown` files: the first 4 MB at most, cut at a character.
+    /// The text of `text`, `markdown` and `csv` files, and an SVG's source: all of it, up to 4 MB. A text file over
+    /// that has no `text` and is `large`.
     #[prop(skip_none)]
     pub text: Option<String>,
+    /// A text file over 4 MB: page through it with `Lines`.
+    pub large: bool,
     /// The `file:` address of the picture on THIS computer, for `image` files (a copy for a remote
     /// machine's). Absent when the picture is too big to open: see `notice`.
     #[prop(skip_none)]
     pub image: Option<String>,
-    /// A sentence to show above the content when it is not the whole file (`Showing the first 4.0 MB of
-    /// 18 MB`), or why a picture was not opened.
+    /// A sentence to show above the content: why a picture was not opened.
     #[prop(skip_none)]
     pub notice: Option<String>,
     /// Whether the file is on this computer: only then can it be revealed or opened in another app.
@@ -286,6 +303,7 @@ fn file_data(view: FileView, local: bool) -> FileData {
         modified: view.modified.map(|m| m as f64),
         kind: view.kind.into(),
         text: view.text,
+        large: view.large,
         image: view
             .image
             .map(|p| files::uri_from_path(&p.to_string_lossy())),

@@ -19,6 +19,7 @@ unicode-width = "0.2"
 unicode-segmentation = "1"
 dirs = "6"
 flate2 = "1"
+memchr = "2"
 rustix = { version = "1", features = ["process", "fs"] }
 regex = "1"
 fancy-regex = "0.16"
