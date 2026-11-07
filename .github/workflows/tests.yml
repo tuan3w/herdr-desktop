@@ -1,0 +1,100 @@
+name: tests
+
+# Everything slow that used to run on every push, on macOS: both crates' fmt, clippy and tests (the `cfg(target_os = "macos")`
+# Rust is only proven here), `nsh check`, and the whole TSX suite (`nsh test`, about 770 tests). The push path
+# (`ci.yml`) only packages and lints. Nightly, and by hand:
+#
+#   gh workflow run tests.yml --ref main
+#
+# Not run: the AT-SPI audit and the Xvfb screenshots (Linux: `ci-linux.yml`, `make a11y`, `make shots`).
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NSH_VERSION: v0.4.0
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: always
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+  RUSTUP_SELF_UPDATE: disable
+
+jobs:
+  macos-tests:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+      - name: Dev tools (oxlint, oxfmt)
+        run: bun install --frozen-lockfile
+
+      # The same nsh and toolchain steps as ci.yml (one place per workflow so that each step has its own time in the run).
+      - name: Where nsh goes
+        run: echo "NSH_INSTALL_DIR=$RUNNER_TEMP/nsh" >> "$GITHUB_ENV"
+      - name: nsh from the cache
+        id: nsh-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/nsh
+          key: nsh-${{ runner.os }}-${{ runner.arch }}-${{ env.NSH_VERSION }}
+      - name: nsh install (cache miss only)
+        if: steps.nsh-cache.outputs.cache-hit != 'true'
+        run: curl -fsSL https://nsh.dev/install.sh | sh
+      - name: nsh on the PATH
+        run: |
+          echo "$NSH_INSTALL_DIR/bin" >> "$GITHUB_PATH"
+          "$NSH_INSTALL_DIR/bin/nsh" -V
+      - name: Rust toolchain, minimal with rustfmt and clippy
+        run: |
+          channel="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)"
+          rustup toolchain install "$channel" --profile minimal --component rustfmt --component clippy --no-self-update
+          echo "RUSTUP_TOOLCHAIN=$channel" >> "$GITHUB_ENV"
+
+      - name: Cargo registry, debug target/ and the TypeScript compiler from the cache
+        id: cargo-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+            ~/Library/Caches/nsh
+          key: tests-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('native/core/Cargo.lock', 'native/app/Cargo.lock', 'rust-toolchain.toml') }}
+          restore-keys: |
+            tests-${{ runner.os }}-${{ runner.arch }}-
+      - name: Files that did not change keep the age of the cache
+        run: scripts/ci-mtimes.sh before
+
+      - name: nsh check, oxlint, oxfmt, imports
+        run: make check
+      - name: Docs
+        run: make docs
+      - name: Both crates - fmt, clippy -D warnings, tests
+        run: make core
+      - name: Every TSX test
+        run: make test
+
+      - name: Record what target/ was built from
+        if: always()
+        run: scripts/ci-mtimes.sh after
+      - name: Save the cache (main only, even after a failure)
+        if: always() && github.ref == 'refs/heads/main' && steps.cargo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+            ~/Library/Caches/nsh
+          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}

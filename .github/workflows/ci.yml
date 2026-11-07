@@ -1,147 +1,119 @@
 name: ci
 
-# Jobs run in parallel and none waits for another, so the wall time is the slowest job. Each restores its own Rust cache
-# (./.github/actions/setup) and saves it at the end even when it failed (./.github/actions/save-cache): a cache that only
-# a green run could save was never saved while the build was still being fixed, and every run compiled everything.
+# The push path is macOS only and as short as it can be made (the owner is focusing on macOS: Linux is `ci-linux.yml`, by hand):
+#
+#   macos-package  nsh package, the signature, the zip: the build you can install. About 1.5 minutes on a warm cache.
+#   macos-lint     oxlint, oxfmt, imports, theme, docs, rustfmt, `nsh check`. About 1.2 minutes on a warm cache.
+#   edge           after a green macos-package on main: replaces the pre-release `edge` (scripts/install.sh --edge).
+#
+# The slow checks (every TSX test, both crates' tests and clippy, `make verify-mac`) are `tests.yml`: nightly and by hand.
+#
+# Why they are quick (measured: docs/RELEASING.md, "How the CI is kept fast"):
+#   - nsh comes from `actions/cache`, the Rust toolchain is installed with the minimal profile, bun and node are only
+#     installed where a job uses them.
+#   - the cache holds the registry index and crates, the git db and the whole `target/` (debug too: `nsh package` builds the
+#     app crate in debug for its types before it builds the release runner, and restoring that costs 20 s against 100 s
+#     of compiling).
+#   - scripts/ci-mtimes.sh: cargo decides a path crate is up to date by mtimes, and a checkout makes every file newer than
+#     the cache, so every run recompiled the app crates. Now a run that changed only TSX or docs recompiles no Rust.
+# The caches are restored by every run and saved by main only, after the job, even when it failed (a cache that only a green
+# run could save was never saved while the build was still being fixed).
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "design/**"
+      - ".shots/**"
+      - "LICENSE"
   pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "design/**"
+      - ".shots/**"
+      - "LICENSE"
+  workflow_dispatch:
 
 concurrency:
+  # A newer push to the same ref makes the older run pointless. (Never a tag: this workflow does not run on tags, and
+  # release.yml never cancels.)
   group: ci-${{ github.ref }}
-  # Every push to main is verified: only a superseded pull request run is cancelled.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 env:
+  # The toolchain the app was written against (AGENTS.md: do not upgrade nsh unless asked).
+  NSH_VERSION: v0.4.0
+  # Release builds are never incremental; this keeps debug ones out of the cache too.
   CARGO_INCREMENTAL: "0"
   CARGO_TERM_COLOR: always
+  # One HTTPS request for the index instead of a clone.
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+  # Not a build tool: no self update, no telemetry.
+  RUSTUP_SELF_UPDATE: disable
 
 jobs:
-  # ---- Linux (ubuntu-24.04): everything `make verify` runs, in four jobs ----------------------------------------------
-
-  linux-check:
-    # Types, docs, theme, and both Rust crates (fmt, clippy -D warnings, tests). The only job that lints Rust.
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup
-        id: setup
-        with:
-          cache: linux-check
-      - name: theme.json matches its generator
-        # `make theme` only after the default theme's spec changes; a drift means someone edited one without the other.
-        run: bun scripts/gen-theme.mjs && git diff --exit-code theme.json
-      - run: make check docs core
-      - uses: ./.github/actions/save-cache
-        if: always()
-        with:
-          key: ${{ steps.setup.outputs.cache-key }}
-          hit: ${{ steps.setup.outputs.cache-hit }}
-
-  linux-test:
-    # Every TSX test, headless. The slowest Linux job: about 770 tests.
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup
-        id: setup
-        with:
-          cache: linux-test
-      - run: make test
-      - uses: ./.github/actions/save-cache
-        if: always()
-        with:
-          key: ${{ steps.setup.outputs.cache-key }}
-          hit: ${{ steps.setup.outputs.cache-hit }}
-
-  linux-a11y:
-    # A real GTK window per screen under Xvfb (no GPU: cairo draws), its AT-SPI tree checked for unnamed controls.
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup
-        id: setup
-        with:
-          cache: linux-a11y
-      - run: dbus-run-session -- xvfb-run -a env GSK_RENDERER=cairo GTK_A11Y=atspi make a11y
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: diagnostics-linux
-          path: |
-            .scratch/a11y/
-            .scratch/shots/
-          if-no-files-found: ignore
-      - uses: ./.github/actions/save-cache
-        if: always()
-        with:
-          key: ${{ steps.setup.outputs.cache-key }}
-          hit: ${{ steps.setup.outputs.cache-hit }}
-
-  linux-package:
-    # The release path must keep working on every change, not only on a tag.
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup
-        id: setup
-        with:
-          cache: linux-package
-      - run: make package
-      - name: Package contents
-        run: |
-          tar -tzf ".scratch/dist/Herdr Desktop.tar.gz" | grep -E 'HerdrDesktop$|\.desktop$|\.png$|nsh/bundle\.nshc$'
-      - uses: ./.github/actions/save-cache
-        if: always()
-        with:
-          key: ${{ steps.setup.outputs.cache-key }}
-          hit: ${{ steps.setup.outputs.cache-hit }}
-
-  # ---- macOS: Apple silicon. Intel Macs are not built: nsh 0.4.0 ships its macOS CLI and runtime for arm64 only
-  # (nsh-macos-arm64.tar.gz is the one macOS asset of the v0.4.0 release). macos-14 is not offered to this repository any
-  # more ("configuration macos-14-arm64-us-default is not supported"); macos-15 is. -----------------------------------------
-
-  macos-check:
-    # `make verify-mac`: nsh check, both crates' fmt/clippy/tests (the cfg(target_os = "macos") Rust is only proven here),
-    # docs, and a smoke subset of the TSX tests. The other 770 TSX tests are platform independent: Linux runs them. Not run:
-    # the AT-SPI audit, the Xvfb screenshots and the perf/cpu scripts (Linux's accessibility bus and /proc).
-    runs-on: macos-15
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup
-        id: setup
-        with:
-          cache: macos-check
-      - run: make verify-mac
-      - uses: ./.github/actions/save-cache
-        if: always()
-        with:
-          key: ${{ steps.setup.outputs.cache-key }}
-          hit: ${{ steps.setup.outputs.cache-hit }}
-
+  # macos-14 is not offered to this repository ("configuration macos-14-arm64-us-default is not supported"); macos-15 is.
+  # Intel Macs are not built: nsh 0.4.0 ships its macOS CLI and runtime for arm64 only.
   macos-package:
     # nsh signs the .app ad hoc; scripts/sign-macos.sh then signs it with the repository's self-signed identity (secrets
     # HERDR_SIGN_P12 and HERDR_SIGN_PASSWORD), so the designated requirement is the same in every build. A pull request
-    # from a fork has no secrets and keeps the ad hoc signature; the job still passes. Gatekeeper wants a first
-    # right-click, Open either way (no Apple developer account: docs/MACOS.md).
+    # from a fork has no secrets and keeps the ad hoc signature; the job still passes (docs/MACOS.md).
     runs-on: macos-15
-    timeout-minutes: 25
+    timeout-minutes: 30
+    outputs:
+      zip: ${{ steps.zip.outputs.name }}
+      short: ${{ steps.zip.outputs.short }}
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup
-        id: setup
+
+      - name: Where nsh goes
+        run: echo "NSH_INSTALL_DIR=$RUNNER_TEMP/nsh" >> "$GITHUB_ENV"
+      - name: nsh from the cache
+        id: nsh-cache
+        uses: actions/cache@v4
         with:
-          cache: macos-package
-      - name: make package (signs the .app)
+          path: ${{ runner.temp }}/nsh
+          key: nsh-${{ runner.os }}-${{ runner.arch }}-${{ env.NSH_VERSION }}
+      - name: nsh install (cache miss only)
+        if: steps.nsh-cache.outputs.cache-hit != 'true'
+        run: curl -fsSL https://nsh.dev/install.sh | sh
+      - name: nsh on the PATH
+        run: |
+          echo "$NSH_INSTALL_DIR/bin" >> "$GITHUB_PATH"
+          "$NSH_INSTALL_DIR/bin/nsh" -V
+
+      - name: Rust toolchain of rust-toolchain.toml, minimal profile
+        # `RUSTUP_TOOLCHAIN` makes rustup ignore the file's `components` (clippy, rustfmt): a build needs neither.
+        run: |
+          channel="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)"
+          rustup toolchain install "$channel" --profile minimal --no-self-update
+          echo "RUSTUP_TOOLCHAIN=$channel" >> "$GITHUB_ENV"
+
+      - name: Cargo registry and target/ from the cache
+        id: cargo-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          # The key names the lockfiles, the toolchain and the app crates' sources: a source change saves a fresh cache, so
+          # the next run (a TSX-only one included) starts from outputs that match main. A lockfile change starts from the
+          # newest older cache (`restore-keys`) and recompiles only the crates that changed.
+          key: package-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('native/core/Cargo.lock', 'native/app/Cargo.lock', 'rust-toolchain.toml') }}-${{ hashFiles('native/**') }}
+          restore-keys: |
+            package-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('native/core/Cargo.lock', 'native/app/Cargo.lock', 'rust-toolchain.toml') }}-
+            package-${{ runner.os }}-${{ runner.arch }}-
+      - name: Files that did not change keep the age of the cache
+        run: scripts/ci-mtimes.sh before
+
+      - name: make package (nsh package, then the signature)
         run: make package
         env:
           HERDR_SIGN_P12: ${{ secrets.HERDR_SIGN_P12 }}
@@ -157,15 +129,154 @@ jobs:
           plutil -p "$app/Contents/Info.plist" | grep -E 'CFBundle(Identifier|ShortVersionString)'
           scripts/check-macos-signature.sh "$app"
       - name: Zip the app (ditto keeps permissions and the signature; upload-artifact would not)
-        run: ditto -c -k --keepParent ".scratch/dist/Herdr Desktop.app" Herdr-Desktop-macos-arm64.zip
+        id: zip
+        run: |
+          short="${GITHUB_SHA::7}"
+          name="Herdr-Desktop-edge-$short-macos-arm64.zip"
+          ditto -c -k --keepParent ".scratch/dist/Herdr Desktop.app" "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "short=$short" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
           name: Herdr-Desktop-macos-arm64
-          path: Herdr-Desktop-macos-arm64.zip
+          path: ${{ steps.zip.outputs.name }}
           retention-days: 7
           if-no-files-found: error
-      - uses: ./.github/actions/save-cache
+
+      - name: Record what target/ was built from
         if: always()
+        run: scripts/ci-mtimes.sh after
+      - name: Save the cache (main only, even after a failure)
+        if: always() && github.ref == 'refs/heads/main' && steps.cargo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
         with:
-          key: ${{ steps.setup.outputs.cache-key }}
-          hit: ${{ steps.setup.outputs.cache-hit }}
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
+
+  macos-lint:
+    # Everything `make check docs` and the formatters check, plus rustfmt, and nothing that runs a test. `nsh check` is
+    # tsc plus `cargo check` of the app crate, so this job needs the Rust toolchain after all (and its own, smaller cache:
+    # check artifacts are not build artifacts).
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+      - name: Dev tools (oxlint, oxfmt)
+        run: bun install --frozen-lockfile
+      - name: oxlint
+        run: node_modules/.bin/oxlint --deny-warnings
+      - name: oxfmt
+        run: node_modules/.bin/oxfmt --check
+      - name: Project imports are absolute
+        run: node scripts/absolute-imports.mjs --check
+      - name: theme.json matches its generator
+        run: bun scripts/gen-theme.mjs && git diff --exit-code theme.json
+      - name: Docs (every name in DESIGN.md and design/ exists)
+        run: node scripts/check-docs.mjs
+
+      - name: Rust toolchain, minimal with rustfmt
+        run: |
+          channel="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)"
+          rustup toolchain install "$channel" --profile minimal --component rustfmt --no-self-update
+          echo "RUSTUP_TOOLCHAIN=$channel" >> "$GITHUB_ENV"
+      - name: cargo fmt
+        run: |
+          cargo fmt --manifest-path native/core/Cargo.toml --check
+          cargo fmt --manifest-path native/app/Cargo.toml --check
+
+      - name: Where nsh goes
+        run: echo "NSH_INSTALL_DIR=$RUNNER_TEMP/nsh" >> "$GITHUB_ENV"
+      - name: nsh from the cache
+        id: nsh-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/nsh
+          key: nsh-${{ runner.os }}-${{ runner.arch }}-${{ env.NSH_VERSION }}
+      - name: nsh install (cache miss only)
+        if: steps.nsh-cache.outputs.cache-hit != 'true'
+        run: curl -fsSL https://nsh.dev/install.sh | sh
+      - name: nsh on the PATH
+        run: |
+          echo "$NSH_INSTALL_DIR/bin" >> "$GITHUB_PATH"
+          "$NSH_INSTALL_DIR/bin/nsh" -V
+
+      - name: Cargo registry, check artifacts and the TypeScript compiler from the cache
+        id: cargo-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+            ~/Library/Caches/nsh
+          # Lockfiles only: re-checking the two app crates after a source change takes seconds.
+          key: lint-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('native/core/Cargo.lock', 'native/app/Cargo.lock', 'rust-toolchain.toml') }}
+          restore-keys: |
+            lint-${{ runner.os }}-${{ runner.arch }}-
+      - name: Files that did not change keep the age of the cache
+        run: scripts/ci-mtimes.sh before
+      - name: nsh check (tsc, and cargo check of the app crate)
+        run: nsh check
+      - name: Record what target/ was built from
+        if: always()
+        run: scripts/ci-mtimes.sh after
+      - name: Save the cache (main only, even after a failure)
+        if: always() && github.ref == 'refs/heads/main' && steps.cargo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+            ~/Library/Caches/nsh
+          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
+
+  edge:
+    # The newest main, installable in one command (`scripts/install.sh --edge`): a rolling pre-release named `edge` that
+    # holds the zip of the last green macos-package, its SHA256SUMS and the `## [Unreleased]` notes of CHANGELOG.md. It
+    # is replaced, never added to. The only job with a write token.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [macos-package]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    # Two runs in a row must not interleave the delete and the create of the one release, and one in progress is never
+    # cancelled half-published.
+    concurrency:
+      group: edge
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Herdr-Desktop-macos-arm64
+          path: out
+      - name: Checksums
+        working-directory: out
+        run: sha256sum Herdr-Desktop-* | tee SHA256SUMS
+      - name: Notes
+        run: |
+          {
+            echo "Build of \`main\` at \`${{ needs.macos-package.outputs.short }}\` ($(date -u +%Y-%m-%d)): the newest commit that built, not a release. Apple silicon only; install with \`curl -fsSL https://raw.githubusercontent.com/tuan3w/herdr-desktop/main/scripts/install.sh | sh -s -- --edge\`."
+            echo
+            echo "### Since the last release"
+            echo
+            scripts/release-notes.sh unreleased 2>/dev/null || echo "Nothing is written under Unreleased in CHANGELOG.md yet."
+          } > edge-notes.md
+          cat edge-notes.md
+      - name: Replace the pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete edge --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+          gh release create edge out/* --repo "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" \
+            --title "Herdr Desktop edge (${{ needs.macos-package.outputs.short }})" --notes-file edge-notes.md

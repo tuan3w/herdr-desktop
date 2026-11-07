@@ -1,0 +1,108 @@
+name: ci-linux
+
+# Linux is paused: the owner is focusing on macOS, and four Linux jobs on every push cost 8 minutes and a flaky test
+# (`linux-test`) for a platform nobody is shipping. They are kept working, not run: start them by hand with
+#
+#   gh workflow run ci-linux.yml --ref main        # or Actions > ci-linux > Run workflow
+#
+# What runs on a push is `ci.yml` (macOS package and lint); the slow tests are `tests.yml` (macOS, nightly and by hand).
+# To bring Linux back, add `push: branches: [main]` (and `pull_request`) under `on:` and, if you want it quiet again, the
+# same `paths-ignore` as `ci.yml`.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-linux-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ---- Linux (ubuntu-24.04): everything `make verify` runs, in four jobs ----------------------------------------------
+
+  linux-check:
+    # Types, docs, theme, and both Rust crates (fmt, clippy -D warnings, tests). The only job that lints Rust.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        id: setup
+        with:
+          cache: linux-check
+      - name: theme.json matches its generator
+        # `make theme` only after the default theme's spec changes; a drift means someone edited one without the other.
+        run: bun scripts/gen-theme.mjs && git diff --exit-code theme.json
+      - run: make check docs core
+      - uses: ./.github/actions/save-cache
+        if: always()
+        with:
+          key: ${{ steps.setup.outputs.cache-key }}
+          hit: ${{ steps.setup.outputs.cache-hit }}
+
+  linux-test:
+    # Every TSX test, headless. The slowest Linux job: about 770 tests.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        id: setup
+        with:
+          cache: linux-test
+      - run: make test
+      - uses: ./.github/actions/save-cache
+        if: always()
+        with:
+          key: ${{ steps.setup.outputs.cache-key }}
+          hit: ${{ steps.setup.outputs.cache-hit }}
+
+  linux-a11y:
+    # A real GTK window per screen under Xvfb (no GPU: cairo draws), its AT-SPI tree checked for unnamed controls.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        id: setup
+        with:
+          cache: linux-a11y
+      - run: dbus-run-session -- xvfb-run -a env GSK_RENDERER=cairo GTK_A11Y=atspi make a11y
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: diagnostics-linux
+          path: |
+            .scratch/a11y/
+            .scratch/shots/
+          if-no-files-found: ignore
+      - uses: ./.github/actions/save-cache
+        if: always()
+        with:
+          key: ${{ steps.setup.outputs.cache-key }}
+          hit: ${{ steps.setup.outputs.cache-hit }}
+
+  linux-package:
+    # The release path must keep working on every change, not only on a tag.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        id: setup
+        with:
+          cache: linux-package
+      - run: make package
+      - name: Package contents
+        run: |
+          tar -tzf ".scratch/dist/Herdr Desktop.tar.gz" | grep -E 'HerdrDesktop$|\.desktop$|\.png$|nsh/bundle\.nshc$'
+      - uses: ./.github/actions/save-cache
+        if: always()
+        with:
+          key: ${{ steps.setup.outputs.cache-key }}
+          hit: ${{ steps.setup.outputs.cache-hit }}

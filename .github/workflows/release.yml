@@ -2,11 +2,15 @@ name: release
 
 # A `vX.Y.Z` or `vX.Y.Z-alpha.N` (also `-beta.N`, `-rc.N`) tag publishes a release; a tag with a `-` part is a GitHub
 # PRERELEASE. The versions in nsh.json and native/*/Cargo.toml must already be exactly the tag without its `v` (the release
-# commit moves them together: docs/RELEASING.md), and CHANGELOG.md must have a `## [<version>]` section, which is the
-# release notes.
+# commit moves them together: docs/RELEASING.md), and CHANGELOG.md must have a non-empty `## [<version>]` section, which is
+# the release notes (scripts/release-notes.sh; the format is in `.agents/skills/herdr-changelog/SKILL.md`).
+#
+# macOS (Apple silicon) only for now: Linux is paused (the owner is focusing on macOS). The Linux job below still works; it
+# runs only on a manual run with `-f linux=true` and never publishes. A release therefore holds the macOS zip and SHA256SUMS,
+# and `scripts/install.sh` tells a Linux user that there is no Linux build in it.
 #
 # Run it by hand (Actions > release > Run workflow, or `gh workflow run release.yml -f tag=v0.1.0-alpha.1`) for a DRY RUN:
-# it checks, verifies, packages for both systems and keeps the files as workflow artifacts, but publishes nothing.
+# it checks, packages, signs, zips and checksums, and keeps the files as workflow artifacts, but publishes nothing.
 on:
   push:
     tags: ["v*"]
@@ -16,13 +20,25 @@ on:
         description: "The tag this build is a dry run of (vX.Y.Z or vX.Y.Z-alpha.N). Nothing is published."
         required: true
         default: "v0.1.0-alpha.1"
+      linux:
+        description: "Also build the Linux package (paused: not part of a release)."
+        type: boolean
+        default: false
+
+concurrency:
+  # A release is never cancelled half-way.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 env:
+  NSH_VERSION: v0.4.0
   CARGO_INCREMENTAL: "0"
   CARGO_TERM_COLOR: always
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+  RUSTUP_SELF_UPDATE: disable
 
 jobs:
   prepare:
@@ -53,12 +69,7 @@ jobs:
 
       - name: The release notes are the CHANGELOG section of this version
         run: |
-          awk -v header="## [${{ steps.version.outputs.version }}]" '
-            index($0, header) == 1 { on = 1; next }
-            on && /^## \[/ { exit }
-            on { print }
-          ' CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > release-notes.md
-          [ -s release-notes.md ] || { echo "::error::CHANGELOG.md has no section for ${{ steps.version.outputs.version }}"; exit 1; }
+          scripts/release-notes.sh "${{ steps.version.outputs.version }}" > release-notes.md
           cat release-notes.md
 
       - uses: actions/upload-artifact@v4
@@ -67,63 +78,81 @@ jobs:
           path: release-notes.md
           retention-days: 7
 
-  build:
-    name: build ${{ matrix.name }}
+  build-macos:
+    name: build macos-arm64
     needs: prepare
-    runs-on: ${{ matrix.os }}
+    # macos-14 is refused for this repository; macos-15 runs. Apple silicon only: nsh 0.4.0 has no Intel runtime.
+    runs-on: macos-15
     timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: linux-x86_64
-            os: ubuntu-24.04
-          # Apple silicon only: nsh 0.4.0 ships its macOS CLI and runtime for arm64 (nsh-macos-arm64.tar.gz) and
-          # there is no x86_64 one to build an Intel app with. macos-14 is refused for this repository; macos-15 runs.
-          - name: macos-arm64
-            os: macos-15
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup
-        id: setup
+
+      # A pre-release (a tag with a `-`: alpha, beta, rc) ships what the push to main already packaged in ci.yml; its own run
+      # builds and packages only. A stable release also runs `make verify-mac` (check, both crates' fmt/clippy/tests, docs,
+      # the smoke subset of the TSX tests; the whole suite is tests.yml).
+      - uses: oven-sh/setup-bun@v2
+        if: needs.prepare.outputs.prerelease != 'true'
+      - name: Dev tools (oxlint, oxfmt)
+        if: needs.prepare.outputs.prerelease != 'true'
+        run: bun install --frozen-lockfile
+
+      - name: Where nsh goes
+        run: echo "NSH_INSTALL_DIR=$RUNNER_TEMP/nsh" >> "$GITHUB_ENV"
+      - name: nsh from the cache
+        id: nsh-cache
+        uses: actions/cache@v4
         with:
-          # A tag's caches are visible to that tag only, so a release starts from whatever main saved under this name (none:
-          # a release build is cold, about 25 minutes).
-          cache: release
+          path: ${{ runner.temp }}/nsh
+          key: nsh-${{ runner.os }}-${{ runner.arch }}-${{ env.NSH_VERSION }}
+      - name: nsh install (cache miss only)
+        if: steps.nsh-cache.outputs.cache-hit != 'true'
+        run: curl -fsSL https://nsh.dev/install.sh | sh
+      - name: nsh on the PATH
+        run: |
+          echo "$NSH_INSTALL_DIR/bin" >> "$GITHUB_PATH"
+          "$NSH_INSTALL_DIR/bin/nsh" -V
+      - name: Rust toolchain of rust-toolchain.toml, minimal
+        env:
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+        run: |
+          channel="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)"
+          components=()
+          [ "$PRERELEASE" = true ] || components=(--component rustfmt --component clippy)
+          rustup toolchain install "$channel" --profile minimal "${components[@]}" --no-self-update
+          echo "RUSTUP_TOOLCHAIN=$channel" >> "$GITHUB_ENV"
 
-      # A pre-release (a tag with a `-`: alpha, beta, rc) ships what the push to main already verified in ci.yml; its own run
-      # builds and packages only, so a flaky test cannot hold an alpha back. A stable release still runs the full verify.
-      - name: make verify (a real GTK window under Xvfb, with the AT-SPI audit)
-        if: runner.os == 'Linux' && !contains(github.ref_name, '-')
-        run: dbus-run-session -- xvfb-run -a env GSK_RENDERER=cairo GTK_A11Y=atspi make verify
+      # Restore only, with the keys of ci.yml's macos-package: a tag can read what main saved, and cannot save for main.
+      - name: Cargo registry and target/ from main's cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: package-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('native/core/Cargo.lock', 'native/app/Cargo.lock', 'rust-toolchain.toml') }}-${{ hashFiles('native/**') }}
+          restore-keys: |
+            package-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('native/core/Cargo.lock', 'native/app/Cargo.lock', 'rust-toolchain.toml') }}-
+            package-${{ runner.os }}-${{ runner.arch }}-
+      - name: Files that did not change keep the age of the cache
+        run: scripts/ci-mtimes.sh before
 
-      - name: make verify-mac (no AT-SPI audit, that is the Linux accessibility bus)
-        if: runner.os == 'macOS' && !contains(github.ref_name, '-')
+      - name: make verify-mac (stable releases only)
+        if: needs.prepare.outputs.prerelease != 'true'
         run: make verify-mac
 
-      - name: The macOS release is signed with our identity or not built
-        if: runner.os == 'macOS'
+      - name: The release is signed with our identity or not built
         env:
           HERDR_SIGN_P12: ${{ secrets.HERDR_SIGN_P12 }}
         run: '[ -n "$HERDR_SIGN_P12" ] || { echo "::error::secrets HERDR_SIGN_P12 and HERDR_SIGN_PASSWORD are missing: a release must not fall back to an ad hoc signature"; exit 1; }'
 
-      - name: make package (on macOS it signs the app, see scripts/sign-macos.sh)
+      - name: make package (nsh package, then scripts/sign-macos.sh)
         run: make package
         env:
           HERDR_SIGN_P12: ${{ secrets.HERDR_SIGN_P12 }}
           HERDR_SIGN_PASSWORD: ${{ secrets.HERDR_SIGN_PASSWORD }}
 
-      - name: Name the Linux tarball
-        if: runner.os == 'Linux'
-        run: |
-          name="Herdr-Desktop-${{ needs.prepare.outputs.version }}-linux-x86_64.tar.gz"
-          tar -tzf ".scratch/dist/Herdr Desktop.tar.gz" | grep -E 'HerdrDesktop$|\.desktop$|\.png$|nsh/bundle\.nshc$'
-          mkdir -p release
-          cp ".scratch/dist/Herdr Desktop.tar.gz" "release/$name"
-          ls -l release
-
-      - name: Name the macOS zip
-        if: runner.os == 'macOS'
+      - name: Check the signature, zip the app
         env:
           HERDR_SIGN_P12: ${{ secrets.HERDR_SIGN_P12 }}
           HERDR_SIGN_PASSWORD: ${{ secrets.HERDR_SIGN_PASSWORD }}
@@ -136,22 +165,55 @@ jobs:
           # ditto keeps permissions, symlinks and the signature; `zip` would not.
           ditto -c -k --keepParent "$app" "release/$name"
           ls -l release
+          # What the publish job checksums too; a dry run ends here, so the checksums are proven here.
+          (cd release && shasum -a 256 Herdr-Desktop-* | tee SHA256SUMS && shasum -a 256 -c SHA256SUMS)
 
       - uses: actions/upload-artifact@v4
         with:
-          name: release-${{ matrix.name }}
+          name: release-macos-arm64
           path: release/*
           retention-days: 14
           if-no-files-found: error
 
+  build-linux:
+    # Paused (docs/RELEASING.md, "Linux"): a manual run with `linux: true` only, never part of a published release. The
+    # steps are the ones that built the Linux archive of 0.1.0-alpha.1 to .3.
+    name: build linux-x86_64 (paused)
+    if: github.event_name == 'workflow_dispatch' && inputs.linux
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        id: setup
+        with:
+          cache: release
+      - name: make verify (a real GTK window under Xvfb, with the AT-SPI audit)
+        if: needs.prepare.outputs.prerelease != 'true'
+        run: dbus-run-session -- xvfb-run -a env GSK_RENDERER=cairo GTK_A11Y=atspi make verify
+      - name: make package
+        run: make package
+      - name: Name the Linux tarball
+        run: |
+          name="Herdr-Desktop-${{ needs.prepare.outputs.version }}-linux-x86_64.tar.gz"
+          tar -tzf ".scratch/dist/Herdr Desktop.tar.gz" | grep -E 'HerdrDesktop$|\.desktop$|\.png$|nsh/bundle\.nshc$'
+          mkdir -p release
+          cp ".scratch/dist/Herdr Desktop.tar.gz" "release/$name"
+          ls -l release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-x86_64
+          path: release/*
+          retention-days: 14
+          if-no-files-found: error
       - uses: ./.github/actions/save-cache
         if: always()
         with:
           key: ${{ steps.setup.outputs.cache-key }}
           hit: ${{ steps.setup.outputs.cache-hit }}
-
       - uses: actions/upload-artifact@v4
-        if: failure() && runner.os == 'Linux'
+        if: failure()
         with:
           name: diagnostics-linux
           path: |
@@ -162,7 +224,7 @@ jobs:
   publish:
     # Only a pushed tag publishes; a manual run stops after the artifacts.
     if: github.event_name == 'push'
-    needs: [prepare, build]
+    needs: [prepare, build-macos]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
