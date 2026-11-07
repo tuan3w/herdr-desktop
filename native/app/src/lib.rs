@@ -4,6 +4,8 @@
 
 use nsh_core::prelude::*;
 
+pub mod feed;
+
 /// The crate's UI set (`nsh.json` `"rust"`).
 #[native_module("herdr-desktop/native")]
 fn native(registry: &mut Registry) {

@@ -2,7 +2,7 @@ import { keymap } from "nsh";
 
 /**
  * Every keyboard shortcut of the app, once. `App.tsx` binds the global ones from `GLOBAL` (a missing handler is a type
- * error), `Shortcuts.tsx` lists all of them (⌘/ or F1, and Settings), and every hint and tooltip names its key through
+ * error), `components/shortcuts.tsx` lists all of them (⌘/ or F1, and Settings), and every hint and tooltip names its key through
  * `keyLabel`: a key changed here changes the binding, the hints and the list together.
  *
  * Keys are `keymap` keystrokes. `mod` is Command on Apple platforms and Ctrl on every other, so one string is right on

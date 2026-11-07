@@ -1,5 +1,5 @@
 import { mount, signal, Text, View } from "nsh";
-import { Palette, type PaletteItem } from "./Palette";
+import { Palette, type PaletteItem } from "./palette";
 import { Btn, ThemeRoot } from "./kit";
 
 const ITEMS: PaletteItem[] = [

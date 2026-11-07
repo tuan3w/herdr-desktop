@@ -1,7 +1,7 @@
 import { effect, signal, untracked } from "nsh";
 
 /**
- * Developer metrics: what the dev panel (`components/DevPanel.tsx`, `GLOBAL.devPanel` in `lib/shortcuts.ts`) shows. nsh's own monitor (`--fps`) measures the
+ * Developer metrics: what the dev panel (`components/dev-panel.tsx`, `GLOBAL.devPanel` in `lib/shortcuts.ts`) shows. nsh's own monitor (`--fps`) measures the
  * frame, CPU, GPU and memory; JS cannot read those. This file is for what only the app knows (data size, storage use,
  * time to save) plus the JS thread's own frame rate and lag. Nothing runs while the panel is closed except `timing`
  * recording, which is two clock reads per measured call.
