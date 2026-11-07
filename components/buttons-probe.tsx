@@ -19,6 +19,12 @@ function Lab() {
             shortcut="Ctrl+R"
             onPress={() => reloads.update((n) => n + 1)}
           />
+          <IconButton
+            icon="plus"
+            label="New agent session in offline"
+            disabled
+            onPress={() => reloads.update((n) => n + 100)}
+          />
           <Btn label="Save" loading={busy()} onPress={() => saves.update((n) => n + 1)} />
           <Btn label="Locked" disabled onPress={() => undefined} />
           <Btn label="Finish" onPress={() => busy.set(false)} />

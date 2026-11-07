@@ -61,9 +61,11 @@ A chip is a pressable `View` (not nsh's `Button`: it has no focus events). Its a
 
 `BulkBar` exists only while something is picked and is mounted once under the page. `Reviewed` acts at once with one `Undo`. `Stop` (Esc), `Message` (text then Enter) and `Close` (closes the panes, cannot be undone) open `BulkConfirm`, built from live data (`planBulk`): who is reached, `Waiting for an answer (skipped)` and `Not connected (skipped)`. An agent waiting on a question is typed into only with `Send anyway` (`Close anyway` for Close), off every time the dialog opens. The plan is worked out again when the button is pressed. The result is one toast (`Stopped 3 agents`, or `Stopped 2 · 1 failed: name: why`, lasting).
 
-## The status bar
+## The status bar and the sidebar footer
 
-`StatusBar` is a slim line under the workspace: connection truth per machine (live, stale, offline). Decided: it repeats no counts the sidebar shows and says nothing of a single agent's state; today it still shows the counts and, while a chat is in front, `Context N%` (decided: that meter moves to the inspector). Nothing is estimated: a meter an agent does not report is not drawn.
+Counts are said once (the Board badge, the project marks); a machine's link is said where the machines are: the **sidebar footer** (`SidebarFooter` in `components/sidebar-footer.tsx`, above `Settings`, not in the rail). It draws nothing while every machine is online; otherwise one wrapped line per machine that is not (name in `text-warning`, a dashed or half ring, what happened and what comes next, `Fix` only for `attention`), three lines at most plus a fourth, then `and N more machines` as one line that opens the rest. A switched-off machine is the person's choice and is not listed.
+
+`StatusBar` is only the `Context N%` meter of the chat in front, one muted line under the workspace, right-aligned, drawn only while that chat reports a context: the Board and a chat without a meter show no bar. It is the stand-in until the inspector's Overview tab exists, and is then deleted. Nothing is estimated: a meter an agent does not report is not drawn.
 
 ## Folders reached by a link
 

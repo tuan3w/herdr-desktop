@@ -4,6 +4,7 @@ import { boardData, machine, project, row } from "#lib/board-rows.fixture";
 import type { SidebarItem } from "#lib/sidebar";
 import {
   ageText,
+  footerMachines,
   keepItems,
   matches,
   monogram,
@@ -229,4 +230,25 @@ test("a read of the board that changes nothing a line draws hands the list the v
   // An age that now reads differently is a change of that line.
   const older = keepItems(done, sidebarItems(read(400, "done"), one, "", [], []));
   expect(older.every((item, i) => item !== done[i])).toBe(true);
+});
+
+test("the footer names the machines whose link is an exception, never an online or a switched-off one", () => {
+  const all = [
+    machine("local"),
+    machine("a", { state: "offline" }),
+    machine("b", { state: "off" }),
+    machine("c", { state: "attention" }),
+  ];
+  expect(footerMachines(all, false).lines.map((m) => m.id)).toEqual(["a", "c"]);
+  expect(footerMachines([machine("local")], false)).toEqual({ lines: [], more: 0 });
+});
+
+test("the footer folds machines past three into one line, but never folds a single one away", () => {
+  const down = (n: number) => Array.from({ length: n }, (_, i) => machine(`m${i}`, { state: "offline" }));
+  expect(footerMachines(down(4), false)).toMatchObject({ more: 0 });
+  expect(footerMachines(down(4), false).lines).toHaveLength(4);
+  const folded = footerMachines(down(6), false);
+  expect(folded.lines).toHaveLength(3);
+  expect(folded.more).toBe(3);
+  expect(footerMachines(down(6), true)).toMatchObject({ more: 0 });
 });

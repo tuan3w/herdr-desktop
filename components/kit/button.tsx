@@ -122,6 +122,8 @@ export function IconButton(props: {
   /** A toggled button, such as the trigger of an open menu: filled while on, and screen readers say so. */
   selected?: boolean;
   shortcut?: string;
+  /** Not available now (a plus for an offline project): still named and shown, muted, no press, not a stop of Tab. The tooltip stays, so the name says what is missing. */
+  disabled?: boolean;
 }) {
   return (
     <Tipped label={props.label} shortcut={props.shortcut}>
@@ -131,6 +133,7 @@ export function IconButton(props: {
         onPress={props.onPress}
         onSidebar={props.onSidebar}
         selected={props.selected}
+        disabled={props.disabled}
       />
     </Tipped>
   );
@@ -143,6 +146,7 @@ function IconFace(props: {
   onPress: () => void;
   onSidebar?: boolean;
   selected?: boolean;
+  disabled?: boolean;
 }) {
   const focus = useTriggerFocus();
   const hover = () =>
@@ -151,13 +155,18 @@ function IconFace(props: {
     <View
       role="button"
       accessibilityLabel={props.label}
-      accessibilityState={{ selected: props.selected }}
-      onPress={props.onPress}
-      {...focus}
+      accessibilityState={{ selected: props.selected, disabled: props.disabled }}
+      onPress={props.disabled ? undefined : props.onPress}
+      focusable={props.disabled ? false : undefined}
+      {...(props.disabled ? {} : focus)}
       style={hoverTransition()}
-      class={`${largeTargets() ? "size-11" : "size-7"} items-center justify-center rounded-md selected:bg-accent ${hover()} ${props.onSidebar ? FOCUS_RING_SIDEBAR : FOCUS_RING}`}
+      class={`${largeTargets() ? "size-11" : "size-7"} items-center justify-center rounded-md ${
+        props.disabled
+          ? "opacity-50"
+          : `selected:bg-accent ${hover()} ${props.onSidebar ? FOCUS_RING_SIDEBAR : FOCUS_RING}`
+      }`}
     >
-      <Icon name={props.icon} tone={props.onSidebar ? "sidebar-foreground" : "muted-foreground"} />
+      <Icon name={props.icon} tone={props.disabled || !props.onSidebar ? "muted-foreground" : "sidebar-foreground"} />
     </View>
   );
 }

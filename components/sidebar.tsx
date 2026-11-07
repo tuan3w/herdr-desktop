@@ -8,6 +8,7 @@ import type { ListRef } from "nsh/types";
 
 import { PickSlot } from "#components/pick-box";
 import { Monogram, ProjectMark } from "#components/project-parts";
+import { SidebarFooter } from "#components/sidebar-footer";
 import { StatusGlyph } from "#components/status-glyph";
 import {
   ActionMenu,
@@ -242,14 +243,13 @@ function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> 
         </View>
       </View>
       <View class="absolute bottom-0 right-0 top-0 flex-row items-center bg-sidebar pl-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
-        <If when={!p().offline}>
-          <IconButton
-            onSidebar
-            icon="plus"
-            label={`New agent session in ${p().name}`}
-            onPress={() => newSession({ machine: p().machine, folder: projectFolder(p()) })}
-          />
-        </If>
+        <IconButton
+          onSidebar
+          icon="plus"
+          label={`New agent session in ${p().name}`}
+          disabled={p().offline}
+          onPress={() => newSession({ machine: p().machine, folder: projectFolder(p()) })}
+        />
         <ActionMenu label={`Options for ${p().name}`} entries={projectEntries(p())} />
       </View>
     </View>
@@ -630,6 +630,9 @@ export function Sidebar() {
         <Text class="px-3 text-xs text-muted-foreground">
           {query().trim() ? "No project or agent matches" : board().statusLine}
         </Text>
+      </If>
+      <If when={!rail()}>
+        <SidebarFooter />
       </If>
       <NavRow icon="sliders" label="Settings" shortcut={keyLabel("settings")} onPress={() => settingsOpen.set(true)} />
     </View>

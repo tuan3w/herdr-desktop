@@ -50,6 +50,10 @@ function Lab() {
         </View>
         <View class="flex-1 gap-1 p-4">
           <Btn label="Change an agent" onPress={changeAnAgent} />
+          <Btn
+            label="Add an unreachable machine"
+            onPress={() => Herdr.saveMachine({ name: "Build box", dest: "devbox.invalid", enabled: true })}
+          />
           <Btn label="Go to the last agent" onPress={() => goTo("last")} />
           <Btn label="Go to the first agent" onPress={() => goTo("first")} />
           <Text>{`machines dialog ${machinesOpen() ? "open" : "closed"}`}</Text>

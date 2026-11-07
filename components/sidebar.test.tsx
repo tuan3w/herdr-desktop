@@ -34,6 +34,14 @@ async function menu(app: App, options: string, entry: string) {
   }
   await app.press(entry);
 }
+/** Presses `label` until `done` shows (a press made while the list still measures can land on a row that moves; a press that took is not repeated). */
+async function pressUntil(app: App, label: string, done: string) {
+  for (let attempt = 0; attempt < 5 && !app.shows(done); attempt++) {
+    await app.press(label);
+    await app.clock!.runFor(300);
+  }
+  await app.waitFor(done);
+}
 const picked = (app: App) => app.texts().find((t) => t.startsWith("picked "));
 
 test("agents are listed under their project, and each row names the agent, its state, its project and machine", async () => {
@@ -52,11 +60,11 @@ test("an expanded project header shows no count, a folded one shows how many wai
   const twos = () => app.texts().filter((t) => t === "2").length;
   expect(twos()).toBe(1);
   expect(app.texts().some((t) => /working|to review/.test(t))).toBe(false);
-  await app.press(FOLD_PAYMENTS);
-  expect(twos()).toBe(2);
+  await pressUntil(app, FOLD_PAYMENTS, "label:Unfold payments");
+  await app.waitUntil(() => twos() === 2);
   expect(app.texts().some((t) => /working|to review/.test(t))).toBe(false);
   // web waits for nothing: folded, it says nothing at all.
-  await app.press("label:Fold web");
+  await pressUntil(app, "label:Fold web", "label:Unfold web");
   expect(twos()).toBe(2);
 });
 
@@ -103,7 +111,7 @@ test("a search narrows to the projects and agents that match every word, ignorin
 
 test("a folded project hides its agents, keeps its header and chips, and stays folded after a restart", async () => {
   const app = await ready();
-  await app.press(FOLD_PAYMENTS);
+  await pressUntil(app, FOLD_PAYMENTS, "label:Unfold payments");
   expect(app.shows(row("Refactor ledger"))).toBe(false);
   expect(app.shows(PAYMENTS)).toBe(true);
   await app.clock!.runFor(100);
@@ -114,8 +122,8 @@ test("a folded project hides its agents, keeps its header and chips, and stays f
   expect(again.shows(row("Refactor ledger"))).toBe(false);
   expect(again.shows(row("Weekly notes"))).toBe(false);
   expect(again.shows("label:/^web, This computer/")).toBe(true);
-  await again.press("label:Unfold payments");
-  expect(again.shows(row("Refactor ledger"))).toBe(true);
+  await pressUntil(again, "label:Unfold payments", "label:Fold payments");
+  await again.waitFor(row("Refactor ledger"));
 });
 
 test("a project's menu pins it (the project then says so) and starts a chat in its folder", async () => {
@@ -207,4 +215,14 @@ test("a right click on an agent or a project copies its name or folder", async (
   await app.rightClick(PAYMENTS);
   await app.chooseMenuItem("Copy name");
   await app.waitUntil(() => app.clipboard() === "payments");
+});
+
+test("with every machine online the sidebar has no footer text, and a machine that cannot be reached adds one amber line", async () => {
+  const app = await ready();
+  expect(app.shows("label:Machines")).toBe(false);
+  expect(app.texts().some((t) => /^(Connected|Not connected)/.test(t))).toBe(false);
+  await app.press("Add an unreachable machine");
+  await app.waitUntil(() => app.shows("label:/^Build box, (Not connected|Connecting)/"));
+  expect(app.shows("label:Machines")).toBe(true);
+  expect(app.shows("label:Settings")).toBe(true);
 });

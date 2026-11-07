@@ -28,3 +28,17 @@ test("a busy button stays a stop of Tab and ignores presses until it is done; a 
   await app.press("Save");
   expect(app.texts()).toContain("saves:1");
 });
+
+test("a disabled icon button is named, says disabled, is not a stop of Tab and ignores presses", async () => {
+  const app = await open("./buttons-probe.tsx", DESKTOP);
+  await app.wait(100);
+  // Named (found by its label) and disabled; a press on it is refused by the harness, so nothing can count.
+  expect(app.enabled("label:New agent session in offline")).toBe(false);
+  await expect(app.press("label:New agent session in offline")).rejects.toThrow(/disabled/);
+  expect(app.texts()).toContain("reloads:0");
+  // Tab lands on the enabled icon button, then leaves the disabled one out.
+  await app.keyboard.press("tab");
+  await app.keyboard.press("tab");
+  await app.keyboard.press("enter");
+  expect(app.texts()).not.toContain("reloads:100");
+});

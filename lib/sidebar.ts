@@ -300,3 +300,20 @@ export function rowLabel(row: BoardRow, projectName: string): string {
     .filter(Boolean)
     .join(", ");
 }
+
+/** How many broken machines the footer names before it folds the rest into one line. */
+export const FOOTER_SHOWN = 3;
+
+/**
+ * The machines the sidebar footer names: those whose link is an exception (not online, and not switched off, which the
+ * person chose). `more` is how many a fold hides: past `FOOTER_SHOWN` the rest wait behind one line, so a bad day with
+ * ten machines does not push the projects out of the sidebar.
+ */
+export function footerMachines(
+  statuses: readonly MachineStatus[],
+  expanded: boolean,
+): { lines: MachineStatus[]; more: number } {
+  const broken = statuses.filter((s) => s.state !== "online" && s.state !== "off");
+  if (expanded || broken.length <= FOOTER_SHOWN + 1) return { lines: broken, more: 0 };
+  return { lines: broken.slice(0, FOOTER_SHOWN), more: broken.length - FOOTER_SHOWN };
+}

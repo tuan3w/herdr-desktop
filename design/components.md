@@ -33,7 +33,7 @@ flowchart TD
 
 ## IconButton and Icon
 
-`IconButton` is a button of the pointer target size (`HIT`) with an icon and no text: `label` is required (screen reader name and tooltip), `shortcut` appears in the tooltip, `onSidebar` recolors it for the sidebar surface, `selected` fills it while it is toggled on (the trigger of an open menu). It is always grey: a delete is not red at rest (`design/patterns.md`). `Icon` is decorative (hidden from screen readers), sizes 12, 14, 16 (default), 20, thin 1.5 strokes, color from `IconTone` (`design/colors.md`). Icons are grey chrome: they take the text color only when selected.
+`IconButton` is a button of the pointer target size (`HIT`) with an icon and no text: `label` is required (screen reader name and tooltip), `shortcut` appears in the tooltip, `onSidebar` recolors it for the sidebar surface, `selected` fills it while it is toggled on (the trigger of an open menu), `disabled` shows it muted and named, takes no press and no Tab stop (a plus for an offline project is disabled, not hidden). It is always grey: a delete is not red at rest (`design/patterns.md`). `Icon` is decorative (hidden from screen readers), sizes 12, 14, 16 (default), 20, thin 1.5 strokes, color from `IconTone` (`design/colors.md`). Icons are grey chrome: they take the text color only when selected.
 
 ## Tipped and Kbd
 
