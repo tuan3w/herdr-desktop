@@ -258,7 +258,7 @@ test("typing into a pane: Ctrl+K and Ctrl+E reach the pane, and the palette is C
   expect(sentKeys()).toEqual(["w1:p1: ctrl+k", "w1:p1: ctrl+e", "w1:p1: ctrl+w", "w1:p1: ctrl+["]);
   expect(app.shows("Command palette")).toBe(false);
   expect(app.shows("Switch to…")).toBe(false);
-  expect(app.count("role:tab")).toBe(2);
+  expect(app.count("role:tab")).toBe(1);
 
   await app.keyboard.press("mod+shift+p");
   await settle(app);

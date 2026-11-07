@@ -19,6 +19,7 @@ Motion explains a change: something arrives, folds, finishes, moves. It is short
 | `Switch` thumb | slides | `pop` 160, ease-out, `transform` only | `moveTransition()` | none |
 | `Collapsible` chevron | turns | `pop` 160 | `moveTransition()` | none |
 | `Spinner`, `Skeleton` | endless turn / breath while mounted | 800 linear / 1400 ease-in-out | `createMotion` | still |
+| A project is shown in place of another (`mod+shift+]`, the Switcher, an agent of another project) | the incoming workspace fades from 0.88 to 1; no fade-out, skipped when repeated within 400 ms | `context` 120, `EASE_OUT` | `contextEnter()` in `Workspace` | none |
 | Toasts | enter, stack, swipe and exit are the `ToastStack` springs (nsh-owned) | nsh | `ToastHost` | nsh |
 
 `motionReady` is set 600 ms after the app's first screen. What is on screen when the window opens, and what a restored layout builds, does not move: only what arrives afterwards does. The first look at a conversation settles for 500 ms before `arrivals` lets a line move, for the same reason.
@@ -27,7 +28,7 @@ Motion explains a change: something arrives, folds, finishes, moves. It is short
 
 | Thing | Why |
 |---|---|
-| Switching screens and tabs (`⌘1`, `⌘⇧1` to `⌘⇧9`, the sidebar), tab content | keyboard-driven and repeated all day: a transition is a delay |
+| Switching tabs inside a context, and Home (`⌘1`, `⌘⇧1` to `⌘⇧9`, the sidebar), tab content | keyboard-driven and repeated all day: a transition is a delay |
 | Anything a keyboard shortcut does, except opening a dialog | the person already knows what will happen |
 | `ActionMenu` and `RowMenu` popups, comboboxes, selects, tooltips | they open and move their highlight at once |
 | The live pane mirror (`PaneScreen`) | it is data, drawn as it comes |

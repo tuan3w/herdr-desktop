@@ -42,13 +42,15 @@ test("the app opens on the board, with every agent in the sidebar and the count 
 test("opening an agent from the sidebar adds its chat tab and shows it; closing the tab leaves the agent running", async () => {
   const app = await ready();
   await openAgents(app, FIRST);
-  expect(app.count("role:tab")).toBe(2);
+  // The agent's tab is in its project's workspace, which has no board tab.
+  expect(app.count("role:tab")).toBe(1);
   expect(await front(app)).toBe(FIRST);
   expect(shown(app, FIRST)).toBe(false);
   await app.keyboard.press("mod+w");
   await settle(app);
-  expect(app.count("role:tab")).toBe(1);
-  expect(onBoard(app)).toBe(true);
+  // The project stays, empty: it shows its own card.
+  expect(app.count("role:tab")).toBe(0);
+  expect(app.shows("label:payments, no tabs open")).toBe(true);
   expect(app.shows(sidebarRow(FIRST))).toBe(true);
   expect(Herdr.testRequests("pane.close")).toEqual([]);
 });
@@ -56,7 +58,7 @@ test("opening an agent from the sidebar adds its chat tab and shows it; closing 
 test("the same agent opened twice is one tab", async () => {
   const app = await ready();
   await openAgents(app, FIRST, SECOND, FIRST);
-  expect(app.count("role:tab")).toBe(3);
+  expect(app.count("role:tab")).toBe(2);
   expect(await front(app)).toBe(FIRST);
 });
 

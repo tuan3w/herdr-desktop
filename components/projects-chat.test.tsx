@@ -45,6 +45,6 @@ test("opening a chat row opens its chat tab", async () => {
   await app.waitFor("label:/^tmp, .*, idle, web, This computer/", { timeout: 10000 });
   await app.press("label:/^tmp, .*, idle, web, This computer/ >> nth=0");
   await settle(app);
-  expect(app.count("role:tab")).toBe(2);
+  expect(app.count("role:tab")).toBe(1);
   expect(onBoard(app)).toBe(false);
 });

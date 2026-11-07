@@ -8,6 +8,7 @@ import type { MenuItem } from "nsh/desktop";
 import { confirmDestructive, notify, rail, undoLast } from "#kit";
 import {
   closeTab,
+  focusComposerSoon,
   focused,
   focusedPane,
   groupOf,
@@ -307,13 +308,15 @@ async function toggleView(which: "chat" | "terminal"): Promise<void> {
 }
 
 async function focusPaneArea(): Promise<void> {
-  if (focused() === "board") {
+  if (focused() === "board" || focused() === "") {
     const last = lastPane();
     if (!last) {
       announce("No pane is open");
       return;
     }
     await openPanel(last);
+    await focusComposerSoon();
+    return;
   }
   focusComposer();
 }
@@ -462,7 +465,7 @@ export function actions(): Action[] {
   global("search", ["find"], !pane);
   global("copyCode", ["code block", "clipboard", "snippet"], !chatInFront());
   global("copyReply", ["answer", "message", "clipboard", "markdown"], !chatInFront());
-  global("closeTab", ["view"], focused() === "board");
+  global("closeTab", ["view"], focused() === "board" || focused() === "");
   global("devPanel", ["performance", "frame"]);
   global("undo");
   const terminal = parsePaneKey(focused());

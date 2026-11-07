@@ -41,7 +41,7 @@ import {
   settingsOpen,
   shortcutsOpen,
 } from "#lib/actions";
-import { dockReady, loadDock, openPane, openSession, showBoard } from "#lib/dock";
+import { dockReady, loadDock, openPane, openSession, showBoard, startDock } from "#lib/dock";
 import { board, startHerdr } from "#lib/herdr";
 import { warmCode } from "#lib/highlight";
 import { RAIL_WIDTH, SIDEBAR_WIDTH } from "#lib/layout";
@@ -52,6 +52,7 @@ import { saveFailures } from "#lib/save";
 import { loadSettings, settingsReady } from "#lib/settings";
 import { type GlobalShortcut, GLOBAL, keysOf } from "#lib/shortcuts";
 import { loadSidebar, sidebarReady, sidebarWidth } from "#lib/sidebar";
+import { loadViews } from "#lib/view-state";
 
 // A test opens the app with `host: { params: { fixture } }`: the engine then runs against the scripted herdr (the Rust
 // side honours it only with HERDR_DESKTOP_TEST=1). In the real app `host.params` is empty.
@@ -61,6 +62,7 @@ startHerdr(fixture ? "" : (process.dataDir ?? ""), fixture);
 void loadSettings();
 warmCode();
 void loadDock();
+void loadViews();
 startNav();
 void loadSidebar();
 for (const warning of Herdr.warnings()) notify(warning, { lasting: true });
@@ -85,6 +87,7 @@ function LoadingScreen() {
 }
 
 function App() {
+  startDock();
   // One handler per entry of `GLOBAL` (`lib/actions.ts`): a shortcut added there without one does not compile.
   // The keys of this platform: `mod` is Command or Ctrl, and a shortcut may have extra keys where its habit differs (F1).
   const bindings = (always: boolean) =>

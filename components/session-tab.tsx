@@ -311,6 +311,7 @@ export function SessionChat(props: {
                 <SessionPlan plan={view().plan} running={view().running} />
                 <SessionTranscript
                   ctx={ctx}
+                  panel={sessionKey(props.machine, props.id)}
                   active={props.active}
                   atEnd={atEnd}
                   unseen={unseen}

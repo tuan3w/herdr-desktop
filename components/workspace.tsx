@@ -1,8 +1,9 @@
-import { cleanup, View } from "nsh";
+import { cleanup, effect, untracked, View } from "nsh";
 import { DockArea, type DockTab } from "nsh/base";
 
 import { Board } from "#components/board";
 import { PaneTab } from "#components/pane-tab";
+import { ProjectEmpty } from "#components/project-empty";
 import { SessionTab } from "#components/session-tab";
 import { StatusGlyph } from "#components/status-glyph";
 import { Btn, Clipped, Empty, FOCUS_RING_INSET, Icon, IconButton } from "#kit";
@@ -12,6 +13,7 @@ import {
   activated,
   BOARD,
   closeTab,
+  entered,
   focused,
   layout,
   openPane,
@@ -23,7 +25,7 @@ import {
 } from "#lib/dock";
 import { meta, rowOf } from "#lib/herdr";
 import { ROW } from "#lib/layout";
-import { appear, hoverTransition } from "#lib/motion";
+import { appear, contextEnter, hoverTransition } from "#lib/motion";
 import { openAgent } from "#lib/open-agent";
 import { keyLabel } from "#lib/shortcuts";
 
@@ -32,7 +34,9 @@ import { keyLabel } from "#lib/shortcuts";
  * is a chat tab (`session:<machine>/<id>`: a keeper session, or the chat read from a terminal agent's log) or a terminal
  * tab (`pane:<machine>/<paneId>`). A tab is a view: closing it leaves the pane or the session running. Dragging a tab
  * is for the pointer; every drag has a keyboard command (`Move tab to split right`, `Move tab to other group`, ...) in
- * the palette, and `mod+\` and `mod+shift+\` split. The layout is `lib/dock.ts`'s and is saved there.
+ * the palette, and `mod+\` and `mod+shift+\` split. The layouts (one per project, and the home's) are `lib/dock.ts`'s and
+ * are saved there; a project with no tab open shows its own card (`ProjectEmpty`). Switching project swaps the layout, and
+ * the incoming workspace fades in over a tenth of a second (`contextEnter`): the one motion on a switch.
  */
 
 /** What a pane tab shows once herdr no longer has its pane (closed in herdr, or a saved tab for a pane that is gone). */
@@ -113,40 +117,53 @@ function TabFace(props: { tab: DockTab }) {
 
 export function Workspace() {
   cleanup(() => attach(undefined));
+  const enter = contextEnter();
+  let first = true;
+  effect(() => {
+    entered();
+    if (first) first = false;
+    else untracked(enter.play);
+  });
   return (
-    <DockArea
-      ref={(ref) => attach(ref)}
-      class="min-h-0 min-w-0 flex-1 bg-background"
-      layout={layout()}
-      onLayoutChange={({ layout: next }) => setLayout(next)}
-      onPanelActiveChange={({ panel, active }) => {
-        if (active) activated(panel);
-      }}
-      panels={[{ id: BOARD, closable: false }]}
-      renderPanel={({ id }) =>
-        id === BOARD ? (
-          <Board onOpen={(row, options) => void openAgent(row, options)} onAddMachine={() => machinesOpen.set(true)} />
-        ) : id.startsWith("session:") ? (
-          <SessionPanel id={id} />
-        ) : (
-          <PanePanel id={id} />
-        )
-      }
-      renderTab={(tab) => <TabFace tab={tab} />}
-      renderDragPreview={(tab) => (
-        <View class="rounded-md border border-border bg-popover px-3 py-1.5 shadow-md">
-          <TabFace tab={{ ...tab, closable: false }} />
-        </View>
-      )}
-      renderDropIndicator={() => <View class="size-full" />}
-      groupClass="bg-background"
-      tabBarClass="flex-row border-b border-border bg-sidebar"
-      tabClass={`${ROW.tab.class} flex-row items-center border-r border-border selected:bg-background ${FOCUS_RING_INSET}`}
-      tabStyle={hoverTransition()}
-      contentClass="min-h-0 flex-1"
-      dropIndicatorClass="rounded-md border-2 border-primary bg-primary/10"
-      handleClass="bg-border group-hover:bg-ring group-active:bg-ring"
-      handleAccessibilityLabel="Resize the tab groups"
-    />
+    <View style={enter.style} class="min-h-0 min-w-0 flex-1">
+      <DockArea
+        ref={(ref) => attach(ref)}
+        class="min-h-0 min-w-0 flex-1 bg-background"
+        layout={layout()}
+        onLayoutChange={({ layout: next }) => setLayout(next)}
+        onPanelActiveChange={({ panel, active }) => {
+          if (active) activated(panel);
+        }}
+        panels={[{ id: BOARD, closable: false }]}
+        renderPanel={({ id }) =>
+          id === BOARD ? (
+            <Board
+              onOpen={(row, options) => void openAgent(row, options)}
+              onAddMachine={() => machinesOpen.set(true)}
+            />
+          ) : id.startsWith("session:") ? (
+            <SessionPanel id={id} />
+          ) : (
+            <PanePanel id={id} />
+          )
+        }
+        renderEmpty={() => <ProjectEmpty />}
+        renderTab={(tab) => <TabFace tab={tab} />}
+        renderDragPreview={(tab) => (
+          <View class="rounded-md border border-border bg-popover px-3 py-1.5 shadow-md">
+            <TabFace tab={{ ...tab, closable: false }} />
+          </View>
+        )}
+        renderDropIndicator={() => <View class="size-full" />}
+        groupClass="bg-background"
+        tabBarClass="flex-row border-b border-border bg-sidebar"
+        tabClass={`${ROW.tab.class} flex-row items-center border-r border-border selected:bg-background ${FOCUS_RING_INSET}`}
+        tabStyle={hoverTransition()}
+        contentClass="min-h-0 flex-1"
+        dropIndicatorClass="rounded-md border-2 border-primary bg-primary/10"
+        handleClass="bg-border group-hover:bg-ring group-active:bg-ring"
+        handleAccessibilityLabel="Resize the tab groups"
+      />
+    </View>
   );
 }

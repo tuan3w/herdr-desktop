@@ -10,6 +10,7 @@ import { SessionModeChip, SessionModelPicker } from "#components/session-config"
 import { SessionQueue } from "#components/session-queue";
 import { SlashList } from "#components/slash-list";
 import { FOCUS_RING, FOCUS_RING_INSET, Icon, IconButton, notify } from "#kit";
+import { sessionKey } from "#lib/dock";
 import { joinPath, sending, sizeText } from "#lib/files";
 import { CHAT_COLUMN } from "#lib/layout";
 import { noteSent, pinCommand, slashMemory } from "#lib/pane-memory";
@@ -26,6 +27,7 @@ import {
 } from "#lib/session-compose";
 import { composerOff } from "#lib/session-text";
 import { commandText, hintFor, isPinned, matchCommands, type SlashCommand, usageKey } from "#lib/slash";
+import { draftOf, setDraft } from "#lib/view-state";
 
 /** What the chat does with its message box from outside: the open of a tab, `mod+2`, `Reply…`. */
 export interface SessionComposerHandle {
@@ -105,9 +107,12 @@ export function SessionComposer(props: {
   view: () => SessionView;
   onHandle?: (handle: SessionComposerHandle) => void;
 }) {
-  const value = signal("");
-  const caret = signal(0);
-  const files = signal<string[]>([]);
+  // What was typed and attached and not sent comes back when the project is shown again (`lib/view-state.ts`).
+  const draft = sessionKey(props.machine, props.id);
+  const kept = draftOf(draft);
+  const value = signal(kept?.text ?? "");
+  const caret = signal(kept?.text.length ?? 0);
+  const files = signal<string[]>(kept?.files ?? []);
   const error = signal("");
   const focused = signal(false);
   const picked = signal(0);
@@ -166,6 +171,8 @@ export function SessionComposer(props: {
       );
     });
   });
+
+  effect(() => setDraft(draft, { text: value(), files: files() }));
 
   const edit = (next: string, at?: number) => {
     value.set(next);

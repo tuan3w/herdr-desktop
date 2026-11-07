@@ -3,18 +3,30 @@ import { expect, test } from "nsh/test";
 import type { DockAreaLayout } from "nsh/base";
 
 import {
+  activate,
   BOARD,
+  bucket,
+  CONTEXT_CAP,
+  type Contexts,
   defaultLayout,
+  emptyLayout,
   groupOf,
   groups,
+  HOME,
+  layoutOf,
   otherGroup,
   panelsOf,
   paneKey,
   parsePaneKey,
   parseSessionKey,
+  readDock,
   readLayout,
+  restoreFocus,
   rowKeyOf,
   sessionKey,
+  withoutPanels,
+  withPanel,
+  writeDock,
 } from "#lib/dock";
 
 const A = paneKey("local", "w1:p1");
@@ -132,4 +144,114 @@ test("saved chat tabs reopen with the layout, next to the terminals", () => {
   const chat = sessionKey("local", "pane:w1:p1");
   const layout = readLayout(JSON.stringify(split([BOARD, A, chat])));
   expect(panelsOf(layout)).toEqual([BOARD, A, chat]);
+});
+
+// ---- contexts ----
+
+const C = paneKey("local", "w1:p3");
+const doc = (extra: Partial<Contexts> = {}): Contexts => ({
+  current: HOME,
+  contexts: { [HOME]: { layout: defaultLayout(), focused: BOARD, savedAt: 1 } },
+  strays: [],
+  ...extra,
+});
+
+test("a project's layout never holds the board and may hold nothing; the home's always holds the board", () => {
+  const both = { center: { type: "split", axis: "horizontal", children: [{ type: "tabs", panels: [BOARD, A] }] } };
+  expect(panelsOf(layoutOf(both, false))).toEqual([A]);
+  expect(panelsOf(layoutOf(both, true))).toEqual([BOARD, A]);
+  expect(layoutOf({ center: { type: "tabs", panels: [BOARD] } }, false)).toEqual(emptyLayout());
+  expect(layoutOf("junk", false)).toEqual(emptyLayout());
+  expect(layoutOf("junk", true)).toEqual(defaultLayout());
+});
+
+test("the saved layouts come back: the context shown, each layout, the tab each was left in, the waiting panels", () => {
+  const written = writeDock(
+    doc({
+      current: "local/pay",
+      contexts: {
+        [HOME]: { layout: defaultLayout(), focused: BOARD, savedAt: 1 },
+        "local/pay": { layout: split([A, C]), focused: C, savedAt: 5 },
+        "local/web": { layout: emptyLayout(), focused: "", savedAt: 3 },
+      },
+      strays: [B],
+    }),
+  );
+  const read = readDock(written)!;
+  expect(read.current).toBe("local/pay");
+  expect(panelsOf(read.contexts["local/pay"].layout)).toEqual([A, C]);
+  expect(read.contexts["local/pay"].focused).toBe(C);
+  expect(panelsOf(read.contexts["local/web"].layout)).toEqual([]);
+  expect(read.contexts["local/web"].focused).toBe("");
+  expect(panelsOf(read.contexts[HOME].layout)).toEqual([BOARD]);
+  expect(read.strays).toEqual([B]);
+});
+
+test("a file that is not the second version, or is damaged, is not read (the first version's is tried), and a context shown that is gone opens the home", () => {
+  expect(readDock(null)).toBeNull();
+  expect(readDock("not json")).toBeNull();
+  expect(readDock(JSON.stringify({ center: {} }))).toBeNull();
+  expect(readDock(JSON.stringify({ v: 3 }))).toBeNull();
+  const odd = readDock(
+    JSON.stringify({ v: 2, current: "local/nope", home: 7, contexts: { x: "junk" }, strays: [1, "junk", B] }),
+  )!;
+  expect(odd.current).toBe(HOME);
+  expect(panelsOf(odd.contexts[HOME].layout)).toEqual([BOARD]);
+  expect(panelsOf(odd.contexts.x.layout)).toEqual([]);
+  expect(odd.strays).toEqual([B]);
+});
+
+test("only the newest sixty contexts are kept, the shown one among them whatever its age", () => {
+  const contexts: Contexts["contexts"] = { [HOME]: { layout: defaultLayout(), focused: BOARD, savedAt: 1 } };
+  for (let i = 0; i < CONTEXT_CAP + 10; i++)
+    contexts[`p${i}`] = { layout: emptyLayout(), focused: "", savedAt: 100 + i };
+  const read = readDock(writeDock({ current: "p0", contexts, strays: [] }))!;
+  const keys = Object.keys(read.contexts).filter((k) => k !== HOME);
+  expect(keys).toHaveLength(CONTEXT_CAP);
+  expect(keys).toContain("p0");
+  expect(keys).toContain(`p${CONTEXT_CAP + 9}`);
+  expect(keys).not.toContain("p1");
+  expect(read.current).toBe("p0");
+});
+
+test("a layout of the first version is split by project: each project's panels become its layout, the rest stay home", () => {
+  const home = split([BOARD, A, B, C]);
+  const project = (panel: string) => ({ [A]: "pay", [C]: "pay", [B]: undefined })[panel];
+  const out = bucket(home, project);
+  expect(panelsOf(out.home)).toEqual([BOARD, B]);
+  expect(panelsOf(out.projects.pay)).toEqual([A, C]);
+  expect(out.strays).toEqual([B]);
+  expect(Object.keys(out.projects)).toEqual(["pay"]);
+});
+
+test("a tab joins the group of the one beside it, an empty layout gets a group, and the new tab is the displayed one", () => {
+  const two = split([BOARD, A], [B]);
+  const joined = withPanel(two, C, B);
+  expect(groups(joined).map((g) => [g.panels, g.active])).toEqual([
+    [[BOARD, A], 0],
+    [[B, C], 1],
+  ]);
+  expect(groups(withPanel(two, C)).map((g) => g.panels)).toEqual([[BOARD, A, C], [B]]);
+  expect(groups(withPanel(emptyLayout(), C)).map((g) => [g.panels, g.active])).toEqual([[[C], 0]]);
+  // A panel already there is only displayed.
+  expect(groups(withPanel(two, A)).map((g) => g.active)).toEqual([1, 0]);
+});
+
+test("taking tabs out leaves the displayed one where it was, drops what is empty and may leave nothing", () => {
+  const layout = split([BOARD, A, B], [C]);
+  const shown = activate(layout, B);
+  expect(groups(withoutPanels(shown, new Set([A]))).map((g) => [g.panels, g.active])).toEqual([
+    [[BOARD, B], 1],
+    [[C], 0],
+  ]);
+  expect(groups(withoutPanels(layout, new Set([C]))).map((g) => g.panels)).toEqual([[BOARD, A, B]]);
+  expect(withoutPanels(split([A]), new Set([A]))).toEqual(emptyLayout());
+});
+
+test("the tab a layout comes back to is the one asked for, else the board of the home, else what its first group shows, else none", () => {
+  const layout = activate(split([A, B]), B);
+  expect(restoreFocus(layout, A, false)).toBe(A);
+  expect(restoreFocus(layout, "pane:local/gone", false)).toBe(B);
+  expect(restoreFocus(split([BOARD, A]), "pane:local/gone", true)).toBe(BOARD);
+  expect(restoreFocus(emptyLayout(), A, false)).toBe("");
 });

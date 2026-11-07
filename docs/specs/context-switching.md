@@ -1,6 +1,6 @@
 # Context switching and the command palette
 
-Design spec, not code. Status: proposal for the owner; nothing here exists yet except where a path or symbol is cited. Sources are linked inline; anything not run or not read on a primary source is marked **unverified**. Facts about this repo were read from the files named; facts about nsh 0.4.0 from `.scratch/nsh-0.4.0` (the installed runtime), not from the online docs.
+Design spec. Status: P0 (spikes), P1 (Switcher, MRU, history, capture release) and the core of P2 (per-project layouts, drafts, scroll anchors, entrance) are built and live in `design/context.md`; what remains below is P3 and later, plus the P2 leftovers listed in the report of the build (perf rows, screenshots of `context-switch`, `watched_panes` metric, an `Open here` gesture). Sources are linked inline; anything not run or not read on a primary source is marked **unverified**. Facts about this repo were read from the files named; facts about nsh 0.4.0 from `.scratch/nsh-0.4.0` (the installed runtime), not from the online docs.
 
 Owner direction (binding): desktop context switching may differ from mobile; a person may change habits; the command palette must be great, this is a productivity app.
 

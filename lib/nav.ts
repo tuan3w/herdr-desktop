@@ -3,7 +3,7 @@ import { announce, computed, signal } from "nsh";
 
 import type { BoardProject, BoardRow } from "herdr-desktop/native";
 
-import { BOARD, focused, onArrival, rowKeyOf, showBoard } from "#lib/dock";
+import { BOARD, context, focused, HOME, onArrival, rowKeyOf, showBoard, switchContext } from "#lib/dock";
 import { board, projectOf, rowOf } from "#lib/herdr";
 import { openAgent } from "#lib/open-agent";
 import { ageText, projectSummary, rowLabel } from "#lib/sidebar";
@@ -14,10 +14,11 @@ import type { AgentStatus } from "#lib/status";
  * Where the person has been and the ways back, the part of "switch context" that is about memory:
  *
  * - **Visits** (`Herdr.visit`, kept in `recents.json`): an agent is visited when its tab comes to the front by a command,
- *   or has stayed in front for a second (a click, which may be passing through); a project when the person arrives in an
- *   agent of another project. The list is newest first, one entry per agent and per project, and is what `previous`
+ *   or has stayed in front for a second (a click, which may be passing through); a project when its context is shown in
+ *   place of another one. The list is newest first, one entry per agent and per project, and is what `previous`
  *   and the Switcher read. Entries whose row is gone are skipped, never shown.
- * - **History** (this run only): the places the person went to by a command, `back` and `forward` as in a browser. A
+ * - **History** (this run only): the places the person went to by a command (the board, an agent, or a project with no
+ *   tab open), `back` and `forward` as in a browser. A
  *   click between tabs replaces where you are, it does not add a step; a new command drops the forward steps; at most
  *   `HISTORY_CAP`; a place whose agent is gone is skipped.
  * - **Previous**: `ctrl+tab` swaps the two agents visited last, `ctrl+shift+tab` the two projects; repeating returns.
@@ -116,21 +117,24 @@ function visitNow(key: string): void {
 /** The agent in front (`BoardRow.key`), `null` on the board. */
 const hereAgent = computed(() => rowKeyOf(focused()));
 
-/** The project of the agent in front, `null` on the board and where no agent is open. */
-const hereProject = computed(() => {
-  const key = hereAgent();
-  return (key !== null ? rowOf(key)?.project : undefined) ?? null;
-});
+/** The project whose context is shown, `null` at the home. */
+const hereProject = computed(() => (context() === HOME ? null : context()));
 
 let lastProject: string | null = null;
 
+/** The project shown was entered: it is visited once, however many of its tabs are used (leaving for the home forgets it). */
+function visitProject(): void {
+  const key = hereProject();
+  if (key === null) lastProject = null;
+  else if (key !== lastProject) {
+    lastProject = key;
+    visitNow(PROJECT + key);
+  }
+}
+
 /** The agent `rowKey` was arrived at: its project first when that is a change of project, so the agent is the newest entry. */
 function visitAgent(rowKey: string): void {
-  const row = rowOf(rowKey);
-  if (row && row.project !== lastProject) {
-    lastProject = row.project;
-    visitNow(PROJECT + row.project);
-  }
+  visitProject();
   visitNow(AGENT + rowKey);
 }
 
@@ -140,23 +144,35 @@ let pending: ReturnType<typeof setTimeout> | undefined;
 // ---- history ----
 
 let history = emptyHistory();
-/** The place a back or forward is opening: its arrival moves along the history, it does not add to it. */
-let expected: string | null = null;
+/** A back or forward is opening its place: the arrival moves along the history, it does not add to it. */
+let walking = false;
 let lastArrived: string | null = null;
 
-/** A place is the board or an agent (its row key, whichever view of it is open). */
-const placeOf = (panel: string): string => rowKeyOf(panel) ?? BOARD;
+/** A place is the board, an agent (its row key, whichever view of it is open), or a project with no tab open (`project:<key>`). */
+function placeOf(panel: string): string {
+  if (panel === "") return PROJECT + context();
+  return rowKeyOf(panel) ?? BOARD;
+}
 
-const placeAlive = (place: string): boolean => place === BOARD || rowOf(place) !== undefined;
+const placeAlive = (place: string): boolean =>
+  place === BOARD ||
+  (place.startsWith(PROJECT) ? projectOf(place.slice(PROJECT.length)) !== undefined : rowOf(place) !== undefined);
 
 function arrived(panel: string, deliberate: boolean): void {
   clearTimeout(pending);
   const place = placeOf(panel);
   const same = place === lastArrived;
   lastArrived = place;
-  if (place !== expected) history = deliberate ? pushPlace(history, place) : replacePlace(history, place);
-  if (place === BOARD) return;
-  if (deliberate || place === expected) visitAgent(place);
+  if (!walking) history = deliberate ? pushPlace(history, place) : replacePlace(history, place);
+  if (place === BOARD) {
+    lastProject = null;
+    return;
+  }
+  if (place.startsWith(PROJECT)) {
+    visitProject();
+    return;
+  }
+  if (deliberate) visitAgent(place);
   else if (!same) pending = setTimeout(() => visitAgent(place), PASSING_MS);
 }
 
@@ -190,20 +206,9 @@ async function goAgent(row: BoardRow): Promise<void> {
   announce(`Switched to ${named(row)}`);
 }
 
-/** Opens the project `key`: the agent of it visited last, else its first one (those that need you come first). */
-export async function openProject(key: string): Promise<boolean> {
-  const project = projectOf(key);
-  if (!project) return false;
-  const last = mru("agent")
-    .map((k) => rowOf(k))
-    .find((r) => r?.project === key);
-  const row = last ?? project.rows[0];
-  if (!row) {
-    announce(`${project.name} has no agents`);
-    return false;
-  }
-  await goAgent(row);
-  return true;
+/** Shows the project `key` with the tabs and the tab it was left with (or its own card, when it has none open). */
+export function openProject(key: string): boolean {
+  return switchContext(key);
 }
 
 /** `ctrl+tab`: the agent visited before this one (from the board: the last one visited). */
@@ -218,7 +223,7 @@ export function previousAgent(): void {
 export function previousProject(): void {
   const key = previousOf(mru("project"), hereProject(), (k) => projectOf(k) !== undefined);
   if (key === undefined) announce("No other project visited yet");
-  else void openProject(key);
+  else openProject(key);
 }
 
 /** `mod+shift+]` and `mod+shift+[`: the project after or before this one in the sidebar's order, wrapping. */
@@ -226,8 +231,8 @@ export function stepProject(step: 1 | -1): void {
   const order = board().projects.map((p) => p.key);
   const key = around(order, hereProject(), step);
   if (key === undefined) announce("No projects");
-  else if (order.length === 1 && key === hereProject()) announce("There is only one project");
-  else void openProject(key);
+  else if (key === hereProject()) announce("There is only one project");
+  else openProject(key);
 }
 
 async function walk(step: 1 | -1): Promise<void> {
@@ -237,17 +242,19 @@ async function walk(step: 1 | -1): Promise<void> {
     return;
   }
   history = found.history;
-  expected = found.place;
+  walking = true;
   try {
     if (found.place === BOARD) {
       await showBoard();
       announce("Board");
+    } else if (found.place.startsWith(PROJECT)) {
+      openProject(found.place.slice(PROJECT.length));
     } else {
       const row = rowOf(found.place);
       if (row) await goAgent(row);
     }
   } finally {
-    expected = null;
+    walking = false;
   }
 }
 
@@ -380,7 +387,7 @@ function projectItem(project: BoardProject, several: boolean): SwitcherItem {
 export async function openSwitcherItem(item: SwitcherItem): Promise<void> {
   if (item.here) return;
   if (item.kind === "project") {
-    await openProject(item.id.slice(PROJECT.length));
+    openProject(item.id.slice(PROJECT.length));
     return;
   }
   const row = rowOf(item.id.slice(AGENT.length));

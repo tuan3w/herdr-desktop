@@ -32,6 +32,7 @@ export const DURATION = {
   exit: 160,
   fold: 220,
   rise: 240,
+  context: 120,
 } as const;
 /** Strong ease-out for anything entering or pressing. */
 export const EASE_OUT: Easing = [0.32, 0.72, 0, 1];
@@ -198,6 +199,35 @@ export function glyphChanged() {
           duration: DURATION.pop,
           easing: EASE_OUT,
         });
+    },
+  };
+}
+
+/** Opacity a project's workspace starts from when it is shown in place of another: a hint of arrival, never a dip to nothing. */
+export const CONTEXT_FROM = 0.88;
+/** Two switches closer than this are one gesture (a key held): the second does not replay the entrance. */
+export const CONTEXT_REPEAT_MS = 400;
+
+/**
+ * The entrance of a project's workspace when the person switches project: the incoming tabs fade from `CONTEXT_FROM`
+ * to 1 in `DURATION.context`. Only the incoming side moves and nothing waits for it: the outgoing tabs are already gone
+ * when it starts, so it never delays a key. `play` does nothing under reduced motion and while keys repeat. It moves the
+ * area's wrapper, never a pane's rows. Bind `style` to that wrapper.
+ */
+export function contextEnter() {
+  const motion = createMotion();
+  let last = Number.NEGATIVE_INFINITY;
+  return {
+    style: motion.style,
+    play() {
+      const now = Date.now();
+      const repeated = now - last < CONTEXT_REPEAT_MS;
+      last = now;
+      if (reducedMotion() || repeated) {
+        motion.reset();
+        return;
+      }
+      void motion.play({ keyframes: { opacity: [CONTEXT_FROM, 1] }, duration: DURATION.context, easing: EASE_OUT });
     },
   };
 }

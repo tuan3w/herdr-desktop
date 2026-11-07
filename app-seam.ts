@@ -69,9 +69,10 @@ export async function openTerminals(app: App, ...names: string[]): Promise<void>
   }
 }
 
-/** The agent whose tab is displayed in the first group (`board` for the board), whichever view of it is open: read from the saved layout. */
+/** The agent whose tab is displayed in the first group of the context shown (`board` for the board, empty for a project with no tab), whichever view of it is open: read from the saved layout. */
 export async function front(app: App): Promise<string> {
   const [group] = await saved(app);
+  if (!group) return "";
   const panel = group.panels[group.active];
   return panel === "board" ? panel : nameOf(panel);
 }
@@ -88,14 +89,34 @@ export interface SavedGroup {
   active: number;
 }
 
-/** The groups of the layout the app saved once its edits went quiet. */
-export async function saved(app: App): Promise<SavedGroup[]> {
+/** The saved document of the layouts (`herdr.dock.v2`) once its edits went quiet. */
+export async function savedDock(app: App): Promise<SavedDock> {
   await app.clock!.runFor(700);
+  return JSON.parse(app.storage()["herdr.dock.v2"]) as SavedDock;
+}
+
+/** What the app saves: the context shown, the home and the projects' layouts, the panels waiting for their project. */
+export interface SavedDock {
+  v: 2;
+  current: string;
+  home: { layout: DockAreaLayout; focused: string };
+  contexts: Record<string, { layout: DockAreaLayout; focused: string; savedAt: number }>;
+  strays: string[];
+}
+
+/** The groups of a saved layout: the context shown, or the one named. */
+export function groupsOf(layout: DockAreaLayout): SavedGroup[] {
   const out: SavedGroup[] = [];
   const walk = (node: DockAreaLayout["center"]) => {
     if (node.type === "tabs") out.push({ panels: node.panels, active: node.activeIndex ?? 0 });
     else node.children.forEach(walk);
   };
-  walk((JSON.parse(app.storage()["herdr.dock.v1"]) as DockAreaLayout).center);
+  walk(layout.center);
   return out;
+}
+
+/** The groups of the layout of the context shown, as the app saved it once its edits went quiet. */
+export async function saved(app: App): Promise<SavedGroup[]> {
+  const doc = await savedDock(app);
+  return groupsOf(doc.current === "home" ? doc.home.layout : doc.contexts[doc.current].layout);
 }

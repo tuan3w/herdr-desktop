@@ -29,12 +29,13 @@ import {
   usePopover,
 } from "#kit";
 import { machinesOpen, newSession, settingsOpen, sidebarSearch } from "#lib/actions";
-import { BOARD, focused, rowKeyOf, showBoard } from "#lib/dock";
+import { BOARD, context, focused, rowKeyOf, showBoard } from "#lib/dock";
 import { board, projectOf, revision, rowOf, started } from "#lib/herdr";
 import { ROW } from "#lib/layout";
 import { ofKind } from "#lib/list-item";
 import { linkGlyph, linkText } from "#lib/machine-state";
 import { hoverTransition } from "#lib/motion";
+import { openProject } from "#lib/nav";
 import { openAgent } from "#lib/open-agent";
 import { rangeTo, toggle } from "#lib/selection";
 import { sidebarCollapsed } from "#lib/settings";
@@ -165,9 +166,10 @@ function Host(props: { item: () => Extract<SidebarItem, { kind: "host" }> }) {
   );
 }
 
-/** What a project's menu offers: pin it, start a chat in it, fold it. */
+/** What a project's menu offers: show its tabs, pin it, start a chat in it. */
 function projectEntries(project: BoardProject) {
   return [
+    { label: "Switch to this project", onSelect: () => openProject(project.key) },
     {
       label: project.pinned ? "Unpin" : "Pin to the top",
       onSelect: () => Herdr.pinProject(project.key, !project.pinned),
@@ -193,7 +195,7 @@ function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> 
         role="button"
         onPress={() => toggleProject(p().key)}
         accessibilityLabel={projectLabel(p())}
-        accessibilityState={{ expanded: !props.item().folded }}
+        accessibilityState={{ expanded: !props.item().folded, selected: context() === p().key }}
         style={hoverTransition()}
         class={`flex-row items-center gap-2 ${ROW.project.class} ${FILL}`}
       >
@@ -374,6 +376,25 @@ function RailAgent(props: { row: BoardRow; project: BoardProject }) {
   );
 }
 
+/** `Show project` in the popover of a rail tile: the project's tabs, as the full sidebar's `Switch to this project`. */
+function RailShow(props: { project: BoardProject }) {
+  const popover = usePopover();
+  return (
+    <View class="items-start py-1">
+      <Btn
+        small
+        variant="outline"
+        label="Show project"
+        name={`Show ${props.project.name}`}
+        onPress={() => {
+          openProject(props.project.key);
+          popover.close();
+        }}
+      />
+    </View>
+  );
+}
+
 /**
  * A project in the rail: a tile with its first letters and, in a corner, the signal dot while something waits (the number
  * is the tooltip and the accessible name; the rail has no room for words). Pinned projects carry a small ink dot, the
@@ -382,7 +403,7 @@ function RailAgent(props: { row: BoardRow; project: BoardProject }) {
  */
 function RailTile(props: { project: BoardProject }) {
   const p = () => props.project;
-  const lit = () => openRow()?.project === p().key;
+  const lit = () => context() === p().key;
   const label = () => projectLabel(p());
   return (
     <Popover
@@ -419,6 +440,7 @@ function RailTile(props: { project: BoardProject }) {
       <Text class="text-xs text-muted-foreground">
         {[p().machineName, projectState(p())].filter(Boolean).join(" · ")}
       </Text>
+      <RailShow project={p()} />
       <Each of={p().rows} key={(r: BoardRow) => r.key}>
         {(row) => <RailAgent row={row()} project={p()} />}
       </Each>

@@ -11,9 +11,12 @@ import { CHAT_COLUMN } from "#lib/layout";
 import { appear } from "#lib/motion";
 import type { Row } from "#lib/session-rows";
 import { durationText, visibleText } from "#lib/session-text";
+import { anchorOf, setAnchor } from "#lib/view-state";
 
 /** How far from the end still counts as being at it: a streamed line or two must not unstick the view. */
 const AT_END = 64;
+/** How long a chat waits for enough of its conversation to put the person back where they were. */
+const PLACE_MS = 1500;
 
 /** What the transcript lets the tab do: jump to the newest row. */
 export interface TranscriptHandle {
@@ -65,9 +68,15 @@ function Footer(props: { ctx: RowContext }) {
  * jumps too. PageUp and PageDown scroll a page from anywhere in the tab, Home and End when no text box has the focus.
  *
  * `atEnd` and `unseen` are the tab's, because the model's hook counts messages that arrive while the person is away.
+ *
+ * Where the person left a chat comes back with it (switching project unmounts the tab): at the end it opens at the end,
+ * scrolled away it opens that far above the end once the conversation is long enough to place it, and gives up on that
+ * after `PLACE_MS` and shows the end.
  */
 export function SessionTranscript(props: {
   ctx: RowContext;
+  /** The tab's panel key: where the chat was left is kept under it (`lib/view-state.ts`). */
+  panel: string;
   active: boolean;
   atEnd: Signal<boolean>;
   unseen: Signal<number>;
@@ -79,6 +88,8 @@ export function SessionTranscript(props: {
   const metrics = { offset: 0, content: 0, size: 0 };
   const placed = signal(false);
   let lastUser = "";
+  const left = anchorOf(props.panel);
+  let pending = left && !left.atEnd ? left : undefined;
 
   const jump = () => {
     list?.scrollToEnd({ animated: false });
@@ -89,12 +100,20 @@ export function SessionTranscript(props: {
 
   const rows = () => props.ctx.model.rows();
 
-  // Opening shows the end; the list keeps it there as rows are measured.
+  // Opening shows the end (or where the person left it); the list keeps it there as rows are measured.
   effect(() => {
     if (rows().length === 0 || placed()) return;
     untracked(() => {
       placed.set(true);
-      setTimeout(jump, 0);
+      if (!pending) {
+        setTimeout(jump, 0);
+        return;
+      }
+      setTimeout(() => {
+        if (!pending) return;
+        pending = undefined;
+        jump();
+      }, PLACE_MS);
     });
   });
   // What the person just sent is where they look next.
@@ -148,7 +167,20 @@ export function SessionTranscript(props: {
           metrics.offset = e.offset.y;
           metrics.content = e.contentSize.height;
           metrics.size = e.size.height;
+          if (pending) {
+            // Still opening: scroll events before the place is reached say nothing about where the person is.
+            if (e.contentSize.height - e.size.height < pending.fromEnd) return;
+            const to = Math.max(0, e.contentSize.height - e.size.height - pending.fromEnd);
+            pending = undefined;
+            props.atEnd.set(false);
+            list?.scrollToOffset({ offset: to, animated: false });
+            return;
+          }
           const end = e.offset.y + e.size.height >= e.contentSize.height - AT_END;
+          setAnchor(props.panel, {
+            atEnd: end,
+            fromEnd: Math.max(0, e.contentSize.height - (e.offset.y + e.size.height)),
+          });
           if (end !== props.atEnd()) props.atEnd.set(end);
           if (end && props.unseen() > 0) props.unseen.set(0);
         }}

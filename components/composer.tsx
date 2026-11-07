@@ -7,6 +7,7 @@ import type { InputRef } from "nsh/types";
 import { SlashList } from "#components/slash-list";
 import { Btn, INPUT_CLASS } from "#kit";
 import { AGENT_KINDS } from "#lib/agent-kinds";
+import { paneKey } from "#lib/dock";
 import { learnPhrase, noteSent, phraseMemory, pinCommand, slashMemory } from "#lib/pane-memory";
 import { quickChips } from "#lib/phrases";
 import { quickPhrases } from "#lib/settings";
@@ -20,6 +21,7 @@ import {
   unknownCommand,
   usageKey,
 } from "#lib/slash";
+import { draftOf, setDraft } from "#lib/view-state";
 
 /** What the pane tab does with its message box from outside: the key row's `/` and `@`, the board's `Reply…`. */
 export interface ComposerHandle {
@@ -59,7 +61,9 @@ export function Composer(props: {
   /** Keys or text went to the pane: read it again so the mirror does not wait for herdr's next event. */
   onSent: () => void;
 }) {
-  const value = signal("");
+  // What was typed and not sent comes back when the project is shown again (`lib/view-state.ts`).
+  const draft = paneKey(props.machine, props.pane);
+  const value = signal(draftOf(draft)?.text ?? "");
   const error = signal("");
   const hint = signal("");
   const held = signal<{ word: string; text: string } | null>(null);
@@ -85,6 +89,8 @@ export function Composer(props: {
       field?.setSelection(value().length);
     },
   });
+
+  effect(() => setDraft(draft, { text: value(), files: [] }));
 
   // What the person changes retires the notes about the text before it, and brings the list back after Escape. A restore
   // after a failed send is not an edit, so it keeps its error.
