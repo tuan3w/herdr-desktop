@@ -6,7 +6,7 @@
 #
 # `nsh package` signs ad hoc, and an ad hoc signature is identified by the hash of the code (`cdhash`): it changes with every
 # build, so anything the system tied to the app (a keychain item, a granted permission) is asked again after each update. With a
-# certificate the designated requirement is `identifier "dev.herdrmobile.herdr_desktop" and certificate leaf = H"<hash>"`, the
+# certificate the designated requirement is `identifier "dev.herdrmobile.herdr_desktop" and certificate root = H"<hash>"`, the
 # same in every build. The certificate is self-signed (no Apple developer account), so Gatekeeper still wants a first
 # right-click > Open, or `xattr -dr com.apple.quarantine`; notarization needs a Developer ID (docs/MACOS.md).
 #

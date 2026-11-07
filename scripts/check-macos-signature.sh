@@ -17,7 +17,7 @@ if [ -n "${HERDR_SIGN_P12:-}" ]; then
     exit 1
   fi
   echo "$details" | grep -q '^Authority=Herdr Desktop (self-signed)' || { echo "::error::the app is not signed by the Herdr Desktop identity" >&2; exit 1; }
-  echo "$requirement" | grep -q 'certificate leaf = H"' || { echo "::error::the designated requirement does not name the certificate" >&2; exit 1; }
+  echo "$requirement" | grep -Eq 'certificate (leaf|root) = H"' || { echo "::error::the designated requirement does not name the certificate" >&2; exit 1; }
 else
   echo "no signing identity in this run (a fork's pull request): the ad hoc signature stays"
 fi
