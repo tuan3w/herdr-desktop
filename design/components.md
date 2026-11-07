@@ -61,6 +61,8 @@ Title, optional one-line hint, optional `icon` (a muted 40pt disc), children. `f
 
 ## TabBar and TabItem
 
+The workspace's strip of open views is not this: it is `design/tabs.md`.
+
 For views of the same record (an agent's transcript, files and details), and for the filter chips of one list (one active, each with its count, six or fewer short words). Built on `Tabs`/`Tab`. Selected is a soft `accent` fill with full-strength text; weight and width never change. `count` is a plain grey `Badge`, shown above 0; screen readers do not hear a `Badge`, so the tab's name is `label, count` (or `label, spoken`, e.g. `Needs you, 1 agent waiting`). Tabs never switch screens (that is the sidebar).
 
 ## CheckRow, Switch, Segmented

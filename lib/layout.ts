@@ -64,7 +64,7 @@ export const ROW = {
   project: { height: 44, class: "min-h-11 px-3 py-2" },
   nav: { height: 40, class: "min-h-10 px-3" },
   more: { height: 36, class: "min-h-9 px-3" },
-  tab: { height: 44, class: "h-11 px-4" },
+  tab: { height: 36, class: "relative h-9 min-w-40 max-w-56 flex-1" },
 } as const;
 
 /** Gaps between the parts of a page: inside a row, between rows of a card, between cards and between sections (one: a grid has one gap). */

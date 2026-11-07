@@ -1,20 +1,18 @@
 import { cleanup, effect, untracked, View } from "nsh";
-import { DockArea, type DockTab } from "nsh/base";
+import { DockArea } from "nsh/base";
 
 import { Board } from "#components/board";
 import { Changes } from "#components/changes";
 import { PaneTab } from "#components/pane-tab";
 import { ProjectEmpty } from "#components/project-empty";
 import { SessionTab } from "#components/session-tab";
-import { StatusGlyph } from "#components/status-glyph";
-import { Btn, Clipped, Empty, FOCUS_RING_INSET, Icon, IconButton } from "#kit";
+import { TabFace } from "#components/tab-face";
+import { Btn, Empty, FOCUS_RING_INSET } from "#kit";
 import { machinesOpen } from "#lib/actions";
-import { checkoutName } from "#lib/changes";
 import {
   attach,
   activated,
   BOARD,
-  closeTab,
   entered,
   focused,
   layout,
@@ -23,14 +21,12 @@ import {
   parsePaneKey,
   parseSessionKey,
   removePanel,
-  rowKeyOf,
   setLayout,
 } from "#lib/dock";
-import { meta, rowOf } from "#lib/herdr";
+import { meta } from "#lib/herdr";
 import { ROW } from "#lib/layout";
-import { appear, contextEnter, hoverTransition } from "#lib/motion";
+import { contextEnter, hoverTransition } from "#lib/motion";
 import { openAgent } from "#lib/open-agent";
-import { keyLabel } from "#lib/shortcuts";
 
 /**
  * The tab area: splits of tab groups the person arranges. The board is the home tab (never closable); each opened agent
@@ -82,52 +78,6 @@ function PanePanel(props: { id: string }) {
   );
 }
 
-/**
- * A tab's face: the shape of the agent's state, its name, and the cross that closes the view. A terminal tab reads its
- * pane's header facts; a chat tab reads its row of the board (a chat that is not on the board, one that ended, says `Chat`).
- */
-function TabFace(props: { tab: DockTab }) {
-  const at = parsePaneKey(props.tab.panel);
-  const info = at ? meta(at.machine, at.pane) : () => null;
-  const chat = parseSessionKey(props.tab.panel) !== null;
-  const changes = parseChangesKey(props.tab.panel);
-  const row = () => {
-    const key = chat ? rowKeyOf(props.tab.panel) : null;
-    return key === null ? undefined : rowOf(key);
-  };
-  const gone = () => at !== null && (info() === null || info()!.feedState === "gone");
-  const name = () =>
-    props.tab.panel === BOARD
-      ? "Board"
-      : changes
-        ? `Changes \u00b7 ${checkoutName(changes.machine, changes.cwd)}`
-        : chat
-          ? (row()?.name ?? "Chat")
-          : gone()
-            ? "Agent gone"
-            : (info()?.name ?? at?.pane ?? "");
-  const status = () => (chat ? (row()?.status ?? "unknown") : gone() ? "unknown" : (info()?.status ?? "unknown"));
-  return (
-    <View style={appear(props.tab.panel)} class="max-w-56 flex-row items-center gap-2">
-      <If when={props.tab.panel === BOARD || changes !== null} else={<StatusGlyph status={status()} size={12} />}>
-        <Icon name={changes ? "pencil" : "list"} size={14} tone="muted-foreground" />
-      </If>
-      <Clipped class={`text-sm ${props.tab.active ? "text-foreground" : "text-muted-foreground"}`}>{name()}</Clipped>
-      <If when={props.tab.closable}>
-        {/* Closing is mod+w and the palette for the keyboard and screen readers: a button inside a tab would be a control within a control. */}
-        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-          <IconButton
-            icon="x"
-            label={`Close tab ${name()}`}
-            shortcut={keyLabel("closeTab")}
-            onPress={() => closeTab(props.tab.panel)}
-          />
-        </View>
-      </If>
-    </View>
-  );
-}
-
 export function Workspace() {
   cleanup(() => attach(undefined));
   const enter = contextEnter();
@@ -165,14 +115,14 @@ export function Workspace() {
         renderEmpty={() => <ProjectEmpty />}
         renderTab={(tab) => <TabFace tab={tab} />}
         renderDragPreview={(tab) => (
-          <View class="rounded-md border border-border bg-popover px-3 py-1.5 shadow-md">
+          <View class="h-9 w-56 rounded-md border border-border bg-popover shadow-md">
             <TabFace tab={{ ...tab, closable: false }} />
           </View>
         )}
         renderDropIndicator={() => <View class="size-full" />}
         groupClass="bg-background"
-        tabBarClass="flex-row border-b border-border bg-sidebar"
-        tabClass={`${ROW.tab.class} flex-row items-center border-r border-border selected:bg-background ${FOCUS_RING_INSET}`}
+        tabBarClass="flex-row flex-wrap border-b border-border bg-sidebar"
+        tabClass={`${ROW.tab.class} overflow-hidden border-r border-t border-border hover:bg-sidebar-accent selected:bg-background ${FOCUS_RING_INSET}`}
         tabStyle={hoverTransition()}
         contentClass="min-h-0 flex-1"
         dropIndicatorClass="rounded-md border-2 border-primary bg-primary/10"

@@ -52,6 +52,11 @@ Checked against the AT-SPI tree of the `files`, `file-code`, `file-markdown`, `f
 - **Question form.** A `group` named `Question from the agent`; every field has its label (a required one ends in `*`), its help and its error under it; radio groups and checkbox groups carry the field's label. `Accept` and `Decline` are disabled for 400 ms after the form appears; Enter submits only inside a text field.
 - **New session, past sessions, details.** The first field of New session has the focus; a failed start is text with the reason and a next step, announced; probing is a spinner with words; an agent the machine lacks is a disabled option named `<label> (not installed)`. Past sessions rows are groups named `<title>, <agent>, <folder>, <age>`; Continue is named `Continue <title>`. Details end a session only after a confirm dialog, and show the keeper's refusal as text.
 
+## The tab bar
+
+- **A tab is a `page tab`** in a `page tab list`, named `<title>, <state>, tab 3 of 8` (`tabLabel`; the board and Changes have no state): the whole title even when the tab cuts it with an ellipsis. Its cross is hidden from the tree (`mod+w` and the palette close a tab) and is not a Tab stop. Checked on the AT-SPI tree of the `tabs-many` scenario (`make a11y`).
+- **Not observed:** no Tab press reached a tab on GTK (twenty presses over three open tabs walked the sidebar, the page and the message box and never a tab), so a tab's focus ring (`FOCUS_RING_INSET`) cannot be seen; tabs are reached with `mod+shift+1`..`9`, `mod+j`, `mod+e` and the palette. Orca on the strip is unverified.
+
 ## Code in the chat
 
 - **A block is a group** named `Code, <language>, N lines` (`codeLabel`; `Code, 3 lines` when the language is unknown) whose children are the text of each line, so arrow-key review reads the code as written. Its tools are real buttons named by what they do: `Wrap lines`, `Line numbers` (both `selected` when on), `Copy code`, and when it is folded `Show all N lines` / `Show fewer lines`. The tools are drawn on hover or keyboard focus and are always in the tree.
