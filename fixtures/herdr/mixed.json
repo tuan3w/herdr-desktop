@@ -1,0 +1,366 @@
+{
+  "snapshot": {
+    "version": "0.9.5",
+    "protocol": 22,
+    "focused_workspace_id": "w1",
+    "workspaces": [
+      {
+        "workspace_id": "w1",
+        "number": 1,
+        "label": "payments",
+        "focused": true,
+        "pane_count": 5,
+        "tab_count": 1,
+        "active_tab_id": "w1:t1",
+        "agent_status": "idle"
+      },
+      {
+        "workspace_id": "w2",
+        "number": 2,
+        "label": "web",
+        "focused": false,
+        "pane_count": 4,
+        "tab_count": 1,
+        "active_tab_id": "w2:t1",
+        "agent_status": "idle"
+      }
+    ],
+    "tabs": [
+      {
+        "tab_id": "w1:t1",
+        "workspace_id": "w1",
+        "number": 1,
+        "label": "main",
+        "focused": true,
+        "pane_count": 5,
+        "agent_status": "idle"
+      },
+      {
+        "tab_id": "w2:t1",
+        "workspace_id": "w2",
+        "number": 1,
+        "label": "main",
+        "focused": false,
+        "pane_count": 4,
+        "agent_status": "idle"
+      }
+    ],
+    "panes": [
+      {
+        "pane_id": "w1:p1",
+        "terminal_id": "tw1:p1",
+        "workspace_id": "w1",
+        "tab_id": "w1:t1",
+        "focused": false,
+        "agent_status": "blocked",
+        "revision": 40,
+        "agent": "claude",
+        "cwd": "/home/dev/payments-api",
+        "label": "payments review"
+      },
+      {
+        "pane_id": "w1:p2",
+        "terminal_id": "tw1:p2",
+        "workspace_id": "w1",
+        "tab_id": "w1:t1",
+        "focused": false,
+        "agent_status": "blocked",
+        "revision": 22,
+        "agent": "omp",
+        "cwd": "/home/dev/auth",
+        "terminal_title": "π > auth",
+        "terminal_title_stripped": "π > auth"
+      },
+      {
+        "pane_id": "w1:p3",
+        "terminal_id": "tw1:p3",
+        "workspace_id": "w1",
+        "tab_id": "w1:t1",
+        "focused": false,
+        "agent_status": "done",
+        "revision": 12,
+        "agent": "claude",
+        "cwd": "/home/dev/auth",
+        "terminal_title": "Fix login flow",
+        "terminal_title_stripped": "Fix login flow"
+      },
+      {
+        "pane_id": "w1:p4",
+        "terminal_id": "tw1:p4",
+        "workspace_id": "w1",
+        "tab_id": "w1:t1",
+        "focused": false,
+        "agent_status": "working",
+        "revision": 9,
+        "agent": "omp",
+        "cwd": "/home/dev/payments-api",
+        "terminal_title": "Refactor ledger",
+        "terminal_title_stripped": "Refactor ledger"
+      },
+      {
+        "pane_id": "w1:p5",
+        "terminal_id": "tw1:p5",
+        "workspace_id": "w1",
+        "tab_id": "w1:t1",
+        "focused": false,
+        "agent_status": "working",
+        "revision": 7,
+        "agent": "codex",
+        "cwd": "/home/dev/web",
+        "label": "upgrade deps"
+      },
+      {
+        "pane_id": "w2:p1",
+        "terminal_id": "tw2:p1",
+        "workspace_id": "w2",
+        "tab_id": "w2:t1",
+        "focused": false,
+        "agent_status": "idle",
+        "revision": 5,
+        "agent": "codex",
+        "cwd": "/home/dev/web",
+        "terminal_title": "Styling pass",
+        "terminal_title_stripped": "Styling pass"
+      },
+      {
+        "pane_id": "w2:p2",
+        "terminal_id": "tw2:p2",
+        "workspace_id": "w2",
+        "tab_id": "w2:t1",
+        "focused": false,
+        "agent_status": "idle",
+        "revision": 1,
+        "agent": "pi",
+        "cwd": "/home/dev/notes"
+      },
+      {
+        "pane_id": "w2:p3",
+        "terminal_id": "tw2:p3",
+        "workspace_id": "w2",
+        "tab_id": "w2:t1",
+        "focused": false,
+        "agent_status": "idle",
+        "revision": 3,
+        "agent": "omp",
+        "cwd": "/home/dev/scripts"
+      },
+      {
+        "pane_id": "w2:p4",
+        "terminal_id": "tw2:p4",
+        "workspace_id": "w2",
+        "tab_id": "w2:t1",
+        "focused": false,
+        "agent_status": "unknown",
+        "revision": 2,
+        "cwd": "/home/dev",
+        "terminal_title": "bash",
+        "terminal_title_stripped": "bash"
+      }
+    ],
+    "layouts": [],
+    "agents": [
+      {
+        "terminal_id": "tw1:p1",
+        "agent_status": "blocked",
+        "workspace_id": "w1",
+        "tab_id": "w1:t1",
+        "pane_id": "w1:p1",
+        "focused": false,
+        "revision": 40,
+        "agent": "claude",
+        "cwd": "/home/dev/payments-api",
+        "state_change_seq": 10
+      },
+      {
+        "terminal_id": "tw1:p2",
+        "agent_status": "blocked",
+        "workspace_id": "w1",
+        "tab_id": "w1:t1",
+        "pane_id": "w1:p2",
+        "focused": false,
+        "revision": 22,
+        "agent": "omp",
+        "cwd": "/home/dev/auth",
+        "terminal_title": "π > auth",
+        "terminal_title_stripped": "π > auth",
+        "state_change_seq": 6
+      },
+      {
+        "terminal_id": "tw1:p3",
+        "agent_status": "done",
+        "workspace_id": "w1",
+        "tab_id": "w1:t1",
+        "pane_id": "w1:p3",
+        "focused": false,
+        "revision": 12,
+        "agent": "claude",
+        "cwd": "/home/dev/auth",
+        "terminal_title": "Fix login flow",
+        "terminal_title_stripped": "Fix login flow",
+        "state_change_seq": 7
+      },
+      {
+        "terminal_id": "tw1:p4",
+        "agent_status": "working",
+        "workspace_id": "w1",
+        "tab_id": "w1:t1",
+        "pane_id": "w1:p4",
+        "focused": false,
+        "revision": 9,
+        "agent": "omp",
+        "cwd": "/home/dev/payments-api",
+        "terminal_title": "Refactor ledger",
+        "terminal_title_stripped": "Refactor ledger",
+        "state_change_seq": 3
+      },
+      {
+        "terminal_id": "tw1:p5",
+        "agent_status": "working",
+        "workspace_id": "w1",
+        "tab_id": "w1:t1",
+        "pane_id": "w1:p5",
+        "focused": false,
+        "revision": 7,
+        "agent": "codex",
+        "cwd": "/home/dev/web",
+        "state_change_seq": 4
+      },
+      {
+        "terminal_id": "tw2:p1",
+        "agent_status": "idle",
+        "workspace_id": "w2",
+        "tab_id": "w2:t1",
+        "pane_id": "w2:p1",
+        "focused": false,
+        "revision": 5,
+        "agent": "codex",
+        "cwd": "/home/dev/web",
+        "terminal_title": "Styling pass",
+        "terminal_title_stripped": "Styling pass",
+        "state_change_seq": 1
+      },
+      {
+        "terminal_id": "tw2:p2",
+        "agent_status": "idle",
+        "workspace_id": "w2",
+        "tab_id": "w2:t1",
+        "pane_id": "w2:p2",
+        "focused": false,
+        "revision": 1,
+        "agent": "pi",
+        "cwd": "/home/dev/notes",
+        "state_change_seq": 2
+      },
+      {
+        "terminal_id": "tw2:p3",
+        "agent_status": "idle",
+        "workspace_id": "w2",
+        "tab_id": "w2:t1",
+        "pane_id": "w2:p3",
+        "focused": false,
+        "revision": 3,
+        "agent": "omp",
+        "cwd": "/home/dev/scripts",
+        "state_change_seq": 2
+      }
+    ]
+  },
+  "panes": {
+    "w1:p1": {
+      "screen": [
+        "",
+        "\u001b[0m\u001b[38;2;153;153;153m  \u001b[0mCreating empty file x.txt in /tmp/hm-capture-claude",
+        "\u001b[0m\u001b[38;2;153;153;153m  ⎿  $ touch /tmp/hm-capture-claude/x.txt\u001b[0m",
+        "",
+        "\u001b[0m\u001b[38;2;177;185;249m─────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m",
+        " \u001b[0m\u001b[1m\u001b[38;2;177;185;249mBash command\u001b[0m",
+        " \u001b[0m\u001b[1mTip: auto mode handles these prompts for you — choose \"switch to auto mode\" below\u001b[0m",
+        " \u001b[0m\u001b[38;2;153;153;153mCreate empty file x.txt in /tmp/hm-capture-claude\u001b[0m",
+        "\u001b[0m\u001b[38;2;80;80;80m╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\u001b[0m",
+        " touch /tmp/hm-capture-claude/x.txt",
+        "\u001b[0m\u001b[38;2;80;80;80m╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\u001b[0m",
+        " Do you want to proceed?",
+        " \u001b[0m\u001b[38;2;177;185;249m❯ \u001b[0m\u001b[38;2;153;153;153m1. \u001b[0m\u001b[38;2;177;185;249mYes\u001b[0m",
+        "   \u001b[0m\u001b[38;2;153;153;153m2. \u001b[0mYes, and always allow access to \u001b[0m\u001b[1m/tmp/hm-capture-claude \u001b[0mfrom this project",
+        "   \u001b[0m\u001b[38;2;153;153;153m3. \u001b[0mYes, and switch to auto mode\u001b[0m\u001b[38;2;153;153;153m · auto mode handles these prompts for you\u001b[0m",
+        "   \u001b[0m\u001b[38;2;153;153;153m4. \u001b[0mNo",
+        "",
+        " \u001b[0m\u001b[38;2;153;153;153mEsc to cancel · Tab to amend\u001b[0m"
+      ]
+    },
+    "w1:p2": {
+      "screen": [
+        "\u001b[0m\u001b[38;2;31;37;45m\u001b[48;2;15;18;22m│\u001b[0m\u001b[48;2;15;18;22m  \u001b[0m\u001b[38;2;0;180;255m\u001b[48;2;15;18;22mApprove writing hello.txt with content 'hello omq'?\u001b[0m\u001b[48;2;15;18;22m                                                                \u001b[0m\u001b[38;2;31;37;45m\u001b[48;2;15;18;22m│\u001b[0m",
+        "\u001b[0m\u001b[38;2;31;37;45m\u001b[48;2;15;18;22m│\u001b[0m\u001b[48;2;15;18;22m  \u001b[0m\u001b[38;2;107;114;128m\u001b[48;2;15;18;22m○\u001b[0m\u001b[48;2;15;18;22m \u001b[0m\u001b[38;2;156;163;176m\u001b[48;2;15;18;22mYes\u001b[0m\u001b[48;2;15;18;22m                                                                                                              \u001b[0m\u001b[38;2;31;37;45m\u001b[48;2;15;18;22m│\u001b[0m",
+        "\u001b[0m\u001b[38;2;31;37;45m\u001b[48;2;15;18;22m│\u001b[0m\u001b[48;2;15;18;22m  \u001b[0m\u001b[38;2;107;114;128m\u001b[48;2;15;18;22m○\u001b[0m\u001b[48;2;15;18;22m \u001b[0m\u001b[38;2;156;163;176m\u001b[48;2;15;18;22mNo\u001b[0m\u001b[48;2;15;18;22m                                                                                                               \u001b[0m\u001b[38;2;31;37;45m\u001b[48;2;15;18;22m│\u001b[0m",
+        "\u001b[0m\u001b[38;2;31;37;45m\u001b[48;2;15;18;22m╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯\u001b[0m",
+        "",
+        " \u001b[0m\u001b[38;2;156;163;176m ⎋\u001b[0m \u001b[0m\u001b[38;2;107;114;128mConfirm write file per\u001b[0m\u001b[38;2;156;163;176mmi\u001b[0m\u001b[1m\u001b[38;2;0;180;255mssion\u001b[0m",
+        "\u001b[0m\u001b[38;2;42;48;56m╭─\u001b[0m\u001b[1m\u001b[38;2;0;180;255m Ask \u001b[0m\u001b[38;2;42;48;56m───────────────────────────────────────────────────────────────────────────────────────────────────────────────╮\u001b[0m",
+        "\u001b[0m\u001b[38;2;42;48;56m│\u001b[0m Approve writing hello.txt with content 'hello omq'?                                                                 \u001b[0m\u001b[38;2;42;48;56m│\u001b[0m",
+        "\u001b[0m\u001b[38;2;42;48;56m├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤\u001b[0m",
+        "\u001b[0m\u001b[38;2;42;48;56m│\u001b[0m \u001b[0m\u001b[38;2;0;180;255m❯ \u001b[0m\u001b[38;2;107;114;128m○\u001b[0m \u001b[0m\u001b[38;2;0;180;255mYes\u001b[0m                                                                                                             \u001b[0m\u001b[38;2;42;48;56m│\u001b[0m",
+        "\u001b[0m\u001b[38;2;42;48;56m│\u001b[0m   \u001b[0m\u001b[38;2;107;114;128m○\u001b[0m No                                                                                                              \u001b[0m\u001b[38;2;42;48;56m│\u001b[0m",
+        "\u001b[0m\u001b[38;2;42;48;56m│\u001b[0m   \u001b[0m\u001b[38;2;107;114;128m○\u001b[0m Other (type your own)                                                                                           \u001b[0m\u001b[38;2;42;48;56m│\u001b[0m",
+        "\u001b[0m\u001b[38;2;42;48;56m│\u001b[0m                                                                                                                     \u001b[0m\u001b[38;2;42;48;56m│\u001b[0m",
+        "\u001b[0m\u001b[38;2;42;48;56m│\u001b[0m                                                                                                                     \u001b[0m\u001b[38;2;42;48;56m│\u001b[0m",
+        "\u001b[0m\u001b[38;2;42;48;56m│\u001b[0m                                                                                                                     \u001b[0m\u001b[38;2;42;48;56m│\u001b[0m",
+        "\u001b[0m\u001b[38;2;42;48;56m├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤\u001b[0m",
+        "\u001b[0m\u001b[38;2;42;48;56m│\u001b[0m \u001b[0m\u001b[38;2;107;114;128m⏎ select · n note · ↑/↓ move · ⎋ cancel\u001b[0m                                                                             \u001b[0m\u001b[38;2;42;48;56m│\u001b[0m",
+        "\u001b[0m\u001b[38;2;42;48;56m╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯\u001b[0m"
+      ]
+    },
+    "w1:p3": {
+      "screen": [
+        "  Fixed the redirect after login.",
+        "  3 files changed, tests pass.",
+        "",
+        "  Done. Anything else?"
+      ]
+    },
+    "w1:p4": {
+      "screen": [
+        "  Reading ledger/entries.py",
+        "  Splitting the posting rules into a module",
+        "  ⠋ Working (2m 14s · esc to interrupt)"
+      ],
+      "ansi": [
+        "  \u001b[2mReading\u001b[0m ledger/entries.py",
+        "  Splitting the \u001b[1mposting rules\u001b[0m into a module",
+        "  \u001b[38;2;215;119;87m⠋\u001b[0m Working (2m 14s · esc to interrupt)"
+      ]
+    },
+    "w1:p5": {
+      "screen": [
+        "  Updating lockfile",
+        "  ⠙ Working (41s · esc to interrupt)"
+      ]
+    },
+    "w2:p1": {
+      "screen": [
+        "  Styling pass finished.",
+        "",
+        "  >"
+      ]
+    },
+    "w2:p2": {
+      "screen": [
+        "  (no output yet)"
+      ]
+    },
+    "w2:p3": {
+      "screen": [
+        "  Ready.",
+        "",
+        "  >"
+      ]
+    },
+    "w2:p4": {
+      "screen": [
+        "dev@host:~$ ls",
+        "notes  scripts  web",
+        "dev@host:~$"
+      ]
+    }
+  }
+}

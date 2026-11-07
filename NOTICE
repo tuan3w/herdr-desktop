@@ -1,0 +1,34 @@
+herdr-desktop
+Licensed under the GNU General Public License, version 3 or later (see LICENSE).
+
+This product includes design from, and a colour formula shared with, nsh (Native Shell),
+https://github.com/longbridge/nsh, which is licensed under the Apache License, Version 2.0:
+
+    Copyright 2026 Longbridge <https://longbridge.com>
+
+    Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
+    except in compliance with the License. You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software distributed under the
+    License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+    either express or implied. See the License for the specific language governing permissions and
+    limitations under the License.
+
+What was taken, and from where:
+
+- `native/app/src/pane_screen.rs` (the `PaneScreen` component) follows the drawing design of nsh's
+  `Terminal` component (`crates/nsh-base/src/term/mod.rs` on nsh `main`, added in commit c8e044b;
+  not part of the nsh 0.4.0 release this app is built on): a virtualized list of one-row views,
+  the cells' backgrounds drawn as boxes behind the text because a text span's background covers
+  only the glyphs' ink, runs drawn as nested text spans in one selectable text per row, and the
+  cell width measured from the font as a tenth of the width of ten zeros. The emulator, the
+  pseudo-terminal sink and the input handling of `Terminal` were not used.
+- `native/core/src/screen/contrast.rs` (`indexed_cube_rgb`) computes the xterm 6x6x6 colour cube
+  and 24 greys with the same level formula as `Terminal`'s `indexed()` function (cube levels
+  `0` and `55 + 40n`, greys `8 + 10n`); the first 16 colours come from this app's theme instead of
+  `Terminal`'s fixed palette.
+
+The nsh runtime this app links (nsh-core, nsh-base, nsh-platform-linux and their dependencies) is
+distributed under the same Apache License, Version 2.0; their licenses ship with those crates.

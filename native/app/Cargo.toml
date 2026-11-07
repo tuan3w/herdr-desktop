@@ -12,3 +12,12 @@ nsh-core = "0.4.0"
 nsh-base = "0.4.0"
 herdr-core = { path = "../core" }
 async-channel = "2"
+crossbeam-channel = "0.5"
+parking_lot = "0.12"
+serde_json = "1"
+unicode-width = "0.2"
+
+[dev-dependencies]
+tempfile = "3"
+nsh-engine = "0.4.0"
+nsh-testing = "0.4.0"
