@@ -6,8 +6,8 @@ Built with [nsh](https://github.com/longbridge/nsh) (Rust + TSX, native widgets:
 
 ## What it does
 
-- **Board.** Agents grouped by project (a repository with its worktrees, or a folder), chat sessions and terminal agents together, each row and project header showing its state (needs you, working, to review) and an inbox of what waits for an answer over them; one count is shared by the status line, the window title and notifications.
-- **Answer.** Permission prompts of terminal agents become buttons showing the exact command. Risky answers are two-step. Nothing is sent when the question changed.
+- **Sidebar and Board.** Agents grouped by project (a repository with its worktrees, or a folder; the same project on two machines is two groups), chat sessions and terminal agents together. A row is a state glyph and a title, and a waiting agent is a mark on its row, said once. The Board is the same list as a table with state filter chips. One count is shared by the status line, the window title and notifications. (The table Board is decided, not built yet; today's Board is project cards.)
+- **Answer.** Permission prompts of terminal agents become buttons showing the exact command, in the agent's own conversation (`mod+j` jumps to the next one that waits). Risky answers are two-step. Nothing is sent when the question changed.
 - **Watch and steer.** A live read-only view of each pane, a message box, a Stop button, links; chat sessions have slash commands.
 - **Many machines.** This computer plus any machine reachable with `ssh` (your `~/.ssh/config`, agent and ProxyJump are honoured; no password prompts).
 - **Agent sessions.** ACP agents (for example `omp acp`) started from the app, with a chat transcript, a permission dock and replay after a restart.
@@ -17,7 +17,7 @@ Feature-by-feature status against the phone app is in [docs/PARITY.md](docs/PARI
 
 ## A look
 
-<p><img src="docs/screenshots/home.png" alt="Home: projects, a Needs you inbox" width="440"> <img src="docs/screenshots/chat.png" alt="Chat with highlighted code, light" width="440"> <img src="docs/screenshots/chat-dark.png" alt="Chat with highlighted code, dark" width="440"></p>
+<p><img src="docs/screenshots/home.png" alt="Home: projects and their agents" width="440"> <img src="docs/screenshots/chat.png" alt="Chat with highlighted code, light" width="440"> <img src="docs/screenshots/chat-dark.png" alt="Chat with highlighted code, dark" width="440"></p>
 
 Illustrations from scripted data, not a gallery: they date. `make shots` takes current ones into `.scratch/shots/` (not committed).
 

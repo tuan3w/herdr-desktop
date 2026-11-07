@@ -32,13 +32,17 @@ The file of the first version (`herdr.dock.v1`, one layout) opens as the Home as
 
 `ctrl+tab` is spelled with `ctrl`, not `mod`, and carries `always` (a text field uses Tab). Nothing can report a key release in nsh 0.4.0, so there is no hold-to-cycle.
 
+## Jumping to a waiting agent
+
+`mod+j` (`lib/shortcuts.ts`) goes to the next agent that needs the person, in any project; if it lives in another context it switches the context. It never answers and never advances by itself after an answer. Why: with a stable sidebar order a marked row can sit below the fold, and the jump must not make rows slide under the hand (`design/attention.md`). A project header names its machine, so the same project on two machines is two contexts, each with its own branch and tabs.
+
 ## Where a person presses
 
-In the sidebar and on a project's card the name shows the project's workspace and the chevron alone folds it; the card of a project with no tab open has no fold control. The rail's popover has `Show project`. A project's menu has `Switch to this project` and `Open here`.
+In the sidebar and on a Board row the project name shows the project's workspace and the chevron alone folds it; the card of a project with no tab open has no fold control. The rail's popover has `Show project`. A project's menu has `Switch to this project` and `Open here`.
 
 ## Motion
 
-A project switch is the one deliberate exception to "switching never animates": the incoming workspace fades from `CONTEXT_FROM` to 1 in `DURATION.context` (`contextEnter`), with no fade-out and nothing waiting for it; skipped when a second switch comes within `CONTEXT_REPEAT_MS` and under reduced motion. It moves the area's wrapper, never a pane's rows.
+A project switch is the one deliberate exception to "switching never animates": the incoming workspace fades from `CONTEXT_FROM` to 1 in `DURATION.context` (`contextEnter`), with no fade-out and nothing waiting for it; skipped when a second switch comes within `CONTEXT_REPEAT_MS`, when a key caused it (every global shortcut calls `markKeyboard()` first in `App.tsx`; `play` is silent for `KEY_WINDOW_MS`, 250 ms) and under reduced motion. So `ctrl+shift+[` never fades; a click on a project does. It moves the area's wrapper, never a pane's rows.
 
 ## Measured
 

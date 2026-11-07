@@ -1,50 +1,98 @@
 # Dialogs and toasts
 
-`components/kit/modal.tsx` (`Modal`, `confirmDestructive`), `notify.tsx` (toasts), and two rule files: `dialog-stack.ts` and `toast-rules.ts`, both pure and unit-tested. They port Base UI's Dialog, AlertDialog and Toast: behavior and contract, not its DOM. `feedback.test.tsx` drives them on the test clock through `feedback-lab.tsx` (a test entry, not part of the app).
+`components/kit/modal.tsx` (`Modal`, `confirmDestructive`), `palette-dialog.tsx` (`PaletteDialog`), `notify.tsx` (toasts), and two rule files: `dialog-stack.ts` and `toast-rules.ts`, both pure and unit-tested. They port Base UI's Dialog, AlertDialog and Toast: behavior and contract, not its DOM. `feedback.test.tsx` drives them on the test clock through `feedback-lab.tsx` (a test entry). Every dialog in the app, with its mismatches: inventory.md in the kit batch (not in this repo yet).
+
+## What a dialog is for
+
+A dialog is for **a decision or a short form**: confirm a destructive step, name something, start a session, pick one thing and go. It is never for **browsing or viewing** (settings, a file, a list of past sessions, an agent's details). Why: a dialog is inert behind a scrim, so everything under it, including a question waiting for the person, is hidden while they read, and a thing people open to look at stays open for minutes.
+
+```
+What does the person need?
+ ├── To be told something happened ............ a toast (`notify`); an error that needs action: `lasting`
+ ├── To undo something cheap ................... a toast with Undo (`mod+z`), no question first
+ ├── To choose from a few things beside a control a popover or a menu, anchored (`Popover`)
+ ├── To find something by typing, many times a day  the palette (`PaletteDialog`), never a titled dialog
+ ├── To answer the agent ....................... the answer dock; many at once: the Board's filtered view
+ ├── To look, read, compare, come back to it ... a region (main, inspector) or a tab
+ └── To leave with a choice made or a field filled, within about a minute
+      ├── "Are you sure" about what cannot be restored → DestructiveConfirm
+      ├── Fields → FormDialog (3 steps at most: Wizard)   ├── A path or file → Picker
+      └── A picture the person must see large → Lightbox (pictures only)
+```
+
+Decided, not built yet (owner, 2026-11-07): these still open as a `Modal` and move out: settings (a page of the main region, with Machines as its own page), the agent's details (the inspector), past sessions and the file viewer (a tab), and the shortcut sheet. Until each moves it keeps the rules below.
+
+Proposed, not yet decided (design review of the kit batch): triage becomes the Board's filtered view; "The whole command" opens in place in the dock; "All answers" becomes a popover; web pages become a tab; the switcher and the links list take the palette's face; the picture viewer stays a Lightbox, pictures only (the owner's list names "picture viewers": to confirm).
+
+## Rules for every dialog
+
+- **Title always**, sentence case, 16 pt (`text-lg`), naming the object or the outcome ("Close 3 agents?", "Add machine"), never "Confirm" or "Warning". **Description** when the title does not say what happens, with numbers ("stops 3 agents, discards 2 unsent prompts"). Why: it is read aloud once on opening and is the only text a screen reader gets before the buttons.
+- **Footer**: right-aligned, **Cancel first** (`ghost`), the one `primary` last, the outcome as a verb with its object ("Start agent", "Close 3 agents"), never OK, Yes or Submit. A helper action (Copy message, Test connection) sits before Cancel as `ghost` or plain. A destructive extra inside a form (Remove machine) is not in the footer: it goes at the end of the body, apart. Why: proximity reads as equivalence, and the last button is where Enter and the eye go.
+- **Primary is not disabled for a missing field**: pressing it shows the error under the field and moves focus there (`design/forms.md`). Disabled only while busy (`loading`) or when nothing can be done (no target). Why: a dead button cannot say what is wrong.
+- **Sizes** (`Modal`): 560 pt default; `wide` 760 pt only for text the user writes; `huge` 1000 pt only for the Lightbox; max 94% of the window. Decided, not built yet: a small 400 pt width for Confirm and Alert, so a short question is not a wide empty card.
+- **Focus**: the first field has the focus (`autoFocus`); a text-free dialog has none from code (a view cannot take focus: unverified which button nsh's alert focuses), so Enter and Escape must be safe there. Tab is trapped by nsh's layer, Escape asks. Focus is not returned to the opener by us (`docs/ACCESSIBILITY.md`).
+- **Escape and the scrim**: Escape always asks (Cancel). A scrim press asks, except where text was typed, a task runs or a question is destructive (`disablePointerDismissal`). Why: a mis-click must never lose work or leave an alert.
+- **Motion**: the popup scales from `DIALOG_SCALE` (0.97) to 1 and back over `DURATION.dialog` (200 ms) with nsh's layer fade, which is a fixed 200 ms: the one exit that is not quicker, so scale and scrim end together. It animates even when a shortcut opened it: dialogs are rare and the origin is the window's center. The palette is the exception (`paletteEnter`, 120 ms, instant close) because it opens many times a day. Reduced motion: no scale.
+- **Never**: a dialog for browsing; two open at once except a confirm over its parent (depth 2, then the parent is under a darker veil); a dialog at launch or from an agent event (a question arrives in the dock); a timer that closes or answers one.
+
+## The kinds
+
+| Kind | Use | Not | Buttons, focus, Esc |
+|---|---|---|---|
+| Confirm | A plain choice with an outcome ("Send 3 notes to api-fix?") | Anything that loses data | `Cancel`, verb. First field or none. Esc = Cancel |
+| DestructiveConfirm | What an Undo toast cannot restore: `confirmDestructive`, `BulkConfirm` | Cheap reversible steps (Undo toast); a second confirm after a press-twice | `Cancel`, then the danger verb **with the count**. Esc = Cancel, scrim ignored |
+| Alert | A blocking failure the person must act on, what happened and what to do | Inline form errors (stay in the dialog, under the field); anything a toast can say | One button naming the next step. Announced as an alert. Esc closes |
+| FormDialog | 1 to 5 fields: name, machine, start | Settings, lists to manage | Enter submits; `mod+↵` in a text area; error on blur and submit; typed text kept on failure; `disablePointerDismissal` |
+| Wizard | Steps that depend on the previous one | Anything one form can hold: remember the last choices instead | Step list, `Back`, at most 3, `Next` then the verb on the last |
+| Picker | A path or files on a machine, as a decision | Browsing a tree for minutes | `Cancel`, "Use this folder" / "Attach 3"; the count is in the button; may open over its form |
+| Progress | The person must wait (checking, stopping) | A long copy: a `loading` toast with Stop lets them look away | `Stop` while running; never closes on error, lists what failed |
+| Lightbox | A picture or a diagram | Files (a tab), text, pages | `huge`; Left and Right walk; Esc closes; description has "2 of 5" |
+| Sheet | Inspector overlay in a window under about 1000 pt | Settings pages | Covers the conversation: scrim, Esc, focus held |
+| Palette | Search many times a day | A list that needs a title | `PaletteDialog`, no title, instant close |
+| Info | A glance under one screen with no scroll (About) | A reference longer than a screen | A `Close` with its Esc hint; scrim closes |
+| Approval | The agent asks | A dialog: the dock answers; overflow is a popover | Whole command, risk line, keys 1 to 3, press twice for a risky one, nothing sent by time |
+
+- **Cost ladder** for a step: undoable for 10 s and by `mod+z`, a toast. Cheap to redo by hand, a toast. Not restorable, or stops something running, a DestructiveConfirm. Never both an Undo and a question for one action, and never a confirm after a press-twice. The confirm names the object and the consequence with numbers.
+- **Two-step**: the dialog is the second step of a risky action; a risky approval has no dialog, so it is press, then press again within 4 s (`design/attention.md`). One confirmation per action.
+- **Wizard**: not wanted today. New session stays one form with the last machine, folder and agent preselected.
+- **Progress**: finishing well closes the dialog and a toast says what happened; any failure stays, with the reason per item and a way to retry.
 
 ## Dialog
 
-`Modal` is controlled: `open`, `onClose(change)`. Escape and a press on the scrim only **ask**; `change.reason` is `escape-key` or `outside-press` (`OpenReason`, `createOpenState`). The owner closes by setting `open` false and refuses by leaving it true (a prompt dialog asks before it closes with unsent text). nsh's own `closeOn*` flags are off and its backdrop is not used: its cancel carries no reason and cannot be vetoed after the fact, so the scrim is the dialog's own `View` (`testID` `dialog-scrim`).
+`Modal` is controlled: `open`, `onClose(change)`. Escape and a press on the scrim only **ask**; `change.reason` is `escape-key` or `outside-press` (`OpenReason`, `createOpenState`). The owner closes by setting `open` false and refuses by leaving it true. nsh's own `closeOn*` flags are off: its cancel carries no reason and cannot be vetoed, so the scrim is the dialog's own `View` (`testID` `dialog-scrim`).
 
-- `disablePointerDismissal`: a press on the scrim asks nothing. For a dialog that holds what the user typed. Escape still asks.
-- `onOpenChangeComplete(open)`: after the enter (`onOpen`) and after the exit fade (`onClose`), never for a state that did not finish.
-- **Nesting.** `dialog-stack.ts` keeps the open dialogs in order (`trackDialog` adds one while open, removes it on close and when its owner is disposed while open). `dialogDepth()` counts them; `topDialog()` is the one that answers. A lower dialog ignores Escape and its scrim.
-- **Popups.** A dialog is a root view and covers the app: it holds its own `PopupRoot` (tooltips, popups made inside it), and they die with it. A popup of the app that is open when a dialog opens must close itself when `dialogDepth()` rises (menus, selects, popovers do), so none floats under the scrim.
-- **Toasts.** `ToastHost` draws in the root view that is on top: the dialog's when one is open, else the app's. Never both: a toast is neither drawn nor read twice, and one raised inside a dialog is not hidden by its scrim.
-- **Scrims.** Each dialog has its own, so nested ones dim twice: the parent sits under a darker veil.
-- **Body.** The title and the actions stay; only the content scrolls, with a hairline while it overflows (`BODY_PAD` in `modal.tsx`).
-- **Screen readers.** Opening announces the title and description. No announcement on close: the toast or the screen that follows speaks.
-- **Behind the dialog.** Modal means inert. Pointer and Tab are held by nsh's layer. `undoLast` does nothing while a dialog is open. App shortcuts still reach `keymap`: guarding them with `dialogDepth()` is the app root's call.
-- Not ported: `modal={false}` (a non-modal dialog is a popover here), triggers, handles, `keepMounted`, initial and final focus props (a view cannot take focus from code; the first `autoFocus` field gets it), scroll lock (nothing scrolls behind a layer), Drawer gestures.
+- `disablePointerDismissal`: a press on the scrim asks nothing. Escape still asks. `onOpenChangeComplete(open)` runs after the enter and after the exit fade.
+- **Nesting.** `dialog-stack.ts` keeps the open dialogs in order (`trackDialog`); `dialogDepth()` counts them; `topDialog()` answers. A lower dialog ignores Escape and its scrim. Each has its own scrim, so a parent sits under a darker veil.
+- **Popups.** A dialog is a root view: it holds its own `PopupRoot`; a popup of the app that is open when one opens closes itself when `dialogDepth()` rises. `ToastHost` draws in the root on top, never both.
+- **Body.** The title and the actions stay; only the content scrolls, with a hairline while it overflows (`BODY_PAD`).
+- **Screen readers.** Opening announces the title and description once per opening, not on close. `PaletteDialog` has no title: `label` names it (default "Command palette").
+- **Escape and toasts.** While the toast region is held, Escape closes the newest toast and the dialog stays (`escapeIsToasts`). Behind the dialog: Pointer and Tab are held by nsh's layer; `undoLast` does nothing while one is open.
+- Not ported: `modal={false}` (a popover here), triggers, `keepMounted`, focus props, scroll lock, Drawer gestures.
 
 ## confirmDestructive
 
-The system alert, as AlertDialog: `Cancel` first, the action by its verb (destructive), never closed by a press outside, Escape is `Cancel`. **One at a time**: a second call while one is open answers `false` at once, so a double press cannot stack alerts or confirm twice. True only for the destructive action.
+The system alert, as AlertDialog: `Cancel` first, the action by its verb (destructive), never closed by a press outside, Escape is `Cancel`. **One at a time**: a second call while one is open answers `false` at once. True only for the destructive action. The alert covers the toasts, so their time is held (`coverToasts`): an Undo toast must not expire under the question about it.
 
 ## Toasts
 
-`notify(text, options)` returns the toast's id. The model is Base UI's manager (`createToasts`, no timers inside: every call takes `now`):
+`notify(text, options)` returns the toast's id; the model is Base UI's manager (`createToasts`, no timers inside).
 
 | Rule | Decision |
 |---|---|
-| `timeout` | 3.5 s plain, 10 s with `undo`, 30 s `lasting`; `0` stays until closed. A `loading` toast has no timer. Running time only. |
-| Pause | Stack hovered or touched (`hover`), a toast's button focused (`focus`), the region shortcut (`region`). Resume continues with the time left, any number of times. A toast added while paused starts paused. The reasons are cleared when the last toast goes. |
-| Window inactive | Not ported: the host gives JS no window-active signal. |
-| `limit` | 3 show. The rest are `limited`: kept, timers running, back as newer ones go (as Base UI). `high` priority takes a place before any `low`. At most 30 are kept (`keep`): a loop that raises thousands loses its oldest hidden ones, who hear `onClose` and `onRemove`, never a warning. |
-| `priority` | `lasting` is `high` (warning icon). nsh's `announce` has one urgency, so `high` is "never pushed out by the limit", not louder speech. |
-| De-duplication | The same `id` is one toast: updated in place, time restarted. A plain text is its own id. A toast that is closing is replaced by a new one without a `onRemove`. |
-| Callbacks | `onClose` once when it begins to close (any cause); `onRemove` after the exit (0 under reduced motion). |
-| `update` | `updateToast` restarts the time; a closing or removed toast is never reopened. |
-| `promise` | `notifyPromise(promise, { loading, success, error })`: one toast, `loading` then its result, with its own time. If the user closed it meanwhile, a success stays unsaid and a failure (`type: "error"` or `lasting`) shows again. A phase returning nothing closes it. Use it for work the user waits on (starting an agent, sending a prompt). |
+| `timeout` | 3.5 s plain (60 ms a character past 58, at most 12 s: `plainTimeout`), 10 s with `undo`, 30 s `lasting` and `type: "error"`; `0` stays. Running time only. |
+| Pause | Stack hovered or touched (`hover`), a button focused (`focus`), the region shortcut (`region`), covered by an alert (`covered`). A toast added while paused starts paused. |
+| `limit` | 3 show; the rest are `limited`, kept, back as newer ones go. `high` priority first; at most 30 kept (`keep`). `lasting` is `high`. |
+| De-duplication | The same `id` is one toast: updated in place, time restarted. |
+| `promise` | `notifyPromise(promise, { loading, success, error })`: one toast, `loading` then its result. Use it for work the user waits on. |
 
-**Undo.** The `Undo` button runs the undo once and closes the toast. The undo shortcut (`mod+z`; `undoLast`) runs the newest undo whose toast is on screen **or whose time has not run out** (`newestUndo`): Escape, the close button, a swipe and the limit hide a toast but do not take the way back. After its time, both are gone.
+**Undo.** The `Undo` button runs the undo once and closes the toast. `mod+z` (`undoLast`) runs the newest undo whose toast is on screen or whose time has not run out (`newestUndo`): Escape, the close button and the limit hide a toast but do not take the way back.
 
-**Keyboard.** A view cannot take focus from code, so the way to the region is `focusToasts` (proposed key `mod+shift+t`, to go in `lib/shortcuts.ts` and `App.tsx`): the timers stop, the screen reader reads the toasts newest first and its cursor goes to the newest, Escape closes the newest, the same key lets go. The toast's buttons are plain pressable views (`ToastButton`), not `Btn`: nsh's `Button` reports no focus, and a focused button holds the time. Sighted keyboard users undo with that shortcut, which the button's keycap teaches. Toasts never take Escape unless this mode is on.
+**Keyboard.** A view cannot take focus from code, so the way to the region is `focusToasts` (proposed key `mod+shift+t`): the timers stop, the screen reader reads the toasts newest first, Escape closes the newest, the same key lets go. `ToastButton`s are plain pressable views (nsh's `Button` reports no focus).
 
-**Motion.** `ToastStack` springs lay out, stack (collapsed layers, expanded on hover) and swipe; reduced motion lands without moving and removes closed toasts at once. Screen-reader order: announced once when raised (`notify` calls `announce`: the text, then `Undo: ⌘Z`); the stack holds them oldest first, so reading by cursor goes old to new.
+**Look.** A toast is a small transient surface: radius `lg` 12, `EDGE.md` (not `lg`: it floats 400 pt wide and a dialog-sized shadow would outweigh a line of text), text `sm` 13, 400 pt wide. Its buttons are one language (`ToastButton`: ghost, no border, radius `sm` 4 = 12 minus the 8 pt of padding). A dialog and the palette use `EDGE.lg`.
 
-**Cost.** No toast: no view, no timer. With toasts: one `setTimeout`, set to the next deadline (never an interval), cleared on every change.
+**Motion.** `ToastStack` springs lay out, stack and swipe; reduced motion lands without moving. Announced once when raised (`announce`: the text, then `Undo: ⌘Z`). **Cost.** No toast: no view, no timer; with toasts one `setTimeout` to the next deadline.
 
 ## Tests
 
-`toast-rules.test.ts` (timers, pause arithmetic, limit, priority, de-duplication, late answers, undo reach), `dialog-stack.test.ts` (nesting), `feedback.test.tsx` (the above end to end, the test clock moves time).
+`toast-rules.test.ts` (timers, pause, limit, priority, de-duplication, undo reach), `dialog-stack.test.ts` (nesting), `feedback.test.tsx` (end to end on the test clock).

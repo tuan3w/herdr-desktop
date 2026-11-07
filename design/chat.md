@@ -9,11 +9,12 @@ The primary way to work with an agent: a conversation, not a terminal. One tab i
 ## The conversation reads like a chat
 
 - **You** are a rounded bubble on the right. **The agent** is Markdown on the page, never a bubble (`MarkdownText`: lists, tables, links through `openLink`, pictures as chips, and every fence a `CodeBlock`: highlighted, its language in the corner, `Copy code`, folded past 16 lines; `design/code.md`). Nothing is cut; an agent message is one selectable area (a drag crosses paragraphs, lists, code and tables, in the recycled list cell too), and every finished message has `Copy message`, which copies its whole Markdown. `copyReply` (`mod+shift+y`) copies the last answer and `copyCode` (`mod+shift+c`) the block under the pointer or else the last one of it, from anywhere in the tab, the message box included. A host that dies when a chat is replaced or closed is the allocator preloaded into the process, not the text view: `preload_guard` (`docs/upstream/nsh-selectable-textview-in-list.md`); the `chat-swap` scenario of `make shots` fails if the host dies again.
-- **Work folds.** A run of tool calls and thoughts between two messages is one *group*: `Worked for 4s › 3 commands · 1 file changed`. The group the agent is working in is open while the turn runs (`Working · 6s`), every earlier one is folded, and the person's own choice wins either way. Narration between calls stays visible and splits the groups. Times come from what this window watched; a replayed turn says `Worked` and no time, because inventing one is lying.
+- **A turn is ranked by consequence, not time.** Always visible, each on its own line under the answer: a pending question, the final answer, a failure, and an effect outside the working tree (a push, a delete, an install). Why: the supervisor asks "what did it do" and "can I trust it", and a read-only step must never compete with a push. Everything else (reads, searches, commands, narration) is one *group* folded to one muted line (`Read 8 files, ran 4 commands`); a press opens the steps. The person's own choice of open or folded wins, kept by row key.
+- **No state is repeated in the conversation.** No state word, no centred `Done in 12s`, no timer on a finished turn: the sidebar glyph already says it, and a finished turn is its final answer. While the agent works, one muted live line says what it is doing now and goes when the turn ends. Times come from what this window watched; a replayed turn shows none, because inventing one is lying.
 - **A call is one quiet line**: the kind's icon, a verb and what it acted on in monospace (`Read src/main.rs`, `Edited CHANGELOG.md +6 −2`, `Running pnpm test`), a state shape (waiting dashed ring, running half ring, done a muted check, failed a cross). A press opens its details (`ToolDetails`): the command whole as shell, each edit as a `DiffBlock` (its file name a link to the file, `+2 −1`, changed words marked), the output (a few lines, `Show all N lines`, and `N lines not kept` where the machine dropped the middle), each in a quiet block of its own with `Copy code` on hover.
 - **A subagent stands outside the fold** as its own bordered line (`SubagentRow`; a call of kind `task`, `subagent` or `agent`), because what it hands back is a result, not a step. A terminal agent's subagents and background tasks also have their own groups under the header (`SessionActivity`).
 - **Thoughts** are one collapsed line (`Thought for 12s`) inside a group; a press opens them.
-- **Notices** are quiet centred lines: `Earlier messages are no longer kept`, the app's notes, and the turn's summary (`Done in 41s · 1 file +3 −1`, in the failure colour when the turn ended on a failed call).
+- **Notices** are quiet centred lines for the app's own notes (`Earlier messages are no longer kept`). A failed call is not a notice: it is a failure line under the answer, in the failure colour, because it must not be folded away.
 - Text from an agent goes through `visibleText`: direction overrides and control characters become `‹U+202E›`, because a command written backwards reads as another command.
 - A kind of row the app does not know is a quiet generic line, never a crash.
 
@@ -29,11 +30,11 @@ An agent can refuse a session until the person signs in (`SessionView.phase` is 
 
 ## Following the end
 
-The list is bottom aligned and virtual: only the rows near the window exist, each reads its row and keeps no state (what is open lives in the model, by row key). It follows the end while the person is at the end (64 pt counts as at it). Scrolled away it holds still and a pill says what is new: `3 new messages`, `Needs you` while a request waits, else `Jump to latest`. Sending a message jumps to the end. PageUp and PageDown scroll a page from anywhere in the tab (also from the message box), Home and End when no text box has the focus. There is no `j`/`k`. Streaming rebuilds the last unit only (`createSessionModel` builds the rows before it once), so a 5,000-row conversation opens at its end and streams without a layout jump.
+The list is bottom aligned and virtual: only the rows near the window exist, each reads its row and keeps no state (what is open lives in the model, by row key). It follows the end while the person is at the end (64 pt counts as at it). Scrolled away it holds still and a pill says what is new: `3 new messages`, `Needs you` while a request waits, else `Jump to latest`. The pill exists only while scrolled up: at the end it would point at where the person already is. Sending a message jumps to the end. PageUp and PageDown scroll a page from anywhere in the tab (also from the message box), Home and End when no text box has the focus. There is no `j`/`k`. Streaming rebuilds the last unit only (`createSessionModel` builds the rows before it once), so a 5,000-row conversation opens at its end and streams without a layout jump.
 
 ## The message box
 
-A rounded card: text on top; under it `+` (attach), the mode chip and model picker (`session-config.tsx`), and one round button. It is `Send`, `Queue message` while the agent works, and `Stop` while a turn runs with nothing typed; a Stop that just appeared ignores presses for 400 ms so the second press of a double press on Send cannot stop the turn it started.
+A rounded card one line high at rest (it grows with the text, `design/composer.md`), because a tall empty box takes the room of the conversation. Under the text: `+` (attach), the mode chip and model picker (`session-config.tsx`), and one round button. Its help (keys, what a send will do) is inside the card, not a line outside it. The button is `Send`, `Queue message` while the agent works, and `Stop` while a turn runs with nothing typed; a Stop that just appeared ignores presses for 400 ms so the second press of a double press on Send cannot stop the turn it started.
 
 - Enter sends, Shift+Enter is a new line. While the agent works a send is queued; the queue shows above the box and its cross takes a message back into the box (`Take back`), so nothing is thrown away. A held queue says why and `Send now` lets it go.
 - `/` at the start lists the agent's own commands (`SessionView.commands`); `@` lists files and folders of the session's folder over the caret, and pictures can be pasted or dropped: all of it is `design/composer.md`.
@@ -41,6 +42,16 @@ A rounded card: text on top; under it `+` (attach), the mode chip and model pick
 - Files: `+` opens the system file dialog or the machine's folder (`AttachPicker`), or drop files on the tab. The agent reads paths on its own machine, so a file of this computer for a remote session is first sent (`Send a file`).
 - What was typed survives a refusal: it comes back with the reason. A message the agent refused comes back by itself.
 - Off, the box says why (`Opening the session…`, `Session ended: …`, `Not connected…`).
+
+## Decided, not built yet
+
+Owner decisions of 2026-11-07 that the code does not draw yet. Each is a cutover: migrate the callers and delete the old drawing in the same change.
+
+- The folded line replaces the group title that carries a time and a count of kinds (`Worked for 4s › 3 commands`), and the open group while a turn runs (`Working · 6s`) becomes the one live line.
+- Effect lines (a push, a delete, an install, a failure) are new. They belong in the pure row rules (`lib/session-rows.ts`, with tests), not in a screen, so what counts as an effect is decided once.
+- The turn's closing summary notice is deleted.
+- The subagents and background tasks under the header (`SessionActivity`) move to an inspector: a right panel that is collapsible and remembers its state. The path and count links in a folded line open it.
+- Settled in `design/composer.md`: the picture notice and the slash menu's inline description.
 
 ## Accessibility
 

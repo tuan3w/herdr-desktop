@@ -21,6 +21,8 @@ A surface is selectable when its texts carry `userSelect: "text"` (or it is a `V
 - **Single texts**: a user message, the answer dock's command, a question, a setting's label and description, an error under a field, a toast, an empty state's hint. A drag stays inside the text.
 - **Controls** (buttons, tabs, rows that press) are not selectable: they have `Copy …` in a right-click menu instead (`Copy title`, `Copy path`, `Copy name`, `Copy folder`).
 
+A folded line in the chat (`Read 8 files, ran 4 commands`) is a control: it is not selectable, and its steps carry their own copy when opened. A path or count that links into the inspector is a control too, with `Copy path` in its right-click menu. Why: the fold's text is a summary the app wrote, not words the agent said, so there is nothing true to take from it. Link and inspector are decided, not built yet.
+
 New text that a person may want to take gets `userSelect: "text"`; a block of rows becomes one area; a control gets a copy action. A reason not to goes next to the code.
 
 ## What a real window showed

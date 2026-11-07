@@ -15,7 +15,15 @@
 
 - Never use an action with a tick for a current value: a choice among values is a `MenuRadioGroup`. A tick follows the owner's state, so a menu left open updates when the owner does (the rows are recomputed from `entries`).
 - Names for screen readers: the label, `, selected` for a checked radio, `, checked` for a checked checkbox, the parent's label and `: ` before the label inside a submenu. nsh has no menuitemradio role, so the state is in the name and in `accessibilityState.checked`.
-- A `disabled` row is dimmed, takes the highlight from keys and pointer (Base UI keeps it focusable) and does nothing when chosen.
+- A `disabled` row is plain muted text and icon (`rowTone`), never tinted: a disabled danger row does not turn pink. It takes the highlight from keys and pointer (Base UI keeps it focusable) and does nothing when chosen.
+
+## Width
+
+The menu and select popups take their edge from `EDGE.md`: no border beside the shadow ring in light, the hairline alone in dark.
+
+A menu is as wide as its longest row needs, 208 to 320 pt (`menuWidth`, an estimate like `listWidth`: the text is not measured because the popup is sized first); a label is cut with an ellipsis only past 320. The label is sized by its text (`shrink`, not `flex-1`) and an empty spacer pushes the tick and the keycap right. Unverified: the headless harness cannot show a popup's measured width; `w-max` was not used because nsh lays an overlay out in a box the size of its host and the estimate does not depend on that.
+
+`ActionMenu` has a `small` trigger (28 pt) for a toolbar of small buttons.
 
 ## Keys
 
@@ -45,13 +53,13 @@ The focus stays on the trigger (nsh cannot focus a view from code); the highligh
 
 ## Long lists
 
-A panel taller than 384pt scrolls. With more than 30 rows and no submenu it is a `List` (only the rows in view exist, cells are recycled, rows read their data as accessors); otherwise a `Scroll`. Opening a select of 500 machines builds about twenty rows. The keys keep the highlighted row in view (`revealOffset`), and a list opens centered on its value (`centerOffset`). Heights are fixed (32, heading 28, divider 9) so offsets are a prefix sum (`offsetsOf`). A menu with submenus is `Scroll`: its rows exist, keep it to tens.
+A panel taller than 384pt scrolls, and so does one taller than the room beside its trigger: `Surface` measures the trigger after the first frame and, when the popup fits neither above nor below (`fitRows`, `roomAround`), rebuilds the rows no taller than the larger side (shadcn's `max-h-(--available-height)`). Without that nsh puts a popup that fits neither side on the larger one and clamps it into the window, over its own trigger. A menu that fits is never rebuilt. A scrolling panel gives its rows 8pt on the right so the scroll bar never covers the highlight or the tick. With more than 30 rows and no submenu it is a `List` (only the rows in view exist, cells are recycled, rows read their data as accessors); otherwise a `Scroll`. Opening a select of 500 machines builds about twenty rows. The keys keep the highlighted row in view (`revealOffset`), and a list opens centered on its value (`centerOffset`) moved to a row boundary (`snapScroll`), so the first visible row is whole and never cut mid-glyph; the chosen row stays in view, and in the pop-up button look the popup moves with the offset so that row stays on the trigger. Heights are fixed constants of `menu.tsx` (an item, a heading, a divider) so offsets are a prefix sum (`offsetsOf`); they are still the standard tier and move to the compact tier of `lib/layout.ts` with the type re-cut (owed). A menu with submenus is `Scroll`: its rows exist, keep it to tens.
 
 ## SelectField
 
-`items` are options, `SelectGroup`s (a heading) and `"separator"`; `disabled` per option; `multiple` makes `value` an array and `onChange` get an array, the list stays open and ticks (`toggled`); `isItemEqualToValue` compares values; `readOnly` opens and browses but chooses nothing; `disabled` neither focuses nor opens; `required` and `invalid` add to the accessible name, and `invalid` draws the border (no `Field` context yet); `name` is the accessible name when there is no `label`. `open`, `defaultOpen` and `onOpenChange` make the open state controlled (`createOpenState`; `change.cancel()` vetoes).
+`items` are options, `SelectGroup`s (a heading) and `"separator"`; `disabled` per option; `multiple` makes `value` an array and `onChange` get an array, the list stays open and ticks (`toggled`); `isItemEqualToValue` compares values; `readOnly` opens and browses but chooses nothing; `disabled` neither focuses nor opens; `required` and `invalid` add to the accessible name, and `invalid` draws the border; the select takes part in its `Labeled` field and in a `Form` (`useFieldControl`): a required select left empty stops the submit and its message is announced, since a select cannot take the focus from code (it has no form name, `name` being its accessible name, so its value is not in `values`); `name` is the accessible name when there is no `label`. `open`, `defaultOpen` and `onOpenChange` make the open state controlled (`createOpenState`; `change.cancel()` vetoes).
 
-`alignItemWithTrigger` (default true) is Base UI's pop-up button look: the list is placed so the chosen option sits on the trigger (`alignSelected`: the viewport is as tall as the window allows, scrolled as little as it must be). It is the `Overlay` anchored to the trigger with a negative `offset`, so it still follows the trigger. When the trigger is too near an edge for that, the list goes under it (Base UI's fallback). Rows then hang like the trigger's text: the choice list's rows have 6pt of padding inside the popup's 5, the trigger has 11.
+`alignItemWithTrigger` (default true) is Base UI's pop-up button look: the list is placed so the chosen option sits on the trigger (`alignSelected`: the viewport is as tall as the window allows, scrolled as little as it must be). It is the `Overlay` anchored to the trigger with a negative `offset`, so it still follows the trigger. When the trigger is too near an edge for that, the list goes under it (Base UI's fallback). The list is at least as wide as the trigger and `LIST_MIN` (176) and grows to its longest option, up to `LIST_MAX` (480) and the window (`listWidth`; Base UI sizes it `min-width: var(--anchor-width)` and lets it grow, so "4.5 (recommended)" is read whole). The text is estimated, not measured, because the list is sized before it is built. Rows then hang like the trigger's text: the choice list's rows have 6pt of padding inside the popup's 5, the trigger has 11.
 
 ## Not ported, and why
 
@@ -59,4 +67,4 @@ Scroll arrows (native scrolling and a `List` instead), modal scroll lock and bac
 
 ## Tests
 
-`navigation.test.ts` (step, page, typeahead, offsets, alignment, safe triangle, hover intent), `menu.test.ts` (`menuRows`: checkbox and radio semantics, dividers), `select.test.ts` (`selectRows`, `toggled`), `components/menus.test.tsx` (keys, selection, 500-machine select, dialog, context menu) over `components/menus.fixture.tsx`. Hover, the safe triangle, alignment and the hover open are checked with screenshots: the headless harness has no hover and does not open submenus.
+`navigation.test.ts` (step, page, typeahead, offsets, alignment, safe triangle, hover intent), `menu.test.ts` (`menuRows`: checkbox and radio semantics, dividers; `menuWidth`, `rowTone`), `menu.test.ts` also covers `fitRows`, `roomAround` and `snapScroll`, `select.test.ts` (`selectRows`, `toggled`, `listWidth`), `components/select-form.test.tsx` (a required select in a form), `components/menus.test.tsx` (keys, selection, 500-machine select, dialog, context menu) over `components/menus.fixture.tsx`. Hover, the safe triangle, alignment and the hover open are checked with screenshots: the headless harness has no hover and does not open submenus.

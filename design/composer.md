@@ -12,11 +12,13 @@ The text is one `Input` (IME, undo, the screen reader's text and the system past
 | picture | `[Image #2]` | an `image` block after a text block with the placeholder; a `resource_link` for an agent that cannot see |
 | long paste (over 5,000 characters) | `[Pasted text #1 +480 lines]` | the whole text in place of the token |
 
+A file is inside the project when `relativeIn` says so: the project and the file's folder go through `Git.canonicalPath` first, so a link to the project (`/var/x` for `/private/var/x`) still gives a relative `@path`, and git's changed files are listed the same way. A remote machine's paths stay as given.
+
 A chip is *active* while its token is in the words (`activeRefs`): delete the words and it goes, type them or undo and it is back. Backspace into a token takes all of it (`keepAtomic`). Taking a chip off removes its words (`withoutRef`). Numbers are never reused in one box. A chip is a button: a file opens in the viewer, a folder in the browser, a paste goes back into the box, a picture opens the viewer. Limits: 20 files and folders, 10 pictures (`Compose.limits`).
 
 ## `@`
 
-- Opens where a word could start (`mentionAt`: start, after whitespace, a bracket or a quote; `me@host` is an address). The list is an `Overlay` hung over the caret (`ComposerPicker`), so nothing moves when it opens. It opens with the same 120 ms fade as the palette (`paletteEnter`), none under reduced motion.
+- Opens where a word could start (`mentionAt`: start, after whitespace, a bracket or a quote; `me@host` is an address). The list is an `Overlay` hung over the caret (`ComposerPicker`), so nothing moves when it opens. It opens at once, with no entrance: a key opens it, and a list a keyboard opens never animates.
 - Rust ranks (`Compose.mentions`): files and folders from the quick-open index, words all match, name beats path, a hot file (mentioned lately: `lib/mention.ts` `recentFiles`; changed: `Git.status`) wins a near tie and never a poor match, one typo in a name is forgiven when fewer than 3 match, ignored files are never offered (an `.env` is not for a prompt). A bare `@` lists hot files, the top-level folders, then the newest files. Rows stay until the next answer arrives, so the list never flashes empty.
 - Rows: a shape per kind (`fileGlyph`), the name with the matched letters bold, the folder muted, a word (`changed`, `recent`) where lifted. Under the list: the highlighted row's first lines, a thumbnail or the item count (`Compose.peek`), and the keys.
 - Keys: Up and Down, Tab or Enter add, Right opens a folder, Escape closes and keeps the typed words. Moving says `src/main.rs, 2 of 8`; a new answer says `3 results, src/main.rs, 1 of 3`.
@@ -35,6 +37,15 @@ An agent that cannot see (`SessionView.acceptsPictures`) is told on the thumbnai
 - Up in an empty box brings the last message back, Down goes forward, Escape on a recalled message gives back the draft. Escape never clears the box (`mod+z` stays native). History is memory only.
 - `quoteCopied` (`mod+shift+q`) quotes the copied text with `> `: nsh gives an app no way to read a selection out of the conversation.
 - Drafts (words, files, chips) survive tab and project switches (`lib/view-state.ts`).
+
+## Decided, not built yet
+
+Owner decisions of 2026-11-07; each is a cutover (migrate callers, delete the old drawing in the same change).
+
+- **One line high at rest**, growing with the text up to the limit above. Under the field one row: attach, the model and the mode (`design/chat-parts.md`), and the send button. Why: a box several lines tall for one line of text takes the conversation's room all day.
+- **Help text lives inside the box**, in that row (keys, what a send will do, a warning), never as a line outside it. Why: text outside the card reads as part of the page and is cut off first when the window is short.
+- **A picture is a thumbnail and one inline notice, with no `[Image #n]` text.** The token in the words is how the send knows the order today; the cutover must keep that order some other way, because a duplicate of what the thumbnail already shows is noise. The notice says what limits the agent (it cannot see pictures) and offers the one action (`Save to the project and mention the path`), once.
+- **The slash menu says what the selected command does, inline**, in the row, not in a hover. Why: a bare name (`btw`) cannot be judged without trying it, and a hover is unreachable from the keyboard.
 
 ## Not here
 

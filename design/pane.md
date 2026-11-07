@@ -2,15 +2,27 @@
 
 `components/pane-tab.tsx` (`PaneTab`) and its parts: `pane-header.tsx`, `pane-find.tsx`, `composer.tsx`, `links-dialog.tsx`. The rules live in `lib/pane-input.ts` (pure, with tests). `pane-tab.test.tsx` drives it through `pane-lab.tsx` against the scripted herdr. The chat's slash commands are `lib/slash.ts` and `lib/pane-memory.ts` (`design/chat.md`).
 
+## Decided, not built yet
+
+Owner decision 2026-11-07, from a prototype (unverified in the app):
+
+- **One header line.** It names the agent and carries its actions; it shows no state word and no glyph, because the agent's state is the mark on its sidebar row and, while it works, one muted live line in the conversation saying what it is doing now (`design/attention.md`). Why: a working agent was drawn eight times (tab, header glyph, header word, sidebar glyph, meta line, group count, status bar, turn footer).
+- **The answer dock replaces the composer** while the agent asks something, in the same place, so the question and the reply box are never both open (`design/board.md`).
+- **Facts about the agent move to the inspector** (where it runs, branch, context used, changes, files, subagents, terminal), not text buttons that open dialogs. Subagents and background jobs are inspector content: a sticky panel over the conversation took about 40% of the height with the tab strip and header.
+- **One left edge.** Header, conversation and composer share a gutter; the conversation keeps a readable measure (about 720 pt) and extra width goes to the inspector.
+- **The composer is one line tall until the text needs more**, shows an attachment once (a thumbnail or `[Image #3]`, not both), and keeps its help line inside the box.
+
+Today's code is the layout below.
+
 ## What it is
 
-A **read-only view**: herdr gives the app the rows of the pane and takes text and key names back; there is no cursor and no mouse, so it cannot be a terminal and does not pretend to be one. The tab says so: its title is `<agent> (view)` and the header says `Read-only view`. Top to bottom: `PaneHeader`, a notice when the machine is not connected (the text is the last it showed, sending is off), `PaneFind` while open, the `PaneScreen`, `AnswerDock` while the agent asks something, `Composer`. A pane herdr no longer has shows `This agent is gone` and nothing to send to.
+A **read-only view**: herdr gives the app the rows of the pane and takes text and key names back; there is no cursor and no mouse, so it cannot be a terminal and does not pretend to be one. The tab says so: its title is `<agent> (view)` and the header says `Read-only view`. Top to bottom (today): `PaneHeader`, a notice when the machine is not connected (the text is the last it showed, sending is off), `PaneFind` while open, the `PaneScreen`, `AnswerDock` while the agent asks something, `Composer`. A pane herdr no longer has shows `This agent is gone` and nothing to send to.
 
 The pane's columns fill the width (`PaneScreen` scales the font from `paneFontSize` down to 9 pt, then the view scrolls sideways); the person has no layout choice. There are no key buttons, no typing mode and no command list in this tab: a keyboard belongs in a real terminal, which this app does not have yet (`docs/specs/terminal.md` decides what it will be: libghostty-vt, a prototype behind `HERDR_DESKTOP_TERMINAL=1`).
 
 ## What a person does here
 
-- **Answer** a question the agent asks with the `AnswerDock` chips (`design/attention.md`): untouched, the calm-attention workflow.
+- **Answer** a question the agent asks with the `AnswerDock` chips (`design/board.md` for the safety rules).
 - **Stop** the agent (header, only while it works): `Herdr.sendKeys` of Escape.
 - **Say something** in the `Composer`, the one way to steer a terminal agent in a view with no keyboard of its own. Enter sends `Herdr.sendInput(text, ["enter"])` as one request; Shift+Enter is a new line; Enter on an empty box does nothing. While the dock shows, an *empty* Enter says `Pick an answer above` (Enter would pick whatever the agent has highlighted); typed text still goes, because a free-text reply is an answer. Text survives a failed send: it comes back in front of anything typed since, with the reason. A `/command` is plain text here. `focusComposer()` is the `Reply…` hand-off. A shell pane's box says `Send a line to <name>`.
 - **Look**: scroll, select, follow the end; `New output` pill when scrolled away.

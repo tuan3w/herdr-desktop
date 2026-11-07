@@ -27,13 +27,13 @@ flowchart TD
 - `icon` adds an `Icon` before the label. `hint` adds a keycap after it (`hint={keymap.label("mod+n")}`), hidden while disabled.
 - `name` is the accessible name when the label alone repeats across rows (`Reviewed` on every agent): it must contain the label, so Voice Control's "tap Reviewed" still works.
 - `loading` swaps the icon for a `Spinner`, ignores presses and appends ", busy" to the accessible name. Use it while a promise the user waited for is pending (`Open link` while `openUrl` runs). The label and the width stay.
-- Size: default 32pt; `small` 28pt for dense rows only. Never below 28pt. `SelectField` and `Combobox` take the same `small`; every control in one row shares one size (`design/forms.md`).
+- Size: the default is the form and dialog tier, `small` the dense-row tier and the pointer target (`HIT` in `lib/layout.ts`); Large hit targets raises both to the second target. `SelectField` and `Combobox` take the same `small`; every control in one row shares one size (`design/forms.md`). One `primary` per surface: two filled buttons have no hierarchy.
 - `small` and `still` buttons do not depress; every other `Btn` scales to 0.96 while pressed (`design/motion.md`).
 - `disabled` is a muted fill with a transparent border and `text-muted-foreground`. Never fade with `opacity`.
 
 ## IconButton and Icon
 
-`IconButton` is a 28pt button with an icon and no text: `label` is required (screen reader name and tooltip), `shortcut` appears in the tooltip, `onSidebar` recolors it for the sidebar surface, `selected` fills it while it is toggled on (the trigger of an open menu). It is always grey: a delete is not red at rest (`design/patterns.md`). `Icon` is decorative (hidden from screen readers), sizes 12, 14, 16 (default), 20, thin 1.5 strokes, color from `IconTone` (`design/colors.md`). Icons are grey chrome: they take the text color only when selected.
+`IconButton` is a button of the pointer target size (`HIT`) with an icon and no text: `label` is required (screen reader name and tooltip), `shortcut` appears in the tooltip, `onSidebar` recolors it for the sidebar surface, `selected` fills it while it is toggled on (the trigger of an open menu). It is always grey: a delete is not red at rest (`design/patterns.md`). `Icon` is decorative (hidden from screen readers), sizes 12, 14, 16 (default), 20, thin 1.5 strokes, color from `IconTone` (`design/colors.md`). Icons are grey chrome: they take the text color only when selected.
 
 ## Tipped and Kbd
 
@@ -67,13 +67,13 @@ For views of the same record (an agent's transcript, files and details), and for
 
 ## CheckRow, Switch, Segmented
 
-- `CheckRow`: a `Checkbox` whose label is part of the target. The tick pops in (`design/motion.md`). Other pressables (delete) go next to it, not inside. A tick is directly reversible, so it does not toast.
-- `Switch`: one setting, on or off, **takes effect at once** (`Settings`: `Collapse the sidebar`). `label` is required: it is the accessible name, since the visible text lives in the `SettingRow`. If it needs a Save button, it is a checkbox in a form instead.
-- `Segmented`: pick one of two to four short options that apply at once (Appearance: System, Light, Dark). Each option may carry an `icon`; `iconOnly` drops the text for a toolbar toggle between two views (list / table of one screen), the label staying as the accessible name. More options or longer labels: `SelectField`.
+- `CheckRow`: a checkbox whose label is part of the target. The tick pops in (`design/motion.md`). Other pressables (delete) go next to it, not inside. A tick is directly reversible, so it does not toast.
+- `Switch`: one setting, on or off, small to look at and padded to the pointer target (`design/controls.md`), **takes effect at once** (`Settings`: `Collapse the sidebar`). `label` is required: it is the accessible name, since the visible text lives in the `SettingRow`. If it needs a Save button, it is a checkbox in a form instead.
+- `Segmented`: a recessed track with a raised chosen segment (`design/controls.md`): pick one of two to four short options that apply at once (Appearance: System, Light, Dark). Each option may carry an `icon`; `iconOnly` drops the text for a toolbar toggle between two views (list / table of one screen), the label staying as the accessible name. More options or longer labels: `SelectField`.
 
 ## SettingsSection and SettingRow
 
-`SettingsSection` is a heading (`text-base font-medium`) over a hairline, then rows: no card, no borders between rows, the space separates them. `SettingRow` is a label, an optional `description` and a `control` on the right; `stacked` puts a wide control (the theme picker) under the text. A row with a `control` that is a button carries its own name. Add an option as a signal in `lib/settings.ts` and a `SettingRow` in its section (`design/patterns.md`).
+`SettingsSection` is a heading one step above the body (`text-base font-medium`), then rows: no card. `SettingRow` is a label at body size and regular weight, an optional `description` one step smaller and muted (the hierarchy is size and tone, not weight), at least 56 tall, a hairline above each row (so none closes the last), and a `control` in a column aligned right that never shrinks; a select in that column is given one fixed width by the screen so the selects line up. `stacked` puts a wide control (the theme picker) under the text. Decided, not built yet: Settings opens in the main region instead of a modal over the sidebar, so a waiting question stays visible. A row with a `control` that is a button carries its own name. Add an option as a signal in `lib/settings.ts` and a `SettingRow` in its section (`design/patterns.md`).
 
 ## ActionMenu and RowMenu
 
@@ -93,13 +93,15 @@ For views of the same record (an agent's transcript, files and details), and for
 
 ## Sidebar
 
-The sidebar is the app's own component, built from kit parts; the kit holds its rules. It is the page's colour one shade darker, not a panel, and uses only `sidebar-*` tokens (`design/colors.md`). It is a tree of the board's projects: a machine (a quiet header with its needs-you count, only when there is more than one or one has a problem) holds projects, a project holds its checkouts (when it has several) and its agents in two lines (glyph, name, age; agent and chat or terminal under it). A project's header carries its one aggregate (`ProjectMark`: a signal dot and a number) and, over them on hover or focus, its menu (pin, new session here). Folds are shared with the home.
+The sidebar is the app's own component, built from kit parts; the kit holds its rules. It is the page's colour one shade darker, not a panel, and uses only `sidebar-*` tokens (`design/colors.md`). Decided (owner, 2026-11-07), not built everywhere yet: where the code still differs, this page is the target.
 
-- **Width.** A resizable panel (the user drags its edge) from 1100 pt of window; narrower, the full sidebar is `SIDEBAR_WIDTH.narrow` and fixed (`snug()`); below 900 pt (`compact()`), or when the user collapsed it (`sidebarCollapsed` in `lib/settings.ts`), it is the rail (`RAIL_WIDTH`, 56pt) where the drag handle is off. One fold/unfold `IconButton` keeps its slot in the rail and is offered only when the window is wide enough to show either state.
+- **Grouped by project, nothing else.** There is no separate Needs you list. A project header names its machine in muted text, unless it is this computer; the same project on two machines is two groups. A header shows a count only while it is folded, so a hidden question is never silent. Folds are shared with the home.
+- **A row is a state glyph and a title.** No program name, no machine, no age. Only an exception adds a word (quiet for a while) or a dashed glyph (the machine is stale). Attention is a mark on the row, said once. Order is stable (last activity), never re-sorted by state, so a row does not move under the pointer. The row height is the compact tier of `lib/layout.ts` (`ROW`).
+- **Width.** A resizable panel from 1100 pt of window; narrower, the full sidebar is `SIDEBAR_WIDTH.narrow` and fixed (`snug()`); below 900 pt (`compact()`), or when the user collapsed it (`sidebarCollapsed` in `lib/settings.ts`), it is the rail (`RAIL_WIDTH`) where the drag handle is off. One fold/unfold `IconButton` keeps its slot in the rail and is offered only when the window is wide enough to show either state.
 - **The rail is one tile per project**, never one glyph per agent: a rounded square with the project's first letters on a tint from a hash of its name (`Monogram`, theme tokens, never the signal colour), a signal count in the corner when something needs you, else the quiet half ring while something works, a dot when pinned, the open project lit. A press opens a popover with the project's agents. Its name and state are the tooltip and the accessible name; many projects scroll.
-- Rows are `h-7` (items `min-h-10`), icon + label, with a count at the far end. A count that needs the user is `Badge tone="signal" onSidebar`; a plain count is grey.
-- Selected is a fill, never a tick or a weight. `bg-sidebar-primary` is the theme's signal color and appears only on counts that need the user.
-- Focus is an inset ring (`FOCUS_RING_SIDEBAR`): the rows are 2pt apart, and an outline drawn outside a row is painted over by the fill of the row after it.
+- A count that needs the user is `Badge tone="signal" onSidebar`; a plain count is grey.
+- Selected is a fill, never a tick or a weight, and a group header never carries the selected fill. `bg-sidebar-primary` is the theme's signal color and appears only on counts that need the user.
+- Focus is an inset ring (`FOCUS_RING_SIDEBAR`): the rows sit close, and an outline drawn outside a row is painted over by the fill of the row after it.
 - Never hide a function in the rail: every item keeps its `accessibilityLabel` (with its count) and a tooltip with its shortcut. `IconButton onSidebar` and `Kbd tone="sidebar"` recolor for this surface.
 - A row that must show `expanded`, take `onFocus`/`onBlur` (the keys bound while it has the focus) or carry `accessibilityState` is a `View role="button"` with `onPress` and the same ring and fill classes: nsh's `Button` takes none of those. The rest stay `Button`. `SearchField` hands its input ref out (`inputRef`) so `mod+0` can take the focus to it: a view cannot take the focus from code, an input can.
 

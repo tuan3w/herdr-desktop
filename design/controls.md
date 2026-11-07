@@ -4,7 +4,7 @@ Checkbox, switch, radio, segmented, tabs, collapsible, accordion, progress, avat
 
 ## One stop of Tab, a highlight that moves
 
-`RadioGroup` (and so `Segmented`) and `TabBar` are one focusable container whose items are `focusable={false}` views (they still take pointer and screen-reader presses). While the container has the focus `createRoving` (`roving.ts`) holds the keys; the focus never leaves the container, a virtual highlight moves, its ring is drawn on the item (`RING`: `FOCUS_RING` without `focus-visible:`) and every step is announced (`announce`: name, "selected", "unavailable"). The keys are bound in an effect only while the container has the focus, so a group costs nothing otherwise, and only the axis it lays out along is bound: the other arrows still scroll the page.
+`RadioGroup` (and so `Segmented`; a press on an item does not give the container the focus: a view cannot take the focus from code, so Right after a click may do nothing until Tab arrives) and `TabBar` are one focusable container whose items are `focusable={false}` views (they still take pointer and screen-reader presses). While the container has the focus `createRoving` (`roving.ts`) holds the keys; the focus never leaves the container, a virtual highlight moves, its ring is drawn on the item (`RING`: `FOCUS_RING` without `focus-visible:`) and every step is announced (`announce`: name, "selected", "unavailable"). The keys are bound in an effect only while the container has the focus, so a group costs nothing otherwise, and only the axis it lays out along is bound: the other arrows still scroll the page.
 
 | Group | Keys | Reaching an item |
 |---|---|---|
@@ -19,7 +19,17 @@ A raw `View` (`role="checkbox"`), not nsh's `Checkbox`: that one gives no `onFoc
 - `indeterminate`: a dash, "mixed" to a screen reader, a press asks `true`. Wins over `checked`.
 - Space toggles; Return does not (a held `keymap` binding consumes it, bound on focus, released on blur and with the row). `Switch` toggles with both, as Base UI's.
 - `readOnly`: focusable, never changes. `disabled`: out of Tab, `disabled:opacity-50`. `required` and `invalid` ride `accessibilityHint` (`stateHint`: nsh has no state for them); `invalid` reddens the box.
-- No `name`/`value`/hidden input: the app has no form submission. There is no `Field` integration.
+- `CheckRow`, `Switch` and `RadioGroup` are fields of their own (`useChoiceControl`): `name` is where the value goes in a `Form`, and `required` is a rule, so an unticked required box or an unchosen required group stops the submit and says why ("Tick this box to continue.", announced, because a box cannot take the focus from code). Under a `FieldRoot` the field announces. There is no hidden input.
+- `label` may be left out of a `CheckRow` with a text child. Pressed is `active:opacity-80` on all three.
+
+## Looks and sizes
+
+Sizes come from the tiers in `lib/layout.ts` (`HIT`: the pointer target and the Large hit targets target); a control may be drawn smaller than its target and keeps the target through padding (emil-touch-and-accessibility). Every control reads `largeTargets` from `lib/settings.ts` and nothing else decides a 44.
+
+- **`Segmented`**: a recessed track (`muted`), a raised chosen segment (`card` with the `sm` shadow of `lib/layout.ts`: a hairline ring and two soft layers, not a coloured fill; in dark, where a shadow cannot be seen, a hairline border and the `accent` fill). Radii nest: the track's radius minus its 2-pt padding is the segment's. Segments are the pointer target tall, labels body size at regular weight, muted until chosen and never bolder, no border between segments, an unchosen one lightens on hover.
+- **`Switch`**: a small track and knob (see the file for the numbers) inside a pressable padded to the target. The off track is `muted-foreground` at high opacity so its edge reaches 3:1 against the surface in both appearances (about 3.3 and 3.6: unverified until measured; the old 40% tint was near 1.6). On is the primary fill and the knob at the other end, so the state is a position and a role, not a colour. The knob moves on `transform` only, ease-out, none under reduced motion.
+- **`CheckRow`**: a 16-pt box in a row at least the target tall, the label 8 pt from the box. Press feedback is the colour and the tick's pop.
+- Disabled controls fade with `opacity` here (`CheckRow`, `Switch`, `SelectField`), a disabled `Btn` uses a muted fill. WCAG exempts disabled controls from contrast, so both are allowed; a new control copies `Btn`.
 
 ## Select all: `createCheckGroup`
 
@@ -33,7 +43,7 @@ const picked = createCheckGroup({ all: () => ids() });
 
 ## Tabs
 
-`TabItem` keeps `label`, `selected`, `onSelect`, `count`, `spoken` and adds `disabled` (reachable by the highlight, never chosen: Base UI's focusable-when-disabled). `TabPanel` is the content: unmounted while not selected (a hidden view costs nothing), `keepMounted` keeps it built and `hidden` for a view that holds state (a half-typed field). The selected fill eases color (`hoverTransition`); a sliding indicator is not built: it needs every tab's measured frame and `design/motion.md` keeps tab changes instant.
+`TabItem` keeps `label`, `selected`, `onSelect`, `count`, `spoken` and adds `disabled` (reachable by the highlight, never chosen: Base UI's focusable-when-disabled). `TabPanel` is the content (with `label`, the name of its tab, it is a `region`; nsh cannot link a panel to its tab, so the name is the link; whether the GTK host exposes `region` is unverified): unmounted while not selected (a hidden view costs nothing), `keepMounted` keeps it built and `hidden` for a view that holds state (a half-typed field). The selected fill eases color (`hoverTransition`); a sliding indicator is not built: it needs every tab's measured frame and `design/motion.md` keeps tab changes instant.
 
 ## Collapsible and Accordion
 
@@ -43,7 +53,7 @@ const picked = createCheckGroup({ all: () => ids() });
 
 ## Progress, Avatar
 
-`Progress`: `value` 0 to 100 (`min`, `max`), `label`, `valueText` (what is spoken: "2/5 reviewed"; else the percentage), `null` for an unknown extent (the bar breathes by opacity while mounted: mount it inside an `If`, like `Spinner`). The fill is set by width and never animates. No Meter: there is no gauge. `Avatar`: `fallback` (initials), optional `src` with a `delay` before the initials show, decorative unless `label`; `fallbackShown` is the pure rule.
+`Progress`: `value` 0 to 100 (`min`, `max`), `label`, `valueText` (what is spoken: "2/5 reviewed"; else the percentage), `null` for an unknown extent (the bar breathes by opacity while mounted: mount it inside an `If`, like `Spinner`). The fill is set by width and never animates; the spoken value is clamped like the bar. No Meter: there is no gauge. `Avatar`: `fallback` (initials), optional `src` with a `delay` before the initials show, decorative unless `label`; `fallbackShown` is the pure rule.
 
 ## Not ported, on purpose
 
@@ -58,7 +68,7 @@ Slider (no numeric setting: the sidebar width is a drag handle), Separator (hair
 The checklist and the reasons are in `docs/ACCESSIBILITY.md`; these are what a control in the kit must do.
 
 - **A name, never a role word.** Icon-only controls are `IconButton` with a required `label` (`Close`, not `Close button`); the role comes from nsh's list (`button`, `checkbox`, `switch`, `tab`, `radio`, `option`, `menuitem`, ...) and `accessibilityState` carries `selected`, `expanded`, `checked`, `disabled`, `busy`. Where nsh has no state (`required`, `invalid`, read only) the kit appends it to `accessibilityHint`.
-- **Targets.** At least 24 x 24 css pt for a pointer, 44 where touch is possible: a control drawn smaller keeps its target through padding. Dense buttons are 28pt, so rows stay clear of it.
+- **Targets.** The pointer target and the Large hit targets target are `HIT` in `lib/layout.ts`: a control drawn smaller keeps its target through padding, and a dense control is never below the pointer target.
 - **Focus.** `FOCUS_RING` (outline), `FOCUS_RING_SIDEBAR` or `FOCUS_RING_INSET`, at least 3:1 against what it sits on (`lib/theme/theme.test.ts` checks the pairs). Tab order follows reading order; Escape leaves every popup, menu and dialog; nothing traps the keyboard.
 - **Status.** `announce()` is polite and is for what happens away from the focus; something that blocks the person is announced and the focus moves to the control that resolves it. Colour is never the only signal: agent status is a shape first (needs you = filled with bar, working = half, done = check, idle = empty ring, unknown = dashed ring).
 - **Motion and size.** `reduceMotion()` and `motion-reduce:` switch motion off (`lib/motion.ts`); layouts survive `fontScale()` 2.0.

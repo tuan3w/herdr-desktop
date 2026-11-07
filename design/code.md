@@ -18,6 +18,10 @@ Code is the one thing in this app that people read closely for correctness, so i
 
 Not here: `PaneScreen` (a terminal mirror has its own colours), the diagram source of `MermaidBlock` (an `Editor`).
 
+Code is read on demand, not shown by default: a tool's command and output sit inside a folded step (`design/chat.md`) and appear when the person opens it. Why: a supervisor skims what happened and reads code only to check one thing, so a transcript of open blocks buries the answer.
+
+Decided, not built yet (owner, 2026-11-07): a file opened from a path link in the chat opens in the inspector beside the conversation, not over it. The renderer and its rules do not change, only the place.
+
 ## The block
 
 - A surface one shade off the page (`code-bg`), 8 pt radius, the language in the corner (`TypeScript`, or the fence's `title="…"`). On hover or keyboard focus three tools appear over the corner: `Wrap`, `Lines`, `Copy`. They stay in the accessibility tree and pressable; `Copy code` becomes `Copied` for 1.6 s and announces politely. The options are in Settings > Look (`codeWrap`, `codeLineNumbers`, `codeWhitespace`, `diffSplit` in `lib/settings.ts`) and persist.
@@ -34,7 +38,7 @@ Not here: `PaneScreen` (a terminal mirror has its own colours), the diagram sour
 
 ## Diffs
 
-A change is `+`/`−` in a column of its own, a tint and a 2 pt bar on the line: three signals, because green and red tints are near the same luminance. Token text on a changed line keeps its syntax colours. Words that changed inside a line are on a stronger tint; a line that changed almost entirely gets none. Long unchanged stretches fold (`7 unchanged lines`, a button). The header says `+2 −1`; the group says `Diff of src/auth.ts, 2 added, 1 removed`; `Previous change` and `Next change` step through the groups and `Change 2 of 5` says where you are. Side by side is `diffSplit`.
+A change is `+`/`−` in a column of its own, a tint and a 2 pt bar on the line: three signals, because green and red tints are near the same luminance. Token text on a changed line keeps its syntax colours. Words that changed inside a line are on a stronger tint; a line that changed almost entirely gets none. Long unchanged stretches fold (`7 unchanged lines`, a button). The header says `+2 −1`; the group says `Diff of src/auth.ts, 2 added, 1 removed`; `Previous change` and `Next change` step through the groups and `Change 2 of 5` says where you are; the three are always in the header, never only on hover. Side by side is `diffSplit`. A new file (`created`) is the exception: one number column and none of the three signals, as plain code (`layout="code"`, `DiffLayout::Code`), because every row saying "added" says nothing; the header says `new file` once. `showPath={false}` leaves the path out of the header for a screen that names the file already (Changes).
 
 ## Colour
 

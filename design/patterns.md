@@ -58,7 +58,7 @@ Three tiers, chosen by window width through `components/kit/responsive.ts` only.
 | Tier | Width | Layout |
 |---|---|---|
 | wide | 1100 and up | sidebar at the user's width; a list beside its detail |
-| `compact()` | below 1100 | sidebar becomes a 56pt icon rail; lists narrow |
+| `compact()` | below 1100 | sidebar becomes the icon rail (`RAIL_WIDTH` in `lib/layout.ts`); lists narrow |
 | `narrow()` | below 860 | one pane at a time in a two-pane screen, always as a list (the table is not offered): the list, or the detail with a back button; page padding shrinks |
 
 - `rail()` is `compact()` or the user's `sidebarCollapsed` setting.
@@ -70,15 +70,20 @@ Three tiers, chosen by window width through `components/kit/responsive.ts` only.
 
 ## Settings
 
-A settings screen is a list of rows under headings, one `SettingsSection` after another, each row a `SettingRow` (`design/components.md`). UI preferences live in `lib/settings.ts` (`themeId`, `sidebarCollapsed`, saved by `loadSettings` and an effect); domain data persists in Rust, not there.
+Settings is a **page in the main region**, not a dialog: a waiting question is shown by the sidebar's mark and answered in the dock, and a modal over them would hide both while the person changes a font. Four pages in a left nav (Appearance, Notifications, Machines, Safety), because one long scroll buries every setting equally; the page's name is its heading and a search field filters across pages. A page is a list of rows, one `SettingRow` after another under `SettingsSection` headings (`design/components.md`). UI preferences live in `lib/settings.ts` (`themeId`, `sidebarCollapsed`, saved by `loadSettings` and an effect); domain data persists in Rust, not there.
 
-- Every row is wired: an option that no screen reads is not added (`largeTargets`, `quickPhrases` have rows because their screens read them). Pickers whose saved value may be off the list (`paneFontSize`, `minContrast`) add the current value to their items instead of showing blank. `Settings` (`components/settings.tsx`) is a `Modal`; its Machines row opens `Machines` over it.
+- **A row is a label at body size with its description one step smaller.** Two lines at one size leave colour as the only hierarchy. Rows are separated by a hairline: with desktop type and no divider they float apart.
+- **Controls are small and proportional to the line beside them.** `Switch` is compact. `Segmented` is a recessed track with a raised chosen segment (a hairline ring), radii nested (outer minus padding, `design/foundations.md`) so the corners do not gap. Sizes are in `lib/layout.ts` and the kit, not restated here.
+- **Approvals read `Always on`** and are not a control: nothing is approved silently, so showing a switch would suggest it can be turned off. Risky answers read `Two steps` for the same reason.
+- Every row is wired: an option that no screen reads is not added (`largeTargets`, `quickPhrases` have rows because their screens read them). Pickers whose saved value may be off the list (`paneFontSize`, `minContrast`) add the current value to their items instead of showing blank.
 - Reduce motion is `reduceMotionOverride`; every motion reads `reducedMotion()` (`design/motion.md`).
 - A setting applies at once and persists at once (`herdr.settings.v1`, separate from the data so clearing data keeps the theme). There is no Save button.
-- Add an option: a signal in `lib/settings.ts` (with `Saved` and `loadSettings`) and a `SettingRow` in the section it belongs to. Group by what the user is thinking about, not by file.
+- Add an option: a signal in `lib/settings.ts` (with `Saved` and `loadSettings`) and a `SettingRow` in the page it belongs to. Group by what the user is thinking about, not by file.
 - A choice of 2 to 4: `Segmented`. On or off: `Switch`. Many with a preview: a picker like the theme grid. A fixed list: `SelectField`.
-- A screen with many settings may search them: every word of the query, in any order, against label and description, ignoring case and diacritics (`fold`). The count is announced.
+- Search: every word of the query, in any order, against label and description, ignoring case and diacritics (`fold`). The count is announced.
 - Copying to the clipboard needs `"clipboard": true` in `nsh.json` `capabilities`; without it nsh logs a warning and nothing is copied, while the toast would still claim success.
+
+Decided, not built yet (owner, 2026-11-07): today `Settings` (`components/settings.tsx`) is a `Modal` over the sidebar, one scroll, rows without a divider, and its Machines row opens `Machines` over it. The cutover moves it into the main region with the left nav and puts Machines on its own page as rows with their live or stale state and a `Retry` on a stale one. Unverified: control sizes come from screenshots of a reference app, to be measured in a render.
 
 ## Loading
 
@@ -119,4 +124,6 @@ The window is the sidebar | the tab area (`components/workspace.tsx`, nsh `DockA
 
 ## Sidebar content
 
-Machines first (the shape and words of each link, `Fix` for one that needs attention), a search field (`fold`: case and accents ignored, every word must match), then the board's sections as a virtualized `List` (`lib/sidebar.ts` builds the lines). `Needs you` is always open and absent when empty; the other sections fold and stay folded across runs (`herdr.sidebar.v1`). A search lists every match, also among the idle agents behind `N more idle`. `Space` on a focused row picks it for a bulk action, `Shift+Space` picks the range from the last pick, and the checkbox at the row's left does the same for the pointer. The top rows say how many need you and announce a change of that number politely.
+A search field (`fold`: case and accents ignored, every word must match), then the agents as a virtualized `List` (`lib/sidebar.ts` builds the lines). `Space` on a focused row picks it for a bulk action, `Shift+Space` picks the range from the last pick, and the checkbox at the row's left does the same for the pointer. Machines first, the shape and words of each link, `Fix` for one that needs attention. The top rows say how many need you and announce a change of that number politely.
+
+Decided, not built yet (owner, 2026-11-07): the sidebar is grouped by project only, with no `Needs you` section, because that section lists an agent a second time. Attention is a mark on the agent's row; a project header shows a count only while collapsed, so a hidden question is never silent. A row is a state glyph and a title, with no program, machine or age; only an exception adds a word (quiet for 41 minutes) or a dashed glyph (stale machine). Order is stable by last activity and never re-sorted by state, so a row does not move under the pointer. A project header names its machine, muted, unless it is this computer, and the same project on two machines is two groups. `design/components.md` and `design/attention.md` still describe the old sections: update them in the same change.

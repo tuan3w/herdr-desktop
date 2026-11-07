@@ -4,11 +4,23 @@
 
 ## What it is for
 
-The question while supervising is "what did it just touch?". Everything here is **read only** except `Send a file`, and nothing here is a second editor: no typing into a file, no save. Three doors lead in, all through `browsing` (`lib/files.ts`): `Browse files` in the pane header (the pane's folder on the pane's machine), the palette entry `Browse files…`, and a path pressed in a pane or in Markdown (`openLink`, which finds it in the pane's folder and the two above it, as `candidates` orders them).
+The question while supervising is "what did it just touch?". Everything here is **read only** except `Send a file`, and nothing here is a second editor: no typing into a file, no save. Doors in, all through `browsing` (`lib/files.ts`): the Files tab of the inspector (the pane's folder on the pane's machine), the palette entry `Browse files…`, and a path pressed in a pane or in Markdown (`openLink`, which finds it in the pane's folder and the two above it, as `candidates` orders them).
 
-## The browser
+## Decided, not built yet: Files is an inspector tab
 
-One dialog (`Modal huge`) with two steps: the folder, then a file. **Escape leaves the viewer first and closes the dialog second**; `Close` always closes.
+Owner decision 2026-11-07. Why: a full-window dialog hid the conversation and any question waiting in it, and "what did it touch" is consulted beside the chat, not instead of it.
+
+- **Files and Changes are tabs of the inspector.** There is no full-window dialog and no `Browse files` button in a header. Opening a file adds a tab beside Chat in the main region (tabs are drawn only when two or more exist, `design/tabs.md`), so the conversation is one click away.
+- **Changed first.** The tab opens on the files the agent changed, newest first, with the status letter and `+12 −3`; the whole tree is one switch away. Why: the person arrives with "what did it touch", not "where is X".
+- **The breadcrumb is relative to the project root** (`payments / src / auth`), never an absolute path: the root is the context, and the machine is already named by the project. Each part is a button; the absolute path is `Copy path`.
+- **A grid, not a list of sentences**: name, then size right-aligned in tabular figures so digits stack. Folders come first, then files, each sorted by name. No age column by default: a modified time answers a question the Changed-first view already answers; it is one choice away in the options (modified, size).
+- **Escape leaves the viewer first**, then the tab's folder, and never closes the window.
+
+Today's code is still the dialog below (`Modal huge`, `Files`), with the same list rules. It is replaced in one change.
+
+## The browser (today)
+
+One dialog with two steps: the folder, then a file. **Escape leaves the viewer first and closes the dialog second**; `Close` always closes.
 
 - The list is nsh's `Command`: virtualized, Up and Down, Enter, a listbox for screen readers. Filtering is ours (`filterable={false}`, `fold`) because a row's label is the whole sentence `entryLabel` (`notes.txt, file, 168 bytes, 4 min ago, no permission`), which a screen reader needs and a query must not match. Folders come first under a `Folders` heading, files under `Files`; `arrange` orders them (`fileSort`: name, modified newest first, size largest first) and hides dotfiles unless `showHidden`; both live in `Folder options`.
 - Above the list: `Up one folder`, the `Folder` field (a path to type; Enter goes), a breadcrumb of buttons, then `Find in this folder`. Below: `6 items · 1 hidden`, and the limits as sentences (only the first 5000 entries, names that are not text).

@@ -60,6 +60,16 @@ Agent, machine, folder, session id (`Copy id`), state, context used (a `Progress
 
 Small selects for the composer's bottom row, from the session's options by category. A mode that lowers the guard (`lowersGuard`: its risk is higher than the current one) is two steps: picking it shows `Switch to Full access` and what it does for 4 s; the button switches. A mode that is risky now wears the warning glyph. The select is off while a turn runs.
 
+## Decided, not built yet
+
+Owner decisions of 2026-11-07 (prototype: the Herdr Desktop Lab artifact). Each is a cutover: migrate every caller and delete the old drawing in the same change.
+
+- **One answer dock, in the composer's place.** A question is answered in the agent's own conversation, so there is no second list to answer from. The dock replaces the message box while a request waits and shows: the whole command (never cut), the risk line, three options with the keys 1 to 3, a line "Nothing is sent until you choose", and a quiet reply field for "tell it what to do instead". Why one place: two ways to answer is a second set of safety rules to keep equal. Today the permission dock sits above the box and the digits answer only while an answer has the focus.
+- **The second option is the risky one and is two-step**: press, then press again within 4 s. The first press arms and says why; never a timed hold (holds are not accessible).
+- **The sidebar row is the only attention mark.** The dock stays neutral and its one loud thing is the primary answer. Said once per agent per view (`design/attention.md`).
+- **Moving between waiting agents.** `nextAttention` (`mod+j`) opens the next agent that waits, in any project. It never answers and never advances by itself after an answer, so nothing slides under the hand. After an answer the dock says how many still wait and offers Next. Answering many at once is the Board's filtered view (select rows, answer with the count on the button), not this dock.
+- **Details, past sessions and `Read all` are not dialogs.** Facts about the open agent (`SessionOverview`: machine, folder, context used, settings, plan) are an inspector. Browsing past sessions (`PastSessions`) is a region, and reading a long command whole is the dock's own scroll. `NewSession` stays a dialog: it is a short form (`design/dialogs.md`).
+
 ## Accessibility
 
 Each part is a `group` with a name (`Permission request`, `Question from the agent`, `Answers`, `Plan`). The armed answer is named `<label>. Press again to send, <reason>` and is `selected`. A refusal is both said on the button and announced. Everything works from the keyboard; no timer sends, none is a hold.

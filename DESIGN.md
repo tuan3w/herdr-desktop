@@ -1,6 +1,10 @@
 # herdr-desktop design
 
-herdr-desktop is a quiet, dense, keyboard-first desktop tool for someone who supervises coding agents all day. It looks like a page, not a dashboard: a white surface, a sidebar one shade off it, text in two greys, hairlines instead of boxes, and colour spent only where it means something (the main button, one "needs you" signal, status text). The home is organised by project (a repository with its worktrees, or a folder) with state shown on every row and project header, never as the grouping; the loudest thing on any screen is what needs the person, everything else is quiet, motion only explains a change and nothing moves at rest. If a screen has more borders, capsules, weights or colours than the same screen would in Notion, remove them. Four themes (Harbor, Container, Chart, Graphite), each light and dark, change only where that colour goes. Every action the user cannot trivially reverse says what happened and offers a way back.
+herdr-desktop is a dense, calm, keyboard-first desktop tool for someone who supervises coding agents all day. It is a window of 1280 pt or more with a pointer and a keyboard, not a wide phone: the bar is **density** (a dozen agents visible and still room to read one), **regions** (each part of the window has one job) and **once per view** (an agent, a fact and a mark each appear once). Calm means said once and quiet, never empty: unused width and oversized type are defects. Its look is a page, not a dashboard: a surface, a sidebar one shade off it, text in two greys, hairlines instead of boxes, colour only where it means something.
+
+**The window has four regions.** Sidebar: the one list of every agent, grouped by project, state on the row. Main: the one agent being worked on, or the Board, or Settings. Inspector (right, collapsible, remembers its state): what you consult, not read (overview, changes, files, terminal). Status: connection truth per machine. An agent is listed once per view; the conversation keeps a readable measure and extra width goes to the inspector, never to margins. A text button that opens a dialog of facts about the open agent is a missing inspector.
+
+Every border, weight and colour must answer one of the supervisor's five questions (`AGENTS.md`: does anything need me, is it alive, what did it do, steer it, can I trust it). One that answers none is removed; space that holds nothing is removed just as hard. The loudest thing on any screen is what needs the person, motion only explains a change and nothing moves at rest. Four themes (Harbor, Container, Chart, Graphite), each light and dark, change only where that colour goes. Every action the user cannot trivially reverse says what happened and offers a way back.
 
 Read the file that matches your change before writing UI:
 
@@ -9,21 +13,25 @@ Read the file that matches your change before writing UI:
 | a colour, a surface, a status, the sidebar surface, terminal colours | [design/colors.md](design/colors.md) |
 | a theme, or how themes switch | [design/themes.md](design/themes.md) |
 | text size, weight, fonts, numbers, copy | [design/typography.md](design/typography.md) |
-| a button, icon, pill, badge, tab, switch, menu, spinner, sidebar, rail | [design/components.md](design/components.md) |
-| the home (project cards, Needs you), answering, triage, bulk actions, the status bar | [design/board.md](design/board.md) |
+| a button, icon, pill, badge, switch, menu, spinner, sidebar, rail | [design/components.md](design/components.md) |
+| the Board (project table, filter chips), answering, bulk actions, the status bar | [design/board.md](design/board.md) |
 | a tooltip, popover, preview card or any popup: when it opens, closes, follows | [design/overlays.md](design/overlays.md) |
 | a menu, a context menu, a select | [design/menus.md](design/menus.md) |
 | a combobox, an autocomplete, a pick list | [design/combobox.md](design/combobox.md) |
 | a field's label, error and validation, a form, a number field | [design/inputs.md](design/inputs.md), [design/forms.md](design/forms.md) |
 | a checkbox, radio, tabs, collapsible, accordion, progress, avatar, accessibility of a control | [design/controls.md](design/controls.md) |
 | a dialog, a toast, undo | [design/dialogs.md](design/dialogs.md) |
+| a scrollbar, a scrolling list, keeping the place while it scrolls | [design/scroll.md](design/scroll.md) |
 | a table, a list of many records, sorting | [design/data.md](design/data.md) |
-| the Changes tab: changed files, diffs, notes to the agent, revert | [design/changes.md](design/changes.md) |
-| files, a viewer, a picture, a diagram, a page from a machine, sending a file | [design/files.md](design/files.md) |
+| Changes: changed files, diffs, notes to the agent, revert | [design/changes.md](design/changes.md) |
+| Files in the inspector, a viewer, a picture, a diagram, a page from a machine, sending a file | [design/files.md](design/files.md) |
+| the tab strips: main-region tabs, inspector tabs | [design/tabs.md](design/tabs.md) |
+| the pane view and the terminal agent's conversation | [design/pane.md](design/pane.md) |
+| switching between projects and agents (contexts, Switcher, back and forward) | [design/context.md](design/context.md) |
 | the chat's permission dock, a question form, New session, Past sessions, session details | [design/chat-parts.md](design/chat-parts.md) |
 | feedback, undo, delete, shortcuts, settings, window size | [design/patterns.md](design/patterns.md) |
 | spacing, type sizes, row heights, radii, widths, elevation | [design/foundations.md](design/foundations.md) |
-| where the signal colour may appear, what a waiting agent looks like on each surface | [design/attention.md](design/attention.md) |
+| where the signal colour may appear, what a waiting agent looks like on each surface (a mark on its row, once) | [design/attention.md](design/attention.md) |
 | anything that moves | [design/motion.md](design/motion.md) |
 | the chat tab: the conversation, work groups, tool rows, the message box, queue, attachments | [design/chat.md](design/chat.md) |
 | the command palette: scopes, ranking, rows, actions, two-step commands, files | [design/palette.md](design/palette.md) |
@@ -34,12 +42,12 @@ Tokens come from `lib/theme/` (`theme.json` is the default theme's generated cop
 
 Check every new screen against these before anything else.
 
-1. **No boxes.** A list is plain rows (`ROW`, `rounded-md`, `hover:bg-accent`), not cards. No border under every row; a hairline only under a header or between major sections. The one exception is the home, whose unit is the project: a project is a hairline card holding its agents as plain rows, and the `Needs you` inbox is one more (`design/board.md`).
+1. **No boxes inside boxes.** A list is plain rows (`ROW`, `rounded-md`, `hover:bg-accent`), not cards; a hairline only under a header or between major sections. Why: the Board once drew the sidebar's list again as cards inside a card. Decided, not built yet: the Board is a table grouped by project (`design/board.md`).
 2. **Two greys, two weights.** Text is `foreground` or `muted-foreground`. Body is regular, row titles and labels `font-medium`, only a page title is `font-bold`. Nothing is uppercase.
-3. **Colour is rare.** Grey everywhere; `primary` for the main button and checked boxes; `signal` only for an agent in the inbox and one dot per project (said once per agent per view, `design/attention.md`); status colours as text. A tinted background is a `Pill` and nothing else.
+3. **Colour is rare.** Grey everywhere; `primary` for the main button and checked boxes; `signal` only for the mark on a waiting agent's row (said once per agent per view, `design/attention.md`); status colours as text. A tinted background is a `Pill` and nothing else.
 4. **Words, not capsules.** Ages, counts and machine names are plain muted text joined by ` · `. A count is a grey number; there is no capsule.
 5. **Actions on demand.** Per-row actions appear on hover or focus (`group` + `group-hover:opacity-100 group-focus-within:opacity-100`); they stay pressable and in the accessibility tree. Page-level actions stay visible.
-6. **Room, not size.** Text is 15 pt with 13-pt meta, controls 36 pt (dense 32), an agent row 56 pt with 8 pt of padding above and below, icons 16 pt at 1.5 stroke in grey, 24 pt between sections (`design/foundations.md`).
+6. **Density, not size.** Sizes (text, controls, rows, icons, gaps) are in `lib/layout.ts` and `design/foundations.md`; the first scale was a phone's, so a row is one line and a dozen agents fit in the sidebar at 1280 x 800 (a cutover to a desktop scale is in progress: do not restate numbers in a screen or a doc). Why: at the phone scale eight agents filled the sidebar and sidebar text ran about 1.4 times wider than in comparable apps (unverified, from screenshots). Icons are grey at 1.5 stroke.
 7. **Status is a shape first.** Needs you = filled with bar, working = half, done = check, idle = empty ring, unknown = dashed ring, then a word, then colour. Colour is never the only signal.
 
 ## Rules
@@ -55,7 +63,7 @@ Check every new screen against these before anything else.
 6. **Nothing is lost silently.** Reversible edits go through `notify(..., { undo })`. Irreversible ones (close a pane, remove a machine) go through `confirmDestructive`. Nothing is ever approved silently: a risky answer is two-step, never a timed hold. See `design/patterns.md`.
 7. **Motion goes through `lib/motion.ts`.** See `design/motion.md` for what animates and what never does; `reduceMotion()` switches it off.
 8. **One primary per area.** An area is a page header, a dialog, or an add-row. Repeated rows have no filled button: their actions are `outline` or `ghost` and appear on hover.
-9. **The layout answers to the window.** Three widths are tested: 1280, 960 (the full sidebar at its narrow width, `snug()`) and 760 (the rail of project tiles, one pane at a time), and `fontScale()` 2.0. Use `compact()`, `rail()`, `narrow()`, `snug()`; never read the window size in a screen.
+9. **The layout answers to the window.** Three widths are tested: 1280, 960 (the full sidebar at its narrow width, `snug()`) and 760 (the rail of project tiles, one pane at a time), and `fontScale()` 2.0. Decided, not built yet: below about 1000 pt the inspector overlays instead of squeezing the conversation (unverified). Use `compact()`, `rail()`, `narrow()`, `snug()`; never read the window size in a screen.
 10. **Anything the user can choose is in Settings.** A new option is a signal in `lib/settings.ts` (with `Saved` and `loadSettings`, as its header comment says) and an entry in Settings.
 11. **When it does not fit, say so or make room.** One row has one control height. Cut text is a `Clipped` (hover shows it all); text that must be read is never cut. A `Modal` taller than the window scrolls its content between a fixed title and fixed actions. A long pick list is a virtualized `List`.
 12. **Shortcuts are `lib/shortcuts.ts`.** Global ones carry `mod`, never `alt`; hints and tooltips name keys through `keyLabel`.

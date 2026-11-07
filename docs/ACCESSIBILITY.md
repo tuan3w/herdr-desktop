@@ -17,7 +17,7 @@ herdr-desktop is accessible first: a screen reader user, a keyboard-only user, s
    | unknown | dashed ring | `Unknown` |
 
    An error is a red edge plus an icon plus text. The `Needs you` pill has a shape and text.
-4. **Hit targets.** At least 24 x 24 css pt for a pointer (WCAG 2.2 AA, 2.5.8); 44 pt where touch is possible. A control drawn smaller keeps its target through padding or hit slop; dense rows are 28 pt or more.
+4. **Hit targets.** At least 24 x 24 css pt for a pointer (WCAG 2.2 AA, 2.5.8); 44 pt where touch is possible. A control drawn smaller keeps its target through padding or hit slop, so the compact switch and segmented control of Settings are small to the eye and not to the pointer; dense rows are 28 pt or more (sizes: `lib/layout.ts`).
 5. **Focus is always visible** (`FOCUS_RING`, `FOCUS_RING_SIDEBAR`, `FOCUS_RING_INSET` from `components/kit/core.ts`, at least 3:1 against what it sits on: `lib/theme/theme.test.ts` checks the pairs). Tab order follows reading order; every popup, menu and dialog is left with Escape or its own close control; nothing traps the keyboard. A view cannot take the focus from code, so popups keep the focus on the trigger and move a highlight that is announced.
 6. **Status is spoken.** `announce(message)` is polite, and on Linux that is all nsh 0.4.0 can do (see "No assertive announcement" below). It is for what happens away from the focus: a toast, a result count after a filter, a state change that is not blocking. Something that blocks the person (an agent needs an answer, a link failed for good) is announced and shown as a shape and a word, and the focus moves to the control that resolves it where a view can take it. Never announce on a timer or per output line: the opt-in `Announce agent output` setting speaks at most once per two seconds.
 7. **Reduced motion.** `reduceMotion()` (from GTK's `gtk-enable-animations`) switches every transition off through `lib/motion.ts`; classes that move carry `motion-reduce:`. An app at rest draws nothing.
@@ -33,6 +33,16 @@ herdr-desktop is accessible first: a screen reader user, a keyboard-only user, s
 - **Not supported:** `accessible` grouping (children stay separate elements) and custom `accessibilityActions` (GTK has none). Nothing may depend on either: a grouped name goes in the label of the container, an action is a real button.
 - `Ctrl+Q` and `F11` cannot be bound (nsh reserves them). `AltGr` layouts type with Ctrl+Alt, hence rule 10.
 - Environment signals come from GTK and the XDG settings portal: font scale, reduce motion, colour scheme, and AT-SPI's `ScreenReaderEnabled`.
+
+## Decided, not built yet
+
+Owner decisions of 2026-11-07 and the accessibility each one carries, so the cutover does not lose it. Unverified until built and run under `make a11y`.
+
+- **The answer dock replaces the message box** while a request waits. It is a `group` with a name; the command is a code group read as written and never cut; the options are buttons named as the agent worded them, with keys 1 to 3 shown on them; the risky one arms for 4 s, is `selected` while armed and says why. The dock never takes the focus, a new request is announced once (polite) with the command's first line, and the line "Nothing is sent until you choose" is real text, not a placeholder. Why the box is gone: a focused text field next to a pending question invites an answer typed into the wrong place.
+- **`mod+j` moves between waiting agents** and announces whose conversation opened. It never answers and never advances by itself after an answer.
+- **A folded line is a `Disclosure`** (`expanded`), named by its text (`Read 8 files, ran 4 commands`). An effect or failure line is plain text whose word carries the meaning (`Pushed 4 commits`, `make perf-check failed`) plus an icon; colour is never the only signal. The one live line is announced at most once per two seconds and only with `Announce agent output`; a finished turn announces nothing of its own.
+- **Settings in the main region** is a page with a nav named `Settings sections` whose current page is `selected`; every switch carries its row's label, every segmented control is a radio group with that label, and `Always on` is text, not a disabled switch. The sidebar stays in the tree and in the Tab order, so a waiting question is reachable from Settings.
+- **A dialog is for a decision or a short form** (`design/dialogs.md`); what the person reads or browses is a region, so the screen reader's cursor is never inside a modal for a long read.
 
 ## Files, viewers, diagrams and pages
 

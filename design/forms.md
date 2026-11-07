@@ -11,7 +11,7 @@ Fields live in `components/kit/fields.tsx` (`NumberField` in `number-field.tsx`)
 | an address (the address keyboard, no capital, no autocorrect) | `Field address` |
 | an identifier (pane id, path, command, host name) | `Field mono` |
 | a number (a port, a count, a size) | `NumberField` (`design/inputs.md`) |
-| one of a short fixed set (under about 8) | `SelectField` (`small` = the 28pt dense size, as on `Btn`) |
+| one of a short fixed set (under about 8) | `SelectField` (`small` = the dense size, as on `Btn`) |
 | one of a long or growing set, found by typing | `Combobox` (machine, workspace) |
 | text that has likely values: names, paths | `Autocomplete` (host names, working directories) |
 | search a list | `SearchField` (icon, clear button) |
@@ -20,7 +20,7 @@ Fields live in `components/kit/fields.tsx` (`NumberField` in `number-field.tsx`)
 
 Use `SelectField` for a short fixed set, `Combobox` once scrolling a menu is slower than typing, `Autocomplete` when the value may be new, `Field` for free text. Do not offer free text for a value with five known options.
 
-**One row, one height.** Controls that share a row share a height: all 32pt, or all `small` (28pt) in a dense row (a prompt box, a dense row, a state select beside an `ActionMenu`). A toolbar of a `SearchField`, a `SelectField` and a `Segmented` is 32pt across; a `small` select beside a default search box is a bug. The prop is `small` everywhere (`Btn`, `SelectField`, `Combobox`); `compact` is only a window width.
+**One row, one height.** Controls that share a row share a height: all the default tier, or all `small` (the pointer target, `HIT` in `lib/layout.ts`) in a dense row (a prompt box, a dense row, a state select beside an `ActionMenu`). A `small` select beside a default search box is a bug. Large hit targets raises every control to the second target (`Btn`, `SelectField`, `Segmented`, `Switch`, `CheckRow`, `Field`, `NumberField`). The label of a select is body size at both tiers. The prop is `small` everywhere (`Btn`, `SelectField`, `Combobox`); `compact` is only a window width.
 
 ## Suggestions and long lists
 
@@ -38,7 +38,7 @@ Use `SelectField` for a short fixed set, `Combobox` once scrolling a menu is slo
 - Names for screen readers: the `Combobox` button and both inputs are `combobox` (the button and the `Autocomplete` input say whether the list is expanded); the list is named with its count (`3 results`); a row says its title, its hint, `selected` when it is the value and `disabled` when it is; the highlighted row is `selected`. The focus stays in the input, so the highlight is how a reader follows Up and Down.
 - `Autocomplete` takes `suggestions` (strings, or `{ text, hint }`) and `onPick` for what a pick implies: a known machine fills the host if it is empty.
 - A suggestion equal to what is typed is not shown. No match shows nothing in an `Autocomplete` and `No results` in a `Combobox`.
-- `limit` keeps the best matches and the list ends with `N more results: type to filter.`; typing narrows it. Rows with a `hint` get a 360pt list (`HINT_WIDTH`), not the field's width, so the hint has room; what still does not fit is a `Clipped`.
+- `limit` keeps the best matches and the list ends with `N more results: type to filter.`; typing narrows it. Rows with a `hint` get a 360pt list (`HINT_WIDTH`), not the field's width, so the hint has room; what still does not fit is a `Clipped`. A long chosen value is one line with an ellipsis in a `SelectField`, `Combobox` and `Autocomplete` alike, never two lines in a one-line box; the full text is in the name and in a bubble (`OneLine`).
 - Found on the host: an `autoFocus` input inside a popup closed it at once, and a click on an input reaches only its `onFocus` (a wrapper never hears `onPress`, a second click on a focused field says nothing). So `Combobox` opens on focus when the pointer is over the field (`onMouseEnter`), not when Tab arrives. Pressing a row or the chevron blurs the input first, so both wait 120ms before closing on blur and skip it while a row is held. Only the newest binding of a key runs and it consumes the key: Down is bound by `openOnDown` only while its field is focused and closed. A `Popover` makes its trigger a Tab stop of its own, so the lists of `Combobox` and `Autocomplete` hang from a `Positioner` against the field and their rows are `focusable={false}`: one Tab moves from field to field. `SelectField` and `ActionMenu` bind no Tab either: the trigger's blur closes the list (`closeOnBlur`), so Tab moves on in one press.
 
 ## Labels and names
@@ -52,7 +52,7 @@ Use `SelectField` for a short fixed set, `Combobox` once scrolling a menu is slo
 Validate on blur or on submit, never on the first keystroke. Once an error shows, clear it the moment it is fixed.
 
 - An error is three signals: red border (`border-destructive`), the `alert` icon, and the message, under its field, never in a summary. `Labeled` draws the icon and message when you pass `error`.
-- `reserve` keeps the message line's height (16pt) when empty, so a required field in a dialog does not shift the dialog when its error appears. Use it for any field whose error can appear after layout is settled.
+- `reserve` keeps the message line's height when empty, so a required field in a dialog does not shift the dialog when its error appears. Use it for any field whose error can appear after layout is settled.
 - Dialog pattern: a signal (called attempted here) turns true on blur or on a submit attempt; `error` is `attempted() && missing() ? "Choose a machine to start the agent." : undefined`.
 - `errorInLabel` puts the message on the label line instead of below the field: below it, the extra line pushes its input out of line in a row of bottom-aligned fields.
 - The primary button of a form is `disabled` while the form cannot be submitted, and the first field says why once the user tries (Enter on an empty machine shows the error).
@@ -77,7 +77,7 @@ Validate on blur or on submit, never on the first keystroke. Once an error shows
 
 `Modal` is for rare, user-invoked tasks (start an agent). Props: `open`, `onClose`, `title`, optional `description`, `children`, `actions`, `wide` (760pt, for text the user writes, a prompt).
 
-- Popup is 560pt wide, scales in from 0.97 (`enterScale`), scrim `bg-black/40` fades with it. Escape and a scrim press call `onClose`.
+- Popup is 560pt wide, scales in from `DIALOG_SCALE` 0.97 over `DURATION.dialog` 200 ms (`enterScale`), scrim `bg-black/40` fades with it. Escape and a scrim press call `onClose`.
 - `actions` are right-aligned: a `ghost` `Cancel` first, then the one `primary`. Two filled buttons in a footer have no hierarchy.
 - Taller than the window: the popup stops at 94% of its height, the title and `actions` stay in view, and only the content scrolls, under a hairline on the title and over the actions (transparent while nothing overflows, so nothing shifts). The content has its own 24pt side padding inside the scroll view so a focus outline is not clipped at the edge.
 - Rows of labelled fields use `flex-row items-end gap-3`, so inputs align at the bottom when a label wraps. A field that sits alone goes in a `FieldRow`: `Labeled` grows with `flex-1` to share a row's width, and in a column that has to scroll the same `flex-1` shrinks the field to nothing and lets its input paint over the next one (found in a prompt dialog on the host: a missing label, blank gaps, a hint over the text).
