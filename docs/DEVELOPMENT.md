@@ -16,6 +16,8 @@ xvfb-run -a env GSK_RENDERER=cairo nsh test components/<file>.test.tsx --target 
 
 A test step can `await app.screenshot(".scratch/x.png")`. The default renderer under NVIDIA is GSK GL (`ngl`); Xvfb needs `GSK_RENDERER=cairo`.
 
+Under `--target linux` the test file runs apart from the app: it cannot import `herdr-desktop/native`, a test is cut after 30 s unless `test(name, body, timeout)` says otherwise, and `app.submit` types a line break into a box that sends on Return. `docs/PERFORMANCE.md` says how the `.perf/` scenarios work around that (`perf-app.tsx` drives the scripted herdr on key presses).
+
 ## Packaging
 
 `make package` (`nsh package . --target linux -o .scratch/dist`) builds the release runner and writes `.scratch/dist/Herdr Desktop/` and `Herdr Desktop.tar.gz`; `local/install.sh` installs it (`PREFIX=<dir>` to try it without touching your home, `--uninstall` to remove it). The release build lands in `target/release`, about 2.5 GB beside the debug build: on a disk that cannot take both, point `CARGO_TARGET_DIR` at another disk for that one command and delete it after. `docs/RELEASING.md` is the release procedure and what the package needs at run time.

@@ -1,0 +1,45 @@
+# Deployment of the ledger service.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ledger
+  labels: &labels
+    app: ledger
+    tier: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels: *labels
+  template:
+    spec:
+      containers:
+        - name: api
+          image: "registry.example.com/ledger:1.4.0"
+          ports: [{ containerPort: 8080 }]
+          env:
+            - name: LIMIT
+              value: "1024"
+            - name: DEBUG
+              value: false
+          resources:
+            limits: { cpu: 500m, memory: 256Mi }
+          command: ["/bin/ledger", "--listen", ":8080"]
+          args: |
+            --verbose
+            --cache=/var/cache
+      # TODO: add a readiness probe
+---
+# A second document: scalars of every kind.
+defaults: &defaults
+  enabled: yes
+  retries: ~
+  created: 2026-01-15
+  kind: !!str 42
+  ratio: 1.5e-3
+service:
+  <<: *defaults
+  note: 'it''s fine'
+  banner: "tab\there"
+  summary: >-
+    A folded
+    block scalar.

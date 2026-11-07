@@ -166,6 +166,11 @@ fn Scrolled() -> impl IntoElement {
 }
 
 #[component]
+fn Late() -> impl IntoElement {
+    view().size_full().child(mirror("late"))
+}
+
+#[component]
 fn Blocked() -> impl IntoElement {
     view().size_full().child(mirror("blocked"))
 }
@@ -339,6 +344,19 @@ fn scrolled_away_new_lines_show_a_pill_that_jumps_to_the_end() {
     );
     app.wait_for_gone("text:/new lines/", Duration::from_secs(2))
         .unwrap();
+}
+
+#[test]
+fn a_pane_whose_rows_arrive_after_the_view_opens_at_its_end() {
+    // A pane tab is built before its first read answers: the view starts empty and a screen taller than it arrives.
+    let pane = pane("late");
+    let mut app = start::<Late>(400.0, 300.0, None);
+    pane.show(&lines("row", 60));
+    app.wait_for("text:row 59").unwrap();
+    assert!(
+        !app.shows("new lines"),
+        "opening at the end needs no pill"
+    );
 }
 
 #[test]

@@ -1,0 +1,10 @@
+{
+  "name": "herdr-desktop",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#lib/*": "./lib/*.ts",
+    "#components/*": "./components/*.tsx",
+    "#kit": "./components/kit/index.ts"
+  }
+}

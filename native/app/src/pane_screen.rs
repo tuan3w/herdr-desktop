@@ -35,6 +35,9 @@ use crate::metrics;
 /// How long after a polite output announcement the next one waits.
 const ANNOUNCE_WINDOW: Duration = Duration::from_secs(2);
 
+/// How long after the first rows and size a pane waits before it jumps to its end: the list has laid out by then.
+const OPEN_SETTLE: Duration = Duration::from_millis(30);
+
 /// How much of the pane the view shows.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PropEnum)]
 pub enum PaneContent {
@@ -441,6 +444,16 @@ pub fn PaneScreen(props: PaneScreenProps, cx: Scope<PaneScreenEvent>) -> impl In
         })
     };
 
+    // A pane taller than the view opens at its end, where its prompt is. `initial_scroll_index` cannot do it for a list
+    // built before its first layout (the platform has no sizes yet to clamp the jump to) and the pane's first rows
+    // usually arrive after the view is built, so once there are rows and a size, jump to the end once.
+    let has_rows = computed(move || shown.with(|s| !s.0.rows.is_empty()));
+    let opened_at_end = stored(false);
+    effect(move || {
+        if height.get() > 0.0 && has_rows.get() && !opened_at_end.replace(true) {
+            set_timeout(OPEN_SETTLE, move || jump_to_end(mirror, cx, list_ref));
+        }
+    });
     let body = dynamic(move || {
         if scrolls.get() {
             // A row wider than the view: the rows sit in a box as wide as they are, which scrolls.

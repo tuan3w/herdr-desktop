@@ -1,4 +1,6 @@
 {
   "extends": "./.nsh/tsconfig.json",
-  "include": ["**/*.ts", "**/*.tsx"]
+  "include": ["**/*.ts", "**/*.tsx"],
+  // Highlighter samples are text to highlight, not code of the app.
+  "exclude": ["native/**/samples/**", ".scratch", "node_modules"]
 }

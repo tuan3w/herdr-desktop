@@ -50,7 +50,8 @@ make a11y                  # AT-SPI tree of every screen, no unnamed control
 make run | package        # dev window | .tar.gz under .scratch/dist
 make schema                # herdr api schema --json > docs/herdr-api.schema.json
 make theme                 # bun scripts/gen-theme.mjs, only after the default theme's spec changes
-make perf | cpu            # scenarios in a real window; needs a display
+make perf | cpu            # scenarios in a real window (Xvfb + cairo without a display), tables in docs/PERFORMANCE.md
+make perf-check            # the same, three runs each, fails when a median breaks .perf/budgets.json
 ```
 
 Run `nsh` and `cargo` with the repo root as the working directory, or rustup does not see the pin (`rust-toolchain.toml`: 1.99.1). `.cargo/config.toml` turns debug info off and sets one shared `target/`: never create a second target directory, the data disk is nearly full. It also pins `AR=/usr/bin/ar` because a foreign `ar` earlier in `PATH` on the owner's machine breaks `cc-rs`. Build needs `libgtk-4-dev`, `clang`, `pkg-config` (`docs/DEVELOPMENT.md`).
@@ -66,8 +67,9 @@ native/core/            crate herdr-core: pure Rust, no nsh. wire, link, ssh, st
 native/app/             crate herdr-desktop-native: #[native_module("herdr-desktop/native")]; Herdr module, PaneScreen
 design/*.md, DESIGN.md  the design system
 docs/                   ARCHITECTURE, ACCESSIBILITY, PERFORMANCE, PARITY, DEVELOPMENT, herdr-api.schema.json
-scripts/                gen-theme, perf, cpu, check-docs, atspi_audit, sync-schema
-.perf/                  scenarios for scripts/perf.mjs (hidden: nsh test skips it)
+scripts/                gen-theme, perf, cpu, gen-big-fixture, check-docs, atspi_audit, sync-schema
+.perf/                  scenarios and budgets.json for scripts/perf.mjs and cpu.mjs (hidden: nsh test skips it)
+perf-app.tsx, perf-chat.tsx  entries of those scenarios (the app plus a driver for the scripted herdr; in the root because an app finds its fonts only under its entry directory)
 .scratch/               gitignored scratch: screenshots, builds, nsh checkout. Never /tmp
 ```
 

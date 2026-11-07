@@ -6,6 +6,7 @@
 //! * [`api`] is the `Herdr` module TSX calls: it pulls state after a tick and acts on it.
 //! * [`diagrams`] serves the bundled mermaid script to the web views that draw diagrams.
 //! * [`feed`] is the seam between the engine and `PaneScreen`.
+//! * [`highlight`] reads code into coloured spans (tree-sitter, TextMate) and draws it: `CodeView`, `CodeDiff`, the `Code` module.
 //! * [`pane_screen`] draws a pane's rows; [`keys`] maps keystrokes to herdr key names.
 //! * [`metrics`] is what the dev panel shows about the live pane path.
 //! * [`files`] is the `Files` and `Pages` modules: the file browser, viewers, `Send a file` and tunnels to a machine's pages.
@@ -21,6 +22,7 @@ pub mod engine;
 pub mod feed;
 pub mod files;
 pub mod fixture;
+pub mod highlight;
 pub mod keys;
 pub mod metrics;
 pub mod notify;
@@ -38,8 +40,11 @@ fn native(registry: &mut Registry) {
         .module::<api::Herdr>()
         .module::<api::Sessions>()
         .module::<diagrams::Diagrams>()
+        .module::<highlight::api::Code>()
         .module::<files::Files>()
         .module::<files::Pages>()
         .module::<keys::PaneKeys>()
+        .register::<highlight::view::CodeDiff>()
+        .register::<highlight::view::CodeView>()
         .register::<pane_screen::PaneScreen>();
 }

@@ -7,7 +7,7 @@ export HERDR_DESKTOP_TEST := 1
 CORE := native/core/Cargo.toml
 APP  := native/app/Cargo.toml
 
-.PHONY: verify verify-mac check test test-smoke core docs a11y run package theme perf cpu schema shots
+.PHONY: verify verify-mac check test test-smoke core docs a11y run package theme perf cpu perf-check schema shots
 
 # Linux: everything. `a11y` needs AT-SPI (dbus, Xvfb, python3-gi), which only Linux has.
 verify: check test core docs a11y
@@ -64,6 +64,11 @@ perf:
 
 cpu:
 	bun scripts/cpu.mjs
+
+# The budgets of .perf/budgets.json: three runs each, the medians (about 20 minutes).
+perf-check:
+	bun scripts/perf.mjs --check
+	bun scripts/cpu.mjs --check
 
 # Refresh the protocol schema from the installed herdr.
 schema:

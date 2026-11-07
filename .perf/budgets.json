@@ -1,0 +1,147 @@
+{
+  "note": "Measured under Xvfb with the cairo renderer on the dev host (unoptimized Rust): CPU-drawn numbers, so the frame budgets are regression guards and not the product target (frame p95 < 8.3 ms at 120 Hz on a real display, unverified). Each time budget is the median of the runs x 1.5 (1.15 broke on this shared machine, whose speed moves by 30% between hours), except memMB (the highest any run reached x 1.15: the resident set has two modes) and a scenario at rest (drawn 0, cpu 1). cpu is checked by scripts/cpu.mjs. A check holds the best of its three runs to a budget (noise on a shared machine only slows a run) and memMB at the median. See docs/PERFORMANCE.md.",
+  "measured": {
+    "runs": 5,
+    "slack": 1.5,
+    "display": "xvfb-cairo",
+    "date": "2026-11-07"
+  },
+  "default": {
+    "frameP95": 8.3,
+    "over": 10,
+    "jsP95": 50,
+    "memMB": 400
+  },
+  "scenarios": {
+    "idle board": {
+      "drawn": 0,
+      "memMB": 338,
+      "cpu": 1
+    },
+    "palette open": {
+      "frameP95": 33.72,
+      "over": 21,
+      "jsP95": 2.6,
+      "memMB": 372,
+      "cpu": 8
+    },
+    "palette typing": {
+      "frameP95": 2,
+      "over": 5,
+      "jsP95": 2,
+      "memMB": 373,
+      "cpu": 7
+    },
+    "open a pane": {
+      "frameP95": 7.52,
+      "over": 5,
+      "jsP95": 2,
+      "memMB": 380,
+      "cpu": 13
+    },
+    "idle pane": {
+      "drawn": 0,
+      "memMB": 362,
+      "cpu": 1
+    },
+    "stream 8 panes, 1 open": {
+      "frameP95": 5.39,
+      "over": 5,
+      "jsP95": 2,
+      "memMB": 380,
+      "cpu": 15
+    },
+    "idle pane after streaming": {
+      "drawn": 0,
+      "memMB": 363,
+      "cpu": 1
+    },
+    "scrollback 1000 rows, scrolled": {
+      "frameP95": 7.22,
+      "over": 5,
+      "jsP95": 2,
+      "memMB": 386,
+      "cpu": 18
+    },
+    "open 2 more panes in splits": {
+      "frameP95": 13.28,
+      "over": 5,
+      "jsP95": 2,
+      "memMB": 396,
+      "cpu": 13
+    },
+    "stream 8 panes, 3 open in splits": {
+      "frameP95": 10.89,
+      "over": 5,
+      "jsP95": 3.7,
+      "memMB": 397,
+      "cpu": 21
+    },
+    "close panes": {
+      "frameP95": 2,
+      "over": 5,
+      "jsP95": 2,
+      "memMB": 398,
+      "cpu": 9
+    },
+    "permission storm: 20 blocked at once": {
+      "frameP95": 7.82,
+      "over": 5,
+      "jsP95": 3.5,
+      "memMB": 402,
+      "cpu": 19
+    },
+    "idle with 20 blocked": {
+      "drawn": 0,
+      "memMB": 387,
+      "cpu": 1
+    },
+    "200 agents arrive": {
+      "frameP95": 8.23,
+      "over": 5,
+      "jsP95": 3.8,
+      "memMB": 463,
+      "cpu": 65
+    },
+    "idle board, 200 agents": {
+      "drawn": 0,
+      "memMB": 441,
+      "cpu": 1
+    },
+    "project home scroll, 200 agents": {
+      "frameP95": 24.42,
+      "over": 8,
+      "jsP95": 2,
+      "memMB": 463,
+      "cpu": 23
+    },
+    "chat idle, empty": {
+      "frameP95": 2.16,
+      "over": 5,
+      "jsP95": 2,
+      "memMB": 312,
+      "cpu": 3
+    },
+    "chat 5,000 items arrive": {
+      "frameP95": 2,
+      "over": 5,
+      "jsP95": 63.2,
+      "memMB": 350,
+      "cpu": 15
+    },
+    "chat 5,000 items, idle at the end": {
+      "frameP95": 2,
+      "over": 5,
+      "jsP95": 2,
+      "memMB": 350,
+      "cpu": 3
+    },
+    "chat 5,000 items, scrolled": {
+      "frameP95": 4.87,
+      "over": 5,
+      "jsP95": 3.5,
+      "memMB": 355,
+      "cpu": 17
+    }
+  }
+}

@@ -1,0 +1,30 @@
+//! Synthetic code in every language the highlighter knows, written for the labs and the tests: nothing
+//! here is copied from a real project. `all()` is `(fence word, file name, text)`.
+
+pub const ALL: &[(&str, &str, &str)] = &[
+    ("tsx", "badge.tsx", include_str!("tsx.tsx")),
+    ("ts", "reader.ts", include_str!("typescript.ts")),
+    ("rust", "ledger.rs", include_str!("rust.rs")),
+    ("python", "ledger.py", include_str!("python.py")),
+    ("go", "ledger.go", include_str!("go.go")),
+    ("java", "Ledger.java", include_str!("java.java")),
+    ("kotlin", "Ledger.kt", include_str!("kotlin.kt")),
+    ("c", "ledger.c", include_str!("c.c")),
+    ("cpp", "ledger.cpp", include_str!("cpp.cpp")),
+    ("swift", "Ledger.swift", include_str!("swift.swift")),
+    ("ruby", "ledger.rb", include_str!("ruby.rb")),
+    ("php", "Ledger.php", include_str!("php.php")),
+    ("bash", "summarise.sh", include_str!("bash.sh")),
+    ("sql", "balances.sql", include_str!("sql.sql")),
+    ("json", "package.json", include_str!("json.json")),
+    ("yaml", "deploy.yaml", include_str!("yaml.yaml")),
+    ("toml", "Cargo.toml", include_str!("toml.toml")),
+    ("html", "index.html", include_str!("html.html")),
+    ("css", "app.css", include_str!("css.css")),
+    ("markdown", "README.md", include_str!("markdown.md")),
+    ("dockerfile", "Dockerfile", include_str!("Dockerfile")),
+    ("diff", "ledger.patch", include_str!("patch.diff")),
+    ("lua", "ledger.lua", include_str!("lua.lua")),
+    ("zig", "ledger.zig", include_str!("zig.zig")),
+    ("dart", "ledger.dart", include_str!("dart.dart")),
+];

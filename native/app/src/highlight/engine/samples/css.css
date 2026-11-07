@@ -1,0 +1,31 @@
+@import url("reset.css");
+@layer base, components;
+
+:root {
+  --ink: oklch(0.3 0.01 90);
+  --gap: 0.75rem;
+  color-scheme: light dark;
+}
+
+/* TODO: dark mode tokens */
+.card:not(.flat) > .title::after,
+a[href^="https://"]:hover {
+  color: var(--ink, #333);
+  margin: calc(var(--gap) * 2) auto 0;
+  font: 600 14px/1.4 "Inter", system-ui, sans-serif;
+  background: linear-gradient(135deg, rgb(10 114 133 / 0.15), transparent 60%);
+  transition: opacity 120ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.btn {
+  color: red !important;
+  background: url(img/x.png) no-repeat #0a728580;
+  font: 600 14px/1.4 "Inter", sans-serif;
+  &:hover { translate: 0 -1px; }
+}
+
+@media (max-width: 760px) and (prefers-reduced-motion: no-preference) {
+  .card { grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }
+}
+
+@keyframes fade { from { opacity: 0 } to { opacity: 1 } }

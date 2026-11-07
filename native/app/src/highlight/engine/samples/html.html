@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Ledger &mdash; balances</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <style>
+    .badge { color: #0a7285; padding: 0 .5rem; }
+  </style>
+</head>
+<body class="page" data-theme="light">
+  <!-- TODO: add a skip link -->
+  <header id="top">
+    <h1 class="title">Balances</h1>
+    <nav aria-label="Main">
+      <a href="/accounts" class="badge">Accounts</a>
+    </nav>
+  </header>
+  <main>
+    <table>
+      <tr><th scope="col">Name</th><td>acme</td></tr>
+    </table>
+    <p>Fish &amp; chips &lt; &#163;5 &copy; 2026</p>
+    <user-card name=acme size=3><img src="a.png" alt="" /></user-card>
+    <button type="button" onclick="refresh('acme')" disabled>Refresh</button>
+  </main>
+  <script type="module">
+    const refresh = (name) => fetch(`/api/${name}`).then((r) => r.json());
+    window.refresh = refresh;
+  </script>
+</body>
+</html>

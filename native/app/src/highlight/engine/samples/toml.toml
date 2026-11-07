@@ -1,0 +1,36 @@
+# Package manifest.
+[package]
+name = "ledger"
+version = "1.4.0"
+edition = "2024"
+authors = ["Maria <maria@example.com>"]
+description = "A tiny ledger"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1.40", default-features = false, features = ["rt", "macros"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = "symbols"
+
+[[bin]]
+name = "ledger"
+path = "src/main.rs"
+
+[limits]
+entries = 1_024
+ratio = 0.75
+since = 2026-01-15T09:30:00Z
+paths = ["a/b", 'c\d']
+at = 07:32:00
+born = 1979-05-27
+nested = [{ id = 1, tags.kind = "a" }, { id = 2 }]
+note = """
+Multi-line \t basic string with a "quote".
+"""
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

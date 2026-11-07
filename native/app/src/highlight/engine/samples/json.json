@@ -1,0 +1,17 @@
+{
+  "name": "ledger",
+  "version": "1.4.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p .",
+    "test": "vitest run --coverage"
+  },
+  "limits": { "entries": 1024, "ratio": 0.75, "growth": -1.5e3 },
+  "enabled": true,
+  "owner": null,
+  "tags": ["finance", "ledger", "demo \"quoted\" \u00e9\n"],
+  "accounts": [
+    { "name": "acme", "cents": 150000, "open": true },
+    { "name": "globex", "cents": -2500, "open": false }
+  ]
+}

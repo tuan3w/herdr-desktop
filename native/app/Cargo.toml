@@ -16,6 +16,38 @@ crossbeam-channel = "0.5"
 parking_lot = "0.12"
 serde_json = "1"
 unicode-width = "0.2"
+log = "0.4"
+similar = { version = "2", features = ["unicode"] }
+streaming-iterator = "0.1"
+# The highlighter (src/highlight): tree-sitter grammars with our queries, and the TextMate grammars nsh ships
+# for everything else (the same syntect and two-face versions nsh-base resolves: one copy of the grammar data).
+syntect = { version = "5.3.0", default-features = false, features = ["parsing", "regex-fancy", "dump-load"] }
+two-face = { version = "=0.4.5", default-features = false, features = ["syntect-fancy"] }
+tree-sitter = "0.27"
+tree-sitter-bash = "0.25"
+tree-sitter-c = "0.24"
+tree-sitter-cpp = "0.23"
+tree-sitter-css = "0.25"
+tree-sitter-dart = "0.3"
+tree-sitter-diff = "0.1"
+tree-sitter-go = "0.25"
+tree-sitter-html = "0.23"
+tree-sitter-java = "0.23"
+tree-sitter-javascript = "0.25"
+tree-sitter-json = "0.24"
+tree-sitter-kotlin-ng = "1.1"
+tree-sitter-lua = "0.5"
+tree-sitter-md = "0.5"
+tree-sitter-php = "0.25"
+tree-sitter-python = "0.25"
+tree-sitter-ruby = "0.23"
+tree-sitter-rust = "0.24"
+tree-sitter-sequel = "0.3"
+tree-sitter-swift = "0.7"
+tree-sitter-toml-ng = "0.7"
+tree-sitter-typescript = "0.23"
+tree-sitter-yaml = "0.7"
+tree-sitter-zig = "1.1"
 
 # freedesktop notifications over the session bus: every desktop but macOS (see src/notify).
 [target.'cfg(not(target_os = "macos"))'.dependencies]

@@ -1,0 +1,25 @@
+diff --git a/src/ledger.rs b/src/ledger.rs
+index 3f2a1c4..9b7e0d2 100644
+--- a/src/ledger.rs
++++ b/src/ledger.rs
+@@ -12,9 +12,12 @@ impl Account {
+     pub fn push(&mut self, entry: u64) -> Result<(), Error> {
+-        if self.entries.len() > MAX_ENTRIES {
+-            return Err(Error::Full);
++        if self.entries.len() >= MAX_ENTRIES {
++            return Err(Error::Full { limit: MAX_ENTRIES });
+         }
+         self.entries.push(entry);
++        self.dirty = true;
+         Ok(())
+     }
+@@ -40,3 +43,3 @@ impl Account {
+     pub fn balance(&self) -> u64 {
+-        self.entries.iter().sum()
++        self.entries.iter().copied().sum()
+     }
+\ No newline at end of file
+diff --git a/old.txt b/new.txt
+similarity index 90%
+rename from old.txt
+rename to new.txt
