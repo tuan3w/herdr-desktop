@@ -67,6 +67,7 @@ Check every new screen against these before anything else.
 10. **Anything the user can choose is in Settings.** A new option is a signal in `lib/settings.ts` (with `Saved` and `loadSettings`, as its header comment says) and an entry in Settings.
 11. **When it does not fit, say so or make room.** One row has one control height. Cut text is a `Clipped` (hover shows it all); text that must be read is never cut. A `Modal` taller than the window scrolls its content between a fixed title and fixed actions. A long pick list is a virtualized `List`.
 12. **Shortcuts are `lib/shortcuts.ts`.** Global ones carry `mod`, never `alt`; hints and tooltips name keys through `keyLabel`.
+13. **Taste.** What the owner corrects in every render (nothing jumps, one surface per thing, text whole or faded, quiet at rest, tooltip and toast placement, say it once) is `design/taste.md`.
 
 ## Nothing else exists
 
@@ -82,6 +83,6 @@ Closed lists. Adding a value means editing `components/kit/` and this file in th
 
 ```sh
 nsh check                       # types
-nsh test                        # behaviour, undo, keyboard, themes (contrast), narrow window, reduced motion
+make test                       # (never bare `nsh test`: AGENTS.md) behaviour, undo, keyboard, themes (contrast), narrow window, reduced motion
 bun scripts/gen-theme.mjs       # only after changing the default theme's spec
 ```

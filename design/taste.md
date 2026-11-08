@@ -1,0 +1,25 @@
+# Taste: the rules the owner keeps enforcing
+
+Each rule below was a correction made while looking at a render, usually next to the Claude desktop app, which is the reference for calm. They apply to every screen and the kit. Check each one by eye in every render (`herdr-screen-check`); a rule that stops being true is edited here, with the reason, never worked around in a screen.
+
+1. **Nothing jumps.** Hover, focus and an open menu never move, resize or re-truncate text. An action that appears on hover has a slot reserved at rest (32 pt buttons, 2 pt apart; 44 pt under Large hit targets); only opacity and the control's own fill change. Why: a row that shifts under the pointer makes the person miss the press. Correct: `+` and `...` fade in inside a reserved right slot. Incorrect: the header shrinks 64 pt on hover and the name becomes `herdr-...`.
+2. **One surface per thing.** A header line, a row and a code block each have one surface and one hover. No box in a box, no chevron in its own pill, no strip behind a toolbar, no double edge (one hairline or one shadow ring, never both). Why: stacked fills read as three controls and show a seam.
+3. **Text is whole, or it fades; never a stub.**
+
+   ```
+   Does name + machine fit at natural width?
+    ├── Yes → show both whole
+    └── No → shrink the machine label first
+         ├── It fits now → show it whole
+         └── Still no → drop the machine label entirely, then shrink the name
+              └── A clipped name fades over its last 24 pt (`Clipped` with `fade`); the full text is the tooltip and the accessible name
+   ```
+
+   Why: a stub like "fatm" tells the person nothing, and a cut that appears while 300 pt are free looks broken. The budget is `headerBudget` in `lib/header-fit.ts`.
+4. **Quiet at rest.** Copy buttons, row menus and block toolbars appear on hover or `focus-within` (still reachable by Tab) as 16 pt icons without a fill. One icon per block at most; every other setting sits behind one `...` menu. No filled chips for secondary actions.
+5. **A tooltip covers nothing it explains and never leaves the window.** Visible text is at most 30 characters (the long form is the accessible name: `New session` shows, `New agent session in payments` is spoken). It is clamped 8 pt inside the window, opens above a control that sits on text or on a row, and never repeats a visible label (a button reading `Copy` has none).
+6. **A toast never covers the composer or the answer dock.** Top right, 52 pt under the top edge, enters from above; plain 3.5 s, with Undo 10 s.
+7. **Say it once.** A placeholder or a help line, never both. A failure appears once (the row, or the fold, or the effects line). One state mark per fact: no check on every row; success is silence.
+8. **Targets you can hit, spaced.** 32 pt controls (28 only in a dense table row), radii nested (outer minus padding), one primary action per view.
+9. **A call in the chat is one muted line**, like `Created package.json +48 ›`: a muted verb, the object in the normal colour, a green count, no icon, no check. A run of calls is one hairline box with a hairline between rows; detail opens in place under its row. Why: the person reads the answer and the exceptions, not a log.
+10. **Hierarchy by subtraction.** The thing that needs the person is the only loud thing; everything else is a muted tone, not a smaller button. If two things are loud, demote one.
