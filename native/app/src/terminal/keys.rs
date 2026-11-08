@@ -8,7 +8,7 @@
 //!
 //! The rule, in one sentence: **the program gets every key it can encode, the app keeps the chords that a terminal cannot
 //! tell apart from a plain one** (`Ctrl+Shift+<letter>` reads as `Ctrl+<letter>` on the wire), `Ctrl+Tab`, `Ctrl+,` and
-//! `Ctrl+<digit>`. `Ctrl+Shift+P` (the palette) and `Ctrl+Shift+<digit>` (tabs) are therefore always the way out.
+//! `Ctrl+<digit>`. `Ctrl+Shift+<digit>` (tabs) is therefore always the way out; the palette (`Ctrl+P`) is the program's inside a terminal, so it needs a Ctrl+Shift chord of its own (docs/specs/terminal.md).
 
 use std::collections::BTreeSet;
 

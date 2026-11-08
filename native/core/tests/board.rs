@@ -785,6 +785,41 @@ fn agents_of_one_repository_share_a_project_across_its_workspaces_and_worktrees(
 }
 
 #[test]
+fn branches_from_worktree_list_are_laid_over_the_checkouts_without_reordering_them() {
+    let snap = world(
+        vec![
+            repo_workspace("w1", "payments", API, "/home/dev/payments-api", false),
+            repo_workspace("w3", "hotfix", API, "/home/dev/payments-api-hotfix", true),
+        ],
+        vec![
+            agent_in("p1", "w1", "idle", "/home/dev/payments-api"),
+            agent_in("p3", "w3", "idle", "/home/dev/payments-api-hotfix"),
+        ],
+    );
+    let board = plain(&[online("local", snap)]);
+    let mut checkouts = project(&board, "payments-api").checkouts.clone();
+    assert!(
+        checkouts.iter().all(|c| c.branch.is_none()),
+        "the snapshot carries no branch"
+    );
+    herdr_core::project::name_branches(&mut checkouts, |path| match path {
+        "/home/dev/payments-api-hotfix" => Some("hotfix/2.1".to_owned()),
+        _ => None,
+    });
+    let seen: Vec<_> = checkouts
+        .iter()
+        .map(|c| (c.name.as_str(), c.branch.as_deref()))
+        .collect();
+    assert_eq!(
+        seen,
+        [
+            ("payments-api", None),
+            ("payments-api-hotfix", Some("hotfix/2.1"))
+        ]
+    );
+}
+
+#[test]
 fn workspaces_without_git_info_group_by_label_and_then_by_folder() {
     let snap = world(
         vec![

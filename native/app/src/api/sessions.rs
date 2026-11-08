@@ -234,6 +234,18 @@ impl Sessions {
         Ok(())
     }
 
+    /// Reads older turns of a chat read from a terminal (`view().observed.earlier` is `available`): the log is
+    /// read again from its end with a tail 4x as wide, up to 64 MB, beside the rows shown, and replaces them in
+    /// one step when it is whole (`earlier` is `loading` meanwhile). The rows shown keep their `id`, and the
+    /// older ones arrive above them: a list that keys by `id` holds its place. Returns at once; whether a read
+    /// began (`false` while one runs, at the log's start, past the widest, or for a chat that is not observed).
+    pub fn load_earlier(machine: String, id: String) -> Result<bool, String> {
+        Ok(match Chat::find(&machine, &id)? {
+            Some(Chat::Observed(chat)) => chat.load_earlier(),
+            _ => false,
+        })
+    }
+
     /// The bytes of a picture of a chat read from a terminal, as base64 (`ImageView.source` names it): fetched
     /// when the person asks, because the log does not carry them. Throws with words for the person when the
     /// picture is gone, too large (over 20 MB) or the link fails.

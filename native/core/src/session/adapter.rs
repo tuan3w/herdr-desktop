@@ -733,14 +733,17 @@ impl Driver {
     }
 
     fn items_snapshot(&mut self) -> Arc<Vec<Arc<Item>>> {
-        self.items.snapshot(self.transcript.items(), None)
+        self.items.snapshot(self.transcript.items(), None, &|id| id)
     }
 }
 
 /// The items of the last snapshot, so a new one reuses what did not change.
 #[derive(Default)]
 struct ItemCache {
-    prev: Vec<Arc<Item>>,
+    /// The last snapshot's items, each with the transcript id it was made from (its own `id` is the key
+    /// the screens see, which an observed session can keep apart from the transcript's: see
+    /// [`ObservedTranscript::adopt`]).
+    prev: Vec<(u64, Arc<Item>)>,
     times: Times,
 }
 
@@ -831,15 +834,17 @@ impl ItemCache {
         &mut self,
         source: &VecDeque<transcript::Item>,
         images: Option<&HashMap<String, Vec<ImageRef>>>,
+        key: &dyn Fn(u64) -> u64,
     ) -> Arc<Vec<Arc<Item>>> {
         let mut out = Vec::with_capacity(source.len());
         let mut at = 0;
         let timed = !self.times.started.is_empty();
         for item in source {
             // Ids ascend and only the oldest are dropped, so the previous snapshot is walked once.
-            while self.prev.get(at).is_some_and(|p| p.id < item.id) {
+            while self.prev.get(at).is_some_and(|(src, _)| *src < item.id) {
                 at += 1;
             }
+            let view_id = key(item.id);
             let (started, ended) = if timed {
                 (
                     self.times.started.get(&item.id).copied(),
@@ -849,8 +854,9 @@ impl ItemCache {
                 (None, None)
             };
             match self.prev.get(at) {
-                Some(prev)
-                    if prev.id == item.id
+                Some((src, prev))
+                    if *src == item.id
+                        && prev.id == view_id
                         && prev.rev == item.rev
                         && prev.started_ms == started
                         && prev.ended_ms == ended =>
@@ -859,6 +865,7 @@ impl ItemCache {
                 }
                 _ => {
                     let mut view = item_view(item);
+                    view.id = view_id;
                     view.started_ms = started;
                     view.ended_ms = ended;
                     if let (
@@ -877,7 +884,11 @@ impl ItemCache {
                 }
             }
         }
-        self.prev = out.clone();
+        self.prev = source
+            .iter()
+            .map(|i| i.id)
+            .zip(out.iter().cloned())
+            .collect();
         Arc::new(out)
     }
 }
@@ -1284,16 +1295,118 @@ pub(crate) struct ObservedMeta {
 
 /// The transcript of an observed session: the vendored reducer fed with the [`Update`]s a log mapper makes.
 /// The log is the truth, so a message line mapped again replaces the message, and a cleared log empties it.
-#[derive(Default)]
 pub(crate) struct ObservedTranscript {
     transcript: Transcript,
     /// Pictures of messages, by message id (the reducer holds text only).
     images: HashMap<String, Vec<ImageRef>>,
     items: ItemCache,
     revision: u64,
+    /// The key a screen sees for each transcript item, by the item's transcript id. The transcript's own
+    /// ids restart when a wider read replaces it ([`adopt`](Self::adopt)); these do not, so a list keeps
+    /// its place by them.
+    keys: HashMap<u64, u64>,
+    /// The next key for an item newer than every one shown, and the lowest given so far (older items
+    /// that a wider read brings count down from it).
+    next_key: u64,
+    low_key: u64,
+}
+
+/// Where keys begin: far from 0 so older items can take keys below the first.
+const KEY_BASE: u64 = 1 << 32;
+
+impl Default for ObservedTranscript {
+    fn default() -> Self {
+        Self {
+            transcript: Transcript::default(),
+            images: HashMap::new(),
+            items: ItemCache::default(),
+            revision: 0,
+            keys: HashMap::new(),
+            next_key: KEY_BASE,
+            low_key: KEY_BASE,
+        }
+    }
+}
+
+/// What makes an item the same item in another read of the log: a message by its id, a tool call by its id.
+fn identity(entry: &Entry) -> Option<String> {
+    match entry {
+        Entry::Message {
+            role,
+            message_id: Some(id),
+            ..
+        } => Some(format!("m{role:?}:{id}")),
+        Entry::Tool(t) => Some(format!("t:{}", t.id)),
+        _ => None,
+    }
 }
 
 impl ObservedTranscript {
+    /// Gives every item without a key the next one.
+    fn assign_keys(&mut self) {
+        for item in self.transcript.items() {
+            self.keys.entry(item.id).or_insert_with(|| {
+                self.next_key += 1;
+                self.next_key - 1
+            });
+        }
+        if let Some(first) = self.transcript.items().front().map(|i| i.id) {
+            self.keys.retain(|id, _| *id >= first);
+        }
+    }
+
+    /// A wider read of the same log replaces what is shown. What was shown keeps its keys (the list holds its
+    /// place by them); the older items it brings take keys below the first, so they arrive above the rows in
+    /// view. Items are told apart by their message or tool call id and lined up from the first one the old
+    /// and the new have in common; the old read stopped where the new one began to catch up, so the new one
+    /// is the old plus what came after.
+    pub(crate) fn adopt(&mut self, wide: ObservedTranscript) {
+        self.assign_keys();
+        let old: Vec<(Option<String>, u64)> = self
+            .transcript
+            .items()
+            .iter()
+            .map(|i| (identity(&i.entry), self.keys[&i.id]))
+            .collect();
+        let new: Vec<(u64, Option<String>)> = wide
+            .transcript
+            .items()
+            .iter()
+            .map(|i| (i.id, identity(&i.entry)))
+            .collect();
+        let mut reuse: Vec<Option<u64>> = vec![None; new.len()];
+        let anchor = old.iter().position(|(id, _)| id.is_some());
+        if let Some(at) = anchor
+            && let Some(found) = new.iter().position(|(_, id)| *id == old[at].0)
+        {
+            for (i, (id, key)) in old.iter().enumerate() {
+                if let Some(n) = (i + found).checked_sub(at)
+                    && let Some((_, theirs)) = new.get(n)
+                    && theirs == id
+                {
+                    reuse[n] = Some(*key);
+                }
+            }
+        }
+        let first = reuse.iter().position(Option::is_some).unwrap_or(0);
+        let mut keys = HashMap::with_capacity(new.len());
+        for (src, _) in new.iter().take(first).rev() {
+            self.low_key -= 1;
+            keys.insert(*src, self.low_key);
+        }
+        for (n, (src, _)) in new.iter().enumerate().skip(first) {
+            let key = reuse[n].unwrap_or_else(|| {
+                self.next_key += 1;
+                self.next_key - 1
+            });
+            keys.insert(*src, key);
+        }
+        self.transcript = wide.transcript;
+        self.images = wide.images;
+        self.keys = keys;
+        self.items = ItemCache::default();
+    }
+
     /// Applies what one log line changed.
     pub(crate) fn apply(&mut self, update: Update) {
         match update {
@@ -1364,6 +1477,7 @@ impl ObservedTranscript {
             Update::Cleared => {
                 self.transcript.clear();
                 self.images.clear();
+                self.keys.clear();
             }
         }
     }
@@ -1395,9 +1509,13 @@ impl ObservedTranscript {
     /// The conversation as it stands, with `meta` around it.
     pub(crate) fn snapshot(&mut self, meta: ObservedMeta) -> SessionSnapshot {
         self.revision += 1;
+        self.assign_keys();
+        let keys = &self.keys;
         let items = self
             .items
-            .snapshot(self.transcript.items(), Some(&self.images));
+            .snapshot(self.transcript.items(), Some(&self.images), &|id| {
+                keys.get(&id).copied().unwrap_or(id)
+            });
         SessionSnapshot {
             revision: self.revision,
             phase: meta.phase,

@@ -12,7 +12,8 @@
 //!   "snapshot": { "version": "0.9.5", "protocol": 22, "workspaces": [], "tabs": [], "panes": [], "agents": [] },
 //!   "panes": { "w1:p1": { "screen": ["plain row", "..."], "ansi": ["optional rows with \u001b[31mSGR\u001b[0m"] } },
 //!   "events": [ { "event": "pane_updated", "data": { "pane": { } } } ],
-//!   "answers": { "workspace.create": { "type": "ok" } }
+//!   "answers": { "workspace.create": { "type": "ok" } },
+//!   "worktrees": { "repos": [ { "root": "/src/api", "linked": [ { "path": "/src/api-x", "branch": "feature/x" } ], "untrusted": false } ], "create_at": "/tmp" }
 //! }
 //! ```
 //!
@@ -21,6 +22,9 @@
 //!   escape sequences for `format: "ansi"` reads (without them the plain rows serve both). A `lines`
 //!   parameter keeps the last rows.
 //! * `events` are sent to every event subscriber when it subscribes.
+//! * `worktrees` makes the fake answer `worktree.list` and `worktree.create` from repositories held in memory
+//!   (a created worktree joins its repository); `create_at` is where created worktrees are, so a test can name a folder
+//!   that exists. Without the key the herdr is one that has no worktrees (`unknown_method`).
 //! * `answers` overrides the result of any method; without an entry the mutating methods succeed
 //!   (`{"type":"ok"}`, or the shape herdr uses for the methods that create something).
 //!
@@ -32,7 +36,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-use herdr_core::testing::{FakeHerdr, Recorded, Script};
+use herdr_core::testing::{FakeHerdr, FakeRepo, FakeWorktrees, Recorded, Script};
 use serde_json::{Map, Value, json};
 
 /// The environment variable that must be `1` for a fixture to be honoured.
@@ -83,6 +87,7 @@ struct State {
 /// A running scripted herdr. Dropping it stops the server and removes its socket directory.
 pub struct Fixture {
     fake: FakeHerdr,
+    worktrees: Option<Arc<FakeWorktrees>>,
     state: Arc<State>,
     dir: PathBuf,
 }
@@ -113,7 +118,7 @@ impl Fixture {
     pub fn from_json(value: &Value) -> Result<Self, String> {
         let object = value.as_object().ok_or("must be a JSON object")?;
         for key in object.keys() {
-            if !["snapshot", "panes", "events", "answers"].contains(&key.as_str()) {
+            if !["snapshot", "panes", "events", "answers", "worktrees"].contains(&key.as_str()) {
                 return Err(format!("unknown key `{key}`"));
             }
         }
@@ -147,11 +152,25 @@ impl Fixture {
             revision: AtomicU64::new(1),
             ssh_faults: Mutex::new(HashMap::new()),
         });
-        let script = script(&state, events, answers);
+        let worktrees = object.get("worktrees").map(worktrees_from).transpose()?;
+        let mut script = script(&state, events, answers);
+        if let Some(fake) = &worktrees {
+            script = script.worktrees(fake.clone());
+        }
         let dir = socket_dir()?;
         let fake = FakeHerdr::start(&dir, script)
             .map_err(|e| format!("cannot start the fake herdr: {e}"))?;
-        Ok(Self { fake, state, dir })
+        Ok(Self {
+            fake,
+            worktrees,
+            state,
+            dir,
+        })
+    }
+
+    /// The in-memory repositories the fake serves worktrees from, when the fixture has any.
+    pub fn worktrees(&self) -> Option<&Arc<FakeWorktrees>> {
+        self.worktrees.as_ref()
     }
 
     /// The socket the engine's local machine connects to.
@@ -231,6 +250,42 @@ impl Drop for Fixture {
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn worktrees_from(spec: &Value) -> Result<Arc<FakeWorktrees>, String> {
+    let text = |v: &Value, key: &str| -> Result<String, String> {
+        v.get(key)
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .ok_or_else(|| format!("worktrees: `{key}` must be a string"))
+    };
+    let mut repos = Vec::new();
+    for repo in spec
+        .get("repos")
+        .and_then(Value::as_array)
+        .ok_or("worktrees: `repos` must be an array")?
+    {
+        let mut made = FakeRepo::new(&text(repo, "root")?);
+        for linked in repo
+            .get("linked")
+            .and_then(Value::as_array)
+            .map_or(&[][..], Vec::as_slice)
+        {
+            made = made.linked(&text(linked, "path")?, &text(linked, "branch")?);
+        }
+        if repo.get("untrusted").and_then(Value::as_bool) == Some(true) {
+            made = made.untrusted();
+        }
+        repos.push(made);
+    }
+    let fake = FakeWorktrees::new(repos);
+    if let Some(at) = spec.get("create_at") {
+        fake.create_at(
+            at.as_str()
+                .ok_or("worktrees: `create_at` must be a string")?,
+        );
+    }
+    Ok(fake)
 }
 
 fn screen_from(pane: &str, spec: &Value) -> Result<Screen, String> {

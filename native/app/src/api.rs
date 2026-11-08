@@ -11,6 +11,7 @@ mod session_acp_views;
 mod session_views;
 mod sessions;
 mod views;
+mod worktrees;
 
 use std::sync::Arc;
 
@@ -26,6 +27,7 @@ pub use session_acp_views::*;
 pub use session_views::*;
 pub use sessions::Sessions;
 pub use views::*;
+pub use worktrees::*;
 
 static ENGINE: RwLock<Option<Arc<Engine>>> = RwLock::new(None);
 
@@ -458,6 +460,36 @@ impl Herdr {
     /// says so.
     pub async fn start_agent(machine: String, start: StartAgent) -> Result<CreatedView, String> {
         run(move |engine| engine.start_agent(&machine, &start.into()).map(Into::into)).await
+    }
+
+    /// The checkouts of the repository a folder is in, each with its branch (`worktree.list`). Never throws:
+    /// `state` says when there is nothing to offer (not a repository, herdr without worktrees, an untrusted
+    /// repository, a machine that did not answer).
+    pub async fn worktrees(machine: String, cwd: String) -> Result<WorktreeLookup, String> {
+        run(move |engine| Ok(WorktreeLookup::of(engine.worktrees(&machine, &cwd)))).await
+    }
+
+    /// Makes a worktree for the repository a folder is in (`worktree.create`, never focused) and opens it in herdr
+    /// as a workspace. `branch` is checked against git's ref-name rules first and sent only as a parameter; an empty
+    /// one lets herdr name it. Throws with what to tell the person; a repository herdr does not trust is refused,
+    /// never trusted from here.
+    pub async fn create_worktree(
+        machine: String,
+        cwd: String,
+        branch: String,
+    ) -> Result<MadeWorktree, String> {
+        run(move |engine| {
+            let branch = Some(branch.as_str()).filter(|b| !b.is_empty());
+            engine
+                .create_worktree(&machine, &cwd, branch)
+                .map(|made| MadeWorktree {
+                    path: made.worktree.path,
+                    branch: made.worktree.branch,
+                    workspace_id: made.workspace_id,
+                })
+                .map_err(|e| e.explain())
+        })
+        .await
     }
 
     /// Test seam: the requests the scripted herdr served, oldest first, optionally of one `method`

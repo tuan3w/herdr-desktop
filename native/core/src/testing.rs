@@ -16,6 +16,10 @@ use std::time::Duration;
 use crossbeam_channel::{Receiver, Sender, unbounded};
 use serde_json::{Value, json};
 
+mod worktrees;
+
+pub use worktrees::{FakeRepo, FakeWorktrees};
+
 type Handler = Box<dyn Fn(&Value) -> Result<Value, (String, String)> + Send + Sync>;
 
 /// What the fake answers. Unscripted methods answer `{"error":{"code":"unknown_method",..}}`.

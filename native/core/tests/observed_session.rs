@@ -18,8 +18,8 @@ use herdr_core::observed::model::{
 use herdr_core::observed::session::{ObservedConfig, PaneIo, PaneState};
 use herdr_core::schema::AgentStatus;
 use herdr_core::session::{
-    Ask, FieldAnswer, HubConfig, ItemKind, KeeperError, KeeperHost, ObservedLink, Refusal,
-    SessionHub, SessionPhase, SessionSnapshot,
+    Ask, EarlierHistory, FieldAnswer, HubConfig, ItemKind, KeeperError, KeeperHost, ObservedLink,
+    Refusal, SessionHub, SessionPhase, SessionSnapshot,
 };
 use parking_lot::Mutex;
 use serde_json::{Value, json};
@@ -324,6 +324,8 @@ fn fast() -> ObservedConfig {
         backoff: vec![Duration::from_millis(50)],
         max_attempts: 3,
         max_ask_steps: 6,
+        tail_start: 192 * 1024,
+        tail_max: 64 * 1024 * 1024,
     }
 }
 
@@ -879,4 +881,158 @@ fn at_most_four_chats_from_terminals_are_open_per_machine_and_one_pane_is_one_ch
         .observe(LOCAL, "w1:p9", kind(false), Pane::new(rig.located()))
         .expect("room again");
     let _ = Path::new(&rig.home);
+}
+
+// ---- earlier history ---------------------------------------------------------------------------
+
+/// `turns` user and agent messages of about 1 KB each, `u<i>`/`a<i>`, from `from`.
+fn long_log(rig: &Rig, from: usize, turns: usize) {
+    let pad = "x".repeat(1000);
+    let lines: Vec<Value> = (from..from + turns)
+        .flat_map(|i| {
+            [
+                user(&format!("u{i}"), &format!("q{i} {pad}")),
+                agent(&format!("a{i}"), &format!("r{i} {pad}")),
+            ]
+        })
+        .collect();
+    rig.append(&lines);
+}
+
+/// Every message's key and its leading word (`q12`, `r12`), oldest first.
+fn rows(s: &SessionSnapshot) -> Vec<(u64, String)> {
+    s.items
+        .iter()
+        .filter_map(|i| match &i.kind {
+            ItemKind::Message { text, .. } => {
+                Some((i.id, text.split(' ').next().unwrap_or("").to_owned()))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn earlier(s: &SessionSnapshot) -> EarlierHistory {
+    s.observed.as_ref().expect("observed").earlier
+}
+
+fn word(n: usize, who: char) -> String {
+    format!("{}{n}", if who == 'u' { 'q' } else { 'r' })
+}
+
+#[test]
+fn a_long_log_opens_at_its_end_and_older_turns_load_above_with_the_same_keys() {
+    let rig = Rig::new();
+    long_log(&rig, 0, 450); // about 900 KB: the tail read is 192 KB
+    let chat = rig
+        .hub
+        .observe(LOCAL, "w1:p1", kind(false), Pane::new(rig.located()))
+        .expect("observe");
+    let first = eventually("the tail", || {
+        let s = chat.snapshot();
+        (s.phase == SessionPhase::Idle && !rows(&s).is_empty()).then_some(s)
+    });
+    let shown = rows(&first);
+    assert!(shown.len() < 450, "only the end of the log is read");
+    assert_eq!(shown.last().expect("last").1, word(449, 'a'));
+    assert_eq!(earlier(&first), EarlierHistory::Available);
+    assert_eq!(chat.earlier(), EarlierHistory::Available);
+
+    assert!(chat.load_earlier());
+    // A second press while one runs begins nothing.
+    assert!(!chat.load_earlier());
+    let second = eventually("a wider read", || {
+        let s = chat.snapshot();
+        (rows(&s).len() > shown.len()).then_some(s)
+    });
+    let now = rows(&second);
+    // The older turns are above; what was shown is the end of what is shown now, under the same keys.
+    assert_eq!(&now[now.len() - shown.len()..], shown.as_slice());
+    assert!(now.windows(2).all(|w| w[0].0 < w[1].0), "keys ascend");
+    assert!(now[0].0 < shown[0].0, "older rows take keys below");
+    assert_eq!(earlier(&second), EarlierHistory::Available);
+
+    // Wider again: the start of the file is reached, so there is nothing more to load.
+    assert!(chat.load_earlier());
+    let third = eventually("the whole log", || {
+        let s = chat.snapshot();
+        (rows(&s).len() == 900).then_some(s)
+    });
+    let all = rows(&third);
+    assert_eq!(all[0].1, word(0, 'u'));
+    assert_eq!(&all[all.len() - now.len()..], now.as_slice());
+    assert_eq!(earlier(&third), EarlierHistory::None);
+    assert!(!chat.load_earlier());
+}
+
+#[test]
+fn a_log_longer_than_the_widest_read_says_so_and_does_not_try_again() {
+    let rig = Rig::with(ObservedConfig {
+        tail_start: 16 * 1024,
+        tail_max: 64 * 1024,
+        ..fast()
+    });
+    long_log(&rig, 0, 150); // about 300 KB
+    let chat = rig
+        .hub
+        .observe(LOCAL, "w1:p1", kind(false), Pane::new(rig.located()))
+        .expect("observe");
+    let first = eventually("the tail", || {
+        let s = chat.snapshot();
+        (!rows(&s).is_empty()).then_some(s)
+    });
+    assert_eq!(earlier(&first), EarlierHistory::Available);
+    let before = rows(&first).len();
+    assert!(chat.load_earlier());
+    let second = eventually("the widest read", || {
+        let s = chat.snapshot();
+        (rows(&s).len() > before).then_some(s)
+    });
+    assert_eq!(earlier(&second), EarlierHistory::TooLong);
+    assert!(!chat.load_earlier());
+}
+
+#[test]
+fn lines_the_agent_writes_during_a_wider_read_arrive_once_and_in_order() {
+    let rig = Rig::new();
+    long_log(&rig, 0, 450);
+    let chat = rig
+        .hub
+        .observe(LOCAL, "w1:p1", kind(false), Pane::new(rig.located()))
+        .expect("observe");
+    eventually("the tail", || {
+        (!rows(&chat.snapshot()).is_empty()).then_some(())
+    });
+    assert!(chat.load_earlier());
+    // The agent keeps writing while the older turns are read, and after.
+    for i in 450..460 {
+        long_log(&rig, i, 1);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let done = eventually("the appended turns", || {
+        let s = chat.snapshot();
+        let r = rows(&s);
+        (r.last().is_some_and(|l| l.1 == word(459, 'a')) && earlier(&s) != EarlierHistory::Loading)
+            .then_some(r)
+    });
+    let words: Vec<&str> = done.iter().map(|r| r.1.as_str()).collect();
+    let mut unique = words.clone();
+    unique.dedup();
+    assert_eq!(words, unique, "no row is repeated");
+    let at = |w: String| words.iter().position(|x| *x == w).expect("row");
+    assert!(at(word(449, 'a')) < at(word(450, 'u')) && at(word(450, 'u')) < at(word(459, 'a')));
+    // Contiguous: every turn from the first shown to 459 is there once.
+    let first: usize = words[0][1..].parse().expect("number");
+    let expect: Vec<String> = (first..460)
+        .flat_map(|n| [word(n, 'u'), word(n, 'a')])
+        .collect();
+    let skip = usize::from(words[0].starts_with('r'));
+    assert_eq!(
+        words,
+        expect
+            .iter()
+            .skip(skip)
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+    );
 }

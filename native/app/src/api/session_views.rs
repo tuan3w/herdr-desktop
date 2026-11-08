@@ -3,9 +3,9 @@
 
 use herdr_core::prompt::{EffectKind, ToolEffect, tool_effect};
 use herdr_core::session::{
-    self as core, Ask, FieldKind, ItemKind, KeeperInfo, KeeperState, ModeRisk, ObservedInfo,
-    ObservedLink, PastSession, PastSessions, PlanStatus, Refusal, Role, Route, SessionPhase,
-    SessionSnapshot, ToolStatus,
+    self as core, Ask, EarlierHistory, FieldKind, ItemKind, KeeperInfo, KeeperState, ModeRisk,
+    ObservedInfo, ObservedLink, PastSession, PastSessions, PlanStatus, Refusal, Role, Route,
+    SessionPhase, SessionSnapshot, ToolStatus,
 };
 use nsh_core::prelude::*;
 
@@ -912,6 +912,19 @@ pub enum LinkName {
     Ended,
 }
 
+/// Whether an observed chat shows the whole of its log.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PropEnum)]
+pub enum EarlierName {
+    /// What is shown starts at the log's start: nothing to load.
+    None,
+    /// Older turns can be read: call `loadEarlier`.
+    Available,
+    /// Older turns are being read; the rows shown stay until all of them are there.
+    Loading,
+    /// The widest read (64 MB) is shown and the log is longer still.
+    TooLong,
+}
+
 /// A subagent an observed agent started, as its log last described it.
 #[derive(Debug, Clone, PartialEq, Eq, JsObject)]
 pub struct SubagentRow {
@@ -977,8 +990,8 @@ pub struct ObservedView {
     /// The plan as the agent wrote it, when the log holds it.
     #[prop(skip_none)]
     pub proposed_plan: Option<String>,
-    /// Earlier turns exist in the log than the tail read shows.
-    pub earlier_in_log: bool,
+    /// Whether the log holds turns that are not shown, and whether they can be loaded (`loadEarlier`).
+    pub earlier: EarlierName,
     /// What last went wrong (a message the terminal did not take); it clears itself after a while.
     #[prop(skip_none)]
     pub problem: Option<String>,
@@ -1028,7 +1041,12 @@ impl From<&ObservedInfo> for ObservedView {
                 .collect(),
             proposed_plan_title: o.proposed_plan.as_ref().map(|p| p.title.clone()),
             proposed_plan: o.proposed_plan.as_ref().and_then(|p| p.markdown.clone()),
-            earlier_in_log: o.earlier_in_log,
+            earlier: match o.earlier {
+                EarlierHistory::None => EarlierName::None,
+                EarlierHistory::Available => EarlierName::Available,
+                EarlierHistory::Loading => EarlierName::Loading,
+                EarlierHistory::TooLong => EarlierName::TooLong,
+            },
             problem: o.problem.clone(),
             answers_questions: o.answers_questions,
         }

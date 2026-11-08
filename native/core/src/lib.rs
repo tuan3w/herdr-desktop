@@ -19,6 +19,7 @@ pub mod ssh;
 pub mod store;
 pub mod testing;
 pub mod wire;
+pub mod worktree;
 
 /// The version of this crate.
 pub fn version() -> &'static str {

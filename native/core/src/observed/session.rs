@@ -14,7 +14,7 @@
 use std::collections::HashMap;
 use std::io::BufReader;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -26,9 +26,9 @@ use super::model::{AskAnswer, Location, LogMapper, PendingAsk, Update};
 use crate::schema::AgentStatus;
 use crate::session::adapter::{ObservedMeta, ObservedTranscript, picture_ref};
 use crate::session::{
-    Ask, Attach, AttachLines, BackgroundView, FieldAnswer, FieldChoice, FieldKind, ItemKind,
-    KeeperHost, ObservedInfo, ObservedLink, ProposedPlanView, QuestionField, QuestionView, Refusal,
-    SendOutcome, SessionPhase, SessionSnapshot, SubagentView, Waiting,
+    Ask, Attach, AttachLines, BackgroundView, EarlierHistory, FieldAnswer, FieldChoice, FieldKind,
+    ItemKind, KeeperHost, ObservedInfo, ObservedLink, ProposedPlanView, QuestionField,
+    QuestionView, Refusal, SendOutcome, SessionPhase, SessionSnapshot, SubagentView, Waiting,
 };
 
 /// An answer within this long of its question appearing is refused: that press was meant for what was on
@@ -93,6 +93,10 @@ pub struct ObservedConfig {
     pub max_attempts: usize,
     /// The most keys-and-reads an answer to a question may take.
     pub max_ask_steps: usize,
+    /// How much of the end of the log the first read takes (the keeper's default).
+    pub tail_start: u64,
+    /// The most of it a read takes after "load earlier" (the keeper's ceiling).
+    pub tail_max: u64,
 }
 
 impl Default for ObservedConfig {
@@ -106,6 +110,8 @@ impl Default for ObservedConfig {
             backoff: [1, 2, 4, 8, 15, 30].map(Duration::from_secs).to_vec(),
             max_attempts: 12,
             max_ask_steps: 25,
+            tail_start: 192 * 1024,
+            tail_max: 64 * 1024 * 1024,
         }
     }
 }
@@ -117,6 +123,13 @@ enum Input {
     Reset,
     /// Where the tail read began; more than 0 means earlier turns exist.
     Head(u64),
+    /// A wider read of the log begins (or begins again): its lines are mapped beside what is shown and
+    /// replace it when the read is whole. `keep_head`: the read's `Head` came just before.
+    WideStart {
+        keep_head: bool,
+    },
+    /// Something the worker should publish (a wider read was asked for).
+    Refresh,
     /// Everything the file held has been read: what follows is what the agent appends.
     CaughtUp,
     Link(ObservedLink),
@@ -139,6 +152,27 @@ struct Shared {
     started: Instant,
     /// The follow child, to end it without waiting for its next line.
     child: Mutex<Option<Arc<crate::ssh::Proc>>>,
+    /// How much of the end of the log a read from scratch takes; 4x wider for each `load_earlier`.
+    tail: AtomicU64,
+    /// A wider read was asked for and is not shown yet.
+    widening: AtomicBool,
+    /// The follow must end and start over from the end of the log, with `tail`.
+    restart: AtomicBool,
+    /// Where the part of the log that is shown begins (0: at its start).
+    head: AtomicU64,
+}
+
+/// Whether the log has turns that are not shown, and whether they can be had.
+fn earlier_state(shared: &Shared, tail_max: u64) -> EarlierHistory {
+    if shared.head.load(Ordering::Acquire) == 0 {
+        EarlierHistory::None
+    } else if shared.widening.load(Ordering::Acquire) {
+        EarlierHistory::Loading
+    } else if shared.tail.load(Ordering::Acquire) >= tail_max {
+        EarlierHistory::TooLong
+    } else {
+        EarlierHistory::Available
+    }
 }
 
 /// An observed session. Cloning shares it; the threads stop when the last clone is dropped or
@@ -205,6 +239,10 @@ impl ObservedHandle {
             busy: AtomicBool::new(false),
             started: Instant::now(),
             child: Mutex::new(None),
+            tail: AtomicU64::new(config.tail_start),
+            widening: AtomicBool::new(false),
+            restart: AtomicBool::new(false),
+            head: AtomicU64::new(0),
         });
         let worker = Worker {
             kind,
@@ -219,7 +257,7 @@ impl ObservedHandle {
             caught_up: false,
             failed: false,
             stop: stop.clone(),
-            head: 0,
+            wide: None,
             sent: Vec::new(),
             problem: None,
             arrived: HashMap::new(),
@@ -512,6 +550,39 @@ impl ObservedHandle {
         Ok(bytes)
     }
 
+    /// Whether the log has turns that are not shown (see [`EarlierHistory`]).
+    pub fn earlier(&self) -> EarlierHistory {
+        earlier_state(&self.inner.shared, self.inner.config.tail_max)
+    }
+
+    /// Reads older turns: the log is read again from its end with a tail 4x as wide (up to
+    /// `ObservedConfig::tail_max`), beside what is shown, which is replaced in one step when the wider read is
+    /// whole. What is shown keeps its item keys, so a list holds its place and the older rows arrive above
+    /// those in view. Nothing blocks: the follower thread starts the read. Whether one began (not while one
+    /// runs, not at the log's start, not past the widest).
+    pub fn load_earlier(&self) -> bool {
+        let shared = &self.inner.shared;
+        if !shared.alive.load(Ordering::Acquire)
+            || shared.log_path.lock().is_none()
+            || self.earlier() != EarlierHistory::Available
+            || shared.widening.swap(true, Ordering::AcqRel)
+        {
+            return false;
+        }
+        let tail = shared.tail.load(Ordering::Acquire);
+        shared.tail.store(
+            tail.saturating_mul(4).min(self.inner.config.tail_max),
+            Ordering::Release,
+        );
+        // The flag first: a follow that ends for any reason starts over instead of resuming.
+        shared.restart.store(true, Ordering::Release);
+        if let Some(child) = shared.child.lock().as_ref() {
+            child.kill();
+        }
+        let _ = self.inner.inputs.send(Input::Refresh);
+        true
+    }
+
     /// Stops reading. The agent in the pane is not touched.
     pub fn detach(&self) {
         self.inner.shutdown();
@@ -538,7 +609,7 @@ fn placeholder(kind: &ObservedKind, pane: &str) -> SessionSnapshot {
             subagents: Vec::new(),
             background: Vec::new(),
             proposed_plan: None,
-            earlier_in_log: false,
+            earlier: EarlierHistory::None,
             problem: None,
             answers_questions: kind.ask.is_some(),
         },
@@ -600,13 +671,22 @@ struct Worker {
     /// The log cannot be read for good.
     failed: bool,
     stop: Sender<()>,
-    head: u64,
+    /// A wider read of the log under way. Shown in the meantime: what was there before, so nothing flickers
+    /// or jumps while the older turns arrive.
+    wide: Option<Wide>,
     /// Messages typed into the pane that the log has not shown yet, with when to give up waiting.
     sent: Vec<(String, Instant)>,
     problem: Option<(String, Instant)>,
     /// Question tool call id -> when it first appeared (ms since the session began).
     arrived: HashMap<String, u64>,
     last_state: Option<PaneState>,
+}
+
+/// A wider read of the log, mapped from scratch beside what is shown.
+struct Wide {
+    mapper: Box<dyn LogMapper>,
+    transcript: ObservedTranscript,
+    head: Option<u64>,
 }
 
 impl Worker {
@@ -656,6 +736,14 @@ impl Worker {
     /// Applies one input; whether the snapshot changed.
     fn handle(&mut self, input: Input) -> bool {
         match input {
+            Input::Line(line) if self.wide.is_some() => {
+                if let Some(wide) = &mut self.wide {
+                    for update in wide.mapper.map(&line) {
+                        wide.transcript.apply(update);
+                    }
+                }
+                false
+            }
             Input::Line(line) => {
                 for update in self.mapper.map(&line) {
                     self.apply(update);
@@ -667,14 +755,42 @@ impl Worker {
                 self.mapper.reset();
                 self.transcript.apply(Update::Cleared);
                 self.caught_up = false;
-                self.head = 0;
+                self.wide = None;
                 true
             }
             Input::Head(offset) => {
-                self.head = offset;
+                if let Some(wide) = &mut self.wide {
+                    wide.head = Some(offset);
+                    return false;
+                }
+                self.shared.head.store(offset, Ordering::Release);
                 true
             }
+            Input::WideStart { keep_head } => {
+                let head = self
+                    .wide
+                    .as_ref()
+                    .and_then(|w| w.head)
+                    .filter(|_| keep_head);
+                self.wide = Some(Wide {
+                    mapper: (self.kind.new_mapper)(),
+                    transcript: ObservedTranscript::default(),
+                    head,
+                });
+                true
+            }
+            Input::Refresh => true,
             Input::CaughtUp => {
+                if let Some(wide) = self.wide.take() {
+                    // The older turns are shown when all of them are there.
+                    self.mapper = wide.mapper;
+                    self.transcript.adopt(wide.transcript);
+                    if let Some(head) = wide.head {
+                        self.shared.head.store(head, Ordering::Release);
+                    }
+                    self.shared.widening.store(false, Ordering::Release);
+                    self.confirm_sent();
+                }
                 self.caught_up = true;
                 true
             }
@@ -847,7 +963,7 @@ impl Worker {
                 title: p.title,
                 markdown: p.markdown,
             }),
-            earlier_in_log: self.head > 0,
+            earlier: earlier_state(&self.shared, self.config.tail_max),
             problem: self.problem.as_ref().map(|(text, _)| text.clone()),
             answers_questions: self.kind.ask.is_some(),
         };
@@ -981,11 +1097,19 @@ impl Follower {
                     if followed.as_deref() != Some(path.as_str()) {
                         if followed.is_some() {
                             // Another session: it opens at its end like any other.
+                            self.shared.widening.store(false, Ordering::Release);
+                            self.shared
+                                .tail
+                                .store(self.config.tail_start, Ordering::Release);
                             let _ = self.inputs.send(Input::Reset);
                         }
                         followed = Some(path.clone());
                         offset = None;
                         *self.shared.log_path.lock() = Some(path.clone());
+                    }
+                    if self.shared.restart.swap(false, Ordering::AcqRel) {
+                        // A wider read: from the end of the file, not from where the last one stopped.
+                        offset = None;
                     }
                     self.say(ObservedLink::Following);
                     match self.follow_once(&path, &mut offset) {
@@ -999,6 +1123,9 @@ impl Follower {
                                 attempt = 0;
                             }
                         }
+                    }
+                    if self.shared.restart.load(Ordering::Acquire) {
+                        continue;
                     }
                     if attempt >= self.config.max_attempts {
                         let _ = self.inputs.send(Input::FollowFailed(
@@ -1025,7 +1152,15 @@ impl Follower {
 
     /// One `follow` command, read to its end.
     fn follow_once(&self, path: &str, offset: &mut Option<u64>) -> Followed {
-        let mut conn: Attach = match self.host.follow(path, *offset, None) {
+        // A read from the end that is a wider one (or the retry of one) is mapped from scratch beside what is
+        // shown; one that resumes goes on where it was.
+        let tail = offset
+            .is_none()
+            .then(|| self.shared.tail.load(Ordering::Acquire));
+        if offset.is_none() && self.shared.widening.load(Ordering::Acquire) {
+            let _ = self.inputs.send(Input::WideStart { keep_head: false });
+        }
+        let mut conn: Attach = match self.host.follow(path, *offset, tail) {
             Ok(conn) => conn,
             Err(e) if e.is_fatal() => {
                 return Followed::Ended {
@@ -1041,6 +1176,10 @@ impl Follower {
             }
         };
         *self.shared.child.lock() = Some(conn.proc.clone());
+        // A wider read was asked for while this one was starting: nobody could end it yet.
+        if self.shared.restart.load(Ordering::Acquire) {
+            conn.proc.kill();
+        }
         let Some(stdout) = conn.stdout.take() else {
             return Followed::Ended {
                 got_records: false,
@@ -1063,7 +1202,14 @@ impl Follower {
                 }
                 Record::Reset(at) => {
                     *offset = Some(at);
-                    let _ = self.inputs.send(Input::Reset);
+                    // `S` came just before: a wider read keeps the head it said.
+                    let _ = self
+                        .inputs
+                        .send(if self.shared.widening.load(Ordering::Acquire) {
+                            Input::WideStart { keep_head: true }
+                        } else {
+                            Input::Reset
+                        });
                 }
                 Record::CaughtUp => {
                     let _ = self.inputs.send(Input::CaughtUp);

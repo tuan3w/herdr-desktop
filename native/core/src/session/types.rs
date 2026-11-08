@@ -490,6 +490,20 @@ pub struct ProposedPlanView {
     pub markdown: Option<String>,
 }
 
+/// Whether an observed session shows the whole of its log.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EarlierHistory {
+    /// What is shown starts at the log's start.
+    #[default]
+    None,
+    /// Older turns can be read: `ObservedHandle::load_earlier`.
+    Available,
+    /// A wider read is under way; what is shown stays until all of it is there.
+    Loading,
+    /// The widest read is shown and the log is longer still.
+    TooLong,
+}
+
 /// Where an observed session's log reading stands.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObservedLink {
@@ -525,8 +539,8 @@ pub struct ObservedInfo {
     pub background: Vec<BackgroundView>,
     /// A plan waiting for the person's decision in the terminal.
     pub proposed_plan: Option<ProposedPlanView>,
-    /// Earlier turns exist in the log than the tail read shows.
-    pub earlier_in_log: bool,
+    /// Whether the log holds turns that are not shown, and whether they can be loaded.
+    pub earlier: EarlierHistory,
     /// The last thing that went wrong, in words (a send the terminal did not take); it clears itself.
     pub problem: Option<String>,
     /// This agent's questions are answered from here (`answerQuestion`); else in the terminal.

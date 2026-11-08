@@ -27,6 +27,7 @@ mod panes;
 mod preview;
 mod sessions;
 mod words;
+mod worktrees;
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
@@ -203,6 +204,7 @@ impl Engine {
             log_names: RwLock::new(LogNames::new()),
             pane_names: Mutex::new(herdr_core::observed::names::PaneSessionNames::default()),
             me: fleet_cell.clone(),
+            branches: Mutex::new(HashMap::new()),
             // Last: dropped after the links, whose threads may still be talking to it.
             fixture: config.fixture,
         });
@@ -357,6 +359,8 @@ pub struct Fleet {
     sched: Sender<panes::Sched>,
     jobs: Sender<Job>,
     fixture: Option<Fixture>,
+    /// The branch of a checkout, by machine and folder, as `worktree.list` last said (`engine/worktrees.rs`).
+    branches: Mutex<HashMap<(MachineId, String), String>>,
 }
 
 /// How a machine's link is doing, in the words the machine list uses.
@@ -620,7 +624,7 @@ impl Fleet {
             .iter()
             .map(|(m, link)| (m.id.clone(), link.snapshot(), link.state()))
             .collect();
-        let board = {
+        let mut board = {
             let reviewed = self.reviewed.lock();
             let first_seen = self.first_seen.lock();
             let sessions = self.sessions.rows();
@@ -639,6 +643,12 @@ impl Fleet {
             )
         };
 
+        for project in &mut board.projects {
+            let machine = project.machine.clone();
+            herdr_core::project::name_branches(&mut project.checkouts, |path| {
+                self.branch_of(&machine, path)
+            });
+        }
         let mut data = BoardState {
             previews: HashMap::new(),
             machine_names: entries

@@ -495,6 +495,9 @@ pub struct BoardCheckout {
     pub name: String,
     /// A linked worktree, not the repository's main checkout.
     pub linked: bool,
+    /// The branch checked out, once `Herdr.worktrees` has looked (the snapshot carries none); absent until then.
+    #[prop(skip_none)]
+    pub branch: Option<String>,
 }
 
 /// A repository or folder the agents work in, with its agents and what needs the person.
@@ -578,6 +581,7 @@ impl BoardData {
                             path: k.path.clone(),
                             name: k.name.clone(),
                             linked: k.linked,
+                            branch: k.branch.clone(),
                         })
                         .collect(),
                     needs_you: p.needs_you,

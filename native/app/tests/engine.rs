@@ -530,3 +530,128 @@ fn visits_are_kept_newest_first_across_a_restart_and_a_forgotten_one_is_gone() {
     again.engine.forget("agent:local/w1:p1").expect("saved");
     assert_eq!(keys(&again), ["project:payments"]);
 }
+
+// ---- worktrees ---------------------------------------------------------------------------------
+
+#[test]
+fn a_lookup_names_the_branch_of_each_checkout_on_the_board() {
+    let rig = start("worktrees-missing");
+    let branches = |rig: &Rig| -> Vec<(String, Option<String>)> {
+        let board = rig.engine.board();
+        let api = board
+            .board
+            .projects
+            .iter()
+            .find(|p| p.name == "payments-api")
+            .expect("the project");
+        api.checkouts
+            .iter()
+            .map(|c| (c.name.clone(), c.branch.clone()))
+            .collect()
+    };
+    assert_eq!(
+        branches(&rig),
+        [
+            ("payments-api".to_owned(), None),
+            ("payments-api-hotfix".to_owned(), None)
+        ],
+        "the snapshot has no branches"
+    );
+    let ticks = rig.ticks.load(std::sync::atomic::Ordering::Relaxed);
+    let list = rig
+        .engine
+        .worktrees("local", "/home/dev/payments-api")
+        .expect("listed");
+    assert_eq!(list.worktrees.len(), 2);
+    assert_eq!(
+        branches(&rig),
+        [
+            ("payments-api".to_owned(), Some("main".to_owned())),
+            (
+                "payments-api-hotfix".to_owned(),
+                Some("hotfix/2.1".to_owned())
+            )
+        ]
+    );
+    wait_for("the UI to be told", || {
+        rig.ticks.load(std::sync::atomic::Ordering::Relaxed) > ticks
+    });
+}
+
+#[test]
+fn a_created_worktree_is_sent_as_params_only_and_shows_its_branch() {
+    let rig = start("worktrees-missing");
+    let made = rig
+        .engine
+        .create_worktree(
+            "local",
+            "/home/dev/payments-api",
+            Some("worktree/brave-meadow-45e8"),
+        )
+        .expect("created");
+    assert_eq!(
+        made.worktree.path,
+        "/home/dev/payments-api-brave-meadow-45e8"
+    );
+    assert_eq!(
+        rig.sent("worktree.create"),
+        [
+            json!({"cwd": "/home/dev/payments-api", "branch": "worktree/brave-meadow-45e8", "focus": false})
+        ]
+    );
+    let board = rig.engine.board();
+    let api = board
+        .board
+        .projects
+        .iter()
+        .find(|p| p.name == "payments-api")
+        .unwrap();
+    // The new checkout has no agent yet, so the board does not list it; the branch is kept for when it does.
+    assert!(api.checkouts.iter().all(|c| c.path != made.worktree.path));
+    assert!(rig.sent("agent.start").is_empty() && rig.sent("workspace.create").is_empty());
+}
+
+#[test]
+fn a_bad_branch_never_reaches_herdr_and_an_untrusted_repository_is_never_trusted_from_here() {
+    let rig = start("worktrees-missing");
+    for bad in ["a;touch x", "$(x)", "--force", "a\nb", "a b", "ünï"] {
+        let error = rig
+            .engine
+            .create_worktree("local", "/home/dev/payments-api", Some(bad))
+            .expect_err(bad);
+        assert_eq!(
+            error.problem,
+            herdr_core::worktree::Problem::Invalid,
+            "{bad:?}"
+        );
+    }
+    assert!(rig.sent("worktree.create").is_empty());
+
+    let error = rig
+        .engine
+        .create_worktree("local", "/home/dev/web", Some("a"))
+        .expect_err("refused");
+    assert_eq!(error.problem, herdr_core::worktree::Problem::Untrusted);
+    assert!(
+        error
+            .explain()
+            .contains("never trusts a repository for you")
+    );
+    assert!(
+        rig.fixture()
+            .requests(None)
+            .iter()
+            .all(|r| r.params.get("trust_repository").is_none())
+    );
+}
+
+#[test]
+fn a_herdr_without_worktrees_and_an_unknown_machine_are_errors_not_panics() {
+    let rig = start("empty");
+    let error = rig
+        .engine
+        .worktrees("local", "/x")
+        .expect_err("unsupported");
+    assert_eq!(error.problem, herdr_core::worktree::Problem::Unsupported);
+    assert!(rig.engine.worktrees("nowhere", "/x").is_err());
+}

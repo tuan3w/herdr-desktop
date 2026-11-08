@@ -26,6 +26,8 @@ pub struct Checkout {
     pub name: String,
     /// A linked worktree, not the repository's main checkout.
     pub linked: bool,
+    /// The branch checked out, when `worktree.list` told (the snapshot never does); `None` is unknown or detached.
+    pub branch: Option<String>,
 }
 
 /// What the board shows for one project on one machine.
@@ -95,6 +97,7 @@ impl Directory {
                         path: wt.checkout_path.clone(),
                         name: folder_name(Some(&wt.checkout_path)),
                         linked: wt.is_linked_worktree,
+                        branch: None,
                     });
                     let name = [
                         wt.repo_name.as_str(),
@@ -212,4 +215,12 @@ pub(crate) fn checkouts_of(found: Vec<Checkout>) -> Vec<Checkout> {
             .then_with(|| a.path.cmp(&b.path))
     });
     out
+}
+
+/// Names the branch of each checkout `known` has one for (`known(path)`): the board's checkouts come from the snapshot,
+/// which carries no branches, so what `worktree.list` answered is laid over them.
+pub fn name_branches(checkouts: &mut [Checkout], known: impl Fn(&str) -> Option<String>) {
+    for c in checkouts {
+        c.branch = known(&c.path);
+    }
 }
