@@ -988,13 +988,16 @@ const readme = (keys: string[]): Scenario => ({
 const down = (n: number) => Array.from({ length: n }, () => "down");
 SCENARIOS["readme-glance"] = readme(["meta+j", "meta+shift+i"]);
 SCENARIOS["readme-review"] = readme(["meta+p", ...down(2), "enter", "meta+shift+g", "meta+b"]);
-SCENARIOS["readme-night"] = readme([
-  "meta+p",
-  ...down(4),
-  "enter",
-  "meta+shift+i",
-  "tab",
-  "tab",
-  "tab",
-  "enter",
-]);
+SCENARIOS["readme-night"] = readme(["meta+p", ...down(4), "enter", "meta+shift+i", "tab", "tab", "tab", "enter"]);
+
+// The intro video's footage (`local/video/intro/capture.sh` makes it) over the same `showcase` data and keys as the
+// README's pictures: the window as it opens, `⌘J` to the agent that waits, a finished turn (the palette's third row), its
+// changes beside it, the same with the file marked reviewed (`x`), and the working agent's inspector before a subagent opens.
+SCENARIOS["video-start"] = readme([]);
+SCENARIOS["video-jump"] = readme(["meta+j"]);
+SCENARIOS["video-chat"] = readme(["meta+p", ...down(2), "enter"]);
+SCENARIOS["video-review"] = readme(["meta+p", ...down(2), "enter", "meta+shift+g", "meta+b"]);
+SCENARIOS["video-marked"] = readme(["meta+p", ...down(2), "enter", "meta+shift+g", "meta+b", "x"]);
+SCENARIOS["video-activity"] = readme(["meta+p", ...down(4), "enter", "meta+shift+i"]);
+SCENARIOS["video-subagent"] = SCENARIOS["readme-night"];
+SCENARIOS["video-sidebar"] = readme(["meta+b"]);

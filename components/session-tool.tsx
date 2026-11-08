@@ -8,8 +8,8 @@ import { DiffBlock } from "#components/diff-block";
 import { openLink } from "#components/open-link";
 import { StatusGlyph } from "#components/status-glyph";
 import { Clipped, FOCUS_RING, FOCUS_RING_INSET, Icon } from "#kit";
-import { viewFile } from "#lib/open-files";
 import { hoverTransition } from "#lib/motion";
+import { viewFile } from "#lib/open-files";
 import { pictureSize } from "#lib/session-pictures";
 import { outputView, shortPath, toolKindOf, toolLine, toolStatusText, visibleText } from "#lib/session-text";
 

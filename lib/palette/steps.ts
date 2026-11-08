@@ -3,10 +3,10 @@ import { announce } from "nsh";
 
 import { notify } from "#kit";
 import { openSession } from "#lib/dock";
-import { browseFiles, viewFile } from "#lib/open-files";
 import { projectOf } from "#lib/herdr";
 import { agentChoices, rememberStart, startFailure } from "#lib/new-session";
 import type { AgentChoice } from "#lib/new-session";
+import { browseFiles, viewFile } from "#lib/open-files";
 import type { PaletteCommand } from "#lib/palette/commands";
 import { projectFolder } from "#lib/sidebar";
 import { fold } from "#lib/text";
