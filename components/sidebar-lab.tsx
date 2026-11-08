@@ -59,6 +59,7 @@ function Lab() {
           <Btn label="Go to the first agent" onPress={() => goTo("first")} />
           <Text>{`new session dialog ${newSessionOpen() ? "open" : "closed"}`}</Text>
           <Text>{`new session folder ${newSessionProject()?.folder ?? "none"}`}</Text>
+          <Text>{`new session worktree ${newSessionProject()?.worktree === true}`}</Text>
           <Text>{`settings page ${settingsPage() ?? "closed"}`}</Text>
           <Text>{`picked ${selected().length}`}</Text>
           <Text>{`board tick ${revision()}`}</Text>

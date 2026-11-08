@@ -21,7 +21,7 @@ import {
   Icon,
   type IconName,
   IconButton,
-  Kbd,
+  Keys,
   NUM,
   Popover,
   PopoverTitle,
@@ -61,6 +61,7 @@ import {
   treeOffset,
 } from "#lib/sidebar";
 import { stateWord } from "#lib/status";
+import { lookUpBranches } from "#lib/worktrees";
 
 /** Hover and the open tab are a quiet fill, nothing else. The focus ring is inset: see `FOCUS_RING_SIDEBAR`. */
 const FILL = `rounded-md hover:bg-sidebar-accent/40 selected:bg-sidebar-accent ${FOCUS_RING_SIDEBAR}`;
@@ -215,6 +216,13 @@ function projectEntries(project: BoardProject) {
       onSelect: () => newSession({ machine: project.machine, folder: projectFolder(project) }),
       disabled: project.offline,
     },
+    {
+      label: "New worktree…",
+      accelerator: "W",
+      onSelect: () => newSession({ machine: project.machine, folder: projectFolder(project), worktree: true }),
+      // Only a repository has worktrees: a project that is a label or a plain folder has no checkout.
+      disabled: project.offline || project.checkouts.length === 0,
+    },
     ...changesEntries(project),
     ...copyEntries("Project name", project.name, "Folder", projectFolder(project)),
   ];
@@ -348,10 +356,20 @@ function Checkout(props: { item: () => Extract<SidebarItem, { kind: "checkout" }
   return (
     <View
       class="flex-row items-center gap-2 pl-8 pr-3 pt-2"
-      accessibilityLabel={c().linked ? `${c().name}, worktree` : `${c().name}, main checkout`}
+      accessibilityLabel={`${c().name}, ${c().linked ? "worktree" : "main checkout"}${c().branch ? `, branch ${c().branch}` : ""}`}
     >
       <Clipped class="min-w-0 shrink text-xs text-muted-foreground">{c().name}</Clipped>
-      <Text class="text-xs text-muted-foreground">{c().linked ? "worktree" : "main"}</Text>
+      {/* The branch, once herdr said it, is what tells two checkouts apart; until then the kind of checkout. */}
+      <If when={c().branch}>
+        {(name) => (
+          <Clipped boxClass="min-w-0 shrink-[2]" class="font-mono text-xs text-muted-foreground">
+            {name()}
+          </Clipped>
+        )}
+      </If>
+      <If when={!c().branch}>
+        <Text class="text-xs text-muted-foreground">{c().linked ? "worktree" : "main"}</Text>
+      </If>
     </View>
   );
 }
@@ -684,6 +702,10 @@ function announceNeedsYou() {
 /** Fills its panel: the width is the user's (`App.tsx`), the edge line is the panel group's handle. */
 export function Sidebar() {
   announceNeedsYou();
+  // The sidebar names a checkout by its branch, which only `worktree.list` knows: ask once per set of checkouts.
+  effect(() => {
+    for (const project of board().projects) untracked(() => lookUpBranches(project));
+  });
   const needs = () => board().counts.needsYou;
   const empty = () => items().length === 0;
   return (
@@ -707,7 +729,7 @@ export function Sidebar() {
         <View class="pb-2">
           <NavRow icon="plus" label="New agent session" shortcut={keyLabel("newAgent")} onPress={() => newSession()}>
             <If when={!snug()}>
-              <Kbd keys={keyLabel("newAgent")} tone="sidebar" />
+              <Keys keys={keyLabel("newAgent")} tone="sidebar" />
             </If>
           </NavRow>
         </View>

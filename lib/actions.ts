@@ -76,10 +76,13 @@ export function openSettings(page?: SettingsPage): void {
 export const newAgentOpen = signal(false);
 /** `New agent session`: the form that starts a chat with an agent, and the project it was asked from (its machine and folder). */
 export const newSessionOpen = signal(false);
-export const newSessionProject = signal<{ machine: string; folder: string } | undefined>(undefined);
+export const newSessionProject = signal<{ machine: string; folder: string; worktree?: boolean } | undefined>(undefined);
 
-/** Opens `New agent session`, filled with a project's machine and folder when it was asked from one. */
-export function newSession(project?: { machine: string; folder: string }): void {
+/**
+ * Opens `New agent session`, filled with a project's machine and folder when it was asked from one; `worktree` chooses
+ * `New worktree…` as its Checkout once the project's repository is known.
+ */
+export function newSession(project?: { machine: string; folder: string; worktree?: boolean }): void {
   newSessionProject.set(project);
   newSessionOpen.set(true);
 }

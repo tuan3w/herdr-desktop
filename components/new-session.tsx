@@ -1,7 +1,7 @@
 import { Herdr, Sessions } from "herdr-desktop/native";
 import { announce, computed, effect, keymap, signal, Text, untracked, View } from "nsh";
 
-import type { AgentRoute, SessionInfo } from "herdr-desktop/native";
+import type { AgentRoute, SessionInfo, WorktreeLookup } from "herdr-desktop/native";
 
 import { FolderPicker } from "#components/folder-picker";
 import { PastSessions } from "#components/past-sessions";
@@ -17,6 +17,14 @@ import {
   sessionFolderError,
   startFailure,
 } from "#lib/new-session";
+import { branchError, checkoutAt, suggestBranch } from "#lib/worktrees";
+
+/** The `Checkout` choice that makes a worktree; any other choice is a folder (`""` is the typed one). */
+const NEW_WORKTREE = "new-worktree";
+/** The `Checkout` choice for the typed folder itself. Neither sentinel can be a path: a path is absolute. */
+const THIS_FOLDER = "this-folder";
+/** How long after the last keystroke in `Folder` the repository is looked at: a typed path is not a path until it stops. */
+const LOOKUP_WAIT_MS = 500;
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 /** How long a first message waits for the session to open before the session is handed over without it. */
@@ -39,12 +47,19 @@ async function opened(machine: string, id: string): Promise<boolean> {
  * does not have; the agents offered are what the machine can run (`Sessions.probe`), the others are listed dimmed with
  * the reason. A failure keeps everything typed and says what happened in the keeper's words and what to do next. The last
  * agent and folder per machine are remembered. `Past sessions` opens the conversations an agent kept, to continue one.
+ *
+ * `Checkout` appears once the folder is in a git repository herdr answers for: `This folder`, the repository's other
+ * checkouts (by folder and branch) and `New worktree…`, which asks for a `Branch` (prefilled) and makes the worktree
+ * through herdr before the session starts in it. Any other answer leaves the row out (not a repository, a herdr without
+ * worktrees, a machine that did not answer), except that a repository herdr does not trust says so, and that a project's
+ * `New worktree…` says why when it cannot. A session that fails to start after its worktree was made keeps the worktree
+ * chosen, so Start again uses it instead of making a second. Nothing here ever trusts a repository.
  */
 export function NewSession(props: {
   open: boolean;
   onClose: () => void;
   onStarted: (machine: string, id: string) => void;
-  project?: { machine: string; folder: string };
+  project?: { machine: string; folder: string; worktree?: boolean };
 }) {
   const machine = signal("");
   const folder = signal("");
@@ -59,7 +74,20 @@ export function NewSession(props: {
   const sessions = signal<SessionInfo[]>([]);
   const picking = signal(false);
   const history = signal(false);
+  const found = signal<WorktreeLookup | undefined>(undefined);
+  const checkout = signal(THIS_FOLDER);
+  const branch = signal("");
+  const branchTouched = signal(false);
+  const branchLeft = signal(false);
+  /** The worktree this form made, kept chosen when the session did not start. */
+  const made = signal<{ name: string } | undefined>(undefined);
+  /** The project's `New worktree…` asked for a worktree: say why when none can be made. */
+  const wantsNew = signal(false);
   let latest = 0;
+  let lookedAt = 0;
+  let lookupTimer: ReturnType<typeof setTimeout> | undefined;
+  /** The next change of folder is a choice (a pick or a browse), not typing: look at once. */
+  let lookNow = true;
 
   /** The machines that are switched on, with whether each can be started on now. */
   const choices = computed(() => {
@@ -138,6 +166,14 @@ export function NewSession(props: {
       busy.set(false);
       prompt.set("");
       agent.set("");
+      found.set(undefined);
+      checkout.set(THIS_FOLDER);
+      branch.set("");
+      branchTouched.set(false);
+      branchLeft.set(false);
+      made.set(undefined);
+      wantsNew.set(project?.worktree === true);
+      lookNow = true;
       const want = project?.machine ?? machine();
       const first =
         choices().find((c) => c.value === want && !c.disabled) ?? choices().find((c) => !c.disabled) ?? choices()[0];
@@ -154,6 +190,48 @@ export function NewSession(props: {
     untracked(() => void look(machine()));
   });
 
+  /** The repository's checkouts for the typed folder; a slow answer for a folder the person left is dropped. */
+  async function lookCheckouts(where: string, path: string) {
+    const mine = ++lookedAt;
+    let answer: WorktreeLookup;
+    try {
+      answer = await Herdr.worktrees(where, path);
+    } catch {
+      return;
+    }
+    if (mine !== lookedAt) return;
+    found.set(answer);
+    if (answer.state !== "found") {
+      checkout.set(THIS_FOLDER);
+      return;
+    }
+    // The choice made for a folder holds only while the folder's repository still lists it.
+    const stillThere = answer.checkouts.some((c) => c.path === checkout());
+    if (checkout() !== NEW_WORKTREE && checkout() !== THIS_FOLDER && !stillThere) checkout.set(THIS_FOLDER);
+    if (wantsNew() && checkout() === THIS_FOLDER) chooseCheckout(NEW_WORKTREE);
+    wantsNew.set(false);
+  }
+
+  const lookKey = computed(() => `${machine()}|${ready()}|${folder().trim()}`);
+  effect(() => {
+    if (!props.open) return;
+    lookKey();
+    untracked(() => {
+      clearTimeout(lookupTimer);
+      const path = folder().trim();
+      lookedAt++;
+      found.set(undefined);
+      checkout.set(THIS_FOLDER);
+      made.set(undefined);
+      // `~` is the machine's home, which only a shell expands: ask only about paths herdr can read as they are.
+      if (!ready() || sessionFolderError(path) || path.startsWith("~")) return;
+      const wait = lookNow ? 0 : LOOKUP_WAIT_MS;
+      lookNow = false;
+      lookupTimer = setTimeout(() => void lookCheckouts(machine(), path), wait);
+    });
+    return () => clearTimeout(lookupTimer);
+  });
+
   // A first message has several lines: Ctrl+Enter starts, as everywhere a text box takes Enter itself.
   effect(() => {
     if (!props.open) return;
@@ -163,20 +241,64 @@ export function NewSession(props: {
   const chooseMachine = (id: string) => {
     machine.set(id);
     failure.set(undefined);
+    lookNow = true;
     if (!folderTouched()) folder.set(lastStart(id).folder ?? "");
+  };
+
+  /** Chooses where the session starts; `New worktree…` brings a suggested branch the first time. */
+  function chooseCheckout(value: string) {
+    checkout.set(value);
+    failure.set(undefined);
+    if (value === NEW_WORKTREE && !branchTouched() && branch() === "")
+      branch.set(suggestBranch(found()?.checkouts.flatMap((c) => c.branch ?? []) ?? []));
+  }
+
+  const others = () => {
+    const here = checkoutAt(found(), folder());
+    return (found()?.checkouts ?? []).filter((c) => c !== here);
+  };
+  /** The Checkout row: only for a folder in a repository herdr answered for. */
+  const choosing = () => found()?.state === "found";
+  const checkoutItems = () => {
+    const here = checkoutAt(found(), folder());
+    return [
+      { value: THIS_FOLDER, title: here?.branch ? `This folder · ${here.branch}` : "This folder" },
+      ...others().map((c) => ({
+        value: c.path,
+        title: c.branch ? `${c.name} · ${c.branch}` : c.name,
+      })),
+      { value: NEW_WORKTREE, title: "New worktree…" },
+    ];
+  };
+  const branchMistake = () => (checkout() === NEW_WORKTREE ? branchError(branch()) : undefined);
+  /** Shown once the person left the field or pressed Start, never on the first keystroke (`design/forms.md`). */
+  const branchShown = () => (branchLeft() || attempted() ? branchMistake() : undefined);
+  /** Why no Checkout row, when the person asked for one or herdr needs something from them. */
+  const checkoutNote = () => {
+    const said = found();
+    if (!said || said.state === "found") return undefined;
+    if (said.state === "untrusted") return said.message;
+    return wantsNew() || checkout() === NEW_WORKTREE ? said.message : undefined;
   };
 
   async function start() {
     attempted.set(true);
     if (busy() || !ready() || !installed() || sessionFolderError(folder())) return;
+    if (branchMistake()) return;
     busy.set(true);
     failure.set(undefined);
     const where = machine();
     const which = agent();
-    const cwd = folder().trim();
+    const typed = folder().trim();
+    let cwd = checkout() !== THIS_FOLDER && checkout() !== NEW_WORKTREE ? checkout() : typed;
     try {
+      if (checkout() === NEW_WORKTREE) {
+        const worktree = await createWorktree(where, typed);
+        if (!worktree) return;
+        cwd = worktree;
+      }
       const ref = await Sessions.start(where, { agent: which, cwd });
-      rememberStart(where, which, cwd);
+      rememberStart(where, which, typed);
       const first = prompt().trim();
       if (first !== "") {
         // A session that is still opening refuses a message; once it is open the first one goes before the person sees it.
@@ -194,10 +316,45 @@ export function NewSession(props: {
       props.onStarted(ref.machine, ref.id);
     } catch (e) {
       const said = startFailure(reason(e), machineName());
+      const kept = made();
+      if (kept) said.next = `The worktree ${kept.name} was created; Start again to use it.`;
       failure.set(said);
       announce(`${said.text} ${said.next}`);
     } finally {
       busy.set(false);
+    }
+  }
+
+  /**
+   * Makes the worktree `Branch` names and chooses it, so a session that then fails to start is retried in it and not in a
+   * second one. A failure says what herdr said and keeps what was typed; the lookup runs again because a machine that
+   * answered late may have made it anyway.
+   */
+  async function createWorktree(where: string, typed: string): Promise<string | undefined> {
+    try {
+      const worktree = await Herdr.createWorktree(where, typed, branch().trim());
+      const name = worktree.path.replace(/\/+$/, "").split("/").pop() ?? worktree.path;
+      made.set({ name });
+      found.update((now) =>
+        now
+          ? {
+              ...now,
+              checkouts: [
+                ...now.checkouts,
+                { path: worktree.path, name, branch: worktree.branch, linked: true, open: true },
+              ],
+            }
+          : now,
+      );
+      checkout.set(worktree.path);
+      return worktree.path;
+    } catch (e) {
+      const said = { text: reason(e), next: "Nothing was started. Change the branch, or choose This folder." };
+      failure.set(said);
+      announce(`${said.text} ${said.next}`);
+      lookNow = true;
+      void lookCheckouts(where, typed);
+      return undefined;
     }
   }
 
@@ -288,6 +445,39 @@ export function NewSession(props: {
               onPress={() => picking.set(true)}
             />
           </View>
+          <If when={choosing()}>
+            <FieldRow>
+              <SelectField label="Checkout" items={checkoutItems()} value={checkout()} onChange={chooseCheckout} />
+            </FieldRow>
+          </If>
+          <If when={checkout() === NEW_WORKTREE && choosing()}>
+            <FieldRow>
+              <Field
+                label="Branch"
+                mono
+                reserve
+                placeholder="worktree/brave-meadow-45e8"
+                value={branch()}
+                onChange={(v) => {
+                  branch.set(v);
+                  branchTouched.set(true);
+                  failure.set(undefined);
+                }}
+                onSubmit={() => void start()}
+                onBlur={() => branchLeft.set(true)}
+                error={branchShown()}
+                hint="Empty: herdr names the branch and the folder. It makes the folder next to the repository and runs its worktree hooks."
+              />
+            </FieldRow>
+          </If>
+          <If when={checkoutNote()}>
+            {(message) => (
+              <View class="flex-row items-start gap-2">
+                <Icon name="alert" size={16} tone="destructive" />
+                <Text class="min-w-0 flex-1 text-sm text-foreground">{message()}</Text>
+              </View>
+            )}
+          </If>
           <FieldRow>
             <SelectField
               label="Agent *"
@@ -346,6 +536,7 @@ export function NewSession(props: {
         start={folder()}
         onClose={() => picking.set(false)}
         onPick={(path) => {
+          lookNow = true;
           folder.set(path);
           folderTouched.set(true);
           failure.set(undefined);

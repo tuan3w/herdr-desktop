@@ -9,7 +9,8 @@ One row per mobile feature (`herdr-mobile/docs/GUIDE.md` sections 3-9 and `docs/
 | Host key trust on first use, changed key stops the machine | GUIDE 3 | changed: ssh's own `known_hosts`; the app shows the classified fatal text | phase 2.4, 5.1 | |
 | Tailscale SSH machine | GUIDE 3 | changed: works through `ssh` when Tailscale SSH is configured | phase 5.1 | |
 | Named herdr session per machine | GUIDE 3 | done | `components/machine-form.tsx`, core `ssh` | `lib/machine-rules.test.ts` |
-| Worktrees grouped under their repo, start agent in a checkout | GUIDE 3 | done | `native/core/src/project.rs`, `components/board.tsx`, `components/sidebar.tsx` | `native/core/tests/board.rs`, `components/board.test.tsx` |
+| Worktrees grouped under their repo | GUIDE 3 | done | `native/core/src/project.rs`, `components/board.tsx`, `components/sidebar.tsx` | `native/core/tests/board.rs`, `components/board.test.tsx` |
+| Branch of each checkout, choose a checkout or make a worktree when starting a session | GUIDE 3 | done against the scripted herdr only (no live herdr with worktrees, no remote machine); `worktree.remove` and `worktree.open` are not built | `native/core/src/worktree.rs`, `native/app/src/engine/worktrees.rs`, `components/new-session.tsx`, `components/sidebar.tsx` | `native/core/tests/worktree.rs`, `native/app/tests/engine.rs`, `components/new-worktree.test.tsx`, `components/sidebar.test.tsx`, `lib/worktrees.test.ts` |
 | Board sections `Needs you`, `To review`, `Working`, `Idle` | GUIDE 4 | done | `native/core/src/board.rs`, `components/board.tsx` | `native/core/tests/board.rs`, `components/board.test.tsx` |
 | One count for status line, title, triage and notifications | GUIDE 4 | done | `native/core/src/board.rs` `Counts`, `native/app/src/engine/words.rs` | `native/core/tests/board.rs`, `components/board.test.tsx` |
 | Idle fold (`22 more idle`) | GUIDE 4 | done | `lib/board-items.ts`, `BoardData.idleRest` | `components/board.test.tsx` |

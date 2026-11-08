@@ -132,6 +132,38 @@ test("a project's menu pins it (the project then says so) and starts a chat in i
   expect(app.shows("new session folder /home/dev/web")).toBe(true);
 });
 
+/** The scripted herdr with repositories in memory (`fixtures/herdr/worktrees.json`): payments-api has a worktree, web is untrusted. */
+const repos = () =>
+  open("./sidebar-lab.tsx", {
+    width: 1280,
+    height: 800,
+    platform: "linux",
+    clock: {},
+    host: { params: { fixture: "worktrees" } },
+  });
+
+test("a project with several checkouts names each by its branch once herdr said it, the folder's kind until then", async () => {
+  const app = await repos();
+  await app.waitFor("label:payments-api-hotfix, worktree, branch hotfix/2.1");
+  expect(app.shows("label:payments-api, main checkout, branch main")).toBe(true);
+});
+
+test("a project's menu starts a new worktree: the new session dialog opens on its folder asking for one", async () => {
+  const app = await repos();
+  await app.waitFor("label:Options for payments-api");
+  await menu(app, "Options for payments-api", "New worktree…");
+  expect(app.shows("new session dialog open")).toBe(true);
+  expect(app.shows("new session folder /home/dev/payments-api")).toBe(true);
+  expect(app.shows("new session worktree true")).toBe(true);
+});
+
+test("a project that is not a repository has no New worktree… to choose", async () => {
+  const app = await ready();
+  await app.press("label:Options for web");
+  await app.clock!.runFor(150);
+  expect(app.enabled("New worktree…")).toBe(false);
+});
+
 test("the top buttons open what they say: new agent session, settings", async () => {
   const app = await ready();
   await app.press("label:New agent session");
