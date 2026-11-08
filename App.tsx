@@ -12,7 +12,6 @@ import { isAvailable, Menu, Window } from "nsh/desktop";
 
 import { BulkBar } from "#components/bulk-bar";
 import { DevPanel } from "#components/dev-panel";
-import { Files } from "#components/files";
 import { NameDialog } from "#components/name-dialog";
 import { NewSession } from "#components/new-session";
 import { Palette } from "#components/palette";
@@ -36,7 +35,7 @@ import {
   palette,
   shortcutsOpen,
 } from "#lib/actions";
-import { BOARD, dockReady, focused, loadDock, openPane, openSession, showBoard, startDock } from "#lib/dock";
+import { BOARD, dockReady, focused, loadDock, openTerminal, openSession, showBoard, startDock } from "#lib/dock";
 import { board, startHerdr } from "#lib/herdr";
 import { warmCode } from "#lib/highlight";
 import { RAIL_WIDTH, SIDEBAR_WIDTH } from "#lib/layout";
@@ -45,9 +44,17 @@ import { startNav, switcherOpen } from "#lib/nav";
 import { openTarget } from "#lib/open-agent";
 import { saveFailures } from "#lib/save";
 import { scrollbarTheme } from "#lib/scrollbars";
-import { alwaysShowScrollbars, boardExpanded, boardFront, loadSettings, settingsReady } from "#lib/settings";
+import {
+  alwaysShowScrollbars,
+  boardExpanded,
+  boardFront,
+  loadSettings,
+  setSidebarCollapsed,
+  settingsReady,
+} from "#lib/settings";
 import { type GlobalShortcut, GLOBAL, keysOf } from "#lib/shortcuts";
 import { loadSidebar, sidebarReady, sidebarWidth } from "#lib/sidebar";
+import { settleDrag } from "#lib/sidebar-width";
 import { loadViews } from "#lib/view-state";
 
 // A test opens the app with `host: { params: { fixture } }`: the engine then runs against the scripted herdr (the Rust
@@ -154,7 +161,7 @@ function App() {
       <PopupRoot class="flex-1 bg-background">
         <ResizablePanelGroup
           disabled={fixedWidth()}
-          handleClass={`bg-sidebar-border ${fixedWidth() ? "" : "group-hover:w-[3px] group-hover:bg-sidebar-ring group-active:w-[3px] group-active:bg-sidebar-ring"}`}
+          handleClass={`bg-sidebar-border ${fixedWidth() ? "" : "group-hover:w-[2px] group-hover:bg-sidebar-ring/50 group-active:w-[2px] group-active:bg-sidebar-ring/50"}`}
           handleStyle={hoverTransition()}
           handleAccessibilityLabel="Resize the sidebar"
         >
@@ -164,7 +171,10 @@ function App() {
             minSize={fixedWidth() ? sideWidth() : SIDEBAR_WIDTH.min}
             maxSize={fixedWidth() ? sideWidth() : SIDEBAR_WIDTH.max}
             onResize={({ size }) => {
-              if (!fixedWidth()) sidebarWidth.set(Math.round(size));
+              if (fixedWidth()) return;
+              const settled = settleDrag(size);
+              if (settled.rail) setSidebarCollapsed(true);
+              else sidebarWidth.set(settled.width);
             }}
           >
             <Sidebar />
@@ -185,13 +195,12 @@ function App() {
         <Palette open={palette()} onClose={() => palette.set(false)} />
         <Switcher open={switcherOpen()} onClose={() => switcherOpen.set(false)} />
         <Shortcuts open={shortcutsOpen()} onClose={() => shortcutsOpen.set(false)} />
-        <Files />
         <WebPage />
         <SendFiles />
         <StartAgent
           open={newAgentOpen()}
           onClose={() => newAgentOpen.set(false)}
-          onStarted={(machine, pane) => void openPane(machine, pane)}
+          onStarted={(machine, pane) => void openTerminal(machine, pane)}
         />
         <NewSession
           open={newSessionOpen()}

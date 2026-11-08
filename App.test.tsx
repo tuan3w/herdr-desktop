@@ -9,10 +9,8 @@ import {
   DONE,
   FIRST,
   front,
-  nameOf,
   onBoard,
   openAgents,
-  openTerminals,
   ready,
   saved,
   pressSettled,
@@ -65,11 +63,11 @@ test("Settings is a dialog over an unchanged window: a waiting question stays ma
   await pressSettled(app, "label:Settings", "label:Settings sections");
   expect(app.shows("label:Board, 2 need you")).toBe(true);
   expect(app.shows("label:/^payments, This computer, 2 need you/")).toBe(true);
-  // the workspace is not hidden or replaced: the same tab is still there behind the dialog
-  expect(app.shows("Show terminal")).toBe(true);
+  // the workspace is not hidden or replaced: the same tab (its header's Open beside) is still there behind the dialog
+  expect(app.shows("label:Open beside")).toBe(true);
   await pressSettled(app, "label:Close settings", () => !app.shows("label:Settings sections"));
   expect(await front(app)).toBe(FIRST);
-  expect(app.shows("Show terminal")).toBe(true);
+  expect(app.shows("label:Open beside")).toBe(true);
   // Escape closes it too, and nothing was answered by opening or closing it
   await pressSettled(app, "label:Settings", "label:Settings sections");
   await app.keyboard.press("escape");
@@ -168,9 +166,21 @@ test("with nothing that needs you, Next opens nothing and says so", async () => 
 type Press = (other?: GlobalShortcut) => Promise<void>;
 type Check = (app: App, press: Press) => Promise<void>;
 
+/**
+ * Whether a view of `panel`'s kind is the one on screen (which agent it is, is the saved layout's): a chat has its header (its
+ * title is the session's, not always the agent's name); a terminal tab (an agent with no chat yet, with the terminal tab off
+ * by default) says how to open it in your terminal and has no chat header.
+ */
+const displayed = (app: App, panel: string): boolean =>
+  panel.startsWith("terminal:")
+    ? (app.shows("text:This agent has no chat here. Open it in your terminal:") ||
+        app.shows("text:The terminal tab is off. Read this agent as a chat, or open it in your terminal:")) &&
+      !app.shows("label:/, session details$/")
+    : app.count("label:/, session details$/") === 1;
+
 /** The tab group that has the agents' tabs, and which of its panels the key `n` should show. */
 async function tabNth(app: App, press: Press, n: number) {
-  await openTerminals(app, FIRST, SECOND, DONE);
+  await openAgents(app, FIRST, SECOND, DONE);
   const [group] = await saved(app);
   const before = group.active;
   await press();
@@ -179,7 +189,7 @@ async function tabNth(app: App, press: Press, n: number) {
   // A tab that is not there changes nothing; one that is becomes the displayed tab.
   expect(after.active).toBe(n <= group.panels.length ? n - 1 : before);
   const panel = group.panels[after.active];
-  expect(panel === "board" ? onBoard(app) : shown(app, nameOf(panel))).toBe(true);
+  expect(panel === "board" ? onBoard(app) : displayed(app, panel)).toBe(true);
 }
 
 /** The Switcher's filter field. The headless harness does not move the keyboard into a dialog that opens over a focused tab, so a test that presses Escape or Enter there focuses the field first, as the person's first keystroke does. */
@@ -194,6 +204,14 @@ const CHECKS: Record<GlobalShortcut, Check> = {
     expect(app.shows("label:Search agents, projects and commands")).toBe(true);
     await app.keyboard.press("escape");
     expect(app.shows("label:Search agents, projects and commands")).toBe(false);
+  },
+  // The terminal tab is off by default: the key only says so and opens nothing (on the board there is nothing to swap anyway).
+  terminalView: async (app, press) => {
+    const tabs = app.count("role:tab");
+    await press();
+    await settle(app);
+    expect(onBoard(app)).toBe(true);
+    expect(app.count("role:tab")).toBe(tabs);
   },
   quickOpen: async (app, press) => {
     await press();
@@ -217,6 +235,9 @@ const CHECKS: Record<GlobalShortcut, Check> = {
   newAgent: async (app, press) => {
     await press();
     expect(app.shows("label:Folder *")).toBe(true);
+    // The folder list opens with the field: the first Escape closes it, the second is the dialog's.
+    await app.keyboard.press("escape");
+    await settle(app);
     await app.keyboard.press("escape");
     await settle(app);
     expect(app.shows("label:Folder *")).toBe(false);
@@ -244,14 +265,18 @@ const CHECKS: Record<GlobalShortcut, Check> = {
     await app.clear("label:Search projects");
   },
   board: async (app, press) => {
-    await openTerminals(app, FIRST);
+    await openAgents(app, FIRST);
     expect(onBoard(app)).toBe(false);
     await press();
     await settle(app);
     expect(onBoard(app)).toBe(true);
   },
   focusPane: async (app, press) => {
-    // From the board, the pane used last comes back.
+    // From the board, the pane used last comes back; here it is a chat (a terminal has no answer dock, `design/chat.md`).
+    await openAgents(app, FIRST);
+    // The board check left this agent's tab open, and a tab reopens on the view it was left on.
+    await app.waitUntil(() => app.shows("label:Answer") || app.shows("label:Show chat"));
+    if (!app.shows("label:Answer")) await pressSettled(app, "label:Show chat", "label:Answer");
     await press("board");
     await settle(app);
     expect(onBoard(app)).toBe(true);
@@ -374,10 +399,11 @@ const CHECKS: Record<GlobalShortcut, Check> = {
     await press();
     expect(app.shows("label:Message")).toBe(false);
   },
+  // An agent is in front: a terminal's search is the program's own (`components/terminal-tab.tsx`) and a chat has no find
+  // bar, so the key opens none over it. The find bar of a file is `components/files.test.tsx`'s.
   search: async (app, press) => {
     await press();
-    expect(app.shows("label:Find in the pane >> nth=0")).toBe(true);
-    await app.press("label:Close find");
+    expect(app.shows("label:Close find")).toBe(false);
   },
   undo: async (app, press) => {
     await press("board");
@@ -424,6 +450,7 @@ const CHECKS: Record<GlobalShortcut, Check> = {
 /** The order the checks run in: each starts from what the one before left (tabs open, a pane in front). */
 const ORDER: GlobalShortcut[] = [
   "palette",
+  "terminalView",
   "quickOpen",
   "shortcuts",
   "settings",
@@ -507,16 +534,13 @@ test("walking the app with the keyboard: next agent, type to it, take over its k
   await settle(app);
   expect(await front(app)).toBe(FIRST);
   expect(sentKeys()).toEqual([]);
-  // The pane's view is one press away, and has the answers.
-  await app.press("Show terminal");
-  await settle(app);
-  expect(shown(app, FIRST)).toBe(true);
-
   // The headless harness has no Tab traversal, so the one pointer step is the row itself; the digits that answer from
   // the keyboard once an answer has the focus are tested with the dock (`answer-dock.test.tsx`).
   await app.press("label:1. Yes");
   await app.waitFor("Sent: 1. Yes");
   expect(sentKeys()).toEqual(["w1:p1: 1 enter"]);
+  // The terminal tab is off by default, so the chat offers no way into a terminal (`terminal-tab.test.tsx` has it on).
+  expect(app.shows("label:Show terminal")).toBe(false);
 });
 
 test("no bar sits under the workspace on the board or in a chat that reports no context, and no machine count sits at the window's bottom", async () => {

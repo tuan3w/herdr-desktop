@@ -91,7 +91,7 @@ export function StartAgent(props: {
       onClose={() => props.onClose()}
       title="Start a terminal agent"
       description="Starts the agent in a new herdr workspace in that folder."
-      disablePointerDismissal
+      disablePointerDismissal={busy()}
       actions={
         <>
           <Btn variant="ghost" label="Cancel" onPress={() => props.onClose()} />

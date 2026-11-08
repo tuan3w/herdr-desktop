@@ -19,19 +19,19 @@ import {
   focusOtherGroup,
   mergeSplits,
   moveFocused,
-  openPane,
+  openTerminal,
   openPanel,
-  parsePaneKey,
+  parseTerminalKey,
   parseSessionKey,
   removePanel,
   rowKeyOf,
   selectNth,
   showBoard,
 } from "#lib/dock";
-import { browseFiles } from "#lib/files";
 import { allRows, board, meta } from "#lib/herdr";
 import { back, forward, previousAgent, previousProject, stepProject, switcherKey } from "#lib/nav";
-import { canShowChat, openAgent, showChat, showTerminal } from "#lib/open-agent";
+import { canShowChat, openAgent, showChat, showTerminal, TERMINAL_OFF } from "#lib/open-agent";
+import { browseFiles } from "#lib/open-files";
 import { openPalette, paletteKey } from "#lib/palette/controller";
 import {
   attachFiles,
@@ -42,10 +42,9 @@ import {
   paneInFront,
   quoteCopied,
   searchInPane,
-  showLinks,
 } from "#lib/pane-input";
 import { perfOpen } from "#lib/perf";
-import { setSidebarCollapsed, themeId } from "#lib/settings";
+import { setSidebarCollapsed, terminalEnabled, themeId } from "#lib/settings";
 import { type GlobalShortcut, GLOBAL, keysOf, type ShortcutGroup } from "#lib/shortcuts";
 import { splitTab } from "#lib/split";
 import { THEMES } from "#lib/theme/themes";
@@ -190,7 +189,7 @@ async function openMade(
   created: { workspaceId: string; tabId: string; paneId: string },
 ): Promise<void> {
   made.set(`${machine}/${created.paneId}`, { workspaceId: created.workspaceId, tabId: created.tabId });
-  await openPane(machine, created.paneId);
+  await openTerminal(machine, created.paneId);
 }
 
 function fail(what: string, e: unknown): void {
@@ -263,7 +262,7 @@ async function splitHerdrPane(direction: "right" | "down"): Promise<void> {
   try {
     const pane = await Herdr.splitPane(at.machine, at.pane, direction);
     if (at.workspaceId) made.set(`${at.machine}/${pane}`, { workspaceId: at.workspaceId, tabId: at.tabId ?? "" });
-    await openPane(at.machine, pane);
+    await openTerminal(at.machine, pane);
   } catch (e) {
     fail("Could not split the pane", e);
   }
@@ -318,12 +317,20 @@ function focusSidebar(): void {
   setTimeout(() => sidebarSearch.focus?.(), 0);
 }
 
-/** `Show chat` / `Show terminal` on the focused tab: the other view of the same terminal agent. */
-async function toggleView(which: "chat" | "terminal"): Promise<void> {
-  const pane = parsePaneKey(focused());
+/**
+ * `Show chat` / `Show terminal` on the focused tab: the other view of the same terminal agent. With no word asked for (the
+ * key) it goes to whichever the tab is not. With the terminal tab off the key does nothing but say so (the shortcuts sheet
+ * does not list it then); `Show chat` still swaps a restored terminal tab for its chat.
+ */
+async function toggleView(which?: "chat" | "terminal"): Promise<void> {
+  if (which !== "chat" && !terminalEnabled()) {
+    announce(TERMINAL_OFF);
+    return;
+  }
+  const pane = parseTerminalKey(focused());
   const chat = parseSessionKey(focused());
-  if (which === "chat" && pane) await showChat(pane.machine, pane.pane);
-  else if (which === "terminal" && chat?.id.startsWith("pane:"))
+  if (which !== "terminal" && pane) await showChat(pane.machine, pane.pane);
+  else if (which !== "chat" && chat?.id.startsWith("pane:"))
     await showTerminal(chat.machine, chat.id.slice("pane:".length));
   else announce(which === "chat" ? "Open a terminal agent first" : "Open a chat read from a terminal first");
 }
@@ -342,16 +349,10 @@ async function focusPaneArea(): Promise<void> {
   focusComposer();
 }
 
-function needPane(then: () => void): () => void {
-  return () => {
-    if (focusedPane()) then();
-    else announce("Open a pane first");
-  };
-}
-
 /** One handler per global shortcut; `App.tsx` binds every key of `GLOBAL` to these. */
 export const globalActions: Record<GlobalShortcut, () => void> = {
   palette: paletteKey,
+  terminalView: () => void toggleView(),
   quickOpen: () => openPalette("files"),
   switcher: () => switcherKey(1),
   switcherBack: () => switcherKey(-1),
@@ -408,7 +409,6 @@ const extra: Record<string, () => void> = {
   startTerminalAgent: () => newAgentOpen.set(true),
   showChat: () => void toggleView("chat"),
   showTerminal: () => void toggleView("terminal"),
-  links: needPane(showLinks),
   browseFiles: browsePaneFiles,
   moveRight: () => void moveFocused("right"),
   moveDown: () => void moveFocused("bottom"),
@@ -503,7 +503,7 @@ export function actions(): Action[] {
   global("splitDown", ["split", "below", "companion", "changes"], focused() === "board" || focused() === "");
   global("devPanel", ["performance", "frame"]);
   global("undo");
-  const terminal = parsePaneKey(focused());
+  const terminal = parseTerminalKey(focused());
   const showableChat = terminal !== null && canShowChat(terminal.machine, terminal.pane);
   const terminalChat = parseSessionKey(focused())?.id.startsWith("pane:") === true;
   list.push({
@@ -513,20 +513,15 @@ export function actions(): Action[] {
     disabled: !showableChat,
     keywords: ["conversation", "transcript"],
   });
-  list.push({
-    id: "showTerminal",
-    label: "Show terminal",
-    group: "Pane",
-    disabled: !terminalChat,
-    keywords: ["mirror", "pane"],
-  });
-  list.push({
-    id: "links",
-    label: "Links in this pane…",
-    group: "Pane",
-    disabled: !pane,
-    keywords: ["url", "open", "path"],
-  });
+  // Off, nothing offers the terminal (`terminalEnabled`): not even a dimmed row.
+  if (terminalEnabled())
+    list.push({
+      id: "showTerminal",
+      label: "Show terminal",
+      group: "Pane",
+      disabled: !terminalChat,
+      keywords: ["mirror", "pane"],
+    });
   list.push({
     id: "browseFiles",
     label: pane ? "Browse files in this pane's folder…" : "Browse files on this computer…",
@@ -639,7 +634,7 @@ function groupName(group: ShortcutGroup): string {
 /** A tab's name for the palette: the agent's name, else `Board`. */
 function tabName(key: string): string {
   if (key === "board") return "Board";
-  const pane = parsePaneKey(key);
+  const pane = parseTerminalKey(key);
   if (pane) return paneMeta(pane.machine, pane.pane)?.name ?? pane.pane;
   const rowKey = rowKeyOf(key);
   return allRows(board()).find((r) => r.key === rowKey)?.name ?? "Chat";

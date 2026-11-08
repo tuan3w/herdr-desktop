@@ -1,5 +1,7 @@
 import { keymap } from "nsh";
 
+import { terminalEnabled } from "#lib/settings";
+
 /**
  * Every keyboard shortcut of the app, once. `App.tsx` binds the global ones from `GLOBAL` (a missing handler is a type
  * error), `components/shortcuts.tsx` lists all of them (⌘/ or F1, and Settings), and every hint and tooltip names its key through
@@ -49,6 +51,7 @@ export interface Shortcut {
 
 export type GlobalShortcut =
   | "palette"
+  | "terminalView"
   | "quickOpen"
   | "switcher"
   | "switcherBack"
@@ -91,7 +94,17 @@ export type GlobalShortcut =
 /** Work anywhere in the app, even in a text field (unless the field uses the key itself: undo, paste, caret keys). */
 export const GLOBAL: Record<GlobalShortcut, Shortcut> = {
   // The owner's choice (2026-11-08): `mod+p` is the palette and `mod+shift+p` finds a file. `mod+k` is not bound: it was unfamiliar.
-  palette: { keys: ["mod+p"], label: "Command palette", group: "general" },
+  // `mod+shift+l` is the way out of a terminal tab on Windows and Linux: there `Ctrl+P` is the program's (readline's previous
+  // command) and the terminal leaves only Ctrl+Shift chords to the app. (`mod+shift+o`, the first idea, is `attachFiles`.)
+  palette: { keys: ["mod+p", "mod+shift+l"], label: "Command palette", group: "general", always: true },
+  // The one switch between an agent's chat and its real terminal (`Show terminal` / `Chat`). With the terminal tab off it
+  // only says so, and `listedShortcuts` leaves it out of the sheet.
+  terminalView: {
+    keys: ["mod+shift+m"],
+    label: "Switch between an agent's chat and its terminal",
+    group: "navigate",
+    always: true,
+  },
   quickOpen: { keys: ["mod+shift+p"], label: "Find a file in the project", group: "navigate" },
   newAgent: { keys: ["mod+n"], label: "New agent session", group: "general" },
   // The Undo of a toast (`notify(..., { undo })`): the kit names this key in its hint, so it exists even though a text field keeps its own undo.
@@ -163,8 +176,12 @@ export const GLOBAL: Record<GlobalShortcut, Shortcut> = {
   devPanel: { keys: ["mod+shift+d"], label: "Developer panel (frame time, latency, data)", group: "dev" },
 };
 
+/** A chat's inspector (its subagents and background tasks): bound by the chat in front, which owns it. */
+export const INSPECTOR_KEY = "mod+shift+i";
+
 /** Work only in one place: a component binds its own, or the control takes them natively. */
 export const LOCAL: Shortcut[] = [
+  { keys: [INSPECTOR_KEY], label: "Show or hide a chat's activity: its subagents and background tasks", group: "chat" },
   { keys: ["enter"], label: "Send the message, choose the highlighted row", group: "typing" },
   { keys: ["shift+enter"], label: "New line in the message", group: "typing" },
   { keys: ["up", "down"], label: "Move in menus and lists; volume in the player", group: "typing" },
@@ -202,6 +219,10 @@ export const LOCAL: Shortcut[] = [
 /** In the order the list shows them: by group, global before local. */
 export const SHORTCUTS: Shortcut[] = [...Object.values(GLOBAL), ...LOCAL];
 
+/** What the shortcuts sheet lists now: never a key that does nothing, so the terminal's switch only while the tab is on. */
+export const listedShortcuts = (): Shortcut[] =>
+  terminalEnabled() ? SHORTCUTS : SHORTCUTS.filter((s) => s !== GLOBAL.terminalView);
+
 /**
  * Whether this app runs on an Apple platform. Read from `keymap`, which is what decides what `mod` means, so the keys
  * and the hints cannot disagree (also in a test that opens the app as another platform).
@@ -224,3 +245,6 @@ export function keyText(keystroke: string): string {
 
 /** What a hint or tooltip shows for a global shortcut: its first key, as this platform writes it. */
 export const keyLabel = (id: GlobalShortcut): string => keyText(keysOf(GLOBAL[id])[0]);
+
+/** The chord the terminal tab's hint names for the palette: the one a terminal program cannot take (`mod+p` is Ctrl+P there on Windows and Linux). */
+export const paletteFromTerminalKey = (): string => keyText(keysOf(GLOBAL.palette)[apple() ? 0 : 1]);

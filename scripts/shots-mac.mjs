@@ -45,6 +45,7 @@ const flagged = new Set([
   "settle",
   "js",
   "fixture",
+  "test-timeout",
 ]);
 const scenario = args.find(
   (a, i) => !a.startsWith("--") && !(i > 0 && flagged.has(args[i - 1].slice(2)) && args[i - 1].startsWith("--")),
@@ -99,7 +100,7 @@ for (const scheme of ${JSON.stringify(themes)} as const) {
     ${noSteps ? "" : "await sc.steps(app);"}
 ${js.map((j) => `    ${j};\n`).join("")}${keys.map((k) => `    await app.keyboard.press(${JSON.stringify(k)}); await app.wait(${settle});\n`).join("")}${scenario && presses.length ? `    for (const p of ${JSON.stringify(presses)}) { await app.press(p); await app.wait(${settle}); }\n` : ""}    await app.screenshot(scheme === "light" ? ${JSON.stringify(pngFor("light"))} : ${JSON.stringify(pngFor("dark"))});
     await sc.cleanup?.(app);
-  });
+  }, ${Number(opt("test-timeout", "30")) * 1000}); // --test-timeout s: a scenario of many steps outlives nsh's 30 s
 }
 `,
 );

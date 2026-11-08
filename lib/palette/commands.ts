@@ -66,7 +66,6 @@ const NEEDS: Record<string, string> = {
   closeTab: "Nothing to close on the board",
   showChat: "This agent has no chat to show",
   showTerminal: "This chat is not read from a terminal",
-  links: "Open a terminal agent first",
   newTab: "Open an agent first",
   renameWorkspace: "Open an agent first",
   renameTab: "Open an agent first",

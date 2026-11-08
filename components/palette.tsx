@@ -7,9 +7,10 @@ import type { FileSearch, SearchFocus } from "herdr-desktop/native";
 import { ArgChips, ScopeChips } from "#components/palette-chips";
 import { Row } from "#components/palette-row";
 import { Clipped, Keys, PaletteDialog, Spinner } from "#kit";
-import { viewFile } from "#lib/files";
+import { fileGlyph } from "#lib/files";
 import { projectOf } from "#lib/herdr";
 import type { AgentChoice } from "#lib/new-session";
+import { viewFile } from "#lib/open-files";
 import { paletteCommands, type PaletteCommand } from "#lib/palette/commands";
 import { filesRoot, paletteFocus } from "#lib/palette/context";
 import { palette, paletteHandle, paletteStart } from "#lib/palette/controller";
@@ -169,7 +170,7 @@ export function Palette(props: { open: boolean; onClose: () => void }) {
         title: h.name,
         marks,
         parts: [h.dir === "" ? "project root" : h.dir, ...(h.ignored ? ["ignored by git"] : [])],
-        glyph: "file",
+        glyph: fileGlyph(h.name, false),
         age: "",
         checked: false,
         waiting: false,

@@ -3,12 +3,13 @@ import { announce } from "nsh";
 
 import { openSettings } from "#lib/actions";
 import { moveFocused } from "#lib/dock";
-import { viewFile } from "#lib/files";
 import { projectOf, rowOf } from "#lib/herdr";
 import { openProject } from "#lib/nav";
 import { canShowChat, openAgent, showChat, showTerminal, viewOf } from "#lib/open-agent";
+import { viewFile } from "#lib/open-files";
 import type { PaletteCommand } from "#lib/palette/commands";
 import type { PaletteRow } from "#lib/palette/rows";
+import { terminalEnabled } from "#lib/settings";
 import { projectFolder, projectSummary } from "#lib/sidebar";
 
 /** How a result opens: what `Enter` does, `Shift+Enter` (beside the tab in front), `mod+Enter` (the other view of an agent). */
@@ -38,7 +39,8 @@ export async function openResult(
         return false;
       }
       if (how === "view" && hit.kind === "agent") {
-        if (viewOf(agent) === "chat" && !agent.session) await showTerminal(agent.machine, agent.paneId);
+        if (terminalEnabled() && viewOf(agent) === "chat" && !agent.session)
+          await showTerminal(agent.machine, agent.paneId);
         else if (viewOf(agent) === "terminal" && canShowChat(agent.machine, agent.paneId))
           await showChat(agent.machine, agent.paneId);
         else await openAgent(agent);

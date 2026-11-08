@@ -1,7 +1,11 @@
-import { mount, signal, View } from "nsh";
+import { host, mount, signal, View } from "nsh";
 
 import { Shortcuts } from "#components/shortcuts";
 import { Btn, ThemeRoot } from "#kit";
+import { terminalEnabled } from "#lib/settings";
+
+// `host.params.terminal`: the terminal tab on, as Settings turns it on (it is off by default).
+if (host.params.terminal === true) terminalEnabled.set(true);
 
 /** The entry of `shortcuts.test.tsx`: one button that opens the shortcuts list, as the app's `shortcuts` key will. Not part of the app. */
 function Lab() {

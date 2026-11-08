@@ -3,17 +3,15 @@ import { announce, Clipboard, signal } from "nsh";
 import { fold } from "#lib/text";
 
 /**
- * What the app's global shortcuts and the palette ask of "the tab in front". A `PaneTab` registers itself while it is
+ * What the app's global shortcuts and the palette ask of "the tab in front". A `TerminalTab` registers itself while it is
  * `active` (the focused tab of its group), and so does a chat tab, which has a message box and nothing else of these;
  * the functions below act on the newest registration, so two tabs showing at once never both answer a key. With no tab in
  * front, or one without the part asked for, they do nothing.
  */
 export interface PaneInput {
-  /** Puts the keyboard in the message box. */
+  /** Puts the keyboard in the message box (a chat) or in the program (a terminal). */
   focusComposer(): void;
-  /** Opens the list of every link in the pane: a terminal only. */
-  showLinks?(): void;
-  /** Opens the find bar over the pane's text: a terminal only. */
+  /** Opens the find bar over the open text (a file viewer; a terminal says its program has its own). */
   searchInPane?(): void;
   /** Copies the last answer of the agent, as Markdown: a chat only. */
   copyReply?(): void;
@@ -36,9 +34,6 @@ export function registerPane(pane: PaneInput): () => void {
 }
 
 const front = (): PaneInput | undefined => registered().at(-1);
-
-/** The palette entry `Links in this pane…`. */
-export const showLinks = (): void => front()?.showLinks?.();
 
 /** `Reply…` from the board: the pane was just opened, the keyboard goes to its message box. */
 export const focusComposer = (): void => front()?.focusComposer();
@@ -78,7 +73,7 @@ export const chatInFront = (): boolean => front()?.copyReply !== undefined;
 /** Whether a pane is in front: the palette offers pane entries only then. Reactive. */
 export const paneInFront = (): boolean => front() !== undefined;
 
-/** The rows of the pane that hold `query`, ignoring case, diacritics and invisible characters; none for an empty query. */
+/** The rows that hold `query`, ignoring case, diacritics and invisible characters; none for an empty query (the file viewer's find). */
 export function matchRows(rows: readonly string[], query: string): number[] {
   const needle = fold(query.trim());
   if (needle === "") return [];

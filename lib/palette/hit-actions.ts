@@ -3,13 +3,14 @@ import { announce, Clipboard } from "nsh";
 
 import { confirmDestructive, notify } from "#kit";
 import { naming, newSession, openSettings } from "#lib/actions";
-import { context, focusComposerSoon, moveFocused, removePanel, paneKey } from "#lib/dock";
-import { browseFiles, viewFile } from "#lib/files";
+import { context, focusComposerSoon, moveFocused, removePanel, terminalKey } from "#lib/dock";
 import { projectOf, reviewWithUndo, rowOf } from "#lib/herdr";
 import { openProject } from "#lib/nav";
 import { canShowChat, openAgent, showChat, showTerminal, viewOf } from "#lib/open-agent";
+import { browseFiles, viewFile } from "#lib/open-files";
 import type { PaletteCommand } from "#lib/palette/commands";
 import type { PaletteRow } from "#lib/palette/rows";
+import { terminalEnabled } from "#lib/settings";
 import { keyText } from "#lib/shortcuts";
 import { projectFolder } from "#lib/sidebar";
 
@@ -128,6 +129,8 @@ function agentActions(key: string): HitAction[] {
           disabled: row.session ? "A chat session has no terminal" : "This agent has no chat to show",
           run: () => undefined,
         };
+  // With the terminal tab off (`terminalEnabled`) nothing offers a terminal, not even as a dimmed row: only `Show chat` is kept.
+  const others = terminalEnabled() || other.id === "chat" ? [{ ...other, keys: keyText("mod+enter") }] : [];
   const here = context() === row.project ? "this project" : (projectOf(context())?.name ?? "the board");
   const reviewable = row.status === "done" && !row.reviewed && !row.offline;
   const stoppable = row.status === "working" || row.status === "blocked";
@@ -143,7 +146,7 @@ function agentActions(key: string): HitAction[] {
       },
     },
     { id: "here", label: `Open here (${here})`, run: () => openAgent(row, { here: true }) },
-    { ...other, keys: keyText("mod+enter") },
+    ...others,
     {
       id: "reply",
       label: "Reply…",
@@ -212,7 +215,7 @@ function agentActions(key: string): HitAction[] {
         if (!ok) return;
         try {
           await Herdr.closePane(row.machine, row.paneId);
-          removePanel(paneKey(row.machine, row.paneId));
+          removePanel(terminalKey(row.machine, row.paneId));
           notify(`Closed pane ${row.name}`);
         } catch (e) {
           failed("Could not close the pane")(e);

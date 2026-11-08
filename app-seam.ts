@@ -72,9 +72,15 @@ export async function quiet(app: App): Promise<void> {
   await app.clock!.runFor(300);
 }
 
-/** The `mixed` fixture, once its board has arrived and the engine is done reading. */
-export async function ready(platform?: "macos" | "windows" | "linux"): Promise<App> {
-  const app = await seeded("mixed", platform ? { platform } : {});
+/**
+ * Saved settings with the terminal tab on (`terminalEnabled`, off by default): for a test of the terminal tab itself, as
+ * `storage` (merge it with any other saved document the test seeds).
+ */
+export const TERMINAL_ON: Record<string, string> = { "herdr.settings.v1": JSON.stringify({ terminalEnabled: true }) };
+
+/** The `mixed` fixture, once its board has arrived and the engine is done reading; `extra` seeds storage and the like. */
+export async function ready(platform?: "macos" | "windows" | "linux", extra: NonNullable<Opened> = {}): Promise<App> {
+  const app = await seeded("mixed", platform ? { ...extra, platform } : extra);
   await app.waitFor("label:Board, 2 need you");
   await quiet(app);
   return app;
@@ -100,14 +106,17 @@ export const expandSidebar = (app: App): Promise<void> =>
 
 /**
  * Opens these agents' terminal tabs: the sidebar opens the chat of an agent that has one, so each is opened and then
- * switched with `Show terminal` (an agent already shown as a terminal this run needs no switch).
+ * switched with `Show terminal` (an agent already shown as a terminal this run needs no switch). Needs the terminal tab on
+ * (`TERMINAL_ON`): off, there is no `Show terminal` to press.
  */
 export async function openTerminals(app: App, ...names: string[]): Promise<void> {
   for (const name of names) {
     await app.press(sidebarRow(name));
     await settle(app);
-    // An agent already shown as a terminal this run opens as one again.
-    if (app.texts().includes("Show terminal")) await app.press("Show terminal");
+    // A chat opens when the session's first read arrives (real time): wait for its button. An agent already shown as a terminal
+    // this run, or one with no chat, opens as the terminal at once.
+    await app.waitUntil(() => app.shows("label:Show terminal") || app.shows(terminal(name)));
+    if (app.shows("label:Show terminal")) await app.press("label:Show terminal");
     await settle(app);
   }
 }

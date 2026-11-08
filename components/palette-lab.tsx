@@ -4,8 +4,8 @@ import { cleanup, effect, mount, Text, View } from "nsh";
 import { Palette } from "#components/palette";
 import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
 import { context } from "#lib/dock";
-import { browsing } from "#lib/files";
 import { board, startHerdr } from "#lib/herdr";
+import { lastAsked, requests } from "#lib/open-files";
 import { openPalette, palette } from "#lib/palette/controller";
 import { projectFolder } from "#lib/sidebar";
 
@@ -21,6 +21,11 @@ const tree = MachineFiles.testTree();
 const snapshot = JSON.parse(JSON.stringify(mixed.snapshot)) as typeof mixed.snapshot;
 for (const p of [...snapshot.panes, ...snapshot.agents]) if (p.workspace_id === "w1") p.cwd = tree;
 Herdr.testSetSnapshot(snapshot);
+
+const asked = () => {
+  const key = lastAsked();
+  return key === null ? undefined : requests()[key]?.file;
+};
 
 function Lab() {
   // The project in front is where files are searched.
@@ -47,7 +52,7 @@ function Lab() {
           <Btn label="Open palette" onPress={() => openPalette()} />
           <Btn label="Find a file" onPress={() => openPalette("files")} />
           <Text>{folderReady() ? "project folder ready" : "waiting for the project folder"}</Text>
-          <Text>{browsing()?.file ? `viewer opened ${browsing()?.file?.replace(tree, "")}` : "no file opened"}</Text>
+          <Text>{asked() ? `viewer opened ${asked()?.replace(tree, "")}` : "no file opened"}</Text>
         </View>
         <Palette open={palette()} onClose={() => palette.set(false)} />
         <ToastHost />

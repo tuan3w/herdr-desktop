@@ -8,7 +8,7 @@ import {
   codeWrap,
   diffSplit,
   minContrast,
-  paneFontSize,
+  terminalEnabled,
   terminalFontSize,
   terminalOptionAsMeta,
   themeId,
@@ -16,9 +16,6 @@ import {
 import { swatches } from "#lib/theme/build";
 import type { ThemeSpec } from "#lib/theme/build";
 import { THEMES } from "#lib/theme/themes";
-
-/** 9 to 24 pt, the range `loadSettings` accepts. */
-const FONT_SIZES = Array.from({ length: 16 }, (_, i) => ({ value: String(i + 9), title: `${i + 9} pt` }));
 
 /** 10 to 16 pt in steps of 1, the range `loadSettings` accepts for the terminal. */
 const TERMINAL_SIZES = Array.from({ length: 7 }, (_, i) => ({ value: String(i + 10), title: `${i + 10} pt` }));
@@ -76,15 +73,13 @@ function ThemePicker() {
   );
 }
 
-/** The Look page: the theme, scrollbars, the pane's text, and how code and diffs are drawn. */
+/** Why the terminal's own rows cannot be changed while the tab is off: said once per row, by word (`SettingRow`'s `reason`). */
+const TERMINAL_OFF = "Turn on the terminal tab first";
+
+/** The Look page: the theme, scrollbars, the terminal tab and its text, and how code and diffs are drawn. */
 export function LookPage() {
   const contrasts = computed(() =>
     CONTRASTS.includes(minContrast()) ? CONTRASTS : [...CONTRASTS, minContrast()].sort((a, b) => a - b),
-  );
-  const fontSizes = computed(() =>
-    FONT_SIZES.some((s) => s.value === String(paneFontSize()))
-      ? FONT_SIZES
-      : [...FONT_SIZES, { value: String(paneFontSize()), title: `${paneFontSize()} pt` }],
   );
   return (
     <View>
@@ -107,27 +102,27 @@ export function LookPage() {
         }
       />
       <SettingRow
-        label="Pane font size"
-        description="The size a pane's text is drawn at. It is scaled down to fit the pane's columns in the width, never below 9 pt."
+        onPress={() => terminalEnabled.set(!terminalEnabled())}
+        label="Terminal tab (experimental)"
+        description="Opens an agent's pane as a real terminal in a tab. Off: open it in your own terminal."
         control={
-          <View class="w-44">
-            <SelectField
-              small
-              name="Pane font size"
-              items={fontSizes()}
-              value={String(paneFontSize())}
-              onChange={(v) => paneFontSize.set(Number(v))}
-            />
-          </View>
+          <Switch
+            label="Terminal tab (experimental)"
+            checked={terminalEnabled()}
+            onChange={(v) => terminalEnabled.set(v)}
+          />
         }
       />
       <SettingRow
         label="Terminal font size"
         description="The size the terminal's text is drawn at; rows are one and a quarter times it, so box lines stay joined."
+        disabled={!terminalEnabled()}
+        reason={TERMINAL_OFF}
         control={
           <View class="w-44">
             <SelectField
               small
+              disabled={!terminalEnabled()}
               name="Terminal font size"
               items={TERMINAL_SIZES}
               value={String(terminalFontSize())}
@@ -140,9 +135,12 @@ export function LookPage() {
         onPress={() => terminalOptionAsMeta.set(!terminalOptionAsMeta())}
         label="Option is Meta in the terminal"
         description="On a Mac, Option+B and Option+F move by word in a shell instead of typing a symbol."
+        disabled={!terminalEnabled()}
+        reason={TERMINAL_OFF}
         control={
           <Switch
             label="Option is Meta in the terminal"
+            disabled={!terminalEnabled()}
             checked={terminalOptionAsMeta()}
             onChange={(v) => terminalOptionAsMeta.set(v)}
           />
@@ -151,10 +149,13 @@ export function LookPage() {
       <SettingRow
         label="Minimum contrast"
         description="Lightens or darkens terminal text that is too faint for its background. Off keeps the colours the agent sent."
+        disabled={!terminalEnabled()}
+        reason={TERMINAL_OFF}
         control={
           <View class="w-44">
             <SelectField
               small
+              disabled={!terminalEnabled()}
               name="Minimum contrast"
               items={contrasts().map((n) => ({ value: String(n), title: contrastTitle(n) }))}
               value={String(minContrast())}

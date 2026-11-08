@@ -43,24 +43,37 @@ test("each option applies at once and is saved at once, with no Save button", as
   await a.waitUntil(() => saved(a).announceOutput === true);
 });
 
-test("the pane font size and the minimum contrast are chosen from their lists, and 1 means off", async () => {
+test("the terminal tab is off by default and its own rows say to turn it on first; on, they can be changed and it is saved", async () => {
   const a = await inSettings();
-  await a.press("label:Pane font size: 13 pt");
+  expect(a.shows("text:Turn on the terminal tab first")).toBe(true);
+  expect(a.enabled("label:Terminal font size: 12 pt")).toBe(false);
+  expect(a.enabled("label:Option is Meta in the terminal")).toBe(false);
+  await a.press("label:Terminal tab (experimental)");
+  await a.waitUntil(() => saved(a).terminalEnabled === true);
+  expect(a.shows("text:Turn on the terminal tab first")).toBe(false);
+  expect(a.enabled("label:Terminal font size: 12 pt")).toBe(true);
+  expect(a.enabled("label:Option is Meta in the terminal")).toBe(true);
+});
+
+test("the terminal font size and the minimum contrast are chosen from their lists, and 1 means off", async () => {
+  // The terminal's rows can be changed only with the terminal tab on (off by default).
+  const a = await inSettings({ ...DESKTOP, storage: { [KEY]: JSON.stringify({ terminalEnabled: true }) } });
+  await a.press("label:Terminal font size: 12 pt");
   await a.press("label:16 pt");
   expect(a.texts().some((t) => t.includes("font=16 "))).toBe(true);
-  expect(a.shows("label:Pane font size: 16 pt")).toBe(true);
+  expect(a.shows("label:Terminal font size: 16 pt")).toBe(true);
 
   expect(a.shows("label:Minimum contrast: 4.5 (recommended)")).toBe(true);
   await a.press("label:Minimum contrast: 4.5 (recommended)");
   await a.press("label:Off");
   expect(a.texts().some((t) => t.includes("contrast=1 "))).toBe(true);
-  await a.waitUntil(() => saved(a).minContrast === 1 && saved(a).paneFontSize === 16);
+  await a.waitUntil(() => saved(a).minContrast === 1 && saved(a).terminalFontSize === 16);
 });
 
 test("what was chosen before is what the window opens with, and a saved value out of range is ignored", async () => {
   const stored = {
     themeId: "graphite",
-    paneFontSize: 17,
+    terminalFontSize: 16,
     minContrast: 7,
     announceOutput: true,
     reduceMotionOverride: true,
@@ -70,9 +83,9 @@ test("what was chosen before is what the window opens with, and a saved value ou
   };
   const a = await inSettings({ ...DESKTOP, storage: { [KEY]: JSON.stringify(stored) } });
   await a.waitUntil(() => a.texts().includes("announce=true motion=true"));
-  expect(a.texts().some((t) => t.startsWith("font=17 contrast=7 theme=graphite"))).toBe(true);
-  // the controls show the loaded values, including a font size that is not a round number
-  expect(a.shows("label:Pane font size: 17 pt")).toBe(true);
+  expect(a.texts().some((t) => t.startsWith("font=16 contrast=7 theme=graphite"))).toBe(true);
+  // the controls show the loaded values
+  expect(a.shows("label:Terminal font size: 16 pt")).toBe(true);
   expect(a.shows("label:Minimum contrast: 7")).toBe(true);
   await a.press("label:Accessibility");
   await a.press("label:Announce agent output");
@@ -82,10 +95,10 @@ test("what was chosen before is what the window opens with, and a saved value ou
 
   const bad = await inSettings({
     ...DESKTOP,
-    storage: { [KEY]: JSON.stringify({ themeId: "nope", paneFontSize: 99, minContrast: 12 }) },
+    storage: { [KEY]: JSON.stringify({ themeId: "nope", terminalFontSize: 99, minContrast: 12 }) },
   });
-  await bad.waitUntil(() => bad.texts().some((t) => t.startsWith("font=13")));
-  expect(bad.texts().some((t) => t === "font=13 contrast=4.5 theme=harbor")).toBe(true);
+  await bad.waitUntil(() => bad.texts().some((t) => t.startsWith("font=12")));
+  expect(bad.texts().some((t) => t === "font=12 contrast=4.5 theme=harbor")).toBe(true);
 });
 
 test("how code is drawn is chosen in Settings, applies at once, is saved, and is what the window opens with", async () => {
@@ -142,10 +155,7 @@ test("About names the app's version from nsh.json, and Machines is a page of Set
   await a.press("label:Machines");
   await a.waitFor("Add machine");
   expect(a.shows("This computer")).toBe(true);
-  // the nav is still there beside the page, and a press on the scrim does not close the dialog (it holds the form being filled)
-  await a.press("id:dialog-scrim");
-  expect(a.shows("label:Settings sections")).toBe(true);
-  // Close leaves Settings altogether
+  // the nav is still there beside the page; Close leaves Settings altogether
   expect(a.shows("label:Settings sections")).toBe(true);
   await a.press("label:Close settings");
   await a.waitFor("label:Settings sections", { state: "gone" });
@@ -178,4 +188,17 @@ test("notifications are off until switched on, the choice is stored by the engin
   await a.press("label:Notify me when an agent needs me");
   await a.waitUntil(() => a.texts().includes("notify=false/true"));
   expect(a.enabled("label:Also when an agent finishes")).toBe(false);
+});
+
+test("a press outside Settings closes it, except while a machine's form is being filled", async () => {
+  const a = await inSettings(DESKTOP, undefined);
+  await a.press("label:Machines");
+  await a.press("Add machine");
+  await a.waitFor("label:Name *");
+  await a.press("id:dialog-scrim");
+  expect(a.shows("label:Name *")).toBe(true);
+  await a.keyboard.press("escape");
+  await a.waitFor("label:Name *", { state: "gone" });
+  await a.press("id:dialog-scrim");
+  await a.waitFor("label:Settings sections", { state: "gone" });
 });

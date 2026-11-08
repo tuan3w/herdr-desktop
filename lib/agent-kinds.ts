@@ -38,3 +38,6 @@ export function folderError(folder: string): string | undefined {
   if (/[\0\r\n]/.test(path)) return "A folder path is one line.";
   return undefined;
 }
+
+/** How a pane's agent is named to the person: `Claude Code`, else the kind herdr reported. */
+export const agentTitle = (agent: string): string => AGENT_KINDS.find((a) => a.kind === agent)?.title ?? agent;

@@ -201,7 +201,7 @@ export function Settings() {
       open={settingsPage() !== null}
       size="settings"
       title="Settings"
-      disablePointerDismissal
+      disablePointerDismissal={machineForm() !== null}
       onClose={() => {
         if (machineForm()) machineForm.set(null);
         else closeSettings();

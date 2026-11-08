@@ -1,16 +1,16 @@
 import { expect, test } from "nsh/test";
 
-import { ENTRY, FIRST, openTerminals, ready } from "../app-seam";
+import { ENTRY, ready } from "../app-seam";
 
 ENTRY.path = "../App.tsx";
 
-test("the developer panel shows what the app itself uses and how fast a watched pane is read and parsed", async () => {
+// No screen of the app reads a pane through `PaneScreen` any more (the terminal tab runs the herdr client itself), so the
+// pane path's lines (`Read to paint`, `Parse`) stay at "-": what the panel must still show is the app's own use.
+test("the developer panel shows what the app itself uses: memory, threads and open files", async () => {
   const app = await ready();
-  // A watched pane is the terminal: the sidebar opens a chat for this agent, so switch to its mirror.
-  await openTerminals(app, FIRST);
   await app.keyboard.press("mod+shift+d");
-  // the panel refreshes twice a second: wait for the line that needs a real read to have happened
-  await app.waitUntil(() => app.texts().some((t) => /µs\/row/.test(t)));
+  // The panel refreshes twice a second: wait for the line that needs a real read of the process.
+  await app.waitUntil(() => app.texts().some((t) => /^\d+ · \d+$/.test(t)));
 
   const texts = app.texts();
   for (const label of ["Read to paint", "Pane reads", "Parse", "Rows rebound", "Memory", "Threads · fds"])

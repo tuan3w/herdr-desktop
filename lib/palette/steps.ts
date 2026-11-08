@@ -3,7 +3,7 @@ import { announce } from "nsh";
 
 import { notify } from "#kit";
 import { openSession } from "#lib/dock";
-import { browseFiles, viewFile } from "#lib/files";
+import { browseFiles, viewFile } from "#lib/open-files";
 import { projectOf } from "#lib/herdr";
 import { agentChoices, rememberStart, startFailure } from "#lib/new-session";
 import type { AgentChoice } from "#lib/new-session";

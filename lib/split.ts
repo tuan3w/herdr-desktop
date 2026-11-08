@@ -13,7 +13,7 @@ import {
   openBeside,
   panelsOf,
   parseChangesKey,
-  parsePaneKey,
+  parseTerminalKey,
   rowKeyOf,
   selectTab,
   sessionKey,
@@ -41,7 +41,7 @@ function factsOf(key: string): CompanionFacts {
   if (changes) return { repo: true, view: viewFor(changes.machine, changes.cwd, key) };
   const rowKey = rowKeyOf(key);
   const row: BoardRow | undefined = rowKey === null ? undefined : rowOf(rowKey);
-  const pane = parsePaneKey(key);
+  const pane = parseTerminalKey(key);
   // A terminal's other view is the chat read from its log, when there is one.
   const view = pane && canShowChat(pane.machine, pane.pane) ? sessionKey(pane.machine, `pane:${pane.pane}`) : undefined;
   if (!row?.cwd) return { repo: false, view };

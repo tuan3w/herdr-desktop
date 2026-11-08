@@ -16,7 +16,7 @@ import {
   diffSplit,
   loadSettings,
   minContrast,
-  paneFontSize,
+  terminalFontSize,
   reduceMotionOverride,
   themeId,
 } from "#lib/settings";
@@ -90,7 +90,7 @@ function Lab() {
           <Text>{started()}</Text>
           <Text>{named()}</Text>
           <Text>{requests()}</Text>
-          <Text>{`font=${paneFontSize()} contrast=${minContrast()} theme=${themeId()}`}</Text>
+          <Text>{`font=${terminalFontSize()} contrast=${minContrast()} theme=${themeId()}`}</Text>
           <Text>{`announce=${announceOutput()} motion=${reduceMotionOverride()}`}</Text>
           <Text>{`code=${codeWrap()}/${codeLineNumbers()}/${codeWhitespace()}/${diffSplit()}`}</Text>
           <Text>{`notify=${(revision(), Herdr.setting("notify.needsYou") === true)}/${(revision(), Herdr.setting("notify.alsoDone") === true)}`}</Text>

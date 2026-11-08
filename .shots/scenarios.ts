@@ -26,10 +26,10 @@ const lab = async (app: App, button: string) => {
   await app.wait(1000);
 };
 
-/** `Show terminal` when the tab is a chat read from a terminal agent's log; a pane that has no chat is already the terminal. */
+/** `Terminal` when the tab is a chat read from a terminal agent's log; a pane that has no chat is already the terminal. */
 const showTerminal = async (app: App) => {
-  if (app.shows("Show terminal")) {
-    await app.press("Show terminal");
+  if (app.shows("label:Show terminal")) {
+    await app.press("label:Show terminal");
     await app.wait(800);
   }
 };
@@ -57,6 +57,33 @@ export const SCENARIOS: Record<string, Scenario> = {
     params: { command: "cat .scratch/term/ls.txt; sleep 60" },
     steps: async (app) => app.wait(1500),
   },
+  // The terminal tab of a terminal agent: `Terminal` pressed on its chat, the synthetic fake agent TUI as the program (`Herdr.testSetProgram`;
+  // a test run never starts the herdr client).
+  "terminal-tab": {
+    fixture: "mixed",
+    steps: async (app) => {
+      const { Herdr } = await import("herdr-desktop/native");
+      Herdr.testSetProgram("python3 -I .scratch/term/tui.py");
+      await pressFirst(app, "text:payments review");
+      await app.press("label:Show terminal");
+      await app.wait(1800);
+    },
+  },
+  // The expanded sidebar at a width the person dragged it to (`host.params.sidebarWidth`; `--size` sets the window), over the
+  // worktrees fixture whose names are long: the Board is in front, so the fold toggle opens the full sidebar for the shot.
+  ...Object.fromEntries(
+    [240, 264, 340, 420].map((w) => [
+      `sidebar-${w}`,
+      {
+        fixture: "worktrees",
+        params: { sidebarWidth: w },
+        steps: async (app: App) => {
+          await app.keyboard.press("mod+b");
+          await app.wait(800);
+        },
+      } satisfies Scenario,
+    ]),
+  ),
   // The home: projects as cards (a repository with a linked worktree, two workspaces of one repository, a folder), each
   // agent in its project, and what needs you above them.
   board: { fixture: "projects", steps: async () => {} },
@@ -66,20 +93,20 @@ export const SCENARIOS: Record<string, Scenario> = {
   "project-press": { fixture: "projects", steps: (app) => pressFirst(app, "label:/^payments-api, This computer/") },
   storm: { fixture: "storm", steps: async () => {} },
   empty: { fixture: "empty", steps: async () => {} },
-  // An agent with a chat opens as one (read from its log); `Show terminal` is the mirror of the same pane.
+  // An agent with a chat opens as one (read from its log); `Terminal` opens the real terminal of the same pane (the test program, never herdr).
   "agent-chat": { fixture: "mixed", steps: (app) => pressFirst(app, "text:payments review") },
-  // A terminal agent opens as its chat; `Show terminal` replaces the chat's whole view (list, composer, inputs) with the pane mirror.
+  // A terminal agent opens as its chat; `Terminal` replaces the chat's whole view (list, composer, inputs) with the terminal.
   // On nsh 0.4.0's Linux host this once took the process down (see `docs/upstream/nsh-selectable-textview-in-list.md`), so the
   // button must exist here: the scenario fails when the fixture's agent stops having a chat.
   pane: {
     fixture: "mixed",
     steps: async (app) => {
       await pressFirst(app, "text:payments review");
-      await app.press("Show terminal");
+      await app.press("label:Show terminal");
       await app.wait(800);
     },
   },
-  // An omp pane whose log is not readable as a chat in the fixture: it opens as the mirror at once, there is no `Show terminal`.
+  // An omp pane whose log is not readable as a chat in the fixture: it opens as the terminal at once, there is no `Terminal` button.
   working: {
     fixture: "mixed",
     steps: async (app) => {
@@ -87,7 +114,7 @@ export const SCENARIOS: Record<string, Scenario> = {
       await showTerminal(app);
     },
   },
-  // The tab swap that destroys native widgets (a chat's composer and text, then the mirror's) and the tab close, twice over:
+  // The tab swap that destroys native widgets (a chat's composer and text, then the terminal's) and the tab close, twice over:
   // chat -> terminal -> chat -> terminal -> chat -> `mod+w`. A host that dies fails the next step ("the host left"); the shot is
   // the board that is left. Then a second agent's chat is opened and closed with the theme switched in between.
   "chat-swap": {
@@ -95,9 +122,9 @@ export const SCENARIOS: Record<string, Scenario> = {
     steps: async (app) => {
       await pressFirst(app, "text:payments review");
       for (let i = 0; i < 2; i++) {
-        await app.press("Show terminal");
+        await app.press("label:Show terminal");
         await app.wait(500);
-        await app.press("Show chat");
+        await app.press("label:Show chat");
         await app.wait(500);
       }
       await app.keyboard.press("ctrl+w");
@@ -289,6 +316,13 @@ export const SCENARIOS: Record<string, Scenario> = {
   // The file screens run in their lab (`components/files-lab.tsx`): a synthetic folder the test seam copies, opened by the lab's
   // buttons. The file browser, the read-only viewer on code and on Markdown with its diagram, the photo viewer, the send dialog.
   files: { fixture: "mixed", entry: "../components/files-lab.tsx", steps: (app) => lab(app, "Browse files") },
+  // The Files tab opened on start (a Mac screenshot cannot press the lab's buttons): the docs folder, so the path has depth.
+  "files-tab": {
+    fixture: "mixed",
+    entry: "../components/files-lab.tsx",
+    params: { open: "docs" },
+    steps: async () => {},
+  },
   "file-code": {
     fixture: "mixed",
     entry: "../components/files-lab.tsx",
@@ -321,6 +355,58 @@ export const SCENARIOS: Record<string, Scenario> = {
     entry: "../components/files-lab.tsx",
     steps: (app) => lab(app, "Send data.bin to docs"),
   },
+  // The message box's popups (`components/composer-picker.tsx`) in the scripted chat of `components/session-lab.tsx`. Each types into the
+  // box and gives the 150 ms bubble time to show; `--js` / `--keys down` moves the highlight for a second picture of the same list.
+  "composer-slash": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "many-commands", quiet: true },
+    steps: async (app) => {
+      await app.type("label:Message", "/");
+      await app.wait(700);
+    },
+  },
+  // A person's message with pictures in a chat read from a log: thumbnails in place of `[Image #n]`, a too-large tile and a gone one.
+  "turn-pictures": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "pictures", quiet: true },
+    steps: async (app) => {
+      await app.waitFor("label:Open picture");
+      await app.wait(300);
+    },
+  },
+  "composer-file": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "chat", quiet: true },
+    steps: async (app) => {
+      await app.type("label:Message", "@");
+      await app.wait(1200);
+    },
+  },
+  // The `+` menu is a native NSMenu on a Mac and does not show in the screenshot: the scenario opens it for Linux (`make shots`).
+  "composer-plus": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "chat", quiet: true },
+    steps: async (app) => {
+      await app.press("label:Attach");
+      await app.wait(800);
+    },
+  },
+  // Not quiet: the lab prints the synthetic folder the pictures are read from (`Tree: ...`).
+  "composer-photo": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "chat", quiet: false },
+    steps: async (app) => {
+      const tree = (app.texts().find((t) => t.startsWith("Tree: ")) ?? "Tree: ").slice("Tree: ".length);
+      await app.paste("label:Message", { files: [`${tree}/assets/shot-1.png`] });
+      await app.paste("label:Message", { files: [`${tree}/assets/shot-2.png`] });
+      await app.wait(1200);
+    },
+  },
   // The chat's parts run in their lab (`components/chat-parts-lab.tsx`). The permission dock on a risky deploy script with
   // its edits and plan, armed after the first press; the form of a question; the New session dialog before and after a
   // failed start; Past sessions; the session's details.
@@ -351,6 +437,18 @@ export const SCENARIOS: Record<string, Scenario> = {
     entry: "../components/chat-parts-lab.tsx",
     params: { part: "new-session" },
     steps: (app) => app.wait(1500),
+  },
+  // The path field's suggestions: focused, the list open under it (`Tab` completes a folder). One dialog, never two.
+  "new-session-folder": {
+    fixture: "mixed",
+    entry: "../components/new-session-folder-lab.tsx",
+    // The form opens on the synthetic folder with its slash: Down lists its folders under the field.
+    params: { start: "~tree/" },
+    steps: async (app) => {
+      await app.wait(1200);
+      await app.keyboard.press("down");
+      await app.wait(1200);
+    },
   },
   "new-session-error": {
     fixture: "empty",
@@ -393,13 +491,6 @@ export const SCENARIOS: Record<string, Scenario> = {
     params: { mode: "scripted", scene: "chat", quiet: true },
     steps: (app) => app.wait(900),
   },
-  // A pane whose last rows change twice a second (`components/copy-lab.tsx`): the copy probe selects rows above them.
-  "copy-stream": {
-    fixture: "mixed",
-    entry: "../components/copy-lab.tsx",
-    params: { pane: "w1:p4" },
-    steps: (app) => app.wait(1200),
-  },
   "chat-tools": {
     fixture: "empty",
     entry: "../components/session-lab.tsx",
@@ -412,6 +503,23 @@ export const SCENARIOS: Record<string, Scenario> = {
       await app.wait(300);
       await app.press("label:/^Tool: Ran pnpm test, failed/");
       await app.wait(600);
+    },
+  },
+  // A Claude Code session opened up: runs of calls with the agent's narration between them (the three groups differ in their counts).
+  "chat-calls": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "calls-narration", quiet: true },
+    steps: async (app) => {
+      await app.wait(700);
+      for (const label of [
+        "Read 1 file, ran 5 commands, edited 1 file",
+        "Ran 5 commands, edited 1 file",
+        "Read 1 file, ran 4 commands, edited 1 file",
+      ]) {
+        await app.press(`label:/^${label}/`);
+        await app.wait(300);
+      }
     },
   },
   "chat-plan": {
@@ -584,6 +692,51 @@ export const CHANGES_SCENARIOS: Record<string, Scenario> = {
   "changes-empty": { ...changes({ kind: "clean" }) },
   "changes-many": { ...changes({ kind: "many" }) },
 };
+// Changes opened from a chat's `Edited 7 files` on the `review` repository (seven files among 62 of the run's output), in a
+// pane `width` points wide (the lab gives the tab that width, as it is beside a chat). `everything` shows the other scope,
+// `sheet` opens the files from the bar of a narrow pane.
+const EDITED = [
+  "src/api/handler.ts",
+  "src/api/router.ts",
+  "src/lib/cache.ts",
+  "src/lib/retry.ts",
+  "src/lib/clock.ts",
+  "src/legacy/compat.ts",
+  "src/api/schema.ts",
+];
+const review = (width: number, steps: (app: App) => Promise<void> = async () => {}): Scenario => ({
+  fixture: "mixed",
+  entry: "../components/changes-lab.tsx",
+  params: { kind: "review", edited: EDITED, width },
+  steps: async (app) => {
+    await app.waitFor(width >= 900 ? "label:Changed files" : "label:Next file", { timeout: 15000 });
+    await app.wait(800);
+    await steps(app);
+    await app.wait(400);
+  },
+});
+for (const w of [480, 640, 760, 900, 1100, 1400]) CHANGES_SCENARIOS[`changes-review-${w}`] = review(w);
+// A presses by label does not land in the AppKit host, so these use keys: `f` opens the files of a narrow pane, `j` steps.
+CHANGES_SCENARIOS["changes-review-sheet"] = review(640, async (app) => {
+  await app.keyboard.press("f");
+  await app.wait(800);
+});
+// Opened from the sidebar: no session, everything git reports, the output folded.
+const everything = (steps: (app: App) => Promise<void> = async () => {}): Scenario => ({
+  ...review(1100, steps),
+  params: { kind: "review", width: 1100 },
+});
+CHANGES_SCENARIOS["changes-review-all"] = everything();
+// A session whose only file is the 40,000-line dump: it opens on the summary, not on a diff.
+CHANGES_SCENARIOS["changes-review-dump"] = {
+  ...review(1100),
+  params: { kind: "review", width: 1100, edited: ["data/dump/events.json"] },
+};
+CHANGES_SCENARIOS["changes-review-marked"] = review(760, async (app) => {
+  await app.keyboard.press("x");
+  await app.keyboard.press("x");
+  await app.wait(600);
+});
 Object.assign(SCENARIOS, CHANGES_SCENARIOS);
 
 // The tab bar (`design/tabs.md`): one project of twenty agents with long names, each opened as a tab by `mod+j` (the next
@@ -643,6 +796,22 @@ export const COMPOSER_SCENARIOS: Record<string, Scenario> = {
       await app.wait(900);
       await app.keyboard.press("down");
       await app.wait(500);
+    }),
+  },
+  // A text file highlighted (notes.txt, the 7th row): the preview with code lines, level with the list.
+  "composer-mention-text": {
+    ...composer("blank", async (app) => {
+      await app.type(COMPOSER_BOX, "compare the tests with @s");
+      await app.wait(900);
+      for (let i = 0; i < 6; i++) await app.keyboard.press("down");
+      await app.wait(700);
+    }),
+  },
+  // One match: the list is a single row, so the preview keeps the list's bottom edge and grows upward (`PEEK_MIN`).
+  "composer-mention-one": {
+    ...composer("blank", async (app) => {
+      await app.type(COMPOSER_BOX, "see @notes");
+      await app.wait(1100);
     }),
   },
   "composer-images": {
@@ -718,3 +887,114 @@ for (const v of ["baseline", "baseline-changes", "s", "i", "i-subagents", "w", "
 
 // THROWAWAY (focus ring prototype): `components/focus-proto-lab.tsx`, three ring candidates, every control drawn focused. Delete with the lab.
 SCENARIOS["focus-proto"] = { fixture: "x", entry: "../components/focus-proto-lab.tsx", steps: async () => {} };
+
+// The kit's inputs and controls in every case of the edge-case matrix (`components/kit-lab-inputs.tsx`): one page per
+// family, drawn by props (no presses); `kit-inputs-<page>-large` raises every control to the Large hit targets tier.
+const KIT_INPUTS = "../components/kit-lab-inputs.tsx";
+for (const p of ["buttons", "fields", "numbers", "selects", "select-open", "combos", "combo-open", "toggles"]) {
+  SCENARIOS[`kit-inputs-${p}`] = { fixture: p, entry: KIT_INPUTS, steps: async (app) => app.wait(400) };
+  SCENARIOS[`kit-inputs-${p}-large`] = {
+    fixture: p,
+    entry: KIT_INPUTS,
+    params: { large: true },
+    steps: async (app) => app.wait(400),
+  };
+}
+
+// The kit's containers and navigation in every case of their edge-case matrix (`components/kit-lab-containers.tsx`): the
+// tab strip on the real `DockArea`, chips in every state, collapsibles and group headings, settings rows, the kit's tab bar.
+for (const v of ["tabs", "chips", "disclosure", "settings", "nav"]) {
+  SCENARIOS[`kit-containers-${v}`] = {
+    fixture: v,
+    entry: "../components/kit-lab-containers.tsx",
+    steps: async () => {},
+  };
+}
+
+// The kit's text, row, table and state family in every case of the edge-case matrix (`components/kit-rows-lab.tsx`), one
+// page per scenario; width and theme come from `--size` and `--theme`.
+for (const section of ["text", "files", "table", "states"]) {
+  SCENARIOS[`kit-rows-${section}`] = {
+    fixture: "x",
+    entry: "../components/kit-rows-lab.tsx",
+    params: { section },
+    steps: async (app) => app.wait(400),
+  };
+}
+
+// The kit's overlays in the cases of their edge-case matrix (`components/kit-lab-overlays.tsx`, one part per scenario).
+// Menus, tooltips, popovers, cards and toasts are drawn in place (the window screenshot draws no overlay); dialogs and the
+// palette frame are real. The lab sits under `components/`, so it renders without `nsh.json`'s type, radius and shadow scales.
+for (const part of [
+  "menus",
+  "menus-more",
+  "edges",
+  "floating",
+  "dialog-small",
+  "dialog-title",
+  "dialog-scroll",
+  "dialog-none",
+  "dialog-form",
+  "dialog-stack",
+  "dialog-settings",
+  "palette-0",
+  "palette-1",
+  "palette-500",
+  "palette-long",
+]) {
+  SCENARIOS[`kit-overlays-${part}`] = {
+    fixture: "mixed",
+    entry: "../components/kit-lab-overlays.tsx",
+    params: { part },
+    steps: async (app) => app.wait(part.startsWith("dialog") || part.startsWith("palette") ? 600 : 0),
+  };
+}
+
+// A chat's inspector (`components/session-inspector-lab.tsx`): a Claude Code chat whose synthetic log names three subagents
+// and five background tasks. States by launch parameters (a Mac shot cannot press): closed (the one quiet line), open, a
+// failure that arrived (`Needs you`, opened by itself), a subagent's conversation, and a log without times.
+const INSPECTOR = "../components/session-inspector-lab.tsx";
+const inspector = (params: Record<string, unknown>): Scenario => ({
+  fixture: "x",
+  entry: INSPECTOR,
+  params: { quiet: true, ...params },
+  steps: async (app) => app.wait(800),
+});
+SCENARIOS["inspector-closed"] = inspector({});
+SCENARIOS["inspector-open"] = inspector({ open: true });
+SCENARIOS["inspector-needs"] = inspector({ fails: true });
+SCENARIOS["inspector-drill"] = inspector({ drill: true });
+SCENARIOS["inspector-notimes"] = inspector({ open: true, notimes: true });
+
+// The README's three pictures (`.scratch/readme-shots/build.sh` makes them) over the synthetic `showcase` fixture. Its
+// Claude Code logs are generated beside a copy of it (`.scratch/readme-shots/gen.py`) and must lie under the keeper's home
+// of the run, which exists only once the app started: build.sh copies them there (without it the chats say they are not
+// linked). Presses rarely land in the Mac host, so states are reached by keys (`meta`, not `mod`: these are Mac-only):
+// `⌘J` (the agent that waits), the palette's rows (`⌘P`, then down to the agent: the waiting one, the finished ones, the
+// working ones, by name), `⌘⇧I` (the inspector), `⌘⇧G` (the project's changes, beside the chat), `⌘B` (the sidebar folds to its rail); three `Tab`s reach the
+// inspector's first row and `Enter` opens that subagent's conversation.
+const readme = (keys: string[]): Scenario => ({
+  fixture: "showcase",
+  params: { sidebarWidth: 304 },
+  steps: async (app) => {
+    await app.wait(1500);
+    for (const k of keys) {
+      if (k.startsWith("label:")) await app.press(k);
+      else await app.keyboard.press(k);
+      await app.wait(k === "down" || k === "tab" ? 300 : k === "meta+p" ? 600 : 3000);
+    }
+  },
+});
+const down = (n: number) => Array.from({ length: n }, () => "down");
+SCENARIOS["readme-glance"] = readme(["meta+j", "meta+shift+i"]);
+SCENARIOS["readme-review"] = readme(["meta+p", ...down(2), "enter", "meta+shift+g", "meta+b"]);
+SCENARIOS["readme-night"] = readme([
+  "meta+p",
+  ...down(4),
+  "enter",
+  "meta+shift+i",
+  "tab",
+  "tab",
+  "tab",
+  "enter",
+]);

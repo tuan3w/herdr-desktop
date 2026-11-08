@@ -27,9 +27,14 @@ export function setSidebarCollapsed(collapsed: boolean): void {
   if (boardFront()) boardExpanded.set(!collapsed);
   else sidebarCollapsed.set(collapsed);
 }
-/** Pane font size in points (the view scales it down to fit the pane's columns in the width). */
-export const paneFontSize = signal(13);
-/** Point size of the native terminal's text (`components/terminal-lab.tsx`; rows are 1.25 times it, whole points), 10 to 16. The read-only pane view keeps `paneFontSize` until it is replaced. */
+/**
+ * The terminal tab (`components/terminal-tab.tsx`): an agent's pane as a real terminal. Off by default (owner decision,
+ * 2026-11-08): with a terminal tab open, switching to the Board could send nsh's reactive runtime into a loop entered from
+ * the native view's own signal writes (`docs/STATUS.md`). Off, no control offers it and a terminal tab never mounts the
+ * native view: it says how to open the agent in the person's own terminal.
+ */
+export const terminalEnabled = signal(false);
+/** Point size of the native terminal's text (`components/terminal-lab.tsx`; rows are 1.25 times it, whole points), 10 to 16. */
 export const terminalFontSize = signal(12);
 /** Option (Alt) is the Meta key in the terminal on macOS: Option+B sends ESC b. Elsewhere Alt always does. */
 export const terminalOptionAsMeta = signal(true);
@@ -64,7 +69,7 @@ export const settingsReady = signal(false);
 interface Saved {
   themeId: string;
   sidebarCollapsed: boolean;
-  paneFontSize: number;
+  terminalEnabled: boolean;
   terminalFontSize: number;
   terminalOptionAsMeta: boolean;
   minContrast: number;
@@ -89,8 +94,7 @@ export async function loadSettings(): Promise<void> {
       const saved = JSON.parse(raw) as Partial<Saved>;
       if (THEMES.some((t) => t.id === saved.themeId)) themeId.set(saved.themeId!);
       if (typeof saved.sidebarCollapsed === "boolean") sidebarCollapsed.set(saved.sidebarCollapsed);
-      if (typeof saved.paneFontSize === "number" && saved.paneFontSize >= 9 && saved.paneFontSize <= 24)
-        paneFontSize.set(saved.paneFontSize);
+      if (typeof saved.terminalEnabled === "boolean") terminalEnabled.set(saved.terminalEnabled);
       if (
         typeof saved.terminalFontSize === "number" &&
         Number.isInteger(saved.terminalFontSize) &&
@@ -126,7 +130,7 @@ effect(() => {
   const saved: Saved = {
     themeId: themeId(),
     sidebarCollapsed: sidebarCollapsed(),
-    paneFontSize: paneFontSize(),
+    terminalEnabled: terminalEnabled(),
     terminalFontSize: terminalFontSize(),
     terminalOptionAsMeta: terminalOptionAsMeta(),
     minContrast: minContrast(),

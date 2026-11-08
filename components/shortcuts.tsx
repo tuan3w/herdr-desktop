@@ -1,7 +1,7 @@
 import { Text, View } from "nsh";
 
 import { Btn, Keys, Modal } from "#kit";
-import { type Group, GROUPS, keysOf, keyText, type Shortcut, SHORTCUTS } from "#lib/shortcuts";
+import { type Group, GROUPS, keysOf, keyText, listedShortcuts, type Shortcut } from "#lib/shortcuts";
 
 /** One line: what it does, its keys at the right edge. Read as one sentence ("New agent session: Ctrl+N"), since keycaps are decorative. */
 function Row(props: { shortcut: Shortcut }) {
@@ -42,7 +42,7 @@ export function Shortcuts(props: { open: boolean; onClose: () => void }) {
                 {g().title}
               </Text>
               <View class="min-w-0 flex-1">
-                <Each of={SHORTCUTS.filter((s) => s.group === g().id)} key={(s: Shortcut) => s.label}>
+                <Each of={listedShortcuts().filter((s) => s.group === g().id)} key={(s: Shortcut) => s.label}>
                   {(s) => <Row shortcut={s()} />}
                 </Each>
               </View>
