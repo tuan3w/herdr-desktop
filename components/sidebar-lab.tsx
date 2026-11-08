@@ -12,6 +12,7 @@ import { loadSidebar, treeOffset } from "#lib/sidebar";
 import big from "../fixtures/herdr/big.json";
 
 const fixture = host.params.fixture;
+const panel = Number(host.params.width) || 280;
 startHerdr("", typeof fixture === "string" ? fixture : "mixed");
 void loadSidebar();
 
@@ -45,7 +46,7 @@ function Lab() {
   return (
     <ThemeRoot>
       <PopupRoot class="flex-1 flex-row bg-background">
-        <View style={{ width: 280 }}>
+        <View style={{ width: panel }}>
           <Sidebar />
         </View>
         <View class="flex-1 gap-1 p-4">

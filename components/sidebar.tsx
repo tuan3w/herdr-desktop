@@ -35,7 +35,7 @@ import {
 import { newSession, openSettings, settingsPage, sidebarSearch } from "#lib/actions";
 import { checkoutsOf, openChanges } from "#lib/changes";
 import { BOARD, context, focused, rowKeyOf, showBoard } from "#lib/dock";
-import { actionSlot, headerBudget } from "#lib/header-fit";
+import { actionSlot, estimate, machineFits } from "#lib/header-fit";
 import { board, projectOf, revision, rowOf, started } from "#lib/herdr";
 import { ROW } from "#lib/layout";
 import { ofKind } from "#lib/list-item";
@@ -72,6 +72,11 @@ const FILL = `rounded-md hover:bg-sidebar-accent/40 selected:bg-sidebar-accent $
 const FADE = "from-sidebar/0 to-sidebar";
 const FADE_HOVER = "from-sidebar-accent/0 to-sidebar-accent/40 opacity-0 group-hover/row:opacity-100";
 const FADE_OPEN = "from-sidebar-accent/0 to-sidebar-accent";
+
+/** The same three fills as plain colour, for the backing of the `...` over a row's right end (`Agent`), in the same order. */
+const BACK = "bg-sidebar";
+const BACK_HOVER = "bg-sidebar-accent/40 opacity-0 group-hover/row:opacity-100";
+const BACK_OPEN = "bg-sidebar-accent";
 
 /** An agent's fill follows its row (`group/row`), which holds the line and the `...` over its edge. */
 const ROW_FILL = `rounded-md group-hover/row:bg-sidebar-accent/40 selected:bg-sidebar-accent ${FOCUS_RING_SIDEBAR}`;
@@ -215,36 +220,53 @@ function projectEntries(project: BoardProject) {
   ];
 }
 
-/** The header button's left padding (`pl-3`), which `headerBudget` takes off the line. */
+/** The header button's left padding (`pl-3`), which `machineFits` takes off the line. */
 const HEADER_PAD = 12;
+
+/** What a folded header's right end holds (the count and the signal dot, with their gap): the one number here that is not measured. */
+const FOLDED_MARK = 40;
+
+/** A text laid out once with no clamp, so a width is the text's own and not a guess: `{ text, width }` of the last layout. */
+function useNatural() {
+  const seen = signal({ text: "", width: 0 });
+  return {
+    /** The width of `text` when it has been measured, else `undefined` (the caller falls back to an estimate). */
+    of: (text: string) => (seen().text === text && seen().width > 0 ? seen().width : undefined),
+    onTextLayout: (text: string) => (e: { lines: { bounds: { size: { width: number } } }[] }) =>
+      seen.set({ text, width: Math.ceil(e.lines.reduce((sum, l) => sum + l.bounds.size.width, 0)) }),
+  };
+}
 
 /**
  * A project: one quiet line, the name with a small chevron right after it, its machine (muted, amber when stale; none for
  * this computer), while folded how many of its agents wait (the signal dot and the number) and, on hover or focus over it,
  * a plus (a new session in its folder) and its menu at the free right edge. The whole line is one button that folds it: no
- * fill on hover, because the name and the chevron are one thing; `Open project` is the menu's first entry.
+ * fill on hover, because the name and the chevron are one thing; `Open project` is the menu's first entry. The machine is
+ * whole or left out (`machineFits`, from measured widths); only a name that is really too long fades. A pin is said in the
+ * bubble and the accessible name, not by a mark: it answers none of the five questions at a glance.
  * Its text starts at the left edge of the agents' glyphs. The row reads its item and holds no state, because the list recycles cells.
  */
-function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> }) {
+export function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> }) {
   const p = () => props.item().project;
-  // The line's width, so the name and the machine are given explicit room (`headerBudget`); the slot at the right edge is
-  // held back whether or not the actions show, so nothing reflows on hover.
+  // The line's width and the two texts' own widths; the slot at the right edge is held back whether or not the actions
+  // show, so nothing reflows on hover.
   const width = signal(0);
+  const nameW = useNatural();
+  const machineW = useNatural();
   const menuOpen = signal(false);
   const slot = () => actionSlot({ plus: true, large: largeTargets() });
-  const fit = () => {
-    if (width() === 0) return undefined;
-    const extra = (props.item().folded ? 40 : 0) + (p().pinned ? 12 : 0);
-    return headerBudget({
-      name: p().name.length,
-      machine: (props.item().machine ?? "").length,
-      width: width() - HEADER_PAD - slot() - extra,
-      extra,
-    });
-  };
+  const machine = () => props.item().machine ?? "";
+  const showMachine = () =>
+    machine() !== "" &&
+    (width() === 0 ||
+      machineFits({
+        name: nameW.of(p().name) ?? estimate(p().name.length, "name"),
+        machine: machineW.of(machine()) ?? estimate(machine().length, "machine"),
+        room: width() - HEADER_PAD - slot() - (props.item().folded ? FOLDED_MARK : 0),
+      }));
   return (
     <View role="group" accessibilityLabel={projectLabel(p())} class={`group mt-3 ${p().offline ? "opacity-60" : ""}`}>
-      <Tipped label={[p().name, props.item().machine].filter(Boolean).join(" · ")}>
+      <Tipped label={[p().name, machine(), p().pinned ? "pinned" : ""].filter(Boolean).join(" · ")}>
         <View
           role="button"
           onPress={() => toggleProject(p().key)}
@@ -258,11 +280,21 @@ function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> 
           style={{ paddingRight: slot() }}
           class={`flex-row items-center gap-1.5 min-h-7 pl-3 rounded-md ${FOCUS_RING_SIDEBAR}`}
         >
-          <View class="min-w-0 shrink-[1]" style={{ maxWidth: fit()?.name }}>
-            <Clipped fade={[FADE]} boxClass="min-w-0" class="text-sm font-medium text-muted-foreground">
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            class="pointer-events-none absolute left-0 top-0 opacity-0"
+          >
+            <Text class="text-sm font-medium" onTextLayout={nameW.onTextLayout(p().name)}>
               {p().name}
-            </Clipped>
+            </Text>
+            <Text class="text-xs" onTextLayout={machineW.onTextLayout(machine())}>
+              {machine()}
+            </Text>
           </View>
+          <Clipped fade={[FADE]} boxClass="min-w-0 shrink" class="text-sm font-medium text-muted-foreground">
+            {p().name}
+          </Clipped>
           <View
             style={moveTransition()}
             class={props.item().folded ? "" : "rotate-90"}
@@ -271,23 +303,13 @@ function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> 
           >
             <Icon name="chevron-right" size={12} tone="muted-foreground" />
           </View>
-          <If when={p().pinned}>
-            <View
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-              class="size-1.5 rounded-full bg-sidebar-foreground"
-            />
-          </If>
-          <If when={props.item().machine !== null && (fit()?.machine ?? 1) > 0}>
-            <View class="min-w-0 shrink-[100]" style={{ maxWidth: fit()?.machine }}>
-              <Clipped
-                fade={[FADE]}
-                boxClass="min-w-0"
-                class={`text-xs ${props.item().stale ? "text-warning" : "text-muted-foreground"}`}
-              >
-                {props.item().machine ?? ""}
-              </Clipped>
-            </View>
+          <If when={showMachine()}>
+            <Text
+              style={{ numberOfLines: 1 }}
+              class={`shrink-0 text-xs ${props.item().stale ? "text-warning" : "text-muted-foreground"}`}
+            >
+              {machine()}
+            </Text>
           </If>
           <If when={props.item().folded}>
             <View class="ml-auto pl-2">
@@ -359,15 +381,35 @@ function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
       </Tipped>
       <PickSlot rowKey={row().key} name={row().name} order={rowKeys} surface="sidebar" nested={props.item().nested} />
       <View
-        class={`absolute inset-y-0 right-1 items-center justify-center ${
+        class={`absolute inset-y-0 right-0 flex-row ${
           menuOpen() ? "opacity-100" : "opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100"
         }`}
       >
-        <ActionMenu
-          label={`Options for ${row().name}`}
-          entries={copyEntries("Name", row().name, "Folder", row().cwd)}
-          onOpenChange={(open) => menuOpen.set(open)}
-        />
+        <View
+          class="pointer-events-none w-3"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          <Each of={isOpen(row()) ? [FADE, FADE_OPEN] : [FADE, FADE_HOVER]} key="index">
+            {(layer) => <View class={`absolute inset-0 bg-linear-to-r ${layer()}`} />}
+          </Each>
+        </View>
+        <View class="w-10 items-center justify-center">
+          <View
+            class="pointer-events-none absolute inset-0"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
+            <Each of={isOpen(row()) ? [BACK, BACK_OPEN] : [BACK, BACK_HOVER]} key="index">
+              {(layer) => <View class={`absolute inset-0 rounded-r-md ${layer()}`} />}
+            </Each>
+          </View>
+          <ActionMenu
+            label={`Options for ${row().name}`}
+            entries={copyEntries("Name", row().name, "Folder", row().cwd)}
+            onOpenChange={(open) => menuOpen.set(open)}
+          />
+        </View>
       </View>
     </View>
   );
@@ -375,8 +417,9 @@ function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
 
 /**
  * The pressable line, apart from `Agent` so `useTriggerFocus` is called inside the bubble's trigger. Its fill is the row's
- * (`group/row`), not its own, so it stays lit while the pointer is on the `...` that sits over its right edge; the title
- * ends before that slot, held back at rest as on hover.
+ * (`group/row`), not its own, so it stays lit while the pointer is on the `...` that sits over its right edge. The title runs
+ * to the row's padding at rest and on hover alike: the `...` comes over its tail on a backing of the row's own fill, so the
+ * text never moves.
  */
 function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
   const row = () => props.item().row;
@@ -397,7 +440,7 @@ function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> 
         keys.onBlur();
         tip.onBlur?.();
       }}
-      style={[hoverTransition(), { paddingRight: actionSlot({ plus: false, large: largeTargets() }) }]}
+      style={hoverTransition()}
       class={`min-w-0 flex-row items-center gap-3 ${ROW.agentCompact.class} ${ROW_FILL} ${row().offline ? "opacity-60" : ""}`}
     >
       <StatusGlyph status={row().offline ? "unknown" : row().status} id={row().key} />
@@ -461,7 +504,7 @@ function Tree() {
       keyExtractor={(i: SidebarItem) => i.key}
       estimatedItemSize={ROW.agentCompact.height}
       class="min-h-0 flex-1"
-      contentClass="gap-1"
+      contentClass="gap-0"
       scrollEventThrottle={50}
       onScroll={(e) => treeOffset.set(e.offset.y)}
       accessibilityLabel="Projects and agents"

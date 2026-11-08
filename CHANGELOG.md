@@ -4,6 +4,12 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+- **Sidebar text is cut only when it must be.** A project's machine name is
+  shown whole or left out, decided from the text's real width, so it is no
+  longer cut to `fatm` while the sidebar has room. Agent titles run to the
+  row's edge and the `...` comes over a long title's end on hover, without
+  moving the text. The pin is in the project's tooltip, and rows sit
+  32 pt apart.
 - **A toast appears at the top right.** It used to sit over the message box and the answer dock; now it is under the header, where it covers nothing you are answering, and it enters from above.
 - **Tooltips stay inside the window, and menus can show a letter.** A tooltip is never cut off at the window's edge: it lines up with its trigger, flips above when there is no room below, and wraps when the window is narrow. Menu items can carry a one-letter key shown at the right; pressing it while the menu is open does the item.
 - **A project in the sidebar is one quiet line.** The name with its chevron right after it folds or unfolds the project; no hover boxes. `+` and `...` appear at the right in space kept for them, so the name never moves or re-truncates. `Open project` is the first entry of `...`.
