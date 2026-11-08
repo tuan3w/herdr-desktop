@@ -2,8 +2,8 @@ import { cleanup, context, effect, type JSX, signal, Text, View, windowSize } fr
 
 import type { ViewRef } from "nsh/types";
 
-import { NUM } from "./core";
 import { createHover, type Hover, type HoverTrigger } from "./hover";
+import { Keys } from "./keys";
 import { type BubblePlace, createOpenState, type OpenChange, placeBubble } from "./popup";
 import { Positioner } from "./positioner";
 
@@ -57,27 +57,14 @@ export function TipText(props: { children?: JSX.Element }) {
 }
 
 /**
- * What `Tipped` shows: the label, and the shortcut as a quiet key in the same bubble. The key is the page colour at 70%
- * on a chip of the page colour at 15% (5.2:1 and 5.1:1 in the light and dark appearances: it is quiet, not unreadable).
- * It is decorative: the control's accessible name already carries the label.
+ * What `Tipped` shows: the label, and the shortcut as keycaps 8 pt after it in the same bubble. The caps are the page
+ * colour at 80% on a chip of the page colour at 15%. They are decorative: the control's accessible name already carries the label.
  */
 export function TipContent(props: { label: string; shortcut?: string }) {
   return (
     <View class="flex-row items-center gap-2">
       <TipText>{props.label}</TipText>
-      <If when={props.shortcut}>
-        {(keys) => (
-          <View
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            class="min-w-4 shrink-0 items-center rounded-sm bg-background/15 px-1"
-          >
-            <Text style={NUM} class="text-xs text-background opacity-70">
-              {keys()}
-            </Text>
-          </View>
-        )}
-      </If>
+      <If when={props.shortcut}>{(keys) => <Keys keys={keys()} tone="tip" />}</If>
     </View>
   );
 }

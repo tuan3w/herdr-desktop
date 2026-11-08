@@ -90,9 +90,9 @@ export type GlobalShortcut =
 
 /** Work anywhere in the app, even in a text field (unless the field uses the key itself: undo, paste, caret keys). */
 export const GLOBAL: Record<GlobalShortcut, Shortcut> = {
-  // `mod+shift+p` is the second key: a chord with Shift that no terminal program uses as itself, so it stays the palette's wherever Ctrl+K belongs to the focused control.
-  palette: { keys: ["mod+k", "mod+shift+p"], label: "Command palette", group: "general" },
-  quickOpen: { keys: ["mod+p"], label: "Find a file in the project", group: "navigate" },
+  // The owner's choice (2026-11-08): `mod+p` is the palette and `mod+shift+p` finds a file. `mod+k` is not bound: it was unfamiliar.
+  palette: { keys: ["mod+p"], label: "Command palette", group: "general" },
+  quickOpen: { keys: ["mod+shift+p"], label: "Find a file in the project", group: "navigate" },
   newAgent: { keys: ["mod+n"], label: "New agent session", group: "general" },
   // The Undo of a toast (`notify(..., { undo })`): the kit names this key in its hint, so it exists even though a text field keeps its own undo.
   undo: { keys: ["mod+z"], label: "Undo the latest change", group: "general" },

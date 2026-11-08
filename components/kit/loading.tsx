@@ -1,40 +1,43 @@
-import { createMotion, cleanup, View } from "nsh";
+import { View } from "nsh";
 
 import { reducedMotion } from "#lib/motion";
 
 import { Icon, type IconTone } from "./icon";
+import { useTicker } from "./ticker";
+
+// Whole class names, so the class scanner sees them.
+const TURNS = [
+  "",
+  "rotate-45",
+  "rotate-90",
+  "rotate-[135deg]",
+  "rotate-180",
+  "rotate-[225deg]",
+  "rotate-[270deg]",
+  "rotate-[315deg]",
+];
 
 /**
- * Work is in progress and there is no way to tell how long: a spinning arc, 800ms a turn. Under reduced motion it
- * stays still (a still arc still says "busy"; the control carrying it says so too: `Btn loading` adds "busy" to its label).
+ * Work is in progress and there is no way to tell how long: the loader turns in eighths, 8 steps a second from the
+ * shared timer (`ticker.ts`), with no easing. Not a native loop: that holds the window at full frame rate. Under
+ * reduced motion it stays still (a still arc still says "busy"; the control carrying it says so too: `Btn loading`
+ * adds "busy" to its label).
  */
 export function Spinner(props: { size?: 12 | 14 | 16 | 20; tone?: IconTone }) {
-  const spin = createMotion();
-  if (!reducedMotion()) {
-    void spin.play({ keyframes: { rotate: [0, 360] }, duration: 800, easing: "linear", iterations: "infinite" });
-    cleanup(() => spin.stop());
-  }
+  const tick = useTicker();
+  const motionless = reducedMotion();
   return (
-    <View style={spin.style}>
+    <View class={motionless ? "" : TURNS[tick() % TURNS.length]}>
       <Icon name="loader" size={props.size} tone={props.tone} />
     </View>
   );
 }
 
 /**
- * A placeholder with the size of what will load, so the page does not shift when it arrives. It breathes between
- * full and half opacity, 1.4s a cycle; under reduced motion it is a still block. Give it the real width and height.
+ * A placeholder with the size of what will load, so the page does not shift when it arrives. Still: holding the shape
+ * is the job, and a pulse is an endless native loop that costs full-rate frames for the whole wait (nsh issue 958).
+ * Give it the real width and height.
  */
 export function Skeleton(props: { class?: string }) {
-  const pulse = createMotion();
-  if (!reducedMotion()) {
-    void pulse.play({
-      keyframes: { opacity: [1, 0.5, 1] },
-      duration: 1400,
-      easing: "easeInOut",
-      iterations: "infinite",
-    });
-    cleanup(() => pulse.stop());
-  }
-  return <View style={pulse.style} class={`rounded-md bg-muted ${props.class ?? ""}`} />;
+  return <View class={`rounded-md bg-muted ${props.class ?? ""}`} />;
 }

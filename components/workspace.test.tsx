@@ -99,7 +99,7 @@ test("a tab that is alone in its group cannot split away; with a second tab it m
 test("every drag has a command: move the tab to another group, down, and back, from the palette", async () => {
   const app = await ready();
   const run = async (command: string) => {
-    await app.keyboard.press("mod+k");
+    await app.keyboard.press("mod+p");
     await app.type("label:Search agents, projects and commands", command);
     await app.press(`label:${command}`);
     await settle(app);
@@ -119,7 +119,7 @@ test("closing a pane in herdr asks first, and says what it will stop", async () 
     asked.push(`${d.title} | ${d.message}`);
     return "Cancel";
   });
-  await app.keyboard.press("mod+k");
+  await app.keyboard.press("mod+p");
   await app.type("label:Search agents, projects and commands", "Close pane in herdr");
   await app.press("label:/^Close pane in herdr…/");
   await settle(app);
@@ -133,7 +133,7 @@ test("closing a pane in herdr, once confirmed, closes the pane and removes its t
   const app = await ready();
   await openAgents(app, FIRST);
   app.onDialog(() => "Close pane");
-  await app.keyboard.press("mod+k");
+  await app.keyboard.press("mod+p");
   await app.type("label:Search agents, projects and commands", "Close pane in herdr");
   await app.press("label:/^Close pane in herdr…/");
   await app.waitUntil(() => Herdr.testRequests("pane.close").length === 1);
@@ -157,7 +157,7 @@ test("a pane that herdr drops while its tab is open leaves a tab that says so an
 });
 
 async function palette(app: App, command: string) {
-  await app.keyboard.press("mod+k");
+  await app.keyboard.press("mod+p");
   await app.type("label:Search agents, projects and commands", command);
   await app.press(`label:${command}`);
   await settle(app);
@@ -177,7 +177,7 @@ test("renaming the pane in front from the palette asks for a name, starting from
 
 test("pane commands are dimmed on the board, where there is no pane to act on", async () => {
   const app = await ready();
-  await app.keyboard.press("mod+k");
+  await app.keyboard.press("mod+p");
   // The palette lists as many commands as fit: a search brings the one asked for into view.
   await app.type("label:Search agents, projects and commands", "pane");
   expect(app.enabled("label:/^Rename pane…/")).toBe(false);

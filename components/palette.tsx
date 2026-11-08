@@ -6,7 +6,7 @@ import type { FileSearch, SearchFocus } from "herdr-desktop/native";
 
 import { ArgChips, ScopeChips } from "#components/palette-chips";
 import { Row } from "#components/palette-row";
-import { Clipped, Kbd, PaletteDialog, Spinner } from "#kit";
+import { Clipped, Keys, PaletteDialog, Spinner } from "#kit";
 import { viewFile } from "#lib/files";
 import { projectOf } from "#lib/herdr";
 import type { AgentChoice } from "#lib/new-session";
@@ -19,17 +19,17 @@ import { rowOfHit, type PaletteRow } from "#lib/palette/rows";
 import { readQuery, scopeInfo, SCOPES, stepScope, type PaletteScope } from "#lib/palette/scopes";
 import { agentKindsOn, phraseOf, runWith } from "#lib/palette/steps";
 import { timing } from "#lib/perf";
-import { keyText } from "#lib/shortcuts";
+import { keyLabel, keyText } from "#lib/shortcuts";
 import { projectFolder } from "#lib/sidebar";
 import { fold } from "#lib/text";
 
 /**
  * The command palette: one search over everything the person can go to or do, in a card at the top of the window.
- * `mod+k` and `mod+shift+p` open it, `mod+p` opens it on the files of the project, `mod+e` is the Switcher. Design and
+ * `mod+p` opens it, `mod+shift+p` opens it on the files of the project, `mod+e` is the Switcher. Design and
  * rules: `design/palette.md`.
  *
  * Three layers share the one list: the results (what the query finds, or on an empty query what needs you and what was
- * visited), the actions of the highlighted result (`mod+k` again, or Right on an empty query), and a command's steps
+ * visited), the actions of the highlighted result (`mod+p` again, or Right on an empty query), and a command's steps
  * (`New agent session in…` then a project then an agent). Escape steps back one layer, then clears the query, then closes.
  * The ranking is Rust (`Search`), frozen when the palette opens: rows never move while it is open, only what a row says
  * about itself (its shape, its age) changes in place.
@@ -571,7 +571,7 @@ export function Palette(props: { open: boolean; onClose: () => void }) {
       ];
     return [
       { keys: keyText("enter"), label: "Open" },
-      { keys: keyText("mod+k"), label: "Actions" },
+      { keys: keyLabel("palette"), label: "Actions" },
     ];
   });
 
@@ -653,7 +653,7 @@ export function Palette(props: { open: boolean; onClose: () => void }) {
                   importantForAccessibility="no-hide-descendants"
                   class="shrink-0 flex-row items-center gap-1"
                 >
-                  <Kbd keys={hint().keys} />
+                  <Keys keys={hint().keys} />
                   <Text class="text-xs text-muted-foreground">{hint().label}</Text>
                 </View>
               )}

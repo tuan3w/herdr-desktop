@@ -7,8 +7,9 @@ import { hoverTransition, pressFeedback, pressTransition } from "#lib/motion";
 import { largeTargets } from "#lib/settings";
 
 import { FOCUS_RING, FOCUS_RING_SIDEBAR } from "./core";
-import { Kbd, Tipped } from "./hint";
+import { Tipped } from "./hint";
 import { Icon, type IconName, type IconTone } from "./icon";
+import { Keys } from "./keys";
 import { Spinner } from "./loading";
 import { useTriggerFocus } from "./tooltip";
 
@@ -100,9 +101,7 @@ export function Btn(props: {
         {props.label}
       </Text>
       <If when={props.hint && !props.disabled}>
-        <View class="pl-1">
-          <Kbd keys={props.hint!} tone={variant() === "primary" ? "onPrimary" : "muted"} />
-        </View>
+        <Keys keys={props.hint!} tone={variant() === "primary" ? "onPrimary" : "muted"} />
       </If>
     </Button>
   );
@@ -130,6 +129,8 @@ export function IconButton(props: {
   tip?: string;
   /** Where the bubble opens (above for a control on text). */
   tipSide?: "top" | "bottom";
+  /** Hands out the button's node, so a screen can return the keyboard focus to it. */
+  buttonRef?: (node: ViewRef) => void;
 }) {
   return (
     <Tipped label={props.tip ?? props.label} shortcut={props.shortcut} side={props.tipSide}>
@@ -141,6 +142,7 @@ export function IconButton(props: {
         selected={props.selected}
         disabled={props.disabled}
         roomy={props.roomy}
+        buttonRef={props.buttonRef}
       />
     </Tipped>
   );
@@ -155,12 +157,14 @@ function IconFace(props: {
   selected?: boolean;
   disabled?: boolean;
   roomy?: boolean;
+  buttonRef?: (node: ViewRef) => void;
 }) {
   const focus = useTriggerFocus();
   const hover = () =>
     props.onSidebar ? "hover:bg-sidebar-accent active:bg-sidebar-accent" : "hover:bg-accent active:bg-accent";
   return (
     <View
+      ref={(node: ViewRef) => props.buttonRef?.(node)}
       role="button"
       accessibilityLabel={props.label}
       accessibilityState={{ selected: props.selected, disabled: props.disabled }}

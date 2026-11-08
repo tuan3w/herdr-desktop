@@ -7,7 +7,7 @@ test("the list names every shortcut with its keys as this platform writes them, 
   expect(app.shows("Keyboard shortcuts")).toBe(false);
   await app.press("Show shortcuts");
   expect(app.shows("Keyboard shortcuts")).toBe(true);
-  expect(app.shows("label:Command palette: Ctrl+K, Ctrl+Shift+P")).toBe(true);
+  expect(app.shows("label:Command palette: Ctrl+P")).toBe(true);
   expect(app.shows("label:Next agent that needs you: Ctrl+J")).toBe(true);
   expect(app.shows("label:Split right: Ctrl+\\")).toBe(true);
   expect(app.shows("label:Switch to the previous agent: Ctrl+Tab")).toBe(true);
@@ -21,6 +21,6 @@ test("the list names every shortcut with its keys as this platform writes them, 
 test("on a Mac the same list uses Command and has no F1", async () => {
   const app = await lab("macos");
   await app.press("Show shortcuts");
-  expect(app.shows("label:Command palette: ⌘K, ⇧⌘P")).toBe(true);
+  expect(app.shows("label:Command palette: ⌘P")).toBe(true);
   expect(app.shows("label:Keyboard shortcuts: ⌘/")).toBe(true);
 });

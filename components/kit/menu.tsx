@@ -17,13 +17,15 @@ import {
 
 import type { Bounds, ListRef, MouseEvent, OverlayPosition, Point, ScrollRef, ViewRef } from "nsh/types";
 
+import { capsWidth, keycaps } from "#lib/keycaps";
 import { hoverTransition } from "#lib/motion";
 import { fold } from "#lib/text";
 
-import { EDGE, FOCUS_RING, NUM } from "./core";
+import { EDGE, FOCUS_RING } from "./core";
 import { dialogDepth } from "./dialog-stack";
-import { Kbd, Tipped } from "./hint";
+import { Tipped } from "./hint";
 import { Icon, type IconName } from "./icon";
+import { Keys } from "./keys";
 import {
   alignSelected,
   centerOffset,
@@ -258,9 +260,8 @@ const POPUP = `min-w-52 max-w-80 rounded-lg bg-popover p-1 text-popover-foregrou
 /** `POPUP`'s least and greatest width (`min-w-52`, `max-w-80`): a label is cut with an ellipsis only past the greatest. */
 const MENU_MIN = 208;
 const MENU_MAX = 320;
-/** An average glyph of the 14pt body face (a wide character counts twice) and a shortcut keycap's: the text is estimated, not measured, because the popup is sized before it is built. */
+/** An average glyph of the 14pt body face (a wide character counts twice) and the text is estimated, not measured, because the popup is sized before it is built. */
 const GLYPH = 7.5;
-const KEY_GLYPH = 7;
 const glyphs = (text: string) => [...text].reduce((n, c) => n + ((c.codePointAt(0) ?? 0) >= 0x2e80 ? 2 : 1), 0);
 
 /**
@@ -277,8 +278,8 @@ export function menuWidth(rows: readonly MenuRow[]): number {
     if (row.kind !== "label") {
       if (icons) w += 16 + 12;
       if (row.kind === "submenu" || row.kind === "check" || row.kind === "radio") w += 14 + 12;
-      if (row.kind !== "submenu" && row.accelerator) w += 12 + KEY_GLYPH;
-      else if (row.kind !== "submenu" && row.shortcut) w += 12 + glyphs(row.shortcut) * KEY_GLYPH + 14;
+      const keys = row.kind === "submenu" ? undefined : rowKeys(row);
+      if (keys) w += 12 + capsWidth(keycaps(keys));
     }
     widest = Math.max(widest, w);
   }
@@ -478,11 +479,12 @@ interface Level {
   leave?: () => void;
 }
 
+/** What a row's keycaps show: its accelerator letter, else its shortcut, both through `Keys` so they end on one edge. */
+const rowKeys = (row: ItemRow): string | undefined => row.accelerator ?? row.shortcut;
+
 /** The inside of a row: a column for icons when the panel has any, the label, the tick, the shortcut, the chevron of a submenu. */
 function RowContent(props: { row: () => ItemRow | SubmenuRow; icons: boolean }) {
-  const accelerator = () => (props.row().kind === "submenu" ? undefined : (props.row() as ItemRow).accelerator);
-  const shortcut = () =>
-    props.row().kind === "submenu" || accelerator() ? undefined : (props.row() as ItemRow).shortcut;
+  const keys = () => (props.row().kind === "submenu" ? undefined : rowKeys(props.row() as ItemRow));
   const tone = () => rowTone(props.row());
   return (
     <>
@@ -497,21 +499,7 @@ function RowContent(props: { row: () => ItemRow | SubmenuRow; icons: boolean }) 
       <If when={isChecked(props.row())}>
         <Icon name="check" size={14} tone="primary" />
       </If>
-      <If when={accelerator()}>
-        {(letter) => (
-          // Decorative like the keycap: the row's name is its label.
-          <View
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            class="min-w-4 shrink-0 items-center"
-          >
-            <Text style={NUM} class="text-xs text-muted-foreground">
-              {letter().toUpperCase()}
-            </Text>
-          </View>
-        )}
-      </If>
-      <If when={shortcut()}>{(keys) => <Kbd keys={keys()} />}</If>
+      <If when={keys()}>{(text) => <Keys keys={text()} tone="quiet" />}</If>
       <If when={props.row().kind === "submenu"}>
         <Icon name="chevron-right" size={14} tone="muted-foreground" />
       </If>

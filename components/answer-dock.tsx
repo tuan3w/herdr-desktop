@@ -7,7 +7,7 @@ import type { ScrollRef, ViewRef } from "nsh/types";
 
 import { PermissionDiff } from "#components/permission-diff";
 import { PlanSteps } from "#components/plan-steps";
-import { Btn, Clipped, FOCUS_RING, Icon, IconButton, INPUT_CLASS, Kbd, Spinner } from "#kit";
+import { Btn, Clipped, FOCUS_RING, Icon, IconButton, INPUT_CLASS, Keys, Spinner } from "#kit";
 import { replyTarget } from "#lib/ask";
 import type { Ask, AskOption, AskOutcome } from "#lib/ask";
 import { codeLabel, lineCount } from "#lib/highlight";
@@ -525,7 +525,7 @@ function Row(props: {
         props.dim ? "opacity-50" : ""
       } ${props.armed ? "border-warning bg-warning/20 dark:bg-warning/12" : "border-input bg-card"} ${FOCUS_RING}`}
     >
-      <Kbd keys={props.hint} />
+      <Keys keys={props.hint} />
       <If when={props.option.risky}>
         <View class="pt-0.5">
           <Icon name="alert" size={14} tone={props.armed ? "warning" : "muted-foreground"} />

@@ -23,7 +23,7 @@ export function openPalette(scope: PaletteScope = "all", text = ""): void {
 }
 
 /**
- * `mod+k` and `mod+shift+p`: open the palette; pressed again, open the actions of the highlighted row, or leave them.
+ * `mod+p`: open the palette; pressed again, open the actions of the highlighted row, or leave them.
  * Escape closes it.
  */
 export function paletteKey(): void {

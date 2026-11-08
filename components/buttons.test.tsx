@@ -9,7 +9,9 @@ test("an icon button shows its tooltip, with the shortcut, to a keyboard user wh
   await app.keyboard.press("tab");
   await app.wait(50);
   expect(app.shows("text:Reload changes")).toBe(true);
-  expect(app.shows("text:Ctrl+R")).toBe(true);
+  // The shortcut is one cap per key (`lib/keycaps.ts`): on a Mac Ctrl is its glyph.
+  expect(app.shows("text:⌃")).toBe(true);
+  expect(app.shows("text:R")).toBe(true);
   await app.keyboard.press("enter");
   expect(app.texts()).toContain("reloads:1");
   await app.keyboard.press("tab");

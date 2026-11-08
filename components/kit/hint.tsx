@@ -3,11 +3,8 @@ import { signal, Text, View } from "nsh";
 import type { JSX } from "nsh";
 import type { TextStyle } from "nsh/types";
 
-import { NUM } from "./core";
+import { isCut } from "./cut";
 import { FocusScope, TipContent, TipText, useTooltip } from "./tooltip";
-
-/** Line breaks and spaces are not text: a wrapped line may drop the space it broke at. */
-const letters = (s: string) => s.replace(/\s/g, "").length;
 
 /**
  * Text that is cut with an ellipsis and still says what it cut. When it fits, nothing is different. When it does not,
@@ -34,9 +31,12 @@ export function Clipped(props: {
   children?: JSX.Element;
 }) {
   const cut = signal(false);
-  const full = () => props.label ?? (typeof props.children === "string" ? props.children : "");
+  // What is drawn, for the cut test: `label` can be longer (a path whose name is drawn), and would read as cut.
+  const shown = () => (typeof props.children === "string" ? props.children : (props.label ?? ""));
+  const full = () => props.label ?? shown();
   const tip = useTooltip(() => <TipText>{full()}</TipText>, {
-    disabled: () => !cut() || props.tip === false,
+    // A label longer than the drawn text (a path under its name) is a tip of its own, cut or not.
+    disabled: () => !(cut() || full() !== shown()) || props.tip === false,
   });
   const text = () => (
     <Text
@@ -45,7 +45,7 @@ export function Clipped(props: {
       onMouseLeave={tip.onMouseLeave}
       class={props.class}
       style={[{ numberOfLines: props.lines ?? 1, textOverflow: props.fade ? "clip" : undefined }, props.style]}
-      onTextLayout={(e) => cut.set(letters(e.lines.map((l) => l.text).join("")) < letters(full()))}
+      onTextLayout={(e) => cut.set(isCut(e.lines, shown()))}
     >
       {props.children}
     </Text>
@@ -101,33 +101,6 @@ export function Tipped(props: {
   return (
     <View ref={tip.ref} onMouseEnter={tip.onMouseEnter} onMouseLeave={tip.onMouseLeave} class={props.class}>
       <FocusScope.Provider value={tip.focus}>{props.children}</FocusScope.Provider>
-    </View>
-  );
-}
-
-/** A keycap: the shortcut shown beside a label (`⌘N`). Decorative: the control's label already says what it does. */
-export function Kbd(props: { keys: string; tone?: "muted" | "onPrimary" | "sidebar" }) {
-  const box = () =>
-    props.tone === "onPrimary"
-      ? "border-primary-foreground/30"
-      : props.tone === "sidebar"
-        ? "border-sidebar-border"
-        : "border-border bg-muted";
-  const text = () =>
-    props.tone === "onPrimary"
-      ? "text-primary-foreground opacity-80"
-      : props.tone === "sidebar"
-        ? "text-sidebar-accent-foreground opacity-70"
-        : "text-muted-foreground";
-  return (
-    <View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      class={`min-w-5 items-center rounded border px-1 py-px ${box()}`}
-    >
-      <Text style={NUM} class={`text-xs ${text()}`}>
-        {props.keys}
-      </Text>
     </View>
   );
 }

@@ -53,7 +53,7 @@ const picked = createCheckGroup({ all: () => ids() });
 
 ## Progress, Avatar
 
-`Progress`: `value` 0 to 100 (`min`, `max`), `label`, `valueText` (what is spoken: "2/5 reviewed"; else the percentage), `null` for an unknown extent (the bar breathes by opacity while mounted: mount it inside an `If`, like `Spinner`). The fill is set by width and never animates; the spoken value is clamped like the bar. No Meter: there is no gauge. `Avatar`: `fallback` (initials), optional `src` with a `delay` before the initials show, decorative unless `label`; `fallbackShown` is the pure rule.
+`Progress`: `value` 0 to 100 (`min`, `max`), `label`, `valueText` (what is spoken: "2/5 reviewed"; else the percentage), `null` for an unknown extent (a segment steps along the bar from the shared timer while mounted: mount it inside an `If`, like `Spinner`). The fill is set by width and never animates; the spoken value is clamped like the bar. No Meter: there is no gauge. `Avatar`: `fallback` (initials), optional `src` with a `delay` before the initials show, decorative unless `label`; `fallbackShown` is the pure rule.
 
 ## Not ported, on purpose
 

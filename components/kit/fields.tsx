@@ -19,6 +19,9 @@ export const INPUT_BOX =
 export const inputHeight = () => (largeTargets() ? "h-11" : "h-8");
 /** The look with a fixed 32 height, for inputs placed by other screens; `Field`, `NumberField` and `SearchField` use the box and `inputHeight`. */
 export const INPUT_CLASS = `h-8 ${INPUT_BOX}`;
+/** A filter inside a list: a recessed fill with no edge until it is hovered or focused (28, 44 under Large hit targets). */
+const INPUT_QUIET =
+  "rounded-md border border-transparent bg-muted/60 px-3 text-sm text-foreground placeholder:text-muted-foreground hover:bg-muted focus:border-ring focus:outline-2 focus:outline-offset-0 focus:outline-ring/30";
 export const INPUT_ERROR =
   "border-destructive hover:border-destructive focus:border-destructive focus:outline-destructive/30";
 
@@ -216,6 +219,8 @@ export function SearchField(props: {
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
+  /** A quiet 28 pt filter for a list's head: no border at rest. Still 44 under Large hit targets. */
+  dense?: boolean;
   onSubmit?: () => void;
   /** The field's ref, for a shortcut that takes the focus to it (a view cannot take the focus from code, an input can). */ inputRef?: (
     ref: InputRef,
@@ -250,7 +255,7 @@ export function SearchField(props: {
         onFocus={() => focused.set(true)}
         onBlur={() => focused.set(false)}
         style={hoverTransition()}
-        class={`${INPUT_BOX} ${inputHeight()} pl-8 pr-8`}
+        class={`${props.dense ? INPUT_QUIET : INPUT_BOX} ${props.dense && !largeTargets() ? "h-7" : inputHeight()} pl-8 pr-8`}
       />
       <View class="pointer-events-none absolute bottom-0 left-2.5 top-0 justify-center">
         <Icon name="search" size={14} tone="muted-foreground" />

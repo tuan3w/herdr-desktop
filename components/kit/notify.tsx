@@ -8,8 +8,8 @@ import { keyLabel } from "#lib/shortcuts";
 
 import { EDGE, FOCUS_RING } from "./core";
 import { dialogDepth, topDialog } from "./dialog-stack";
-import { Kbd } from "./hint";
 import { Icon } from "./icon";
+import { Keys } from "./keys";
 import { Spinner } from "./loading";
 import {
   createToasts,
@@ -350,7 +350,7 @@ function ToastButton(props: {
         </Text>
       </If>
       <If when={props.hint}>
-        <Kbd keys={props.hint!} tone="muted" />
+        <Keys keys={props.hint!} tone="muted" />
       </If>
     </View>
   );

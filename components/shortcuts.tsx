@@ -1,6 +1,6 @@
 import { Text, View } from "nsh";
 
-import { Btn, Kbd, Modal } from "#kit";
+import { Btn, Keys, Modal } from "#kit";
 import { type Group, GROUPS, keysOf, keyText, type Shortcut, SHORTCUTS } from "#lib/shortcuts";
 
 /** One line: what it does, its keys at the right edge. Read as one sentence ("New agent session: Ctrl+N"), since keycaps are decorative. */
@@ -12,9 +12,9 @@ function Row(props: { shortcut: Shortcut }) {
       class="h-8 flex-row items-center justify-between gap-3"
     >
       <Text class="min-w-0 line-clamp-1 flex-1 text-sm text-foreground">{props.shortcut.label}</Text>
-      <View class="flex-row gap-1">
+      <View class="shrink-0 flex-row items-center gap-2">
         <Each of={keys()} key={(k: string) => k}>
-          {(k) => <Kbd keys={k()} />}
+          {(k) => <Keys keys={k()} />}
         </Each>
       </View>
     </View>

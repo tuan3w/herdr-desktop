@@ -4,7 +4,7 @@ import { Button } from "nsh/base";
 import type { MentionView, PeekView } from "herdr-desktop/native";
 import type { Bounds, ScrollRef, ViewRef } from "nsh/types";
 
-import { EDGE, FOCUS_RING_INSET, Icon, Kbd, offsetsOf, revealOffset } from "#kit";
+import { EDGE, FOCUS_RING_INSET, Icon, Keys, offsetsOf, revealOffset } from "#kit";
 import { fileGlyph, markRuns } from "#lib/composer-refs";
 import { sizeText } from "#lib/files";
 import { commandText, type SlashCommand, usageKey } from "#lib/slash";
@@ -204,7 +204,7 @@ function Hint(props: { keys: string; what: string }) {
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      <Kbd keys={props.keys} />
+      <Keys keys={props.keys} />
       <Text class="text-xs text-muted-foreground">{props.what}</Text>
     </View>
   );

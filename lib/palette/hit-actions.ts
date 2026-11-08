@@ -14,7 +14,7 @@ import { keyText } from "#lib/shortcuts";
 import { projectFolder } from "#lib/sidebar";
 
 /**
- * What can be done with a result besides opening it: the action panel (`mod+k` on a row). The first action is what
+ * What can be done with a result besides opening it: the action panel (`mod+p` again on a row). The first action is what
  * `Enter` does. An action that cannot run now stays listed with the reason, so the person learns it exists; one that
  * cannot be taken back asks first (`confirmDestructive`), one that can says so with an `Undo`.
  */
