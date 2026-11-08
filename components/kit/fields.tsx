@@ -12,18 +12,18 @@ import { FieldScope, useFieldControl, type Violation } from "./field";
 import { FieldDescription, FieldError, FieldLabel, type FieldRules, FieldRoot } from "./field-parts";
 import { Icon } from "./icon";
 
-/** Text input look: hover darkens the edge, focus draws the ring color. Errors add `border-destructive`. */
+/** Text input look: hover darkens the edge; focus turns the border `ring` and adds a 0.5 pt outline at offset 0 (the one ring, `RING_BORDERED`). Errors add `border-destructive` and the line stays `destructive`. */
 export const INPUT_BOX =
-  "rounded-md border border-input bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground hover:border-muted-foreground/50 focus:border-ring focus:outline-2 focus:outline-offset-0 focus:outline-ring/30";
+  "rounded-md border border-input bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground hover:border-muted-foreground/50 focus:border-ring focus:outline-[0.5px] focus:outline-offset-0 focus:outline-ring";
 /** The input's height: 32, and 44 under Large hit targets like `Btn` and `SelectField`, so no input is the small target. */
 export const inputHeight = () => (largeTargets() ? "h-11" : "h-8");
 /** The look with a fixed 32 height, for inputs placed by other screens; `Field`, `NumberField` and `SearchField` use the box and `inputHeight`. */
 export const INPUT_CLASS = `h-8 ${INPUT_BOX}`;
 /** A filter inside a list: a recessed fill with no edge until it is hovered or focused (28, 44 under Large hit targets). */
 const INPUT_QUIET =
-  "rounded-md border border-transparent bg-muted/60 px-3 text-sm text-foreground placeholder:text-muted-foreground hover:bg-muted focus:border-ring focus:outline-2 focus:outline-offset-0 focus:outline-ring/30";
+  "rounded-md border border-transparent bg-muted/60 px-3 text-sm text-foreground placeholder:text-muted-foreground hover:bg-muted focus:border-ring focus:outline-[0.5px] focus:outline-offset-0 focus:outline-ring";
 export const INPUT_ERROR =
-  "border-destructive hover:border-destructive focus:border-destructive focus:outline-destructive/30";
+  "border-destructive hover:border-destructive focus:border-destructive focus:outline-destructive";
 
 /** The line under a control: the field's error, or the hint while there is none. `reserve` keeps the room of one line. */
 function Footer(props: { hint?: string; reserve?: boolean; errorInLabel?: boolean }) {

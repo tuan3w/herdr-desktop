@@ -46,7 +46,7 @@ export function fittingColumns<T>(columns: Column<T>[], available: number): Colu
 }
 
 /** Equals `ROW.table.height` in lib/layout.ts; a copy because the kit may not import lib/layout (one-way rule in AGENTS.md). */
-const ROW_HEIGHT = 36;
+export const ROW_HEIGHT = 32;
 
 const CLASSES = {
   root: "rounded-lg border border-border bg-card",

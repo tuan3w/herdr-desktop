@@ -26,7 +26,7 @@ export interface SegmentOption<T extends string> {
  *   needs) on the plain `bg-card` fill: a border or a fill, never both with a ring.
  *   Ratios are composited in gamma sRGB over the track, as the toolkit does.
  * - Nested radii: track `rounded-md` (8), segment `rounded-base` (6), for a `p-0.5` (2-pt) padding (emil-surfaces 1).
- * - Segment 28 tall (the pointer hit target, `HIT`; 44 under Large hit targets), regular weight: muted when not chosen,
+ * - Segment 28 tall (the pointer hit target, `CONTROL.small`; 44 under Large hit targets), regular weight: muted when not chosen,
  *   foreground when chosen. Weight never changes with state, so a label cannot reflow (emil-ui-polish 2).
  * - The border is transparent until chosen in dark; hover lightens an unchosen one; the ring is the group's (`RadioItem`).
  * - Motion: the item's fill and border ease in `RadioItem`, the label's colour here (`hoverTransition`, colour only). No

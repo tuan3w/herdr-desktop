@@ -1,18 +1,37 @@
 import { effect, keymap } from "nsh";
 
+import type { ViewRef } from "nsh";
 import type { TextStyle } from "nsh/types";
 
 /**
- * Keyboard focus indicator for any pressable: a 2px outline floating 2px off the edge.
- * `ring-*` classes draw nothing on the macOS host (verified), so never use them for focus.
+ * THE focus ring (owner decision 2026-11-08: "just enough"): ONE thin line in the `ring` token, 1.5 pt, hugging the control's
+ * own corner shape with no gap and no halo. Three drawing forms read as the same line:
+ *
+ * - `RING`: a borderless control (ghost `Btn`, `IconButton`, switch, row) draws it as an outline at offset 0.
+ * - `RING_BORDERED`: a control with its own 1 pt border (field, select, outline `Btn`, composer box): the border turns
+ *   `ring` and a 0.5 pt outline at offset 0 thickens it to the same 1.5 pt. A colour change alone is too faint beside the
+ *   neutral `input` border (rendered, light and dark).
+ * - `RING_INSET`: the same line drawn inside the edge, for items in a clipped or filled row (tabs, list rows, the sidebar)
+ *   where an outside outline is cut or painted over by the next row.
+ *
+ * A pointer press hands the focus back (`releaseFocus`), so only the keyboard shows it; text fields draw it on any focus
+ * (the caret is the input mode). `ring-*` and shadow classes draw nothing in the macOS screenshots, and nsh draws one outline
+ * per view, so a halo is not part of the ring. An error keeps its `destructive` border and the line stays `destructive`.
  */
-export const FOCUS_RING = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+export const RING = "outline-[1.5px] outline-offset-0 outline-ring";
+export const RING_BORDERED = "border-ring outline-[0.5px] outline-offset-0 outline-ring";
+export const RING_INSET = "outline-[1.5px] -outline-offset-[1.5px] outline-ring";
+/** The same line for an invalid control: the border stays `destructive`, so the line does too. */
+export const RING_INVALID = "border-destructive outline-[0.5px] outline-offset-0 outline-destructive";
 
-/**
- * `FOCUS_RING` drawn inside the edge, for rows that touch or nearly touch and take a fill (`selected:bg-accent`): an
- * outline floating outside a row is painted over by the fill of the row after it. Use it on stacked list rows only.
- */
-export const FOCUS_RING_INSET = "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring";
+const when = (variant: string, classes: string) =>
+  classes
+    .split(" ")
+    .map((c) => `${variant}:${c}`)
+    .join(" ");
+export const FOCUS_RING = when("focus-visible", RING);
+export const FOCUS_RING_BORDERED = when("focus-visible", RING_BORDERED);
+export const FOCUS_RING_INSET = when("focus-visible", RING_INSET);
 
 /**
  * The one edge of a floating surface (popover, menu, popup, dialog, toast, drag preview), by the layer it lifts. Light:
@@ -26,16 +45,32 @@ export const EDGE = {
   lg: "border border-transparent shadow-lg dark:border-border dark:shadow-none",
 } as const;
 
+/**
+ * Hands the keyboard focus back after a pointer press. AppKit focuses a clicked pressable and nsh 0.4.0 reads `focus-visible:`
+ * as `focus:`, so without this the ring stays on a button after a click (the `Browse folders` ring in the owner's
+ * screenshot). A press with no pointer touch before it came from Return or Space and keeps the focus: the keyboard user is still there (`touchedJustNow`).
+ */
+export function releaseFocus(node: ViewRef | undefined, byPointer: boolean) {
+  if (byPointer) node?.blur();
+}
+
+let touchedAt = Number.NEGATIVE_INFINITY;
+/** `PopupRoot` calls this on every pointer press in its surface (capture). */
+export function noteTouch() {
+  touchedAt = Date.now();
+}
+/** Whether a pointer press began just now: `onPress` of a `Button` carries no position, and the test host reports one for Return too, so the root's touch is the one witness. */
+export const touchedJustNow = () => Date.now() - touchedAt < 600;
+
 /** Tabular figures: dates and counts must not jitter as digits change. */
 export const NUM: TextStyle = { fontVariant: ["tabular-nums"] };
 
 /**
- * `FOCUS_RING` for controls on the sidebar surface, where the page's ring color has too little contrast. Drawn inside
- * the edge: sidebar rows sit 2pt apart, and an outline floating outside a row is painted over by the fill of the row
- * after it (and runs into the sidebar's padding).
+ * The same ring and colour as `FOCUS_RING_INSET`, named for controls on the sidebar surface (the `ring` token is at least
+ * 3.28:1 on every theme's sidebar). Drawn inside the edge: sidebar rows sit 2pt apart, and an outline floating outside a
+ * row is painted over by the fill of the row after it (and runs into the sidebar's padding).
  */
-export const FOCUS_RING_SIDEBAR =
-  "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sidebar-ring";
+export const FOCUS_RING_SIDEBAR = FOCUS_RING_INSET;
 
 /**
  * Binds Down to `open` while `armed()`. Only the newest binding of a key runs and it consumes the key, so a field must

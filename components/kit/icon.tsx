@@ -12,6 +12,7 @@ import chevronLeft from "./icons/chevron-left.svg";
 import chevronRight from "./icons/chevron-right.svg";
 import circleCheck from "./icons/circle-check.svg";
 import clock from "./icons/clock.svg";
+import columns from "./icons/columns.svg";
 import copy from "./icons/copy.svg";
 import download from "./icons/download.svg";
 import ellipsis from "./icons/ellipsis.svg";
@@ -79,6 +80,7 @@ const ICONS = {
   "chevron-right": chevronRight,
   "circle-check": circleCheck,
   clock,
+  columns,
   copy,
   download,
   ellipsis,

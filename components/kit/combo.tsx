@@ -44,10 +44,10 @@ import {
   typingOpens,
   wordProbe,
 } from "./combo-rules";
-import { EDGE, openOnDown } from "./core";
+import { EDGE, openOnDown, RING_BORDERED, RING_INSET, RING_INVALID } from "./core";
 import { dialogDepth } from "./dialog-stack";
 import { OneLine } from "./field-parts";
-import { INPUT_CLASS, Labeled, type Option } from "./fields";
+import { INPUT_CLASS, INPUT_ERROR, Labeled, type Option } from "./fields";
 import { Clipped } from "./hint";
 import { Icon } from "./icon";
 import { Spinner } from "./loading";
@@ -74,7 +74,7 @@ const SLICE_MS = 3;
 const BLUR_MS = 120;
 /** How long the count of results waits for typing to settle before a screen reader is told. */
 const SAY_MS = 300;
-const INVALID = "border-destructive hover:border-destructive focus:border-destructive focus:outline-destructive/30";
+const INVALID = INPUT_ERROR;
 const CHIPS_SHOWN = 24;
 /** What a list that is closing reads while its last frame is still drawn. */
 const NONE: Layout = layout([], undefined, -1);
@@ -1083,12 +1083,12 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
       onMouseLeave={() => {
         pointerOver = false;
       }}
-      class={`relative min-h-8 flex-row flex-wrap items-center gap-1 rounded-md border bg-card py-1 pl-2 pr-8 ${core.focused() ? "border-ring" : invalid() ? "border-destructive" : "border-input hover:border-muted-foreground/50"}`}
+      class={`relative min-h-8 flex-row flex-wrap items-center gap-1 rounded-md border bg-card py-1 pl-2 pr-8 ${core.focused() ? (invalid() ? RING_INVALID : RING_BORDERED) : invalid() ? "border-destructive" : "border-input hover:border-muted-foreground/50"}`}
     >
       <Each of={chips()} key={(c: { value: string; text: string }) => c.value}>
         {(chip, index) => (
           <View
-            class={`h-6 flex-row items-center gap-1 rounded bg-muted pl-2 pr-1 ${chipCursor() === index() ? "outline-2 outline-ring" : ""}`}
+            class={`h-6 flex-row items-center gap-1 rounded-sm bg-muted pl-2 pr-1 ${chipCursor() === index() ? RING_INSET : ""}`}
           >
             <Text class="max-w-48 line-clamp-1 text-xs text-foreground">{chip().text}</Text>
             <View

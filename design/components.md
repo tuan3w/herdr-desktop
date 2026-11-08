@@ -27,13 +27,13 @@ flowchart TD
 - `icon` adds an `Icon` before the label. `hint` adds a keycap after it (`hint={keymap.label("mod+n")}`), hidden while disabled.
 - `name` is the accessible name when the label alone repeats across rows (`Reviewed` on every agent): it must contain the label, so Voice Control's "tap Reviewed" still works.
 - `loading` swaps the icon for a `Spinner`, ignores presses and appends ", busy" to the accessible name. Use it while a promise the user waited for is pending (`Open link` while `openUrl` runs). The label and the width stay.
-- Size: the default is the form and dialog tier, `small` the dense-row tier and the pointer target (`HIT` in `lib/layout.ts`); Large hit targets raises both to the second target. `SelectField` and `Combobox` take the same `small`; every control in one row shares one size (`design/forms.md`). One `primary` per surface: two filled buttons have no hierarchy.
+- Size: the default is the form and dialog tier, `small` the dense-row tier and the pointer target (`CONTROL.small` in `lib/layout.ts`); Large hit targets raises both to the second target. `SelectField` and `Combobox` take the same `small`; every control in one row shares one size (`design/forms.md`). One `primary` per surface: two filled buttons have no hierarchy.
 - `small` and `still` buttons do not depress; every other `Btn` scales to 0.96 while pressed (`design/motion.md`).
 - `disabled` is a muted fill with a transparent border and `text-muted-foreground`. Never fade with `opacity`.
 
 ## IconButton and Icon
 
-`IconButton` is a button of the pointer target size (`HIT`) with an icon and no text: `label` is required (screen reader name and tooltip), `shortcut` appears in the tooltip, `onSidebar` recolors it for the sidebar surface, `selected` fills it while it is toggled on (the trigger of an open menu), `disabled` shows it muted and named, takes no press and no Tab stop (a plus for an offline project is disabled, not hidden). It is always grey: a delete is not red at rest (`design/patterns.md`). `Icon` is decorative (hidden from screen readers), sizes 12, 14, 16 (default), 20, thin 1.5 strokes, color from `IconTone` (`design/colors.md`). Icons are grey chrome: they take the text color only when selected.
+`IconButton` is a button of the pointer target size (`CONTROL.small`) with an icon and no text: `label` is required (screen reader name and tooltip), `shortcut` appears in the tooltip, `onSidebar` recolors it for the sidebar surface, `selected` fills it while it is toggled on (the trigger of an open menu), `disabled` shows it muted and named, takes no press and no Tab stop (a plus for an offline project is disabled, not hidden). It is always grey: a delete is not red at rest (`design/patterns.md`). `Icon` is decorative (hidden from screen readers), sizes 12, 14, 16 (default), 20, thin 1.5 strokes, color from `IconTone` (`design/colors.md`). Icons are grey chrome: they take the text color only when selected.
 
 ## Tipped and Keys
 

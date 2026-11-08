@@ -29,19 +29,19 @@ Inter for text, IBM Plex Mono for identifiers (`design/typography.md` has the ta
 
 ## Rows and hit targets
 
-`ROW` holds the height (for virtual lists) and the classes of each row kind. Heights are on the 4-pt grid, at least `HIT.pointer`, and are `min-h` so `fontScale()` 2.0 grows a row instead of cutting it.
+`ROW` holds the height (for virtual lists) and the classes of each row kind. Heights are on the 4-pt grid, each a step of `CONTROL`, and are `min-h` so `fontScale()` 2.0 grows a row instead of cutting it.
 
 | Row | Height | Classes (`ROW.<kind>.class`) | Why this height |
 |---|---|---|---|
 | `agentCompact` | 32 | `min-h-8 px-3` | a glyph and a title: 12 agents fit in 384 pt of the sidebar |
-| `agent` | 44 | `min-h-11 px-3 py-1` | two lines (13 + 12 pt text, about 35 pt) and 4 pt either side; also the `HIT.large` size |
+| `agent` | 44 | `min-h-11 px-3 py-1` | two lines (13 + 12 pt text, about 35 pt) and 4 pt either side; also the `CONTROL.large` size |
 | `project` | 28 | `min-h-7 px-3` | a header labels the rows under it and must not be as tall as one |
 | `nav` | 32 | `min-h-8 px-3` | the height of a small control: one line of chrome |
 | `more` | 28 | `min-h-7 px-3` | a quiet row (`3 more idle`) |
-| `table` | 36 | `min-h-9 px-3` | the board's table: a little more air for scanning across columns |
+| `table` | 32 | `min-h-8 px-3` | the board's table: a default control's height (36 is off the ladder) |
 | `tab` | 32 | `relative h-8 min-w-40 max-w-56 flex-1` | the dock's tabs: one chrome line |
 
-Controls (kit; the targets the kit follows): `Btn` 32 (`min-h-8`), small `Btn` 28, `IconButton` 28, a field, a select, a menu item and a combobox row 32, a segmented control about 28 and a tab of `Tabs` 28; a switch about 30 x 18. Every pointer target is at least `HIT.pointer` (28 pt); with Settings > Large hit targets (`largeTargets`) the answer chips grow to `HIT.large` (44 pt). Why 28: a pointer is precise (emil says 44 for touch, and the large setting gives it); a 28 floor lets a dozen rows show.
+Controls (kit; the targets the kit follows): `Btn` 32 (`min-h-8`), small `Btn` 28, `IconButton` 28, a field, a select, a menu item and a combobox row 32, a segmented control about 28 and a tab of `Tabs` 28; a switch about 30 x 18. Every control is a step of `CONTROL` (28, 32 or 44); with Settings > Large hit targets (`largeTargets`) the answer chips grow to `CONTROL.large` (44 pt). Why 28: a pointer is precise (emil says 44 for touch, and the large setting gives it); a 28 floor lets a dozen rows show.
 
 ## Radius
 

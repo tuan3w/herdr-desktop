@@ -9,9 +9,11 @@
  */
 
 /**
- * The spacing scale in points, as Tailwind classes (4-pt base: `1` = 4). Only these steps are used: 0.5 1 2 3 4 6 8 12.
+ * The spacing scale in points, as Tailwind classes (4-pt base: `1` = 4). Only these steps are used: 1 2 3 4 6 8, plus 12
+ * for a page's empty state (`py-12`). No 5, 7, 9, 10 or 13.
  * `0.5` (2 pt) is the one half step: the padding of a recessed segmented track, so a raised segment sits 2 pt inside it
- * and its radius is the track's minus 2 (`RADIUS.md` 8 -> `RADIUS.base` 6). Anywhere else a half step is a bug.
+ * and its radius is the track's minus 2 (`RADIUS.md` 8 -> `RADIUS.base` 6). Anywhere else a half step is a bug
+ * (`scripts/check-consistency.mjs`).
  */
 export const SPACE = { 0.5: 2, 1: 4, 2: 8, 3: 12, 4: 16, 6: 24, 8: 32, 12: 48 } as const;
 
@@ -86,19 +88,28 @@ export function largeDialogSize(win: { width: number; height: number }): { width
   };
 }
 
-/** Pointer hit targets in points; `largeTargets` (Settings) raises every control that reads `hit()` to the second. */
-export const HIT = { pointer: 28, large: 44 } as const;
+/**
+ * THE control-height ladder in points, the only one: no 36, 40 or 48 for anything pressable or any field (measured 2026-11-08:
+ * about 40 sites at 32, 13 at 36, 4 at 40, 5 at 48 before the sweep). `small` is a dense row, a `small` button, an icon
+ * button, a chip and a segmented control; `default` is a button, field, select, menu item and tab; `large` is what
+ * `largeTargets` (Settings) raises every control to. The kit may not import this file, so it spells the same numbers as
+ * `h-7`, `h-8`, `h-11` and `lib/layout.test.ts` pins that they agree.
+ */
+export const CONTROL = { small: 28, default: 32, large: 44 } as const;
+
+/** Icon sizes in points, by job: `meta` beside 12-pt text, `text` beside 13 to 14-pt text, `control` inside a button or menu item, `empty` in an empty state. */
+export const ICON = { meta: 12, text: 14, control: 16, empty: 20 } as const;
 
 /**
  * Row heights in points, with the class that spends them. Heights are `min-h`, never `h`, so `fontScale()` 2.0 grows a row
  * instead of cutting it (the tab is the one fixed `h`: a tab strip is chrome). A virtual list takes the number as
- * `estimatedItemSize`. Every height is on the 4-pt grid and at least `HIT.pointer`.
+ * `estimatedItemSize`. Every height is a step of `CONTROL`.
  * - `agent`: the standard two-line row, a 13-pt title and a 12-pt meta line (about 35 pt of text) with 4 pt above and below.
  * - `agentCompact`: one line, a state glyph and a title: 32 puts 12 agents in under 400 pt of the sidebar.
  * - `project`: a project header, 28: it is a label for the rows under it and must not look as tall as one of them.
- * - `nav`, `tab`: 32, the height of a default `Btn` (a small one is 28), so the chrome has one line.
+ * - `nav`: 32, the height of a default `Btn`, so the chrome has one line. `tab`, `tabTile`: 28 (`CONTROL.small`), a chip of the strip.
  * - `more`: `3 more idle`, a quiet row, 28.
- * - `table`: a row of the board's table, 36: it carries two lines of cells' worth of eye travel, so a little more air than a list.
+ * - `table`: a row of the board's table, 32: a default control's height (it was 36, off the ladder); the kit's `Table` spells the same number.
  */
 export const ROW = {
   agent: { height: 44, class: "min-h-11 px-3 py-1" },
@@ -106,8 +117,10 @@ export const ROW = {
   project: { height: 28, class: "min-h-7 px-3" },
   nav: { height: 32, class: "min-h-8 px-3" },
   more: { height: 28, class: "min-h-7 px-3" },
-  table: { height: 36, class: "min-h-9 px-3" },
-  tab: { height: 32, class: "relative h-8 min-w-40 max-w-56 flex-1" },
+  table: { height: 32, class: "min-h-8 px-3" },
+  tab: { height: 28, class: "relative h-7 min-w-30 max-w-42 flex-1" },
+  /** A strip with many tabs: the inactive ones are a tile (28 square), the front one stays a chip of 192. */
+  tabTile: { height: 28, class: "relative h-7 w-7 shrink-0 selected:w-48" },
 } as const;
 
 /** Gaps between the parts of a page: inside a row, between rows of a card, between cards and between sections (one: a grid has one gap). */

@@ -3,7 +3,8 @@ import { context, type JSX, Text, View } from "nsh";
 import { hoverTransition } from "#lib/motion";
 
 import { Badge } from "./badge";
-import { createRoving, RING, type Roving } from "./roving";
+import { RING_INSET } from "./core";
+import { createRoving, type Roving } from "./roving";
 
 const Strip = context<Roving | undefined>(undefined);
 
@@ -74,7 +75,7 @@ export function TabItem(props: {
       disabled={props.disabled}
       onPress={props.onSelect}
       style={hoverTransition()}
-      class={`h-8 flex-row items-center gap-2 rounded-md px-3 hover:bg-accent/60 selected:bg-accent disabled:opacity-50 ${mark.lit() ? "bg-accent/60" : ""} ${mark.ring() ? RING : ""}`}
+      class={`h-8 flex-row items-center gap-2 rounded-md px-3 hover:bg-accent/60 selected:bg-accent disabled:opacity-50 ${mark.lit() ? "bg-accent/60" : ""} ${mark.ring() ? RING_INSET : ""}`}
     >
       <Text class={`text-sm font-medium ${props.selected ? "text-foreground" : "text-muted-foreground"}`}>
         {props.label}

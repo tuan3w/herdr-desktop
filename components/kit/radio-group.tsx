@@ -3,7 +3,8 @@ import { context, type JSX, View } from "nsh";
 import { hoverTransition } from "#lib/motion";
 
 import { useChoiceControl } from "./check";
-import { createRoving, type Orientation, RING, type Roving } from "./roving";
+import { RING } from "./core";
+import { createRoving, type Orientation, type Roving } from "./roving";
 
 interface Scope {
   value: () => string | undefined;

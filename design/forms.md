@@ -16,11 +16,11 @@ Fields live in `components/kit/fields.tsx` (`NumberField` in `number-field.tsx`)
 | text that has likely values: names, paths | `Autocomplete` (host names, working directories) |
 | search a list | `SearchField` (icon, clear button) |
 
-`SelectField` is the kit menu's surface (`select.tsx`) with the value ticked: the trigger keeps the keyboard focus, so its ring stays after a choice; Return, Space or Down open it on the value, letters find an option. A `Combobox` is one input: it keeps the focus too, so the ring stays on the field after a pick. A view cannot be focused from code, so a design that moves focus into a popup would lose the ring when it closes.
+`SelectField` is the kit menu's surface (`select.tsx`) with the value ticked: the trigger keeps the keyboard focus, so its ring stays after a keyboard choice (a pointer press withholds it); Return, Space or Down open it on the value, letters find an option. A `Combobox` is one input: it keeps the focus too, so the ring stays on the field after a pick. A view cannot be focused from code, so a design that moves focus into a popup would lose the ring when it closes.
 
 Use `SelectField` for a short fixed set, `Combobox` once scrolling a menu is slower than typing, `Autocomplete` when the value may be new, `Field` for free text. Do not offer free text for a value with five known options.
 
-**One row, one height.** Controls that share a row share a height: all the default tier, or all `small` (the pointer target, `HIT` in `lib/layout.ts`) in a dense row (a prompt box, a dense row, a state select beside an `ActionMenu`). A `small` select beside a default search box is a bug. Large hit targets raises every control to the second target (`Btn`, `SelectField`, `Segmented`, `Switch`, `CheckRow`, `Field`, `NumberField`). The label of a select is body size at both tiers. The prop is `small` everywhere (`Btn`, `SelectField`, `Combobox`); `compact` is only a window width.
+**One row, one height.** Controls that share a row share a height: all the default tier, or all `small` (`CONTROL.small` in `lib/layout.ts`) in a dense row (a prompt box, a dense row, a state select beside an `ActionMenu`). A `small` select beside a default search box is a bug. Large hit targets raises every control to the second target (`Btn`, `SelectField`, `Segmented`, `Switch`, `CheckRow`, `Field`, `NumberField`). The label of a select is body size at both tiers. The prop is `small` everywhere (`Btn`, `SelectField`, `Combobox`); `compact` is only a window width.
 
 ## Suggestions and long lists
 

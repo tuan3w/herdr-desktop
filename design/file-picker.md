@@ -1,6 +1,6 @@
 # Files: browse, pick, view
 
-One family of parts does three jobs. **Browse** looks at what an agent touched or what is there, **pick** chooses files or a folder to attach, send or start a session in, **view** reads one file. Today these are `Files` (a full-window dialog), `FolderPicker`, `SendFiles`, `FileViewer` (pictures are drawn by `ImageView`; video, sound and PDF are in `design/media.md`); this page is the decided shape (owner, 2026-11-07: "since we have remote file picker, I want a great viewer"). `design/files.md` keeps the facts about the code that exists; the design system cards FileBrowser, FilePicker, FolderPicker, FileViewer, RemoteStates and QuickOpen render this page. Sizes are in `lib/layout.ts` (`ROW`, `HIT`, `SPACE`, `TYPE`), never restated here.
+One family of parts does three jobs. **Browse** looks at what an agent touched or what is there, **pick** chooses files or a folder to attach, send or start a session in, **view** reads one file. Today these are `Files` (a full-window dialog), `FolderPicker`, `SendFiles`, `FileViewer` (pictures are drawn by `ImageView`; video, sound and PDF are in `design/media.md`); this page is the decided shape (owner, 2026-11-07: "since we have remote file picker, I want a great viewer"). `design/files.md` keeps the facts about the code that exists; the design system cards FileBrowser, FilePicker, FolderPicker, FileViewer, RemoteStates and QuickOpen render this page. Sizes are in `lib/layout.ts` (`ROW`, `CONTROL`, `ICON`, `SPACE`, `TYPE`), never restated here.
 
 ## Where each job lives
 
@@ -61,7 +61,7 @@ The three jobs share the list, the row, the breadcrumb, the machine rules and th
 - The list is one listbox (`option`) in all three jobs: `selected` means checked when picking and is absent when browsing; every row's label is the sentence `entryLabel` builds and adds kind, size, status and `no permission` (`notes.ts, file, 168 bytes, modified, no permission`). A query never matches that sentence (filter on the name).
 - The count and selection are announced: `12 files`, `3 selected, 4.2 MB`; a state that replaces the list (slow, stale, offline) is announced once, when it appears.
 - Focus order: breadcrumb, filter, list, selection bar. The selection bar's button is a Tab stop and is named with the whole sentence. Focus is `FOCUS_RING_INSET` inside rows.
-- Hit targets are `HIT.pointer`; the checkbox's target is the whole row cell. Reduced motion removes every fade; nothing here moves for any other reason.
+- Hit targets are `CONTROL.small`; the checkbox's target is the whole row cell. Reduced motion removes every fade; nothing here moves for any other reason.
 
 ## Motion
 

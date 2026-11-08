@@ -300,7 +300,7 @@ export function rowTone(row: ItemRow | SubmenuRow): { text: string; icon: "muted
 const POPUP_INSET = 5;
 /** `POPUP_INSET` on both sides: what a popup is taller than its rows. */
 const CHROME = POPUP_INSET * 2;
-/** Pointer tiers (`HIT`, `ROW` in `lib/layout.ts`): an item is a 32-pt control row, a group heading a 28-pt quiet one. Keep equal to `ITEM` and the heading class. */
+/** Pointer tiers (`CONTROL`, `ROW` in `lib/layout.ts`): an item is a 32-pt control row, a group heading a 28-pt quiet one. Keep equal to `ITEM` and the heading class. */
 const ITEM_HEIGHT = 32;
 const HEADING_HEIGHT = 28;
 /** A divider's line (1) and its margins (4 and 4). */

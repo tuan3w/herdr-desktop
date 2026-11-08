@@ -10,9 +10,6 @@ import { announce, cleanup, effect, keymap, signal } from "nsh";
 export type Orientation = "horizontal" | "vertical" | "both";
 export type Move = "next" | "previous" | "first" | "last";
 
-/** The ring of the item the highlight is on: `FOCUS_RING` without `focus-visible:`, because the focus is the host's. */
-export const RING = "outline-2 outline-offset-2 outline-ring";
-
 /** The keys a group listens to while it has the focus: only the axis it lays out along, so the other arrows still scroll the page. */
 export function keysOf(orientation: Orientation, homeEnd: boolean): [string, Move][] {
   const keys: [string, Move][] = [];

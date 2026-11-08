@@ -6,7 +6,7 @@ import type { ViewRef } from "nsh";
 import { hoverTransition, pressFeedback, pressTransition } from "#lib/motion";
 import { largeTargets } from "#lib/settings";
 
-import { FOCUS_RING, FOCUS_RING_SIDEBAR } from "./core";
+import { FOCUS_RING, FOCUS_RING_BORDERED, FOCUS_RING_SIDEBAR, releaseFocus, touchedJustNow } from "./core";
 import { Tipped } from "./hint";
 import { Icon, type IconName, type IconTone } from "./icon";
 import { Keys } from "./keys";
@@ -63,6 +63,7 @@ export function Btn(props: {
   const busy = () => props.loading === true;
   // A busy button keeps the focus, so the screen reader is told when it turns busy (its label alone is read on arrival).
   let wasBusy = false;
+  let face: ViewRef | undefined;
   effect(() => {
     const now = busy();
     if (now && !wasBusy) announce(`${props.name ?? props.label}, busy`);
@@ -70,8 +71,12 @@ export function Btn(props: {
   });
   return (
     <Button
-      ref={props.buttonRef}
+      ref={(node: ViewRef) => {
+        face = node;
+        props.buttonRef?.(node);
+      }}
       onPress={() => {
+        releaseFocus(face, touchedJustNow());
         if (!busy()) props.onPress();
       }}
       onPressDown={press ? () => !busy() && press.down() : undefined}
@@ -79,7 +84,7 @@ export function Btn(props: {
       disabled={props.disabled}
       accessibilityLabel={busy() ? `${props.name ?? props.label}, busy` : props.name}
       style={[pressTransition(), press?.style]}
-      class={`flex-row items-center justify-center gap-2 rounded-md ${FOCUS_RING} ${largeTargets() ? "min-h-11" : props.small ? "min-h-7" : "min-h-8"} ${props.small ? "px-3" : "px-4"} ${
+      class={`flex-row items-center justify-center gap-2 rounded-md ${variant() === "outline" || variant() === "danger" ? FOCUS_RING_BORDERED : FOCUS_RING} ${largeTargets() ? "min-h-11" : props.small ? "min-h-7" : "min-h-8"} ${props.small ? "px-3" : "px-4"} ${
         props.disabled ? "border-transparent bg-muted" : BTN[variant()]
       }`}
     >
@@ -160,15 +165,26 @@ function IconFace(props: {
   buttonRef?: (node: ViewRef) => void;
 }) {
   const focus = useTriggerFocus();
+  let face: ViewRef | undefined;
   const hover = () =>
     props.onSidebar ? "hover:bg-sidebar-accent active:bg-sidebar-accent" : "hover:bg-accent active:bg-accent";
   return (
     <View
-      ref={(node: ViewRef) => props.buttonRef?.(node)}
+      ref={(node: ViewRef) => {
+        face = node;
+        props.buttonRef?.(node);
+      }}
       role="button"
       accessibilityLabel={props.label}
       accessibilityState={{ selected: props.selected, disabled: props.disabled }}
-      onPress={props.disabled ? undefined : props.onPress}
+      onPress={
+        props.disabled
+          ? undefined
+          : () => {
+              releaseFocus(face, touchedJustNow());
+              props.onPress();
+            }
+      }
       focusable={props.disabled ? false : undefined}
       {...(props.disabled ? {} : focus)}
       style={hoverTransition()}

@@ -1,5 +1,6 @@
 import { cleanup, context, type JSX, signal, View } from "nsh";
 
+import { noteTouch } from "./core";
 import { CardLayer, Cards, createCards, type CardTiming } from "./preview-card";
 import { createTooltips, TooltipLayer, Tooltips, type TooltipTiming } from "./tooltip";
 
@@ -47,6 +48,7 @@ export function PopupRoot(props: {
           <View
             class={props.class}
             onTouchStartCapture={() => {
+              noteTouch();
               tips.press();
               cards.press();
             }}

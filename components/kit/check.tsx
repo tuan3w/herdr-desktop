@@ -1,9 +1,9 @@
-import { announce, cleanup, createMotion, effect, type JSX, keymap, untracked, View } from "nsh";
+import { announce, cleanup, createMotion, effect, type JSX, keymap, untracked, View, type ViewRef } from "nsh";
 
 import { DURATION, EASE_OUT, hoverTransition } from "#lib/motion";
 import { largeTargets } from "#lib/settings";
 
-import { FOCUS_RING } from "./core";
+import { FOCUS_RING, releaseFocus, touchedJustNow } from "./core";
 import { FieldScope, type FieldControl, useFieldControl } from "./field";
 import { Icon } from "./icon";
 
@@ -111,6 +111,7 @@ export function CheckRow(props: {
   // A held binding makes the platform consume Return before the pressable sees it. Bound only while this row has the
   // focus, and released with the row, so a removed row cannot leave Return dead.
   let holdReturn: (() => void) | undefined;
+  let face: ViewRef | undefined;
   cleanup(() => holdReturn?.());
   const control = useChoiceControl(
     props,
@@ -127,7 +128,11 @@ export function CheckRow(props: {
       accessibilityHint={control.hint()}
       accessibilityState={{ checked: props.indeterminate ? "mixed" : props.checked, disabled: control.disabled() }}
       disabled={control.disabled()}
+      ref={(node: ViewRef) => {
+        face = node;
+      }}
       onPress={() => {
+        releaseFocus(face, touchedJustNow());
         if (!props.readOnly) props.onChange(props.indeterminate || !props.checked);
       }}
       onFocus={() => {

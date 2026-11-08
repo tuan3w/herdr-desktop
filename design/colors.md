@@ -55,7 +55,7 @@ The sidebar uses only `sidebar-*` tokens (a shade off the page in light, a shade
 ## Which border
 
 - `border-border`: the hairline under a header or between major sections. Not under every row. `border-input`: the edge of a form control or an outline `Btn`.
-- `outline-ring`: keyboard focus, always through `FOCUS_RING` (a 2pt outline offset 2pt; `ring-*` classes draw nothing on the host) or, on stacked rows that take a fill, `FOCUS_RING_INSET` (the same ring inside the edge, so no neighbor paints over it).
+- `outline-ring`: keyboard focus, always through `FOCUS_RING` (a 1.5 pt outline at offset 0, hugging the control; `FOCUS_RING_BORDERED` turns the control's own border `ring` too; `ring-*` classes draw nothing on the host) or, on stacked rows that take a fill, `FOCUS_RING_INSET` (the same line inside the edge, so no neighbor paints over it).
 - Dialog, `Menu` and `Popover` popups float, so they add `shadow-md` or `shadow-lg`; nothing else has a shadow or a box. There is no card: a block is set apart by space.
 
 ## Status

@@ -1,10 +1,10 @@
-import { View } from "nsh";
+import { View, type ViewRef } from "nsh";
 
 import { moveTransition, trackTransition } from "#lib/motion";
 import { largeTargets } from "#lib/settings";
 
 import { useChoiceControl } from "./check";
-import { FOCUS_RING } from "./core";
+import { FOCUS_RING, releaseFocus, touchedJustNow } from "./core";
 
 /**
  * An on/off control that takes effect at once (a setting). `label` is what a screen reader says it turns on; the
@@ -42,6 +42,7 @@ export function Switch(props: {
   );
   // (target height - 18) / 2: 5 gives 28, 13 gives 44.
   const pad = () => (largeTargets() ? 13 : 5);
+  let face: ViewRef | undefined;
   return (
     <View
       role="switch"
@@ -51,7 +52,11 @@ export function Switch(props: {
       disabled={control.disabled()}
       onFocus={control.focused}
       onBlur={control.blurred}
+      ref={(node: ViewRef) => {
+        face = node;
+      }}
       onPress={() => {
+        releaseFocus(face, touchedJustNow());
         if (!props.readOnly) props.onChange(!props.checked);
       }}
       style={{ paddingTop: pad(), paddingBottom: pad() }}

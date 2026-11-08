@@ -6,7 +6,7 @@ import { hoverTransition } from "#lib/motion";
 import { largeTargets } from "#lib/settings";
 import { fold } from "#lib/text";
 
-import { FOCUS_RING, openOnDown } from "./core";
+import { openOnDown, RING_BORDERED, RING_INVALID, touchedJustNow } from "./core";
 import { useFieldControl } from "./field";
 import { Labeled, type Option } from "./fields";
 import { Clipped } from "./hint";
@@ -152,6 +152,7 @@ function SelectControl<T extends string>(args: { p: SelectFieldProps<T> }) {
   });
   const width = signal(0);
   const focused = signal(false);
+  const viaPointer = signal(false);
   const session = createSession(state);
   let trigger: ViewRef | undefined;
   const equal = (a: T, b: T) => (props.isItemEqualToValue ? props.isItemEqualToValue(a, b) : a === b);
@@ -219,6 +220,9 @@ function SelectControl<T extends string>(args: { p: SelectFieldProps<T> }) {
       accessibilityHint={control.hint()}
       accessibilityState={{ expanded: state.open(), disabled: props.disabled || undefined }}
       onPress={() => {
+        // The list needs the focus to stay on the trigger (keys move its highlight), so a pointer press cannot hand it back:
+        // the ring is withheld instead, until the focus leaves.
+        if (touchedJustNow()) viaPointer.set(true);
         if (!props.disabled) pressTrigger(state, session);
       }}
       onFocus={() => {
@@ -227,12 +231,13 @@ function SelectControl<T extends string>(args: { p: SelectFieldProps<T> }) {
       }}
       onBlur={() => {
         focused.set(false);
+        viaPointer.set(false);
         control.blurred();
         closeOnBlur(state, session);
       }}
       onLayout={({ bounds }) => width.set(bounds.size.width)}
       style={hoverTransition()}
-      class={`flex-row items-center justify-between gap-2 rounded-md border bg-card px-3 ${invalid() ? "border-destructive" : "border-input"} ${props.disabled ? "opacity-50" : "hover:bg-accent"} ${FOCUS_RING} ${largeTargets() ? "h-11" : props.small ? "h-7" : "h-8"}`}
+      class={`flex-row items-center justify-between gap-2 rounded-md border bg-card px-3 ${focused() && !viaPointer() ? (invalid() ? RING_INVALID : RING_BORDERED) : invalid() ? "border-destructive" : "border-input"} ${props.disabled ? "opacity-50" : "hover:bg-accent"} ${largeTargets() ? "h-11" : props.small ? "h-7" : "h-8"}`}
     >
       <View class="min-w-0 flex-1">
         <Clipped class={`text-sm ${title() ? "text-foreground" : "text-muted-foreground"}`}>

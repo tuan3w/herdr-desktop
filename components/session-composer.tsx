@@ -119,7 +119,7 @@ export function SessionComposer(props: {
           onPick={(i) => c.pickMention(i)}
         />
       </If>
-      <View class="gap-1 rounded-xl border border-border bg-card px-2 py-2 focus-within:border-primary">
+      <View class="gap-1 rounded-xl border border-border bg-card px-2 py-2 focus-within:border-ring focus-within:outline-[0.5px] focus-within:outline-offset-0 focus-within:outline-ring">
         <PictureStrip composer={c} />
         <ChipRow composer={c} machine={props.machine} />
         <View class="flex-row items-end gap-1">
