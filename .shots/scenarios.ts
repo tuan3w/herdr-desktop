@@ -35,6 +35,8 @@ const showTerminal = async (app: App) => {
 };
 
 export const SCENARIOS: Record<string, Scenario> = {
+  // Throwaway: the terminal's font size and leading drawn as rows of text (`components/terminal-proto-lab.tsx`); `--fixture A..E|compare`.
+  "terminal-proto": { fixture: "A", entry: "../components/terminal-proto-lab.tsx", steps: async () => {} },
   // The home: projects as cards (a repository with a linked worktree, two workspaces of one repository, a folder), each
   // agent in its project, and what needs you above them.
   board: { fixture: "projects", steps: async () => {} },
@@ -675,3 +677,10 @@ export const MEDIA_SCENARIOS: Record<string, Scenario> = {
   "files-archive": { ...viewer("View bundle.zip") },
 };
 Object.assign(SCENARIOS, MEDIA_SCENARIOS);
+
+// THROWAWAY (herdr-prototype, layout question: split / inspector / wall): `components/layout-proto-lab.tsx`, stand-ins and
+// invented content. Delete with the lab once the owner chooses.
+const LAYOUT_PROTO = "../components/layout-proto-lab.tsx";
+for (const v of ["baseline", "baseline-changes", "s", "i", "i-subagents", "w", "c"]) {
+  SCENARIOS[`layout-proto-${v}`] = { fixture: v, entry: LAYOUT_PROTO, steps: async () => {} };
+}

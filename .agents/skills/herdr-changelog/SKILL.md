@@ -40,7 +40,7 @@ git log --no-merges --format='%h %s%n%b' <tag>..HEAD
 ## 4. Writing rules
 
 - **UI labels in backticks, exactly as in the app.** `Copy code`, `Answer one by one`. The person looks for those letters; a paraphrase sends them hunting. Grep the label as a quoted string in `components/` and `lib/` and read the component that shows it, so you name the place too (`grep -rn '"Copy code"' components lib`).
-- **Shortcuts as the person presses them:** `Ctrl+K`, and `Cmd+K` where a Mac differs (`lib/shortcuts.ts` has the keys; `mod` is Cmd on a Mac and Ctrl elsewhere). Say which when the platform changes the answer.
+- **Shortcuts as the person presses them:** `Ctrl+P`, and `Cmd+P` where a Mac differs (`lib/shortcuts.ts` has the keys; `mod` is Cmd on a Mac and Ctrl elsewhere). Say which when the platform changes the answer.
 - **Agent names:** Claude Code, Codex, omp, pi. Never `claude`, never "the AI".
 - **A fix says what went wrong in the person's terms, then "no longer…".** Name the real cause and place; a fix line that blames the wrong screen plants a false memory.
 - **State platform conditions:** "on macOS 15 and later", "on Linux". A claim true on one system and false on another is a bug report waiting to happen.

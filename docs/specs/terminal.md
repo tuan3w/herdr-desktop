@@ -74,10 +74,10 @@ nsh 0.4.0 has no raw key event, only keymap bindings, and `Keymap::find` takes *
 The rule (`keys::app_owns`, `keys::bound`), on Windows and Linux where `mod` is Ctrl:
 
 - **The program gets every key a terminal can encode:** all named keys and F1-F24 with Shift, Ctrl and Alt (not Ctrl+Shift), `Ctrl+<letter>` and `Ctrl+[ ] \ / space`, `Alt+<printable>` and `Alt+Shift+<letter>`. So Ctrl+K, E, J, N, W, P, F, B, Z and Ctrl+/ are the shell's and the editor's, F1 is the program's help.
-- **The app keeps** every chord with Ctrl *and* Shift (a terminal cannot tell it from the plain chord), `Ctrl+Tab`, `Ctrl+,`, `Ctrl+<digit>`, every Command chord on a Mac. `Ctrl+Shift+P` (palette) and `Ctrl+Shift+<digit>` (tabs) are therefore **always the way out**; `lib/shortcuts.ts` already has `mod+shift+p`.
+- **The app keeps** every chord with Ctrl *and* Shift (a terminal cannot tell it from the plain chord), `Ctrl+Tab`, `Ctrl+,`, `Ctrl+<digit>`, every Command chord on a Mac. `Ctrl+Shift+<digit>` (tabs) is therefore always the way out. **Open conflict (2026-11-08):** the palette is now `Ctrl+P`, which a terminal program owns (shell: previous command), and `Ctrl+Shift+P` is the file search, so inside a terminal tab the palette has no key. It needs a Ctrl+Shift chord of its own for a focused terminal (to choose with the owner).
 - Not bound at all: `Ctrl+Alt+<char>` (AltGr types characters on many layouts), plain and Shift text, anything the host reserves (Ctrl+Q, F11: skipped at bind time).
 - Copy and paste: `Ctrl+C` copies only while text is selected, else it is the interrupt; `Ctrl+Shift+C` and `Ctrl+Shift+V`, `Shift+Insert` (Command+C and V on a Mac) always. `Shift+PageUp/PageDown/Home/End` scroll the history.
-- A focus ring (2 px `ring` token) is drawn while the program has the keyboard; unfocused, the cursor is an outline. The embedding screen must show a persistent line, for example `Keys go to the program. Ctrl+Shift+P: palette`, announced once on entry. **Not built yet**: the hint line and any dock integration.
+- A focus ring (2 px `ring` token) is drawn while the program has the keyboard; unfocused, the cursor is an outline. The embedding screen must show a persistent line, for example `Keys go to the program. <the chosen Ctrl+Shift chord>: palette`, announced once on entry. **Not built yet**: the hint line and any dock integration.
 
 `keys.rs` tests pin the rule (reserved set, text never bound, Apple variant). **Checked against real GTK key events: no** (see Unverified).
 
@@ -120,6 +120,6 @@ nsh builds the crate with default features: to run the component in the app, add
 
 - Is zig in every build acceptable, or should the app ship a prebuilt libghostty per platform?
 - Should the terminal replace the read-only view for terminal agents, or sit beside it (`Show terminal` being the existing button that opens the *view*, which is now misnamed)?
-- Ctrl+K and Ctrl+E becoming the program's inside a terminal tab: is `Ctrl+Shift+P` enough as the way out?
+- Ctrl+P and Ctrl+E becoming the program's inside a terminal tab: which Ctrl+Shift chord opens the palette from there?
 - When the owner's own terminal and ours attach to one herdr session, which one is the "primary" (herdr sizes panes to the smallest client): untested.
 - Should a program be allowed to write the clipboard (OSC 52) by default?

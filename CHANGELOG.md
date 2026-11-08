@@ -4,6 +4,20 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+- **Shortcuts are drawn one key at a time.** `⌘ ⇧ P` is three same-size keys instead of one box that grew with the text, in the palette, menus, the shortcut list, buttons and tooltips. Every row's keys end on the same right edge, so the column lines up whatever the number of keys, and the palette's age and `needs you` now sit at that edge too.
+- **Start an agent in a worktree.** New agent session has a `Checkout` choice once the folder is in a git repository: the folder itself, the repository's other checkouts named by folder and branch, or `New worktree…`, which asks for a branch (a name like `worktree/brave-meadow-45e8` is suggested) and makes the worktree through herdr before the session starts in it. A project's menu has `New worktree…` too, and the sidebar names each checkout of a project by its branch. A branch git would refuse is rejected with the reason and nothing is sent; a repository herdr does not trust is shown as such and never trusted for you. If the session does not start, the new worktree stays chosen so Start again does not make a second.
+- **Short file names are no longer washed out.** In the Changes list (and any row that fades a cut name) a name that fits showed a faint box over its last letters; the fade now appears only on text that is really cut.
+- **Older messages of a terminal's chat load.** A chat read from a terminal opens at the end of the agent's log and now has `Load earlier messages` at the top (and loads by itself as you scroll up). Older turns appear above the ones you are reading, which stay where they are, and each press reads four times more, up to 64 MB of the log.
+- **The Changes review says what you are reviewing.** The top line now reads
+  `payments · main · by 2 agents` with `8 files +38 −8 0 of 8 reviewed` at the
+  right, and shows the project and branch while git is still reading. The
+  file list has a letter for each change (M, A, D, R, U), whole file names with
+  the folder fading after them, green and red counts, and one fill for the
+  selected file instead of a fill and a bar.
+- **Spinners no longer keep the app drawing.** A loading spinner or bar used to hold
+  the window at full frame rate and a few percent of CPU for as long as it was
+  on screen. Spinners now turn in eighths and a skeleton is still; nothing
+  animates while the window is hidden.
 - **Sidebar text is cut only when it must be.** A project's machine name is
   shown whole or left out, decided from the text's real width, so it is no
   longer cut to `fatm` while the sidebar has room. Agent titles run to the
