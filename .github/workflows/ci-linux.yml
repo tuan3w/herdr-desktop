@@ -30,6 +30,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
+      # zig 0.15.2 builds libghostty-vt (the terminal): UNVERIFIED in CI, see docs/RELEASING.md
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
         id: setup
@@ -50,6 +54,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
+      # zig 0.15.2 builds libghostty-vt (the terminal): UNVERIFIED in CI, see docs/RELEASING.md
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
         id: setup
@@ -67,6 +75,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
+      # zig 0.15.2 builds libghostty-vt (the terminal): UNVERIFIED in CI, see docs/RELEASING.md
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
         id: setup
@@ -92,6 +104,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
+      # zig 0.15.2 builds libghostty-vt (the terminal): UNVERIFIED in CI, see docs/RELEASING.md
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
         id: setup

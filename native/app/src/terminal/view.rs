@@ -15,13 +15,22 @@
 //! (or the alternate screen is up) the scroll view is a sensor instead: it sits in the middle of a tall box and every scroll
 //! away from the middle is a wheel report, then it is put back.
 
-use std::{cell::RefCell, rc::Rc, sync::Arc, time::Duration};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+    sync::Arc,
+    time::Duration,
+};
 
 use herdr_core::screen::{Link, LinkKind, Row, detect_links};
 use nsh_base::{button, input, theme};
 use nsh_core::{
     EllipsizeMode,
-    element::measure_text,
+    element::{
+        Cursor,
+        desktop::{MenuItem, popup_menu_at},
+        measure_text,
+    },
     keymap::{Keystroke, Modifiers},
     prelude::*,
 };
@@ -52,17 +61,22 @@ pub enum TerminalLinkKind {
 /// A terminal on a pty.
 #[derive(Clone, Copy, PartialEq, Props)]
 pub struct TerminalProps {
-    /// What to run, by `/bin/sh -c`; empty runs `$SHELL` (else `/bin/sh`).
+    /// What to run, by `/bin/sh -c`. Required: empty starts nothing and the terminal says so (pass `$SHELL` for a shell).
     pub command: Prop<SharedString>,
     /// The folder to start in; empty is the app's own.
+    #[prop(default)]
     pub cwd: Prop<SharedString>,
     /// What screen readers say the terminal is (`Terminal, <label>`).
     pub label: Prop<SharedString>,
     /// The font family (default the theme's `font-mono`, else the system's monospaced font).
     pub font_family: Prop<Option<SharedString>>,
-    /// The font size in points (default 13).
-    #[prop(default = 13.0)]
+    /// The font size in points (default 12, with rows of 1.25 times that: see [`row_height`]).
+    #[prop(default = 12.0)]
     pub font_size: Prop<f32>,
+    /// Option (Alt) is the Meta key: Option+B sends ESC b instead of typing a composed character (macOS only; elsewhere Alt
+    /// always does). On by default: a shell and its editors expect it.
+    #[prop(default = true)]
+    pub option_as_meta: Prop<bool>,
     /// The WCAG contrast every foreground reaches against its background: 1 leaves the colours as the program sent them
     /// (default 4.5).
     #[prop(default = 4.5)]
@@ -214,6 +228,16 @@ impl PartialEq for DrawnRef {
     }
 }
 
+/// Rows are this many times the font size tall. 1.25 keeps the box-drawing glyphs of a TUI touching row to row (at 1.4 they
+/// broke into dashes in the prototype) and still fits 138 columns by 40 rows of 12 pt in a window.
+const ROW_LEADING: f32 = 1.25;
+
+/// The height of a terminal row for a font size, in whole points: one fixed height per size, so a row never lands between
+/// device pixels and two rows of a box always touch.
+pub(crate) fn row_height(size: f32) -> f32 {
+    (size * ROW_LEADING).round().max(1.0)
+}
+
 /// How tall the box is that a scroll view needs around its middle to be a wheel sensor (points).
 const SENSOR_SPAN: f32 = 4000.0;
 
@@ -226,12 +250,9 @@ struct CursorView {
     blink: bool,
 }
 
-fn shell() -> Vec<String> {
-    let shell = std::env::var("SHELL")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "/bin/sh".to_owned());
-    vec![shell]
+/// What a terminal is pasted: a line end is a carriage return, the key Enter sends.
+pub(crate) fn line_ends(text: &str) -> String {
+    text.replace("\r\n", "\r").replace('\n', "\r")
 }
 
 fn to_colors(p: &crate::pane_screen::ink::Palette) -> Colors {
@@ -266,11 +287,14 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
     let flash = signal(false);
     let blink_on = signal(true);
     let pointer = signal((0.0_f32, 0.0_f32));
+    // The link under the pointer: its row and first column. It is the one that is underlined and gets the pointing hand.
+    let hover: Signal<Option<(usize, u16)>> = signal(None);
     let session: Signal<Option<SessionRef>> = signal(None);
     let sink = element_ref();
     let scroll_ref = element_ref();
     // Where the scroll view was last put by the view itself: its next event at that offset is ours, not the person's.
     let placed = signal(f32::NAN);
+    let rest = Rc::new(Cell::new(0.0_f32));
     let sink_value = signal(String::new());
     let held: Rc<RefCell<(String, Option<String>)>> = Rc::new(RefCell::new((String::new(), None)));
 
@@ -281,7 +305,7 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
         measure_text(&css, "0000000000").0 / 10.0 / 100.0
     });
     let cell_width = computed(move || props.font_size.get() * cell_ratio.get());
-    let line_height = computed(move || (props.font_size.get() * 1.4).round().max(1.0));
+    let line_height = computed(move || row_height(props.font_size.get()));
     let cols = computed(move || {
         (width.get() / cell_width.get().max(1.0))
             .floor()
@@ -325,8 +349,10 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
             None => {
                 let command = props.command.get_untracked();
                 let cwd = props.cwd.get_untracked();
+                // A terminal starts only with an explicit command (the caller says `$SHELL` if it wants one): nothing here
+                // decides on its own to run a program. An empty command says so in the terminal instead.
                 let argv = if command.is_empty() {
-                    shell()
+                    Vec::new()
                 } else {
                     vec!["/bin/sh".to_owned(), "-c".to_owned(), command.to_string()]
                 };
@@ -402,6 +428,14 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
         cx.emit(TerminalEvent::Focus { focused: on });
     });
 
+    // Option as Meta follows the setting.
+    effect(move || {
+        let on = props.option_as_meta.get();
+        if let Some(SessionRef(s)) = session.get() {
+            s.send(Input::OptionAsAlt(on));
+        }
+    });
+
     // A blinking cursor only while focused, asked for by the program, allowed by the app and by reduced motion.
     let blinking = computed(move || {
         props.cursor_blink.get()
@@ -428,6 +462,27 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
     let apple = apple_keys();
     let key = move |k: KeyInput| send(Input::Key(k));
 
+    // Copy and paste, the terminal's way. Ctrl+C copies only while something is selected, else it is the program's
+    // interrupt; Ctrl+Shift+C and Ctrl+Shift+V (Command+C and V on a Mac) always are copy and paste.
+    let copy = move || {
+        if let Some(SessionRef(s)) = session.get_untracked()
+            && let Some(text) = s.selection()
+        {
+            set_clipboard(text);
+            s.send(Input::ClearSelection);
+            return true;
+        }
+        false
+    };
+    let paste = move || {
+        spawn(async move {
+            let text = clipboard_string().await;
+            if !text.is_empty() {
+                send(Input::Paste(line_ends(&text)));
+            }
+        });
+    };
+
     // The keys the program takes, while the view has the keyboard. Each is bound once per focus; the ones the host keeps for
     // itself (Ctrl+Q, F11) cannot be bound and are skipped.
     effect(move || {
@@ -449,26 +504,6 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
             }
             on_key_with(&stroke, options, move |_| key(parsed));
         }
-        // Copy and paste, the terminal's way. Ctrl+C copies only while something is selected, else it is the program's
-        // interrupt; Ctrl+Shift+C and Ctrl+Shift+V (Command+C and V on a Mac) always are copy and paste.
-        let copy = move || {
-            if let Some(SessionRef(s)) = session.get_untracked()
-                && let Some(text) = s.selection()
-            {
-                set_clipboard(text);
-                s.send(Input::ClearSelection);
-                return true;
-            }
-            false
-        };
-        let paste = move || {
-            spawn(async move {
-                let text = clipboard_string().await;
-                if !text.is_empty() {
-                    send(Input::Paste(text));
-                }
-            });
-        };
         let page = move |up: bool| {
             let f = frame.get_untracked().0;
             let rows = f.scroll.len.max(1);
@@ -480,10 +515,13 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
             send(Input::ScrollTo(to));
         };
         if apple {
+            // Command is the app's on a Mac, except what a terminal's menu would give it: copy, paste, select all, clear.
             on_key_with("mod+c", options, move |_| {
                 copy();
             });
             on_key_with("mod+v", options, move |_| paste());
+            on_key_with("mod+a", options, move |_| send(Input::SelectAll));
+            on_key_with("mod+k", options, move |_| send(Input::ClearScrollback));
         } else {
             on_key_with("ctrl+c", options, move |_| {
                 if !copy() {
@@ -501,6 +539,10 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
             });
             on_key_with("ctrl+shift+v", options, move |_| paste());
             on_key_with("shift+insert", options, move |_| paste());
+            on_key_with("ctrl+shift+a", options, move |_| send(Input::SelectAll));
+            on_key_with("ctrl+shift+k", options, move |_| {
+                send(Input::ClearScrollback)
+            });
         }
         on_key_with("shift+pageup", options, move |_| page(true));
         on_key_with("shift+pagedown", options, move |_| page(false));
@@ -536,6 +578,16 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
     };
 
     // The scroll view: the history's scrollbar and wheel, or a wheel sensor (see the module docs).
+    // The pointer: the pointing hand over a link, the arrow while the program has the mouse, the I-beam over text.
+    let pointer_look = computed(move || {
+        if hover.get().is_some() {
+            Cursor::Pointer
+        } else if frame.with(|f| f.0.mouse_tracking) {
+            Cursor::Default
+        } else {
+            Cursor::Text
+        }
+    });
     let sensing = computed(move || frame.with(|f| f.0.mouse_tracking || f.0.alt_screen));
     let content_height = computed(move || {
         let lh = line_height.get();
@@ -568,7 +620,19 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
         }
         if sensing.get_untracked() {
             // Away from the middle: wheel ticks, then back to the middle. A tick is three rows of travel.
-            let ticks = ((SENSOR_SPAN / 2.0 - offset) / (lh * 3.0)).round() as i32;
+            // A trackpad sends many small steps: the rest of a tick is kept for the next step.
+            let tick = lh * 3.0;
+            let travel = SENSOR_SPAN / 2.0 - offset + rest.get();
+            let ticks = (travel / tick).trunc() as i32;
+            // A jump of more than a dozen ticks in one event is the scroll view settling into a new size (the sensor was just
+            // made, or the window resized), not a hand: re-centre and report nothing.
+            let spurious = ticks.abs() > 12;
+            let ticks = if spurious { 0 } else { ticks };
+            rest.set(if spurious {
+                0.0
+            } else {
+                travel - ticks as f32 * tick
+            });
             if ticks != 0 {
                 let (x, y) = pointer.get_untracked();
                 send(Input::Wheel {
@@ -589,7 +653,7 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
     };
 
     let modifiers = move |m: Modifiers| (m.shift, m.ctrl || (apple && m.cmd), m.alt);
-    let link_at = move |x: f32, y: f32| -> Option<Link> {
+    let link_at = move |x: f32, y: f32| -> Option<(usize, Link)> {
         let (cw, lh) = (
             cell_width.get_untracked().max(1.0),
             line_height.get_untracked().max(1.0),
@@ -609,6 +673,7 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
         row_links(r, &osc8)
             .into_iter()
             .find(|l| l.start_col <= col && col < l.end_col)
+            .map(|l| (row, l))
     };
     let press_down = {
         move |e: &PressEvent| {
@@ -617,7 +682,7 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
             let (shift, ctrl, alt) = modifiers(e.modifiers);
             if ctrl
                 && !alt
-                && let Some(link) = link_at(e.position.x.0, e.position.y.0)
+                && let Some((_, link)) = link_at(e.position.x.0, e.position.y.0)
             {
                 cx.emit(TerminalEvent::Link {
                     kind: match link.kind {
@@ -653,6 +718,10 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
     };
     let moved = move |e: &MouseEvent| {
         pointer.set((e.position.x.0, e.position.y.0));
+        let over = link_at(e.position.x.0, e.position.y.0).map(|(row, l)| (row, l.start_col));
+        if hover.get_untracked() != over {
+            hover.set(over);
+        }
         let (shift, ctrl, alt) = modifiers(e.modifiers);
         let button = e.pressed_button.map(|b| match b {
             MouseButton::Right => Button::Right,
@@ -674,13 +743,51 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
         });
     };
 
+    // The secondary button reaches a view only as a context menu (nsh 0.4.0 reports no press of it): a program that tracks
+    // the mouse is told of a right click, anything else gets the menu. Shift asks for the menu either way.
+    let context = move |e: &ContextMenuEvent| {
+        let (shift, ctrl, alt) = modifiers(e.modifiers);
+        let (x, y) = (e.position.x.0, e.position.y.0);
+        if !shift && frame.with_untracked(|f| f.0.mouse_tracking) {
+            for kind in [
+                MouseKind::Press(Button::Right),
+                MouseKind::Release(Button::Right),
+            ] {
+                send(Input::Mouse {
+                    kind,
+                    x,
+                    y,
+                    clicks: 1,
+                    shift,
+                    ctrl,
+                    alt,
+                });
+            }
+            return;
+        }
+        let selected = frame.with_untracked(|f| f.0.selection);
+        let items = vec![
+            MenuItem::new("Copy")
+                .disabled(!selected)
+                .on_select(move || {
+                    copy();
+                }),
+            MenuItem::new("Paste").on_select(paste),
+            MenuItem::separator(),
+            MenuItem::new("Select all").on_select(move || send(Input::SelectAll)),
+            MenuItem::new("Clear scrollback").on_select(move || send(Input::ClearScrollback)),
+        ];
+        // The answer (the menu closed) is not needed: the items act on their own.
+        drop(popup_menu_at(items, e.page_position));
+    };
+
     cx.methods(TerminalApi {
         focus: Rc::new(move || sink.focus()),
         restart: Rc::new(move || send(Input::Restart)),
         text: Rc::new(move || frame.get_untracked().0.text()),
         selection: Rc::new(move || session.get_untracked().and_then(|s| s.0.selection())),
         send: Rc::new(move |text| send(Input::Text(text))),
-        paste: Rc::new(move |text| send(Input::Paste(text))),
+        paste: Rc::new(move |text| send(Input::Paste(line_ends(&text)))),
     });
 
     let row_count = computed(move || frame.with(|f| f.0.rows.len()));
@@ -688,8 +795,17 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
         let n = row_count.get();
         let rows: Vec<AnyElement> = (0..n)
             .map(|i| {
-                terminal_row(frame, focused, blink_on, ink, cell_width, line_height, i)
-                    .into_element()
+                terminal_row(
+                    frame,
+                    focused,
+                    blink_on,
+                    hover,
+                    ink,
+                    cell_width,
+                    line_height,
+                    i,
+                )
+                .into_element()
             })
             .collect();
         view()
@@ -815,10 +931,7 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
         .value(move || sink_value.get())
         .label(move || SharedString::from(format!("Terminal input, {}", props.label.get())))
         .on_change(move |text: &str| typed(text))
-        .on_paste(move |p: &PasteEvent| {
-            let text = p.text.replace("\r\n", "\r").replace('\n', "\r");
-            send(Input::Paste(text));
-        })
+        .on_paste(move |p: &PasteEvent| send(Input::Paste(line_ends(&p.text))))
         .on_focus(move || focused.set(true))
         .on_blur(move || focused.set(false));
 
@@ -840,16 +953,19 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
         .on_press_down(press_down)
         .on_press_up(press_up)
         .on_mouse_move(moved)
+        .on_mouse_leave(move |_: &MouseEvent| hover.set(None))
+        .on_context_menu(context)
         .child(
             scroll()
                 .element_ref(&scroll_ref)
                 .size_full()
                 .on_scroll(move |e: &ScrollEvent| scrolled(e.offset.y.0))
-                .child(
+                .child(dynamic(move || {
                     view()
                         .h(move || Length::from(Points(content_height.get())))
-                        .w_full(),
-                ),
+                        .w_full()
+                        .cursor(pointer_look.get())
+                })),
         )
         .child(body)
         .child(dynamic(cursor_overlay))
@@ -886,10 +1002,13 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
 }
 
 /// Row `i` of the viewport: the cells' backgrounds, then the text, the cursor block inverted into it.
+// One row's signals, each its own so only the rows that change are rebuilt.
+#[allow(clippy::too_many_arguments)]
 fn terminal_row(
     frame: Signal<FrameRef>,
     focused: Signal<bool>,
     blink_on: Signal<bool>,
+    hover: Signal<Option<(usize, u16)>>,
     ink: Memo<InkRef>,
     cell_width: Memo<f32>,
     line_height: Memo<f32>,
@@ -912,6 +1031,8 @@ fn terminal_row(
                 .collect::<Vec<_>>()
         })
     });
+    // Only the link under the pointer is underlined, so a screen of addresses is not a screen of underlines.
+    let hovered = computed(move || hover.get().filter(|(row, _)| *row == i).map(|(_, col)| col));
     let drawn = computed(move || {
         let mut row = row.get().0;
         if let (Some(col), true, true) = (block.get(), focused.get(), blink_on.get()) {
@@ -921,10 +1042,12 @@ fn terminal_row(
             )));
         }
         let osc8 = links.get();
-        let found = row
+        let mut found = row
             .as_ref()
             .map(|r| row_links(r, &osc8))
             .unwrap_or_default();
+        let over = hovered.get();
+        found.retain(|l| over == Some(l.start_col));
         let segments = row
             .as_ref()
             .map(|r| segments(r, &found))

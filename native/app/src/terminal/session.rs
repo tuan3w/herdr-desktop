@@ -31,8 +31,6 @@ impl Session {
         };
         let words = if !cfg!(all(unix, feature = "terminal")) {
             Some("This build has no terminal (cargo feature `terminal`).")
-        } else if std::env::var("HERDR_DESKTOP_TERMINAL").as_deref() != Ok("1") {
-            Some("The terminal is off. Set HERDR_DESKTOP_TERMINAL=1 to try it.")
         } else {
             None
         };

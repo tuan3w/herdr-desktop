@@ -48,6 +48,10 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
+      # zig 0.15.2 builds libghostty-vt (the terminal): UNVERIFIED in CI, see docs/RELEASING.md
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
       - uses: actions/checkout@v4
 
       - name: The tag, nsh.json and the crates name one version
@@ -87,6 +91,10 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 90
     steps:
+      # zig 0.15.2 builds libghostty-vt (the terminal): UNVERIFIED in CI, see docs/RELEASING.md
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
       - uses: actions/checkout@v4
 
       # A pre-release (a tag with a `-`: alpha, beta, rc) ships what the push to main already packaged in ci.yml; its own run
@@ -186,6 +194,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
+      # zig 0.15.2 builds libghostty-vt (the terminal): UNVERIFIED in CI, see docs/RELEASING.md
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
         id: setup
@@ -231,6 +243,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      # zig 0.15.2 builds libghostty-vt (the terminal): UNVERIFIED in CI, see docs/RELEASING.md
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
       - uses: actions/checkout@v4
 
       - uses: actions/download-artifact@v4

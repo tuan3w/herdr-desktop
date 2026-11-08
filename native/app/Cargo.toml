@@ -8,7 +8,7 @@ publish = false
 [workspace]
 
 [features]
-default = []
+default = ["terminal"]
 # The embedded terminal (src/terminal, docs/specs/terminal.md): a PTY and libghostty-vt. Needs the C library: zig 0.15.x
 # builds it on the first compile (network: the crate fetches ghostty's source), or point pkg-config at an installed one.
 terminal = ["dep:libghostty-vt", "dep:libghostty-vt-sys", "dep:rustix"]

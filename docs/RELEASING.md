@@ -76,9 +76,9 @@ xattr -dr com.apple.quarantine "Herdr Desktop.app"
 
 The app's declared reach is `nsh.json` `capabilities`: the clipboard, `openUrl` for `https`, `http` and `mailto`, one network rule (GET `https://api.github.com/repos/tuan3w/herdr-desktop/releases/latest`, for the update check) and a web view for `127.0.0.1`. Rust code (ssh, sockets, files) runs with the process's own permissions and needs no capability. Adding a capability is a change to the app's audit surface: say why in the commit.
 
-## The terminal prototype is not in a release build
+## The terminal needs zig in every build
 
-`native/app` has a cargo feature `terminal` (the `Terminal` component, `docs/specs/terminal.md`), off by default. A default build, which is what `make check`, `make core`, `make test` and `make package` run, compiles none of libghostty-vt and needs no zig: the optional dependencies sit in `Cargo.lock` but are not built. CI and release workflows are unchanged. Shipping the terminal later means a runner with zig 0.15.2 on `PATH` (a 51 MB download) and network access for the first build (the crate clones ghostty): about 2 minutes cold and 412 MB of build output, per target; or an installed library found through `PKG_CONFIG_PATH`. The owner decides before it is turned on.
+`native/app` has a cargo feature `terminal` (the `Terminal` component, `docs/specs/terminal.md`), **on by default**: every build, including `make package` and the CI and release workflows, compiles libghostty-vt and therefore needs **zig 0.15.2 on `PATH`** and network access for the first compile (the crate clones ghostty at a pinned commit). Get zig from ziglang.org (`zig-aarch64-macos-0.15.2.tar.xz`, sha256 `3cc2bab367e185cdfb27501c4b30b1b0653c28d9f73df8dc91488e66ece5fa6b`; 51 MB) or let CI install it (`mlugg/setup-zig@v2`, `version: 0.15.2`, in `ci.yml`, `tests.yml`, `release.yml`, `ci-linux.yml`: **not run yet in CI, review before the first push**). Cold: about 70 s on an M-series Mac and 412 MB of build output per target; a build with the library installed (`PKG_CONFIG_PATH`) needs no zig. `LIBGHOSTTY_VT_SYS_CPU=baseline` is set by the Makefile. On macOS 26 zig 0.15.2 cannot read the new SDK: see `docs/DEVELOPMENT.md` "Building the terminal".
 
 ## Linux (paused)
 

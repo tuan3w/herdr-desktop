@@ -70,6 +70,10 @@ jobs:
       zip: ${{ steps.zip.outputs.name }}
       short: ${{ steps.zip.outputs.short }}
     steps:
+      # zig 0.15.2 builds libghostty-vt (the terminal): UNVERIFIED in CI, see docs/RELEASING.md
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
       - uses: actions/checkout@v4
 
       - name: Rust toolchain of rust-toolchain.toml, minimal profile (starts now, finishes while the caches restore)
@@ -164,6 +168,10 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 20
     steps:
+      # zig 0.15.2 builds libghostty-vt (the terminal): UNVERIFIED in CI, see docs/RELEASING.md
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
       - uses: actions/checkout@v4
       - name: Rust toolchain, minimal with rustfmt (starts now, finishes while the checks run)
         run: scripts/ci-toolchain.sh start rustfmt
@@ -254,6 +262,10 @@ jobs:
       group: edge
       cancel-in-progress: false
     steps:
+      # zig 0.15.2 builds libghostty-vt (the terminal): UNVERIFIED in CI, see docs/RELEASING.md
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:

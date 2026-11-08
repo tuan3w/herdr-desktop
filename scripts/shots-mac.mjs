@@ -11,8 +11,14 @@
 // The picture is nsh's own `app.screenshot` of the window it opened (PNG bytes from the host), so no screen capture, no
 // Screen Recording permission and no window id are involved. nsh starts and closes its own host; this script spawns only
 // that one child and, on a timeout, kills exactly that PID.
-import { spawn } from "node:child_process";
-import { mkdirSync, writeFileSync, existsSync } from "node:fs";
+//
+// The AppKit test host takes the keyboard focus (nsh calls activateIgnoringOtherApps when it starts a window and on every
+// injected press). So the host is started with scripts/no-focus (a test-only DYLD_INSERT_LIBRARIES library that turns those
+// calls into no-ops and keeps the window behind): the person keeps typing in their own app while a render runs. Runs are
+// serialised by a lock under .scratch/. `--polite` is the older fallback (wait until the person is idle, give the focus
+// back); `--no-interpose` runs the host as nsh ships it.
+import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,6 +39,8 @@ const flagged = new Set([
   "name",
   "theme-id",
   "timeout",
+  "idle",
+  "max-wait",
   "keys",
   "settle",
   "js",
@@ -96,10 +104,102 @@ ${js.map((j) => `    ${j};\n`).join("")}${keys.map((k) => `    await app.keyboar
 `,
 );
 
+// ---- focus etiquette: wait for idle, one window at a time, give the focus back ----
+const idleNeed = Number(opt("idle", "15"));
+const maxWait = Number(opt("max-wait", "1800")) * 1000;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const idleSeconds = () => {
+  try {
+    const text = execFileSync("ioreg", ["-c", "IOHIDSystem", "-d", "4"], { encoding: "utf8" });
+    const m = text.match(/"HIDIdleTime"\s*=\s*(\d+)/);
+    return m ? Number(m[1]) / 1e9 : Infinity;
+  } catch {
+    return Infinity;
+  }
+};
+const frontBundle = () => {
+  try {
+    const asn = execFileSync("lsappinfo", ["front"], { encoding: "utf8" }).trim();
+    const info = execFileSync("lsappinfo", ["info", "-only", "bundleid", asn], { encoding: "utf8" });
+    return info.match(/"CFBundleIdentifier"="([^"]+)"/)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+};
+const lockDir = join(root, ".scratch", ".window-lock");
+const takeLock = async (deadline) => {
+  for (;;) {
+    try {
+      mkdirSync(lockDir);
+      writeFileSync(join(lockDir, "pid"), String(process.pid));
+      return true;
+    } catch {
+      try {
+        const other = Number(readFileSync(join(lockDir, "pid"), "utf8"));
+        process.kill(other, 0); // alive: wait
+      } catch {
+        rmSync(lockDir, { recursive: true, force: true }); // its owner is gone
+        continue;
+      }
+      if (Date.now() > deadline) return false;
+      await sleep(1000);
+    }
+  }
+};
+let restoreTo = null;
+if (args.includes("--polite")) {
+  const deadline = Date.now() + maxWait;
+  let told = false;
+  while (idleSeconds() < idleNeed) {
+    if (Date.now() > deadline) {
+      console.error(
+        `skipped: you stayed active for ${maxWait / 1000} s, so no window was opened (nothing steals your focus). Run again when you are away, or add --now.`,
+      );
+      process.exit(3);
+    }
+    if (!told)
+      console.error(`waiting until you have been idle for ${idleNeed} s before opening a window (--now skips this)`);
+    told = true;
+    await sleep(2000);
+  }
+  if (!(await takeLock(deadline))) {
+    console.error("skipped: another window run holds the lock");
+    process.exit(3);
+  }
+  restoreTo = frontBundle();
+}
+const release = () => {
+  rmSync(lockDir, { recursive: true, force: true });
+  if (restoreTo && !restoreTo.includes("nsh")) spawnSync("open", ["-b", restoreTo], { stdio: "ignore" });
+};
+// Default: the no-focus library, one window run at a time.
+const interpose = !args.includes("--polite") && !args.includes("--no-interpose");
+let dylib = null;
+if (interpose) {
+  dylib = join(root, ".scratch", "no-focus", "no_focus.dylib");
+  if (!existsSync(dylib)) spawnSync("sh", [join(root, "scripts", "no-focus", "build.sh")], { stdio: "inherit" });
+  if (!(await takeLock(Date.now() + maxWait))) {
+    console.error("skipped: another window run holds the lock");
+    process.exit(3);
+  }
+}
+process.on("exit", () => {
+  if (interpose || args.includes("--polite")) release();
+});
+
 const child = spawn("nsh", ["test", testRel, "--target", "macos"], {
   cwd: root,
   stdio: "inherit",
-  env: { ...process.env, HERDR_DESKTOP_TEST: "1" },
+  env: {
+    ...process.env,
+    HERDR_DESKTOP_TEST: "1",
+    // The terminal feature builds libghostty-vt with zig (docs/DEVELOPMENT.md "Building the terminal").
+    LIBGHOSTTY_VT_SYS_CPU: "baseline",
+    PATH: [join(root, ".scratch/zigenv"), join(root, ".scratch/zig"), process.env.PATH].join(":"),
+    ...(dylib && existsSync(dylib)
+      ? { DYLD_INSERT_LIBRARIES: [dylib, process.env.DYLD_INSERT_LIBRARIES].filter(Boolean).join(":") }
+      : {}),
+  },
 });
 const timer = setTimeout(() => {
   console.error(`timeout: killing pid ${child.pid} (the nsh this script started)`);

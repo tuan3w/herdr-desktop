@@ -11,6 +11,7 @@ use std::{
 use super::types::Launch;
 use rustix::{
     fs::{Mode, OFlags, open},
+    io::{FdFlags, fcntl_setfd},
     process::{Pid, Signal, ioctl_tiocsctty, kill_process_group, setsid},
     pty::{OpenptFlags, grantpt, openpt, ptsname, unlockpt},
     termios::{Winsize, tcsetwinsize},
@@ -44,8 +45,9 @@ impl Pty {
             .argv
             .split_first()
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "no program to run"))?;
-        let master = openpt(OpenptFlags::RDWR | OpenptFlags::NOCTTY | OpenptFlags::CLOEXEC)
-            .map_err(io_error)?;
+        // macOS's openpt has no close-on-exec flag: set it right after (a child of another thread must not inherit it).
+        let master = openpt(OpenptFlags::RDWR | OpenptFlags::NOCTTY).map_err(io_error)?;
+        fcntl_setfd(&master, FdFlags::CLOEXEC).map_err(io_error)?;
         grantpt(&master).map_err(io_error)?;
         unlockpt(&master).map_err(io_error)?;
         let name = ptsname(&master, Vec::new()).map_err(io_error)?;

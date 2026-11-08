@@ -17,7 +17,7 @@ use crossbeam_channel::{Receiver, bounded, select};
 use herdr_core::screen::{Color, Link, LinkKind, Rgb, Row, Run, Style};
 use libghostty_vt::{
     RenderState, Terminal, TerminalOptions, focus,
-    key::{self, Action, Encoder as KeyEncoder, Key, KittyKeyFlags, Mods},
+    key::{self, Action, Encoder as KeyEncoder, Key, KittyKeyFlags, Mods, OptionAsAlt},
     mouse::{self, Encoder as MouseEncoder, EncoderSize},
     paste,
     render::{CellIterator, CursorVisualStyle, Dirty, RowIterator},
@@ -43,6 +43,9 @@ enum PtyEvent {
 
 /// The shortest time between two frames: a program printing as fast as it can costs the view ~120 updates a second.
 const FRAME_GAP: Duration = Duration::from_millis(8);
+
+/// How often a selection drag held past an edge scrolls one step.
+const AUTOSCROLL_GAP: Duration = Duration::from_millis(40);
 
 /// What the callbacks of the terminal write to.
 #[derive(Default)]
@@ -97,10 +100,17 @@ struct Emulator<'a> {
     exit: Option<Exit>,
     dirty: bool,
     last_publish: Instant,
-    /// Where a press began selecting, in viewport cells.
-    anchor: Option<(u16, u16)>,
+    /// Where the last press began a selection, in cells of the whole screen (column, row counted from the oldest history
+    /// row): output and scrolling move the viewport, not the text. Kept after the button is released so a shift-click can
+    /// extend from it.
+    anchor: Option<(u16, usize)>,
+    /// The left button is down and drags a selection.
+    dragging: bool,
     selecting: bool,
     pressed: Option<Button>,
+    /// A drag is past the top or bottom edge: the last pointer position, repeated by a timer while the button stays down.
+    edge: Option<(f32, f32)>,
+    option_as_alt: bool,
 }
 
 impl<'a> Emulator<'a> {
@@ -199,8 +209,11 @@ impl<'a> Emulator<'a> {
             dirty: true,
             last_publish: Instant::now() - FRAME_GAP,
             anchor: None,
+            dragging: false,
             selecting: false,
             pressed: None,
+            edge: None,
+            option_as_alt: true,
         };
         emulator.set_mouse_size();
         Some(emulator)
@@ -262,7 +275,9 @@ impl<'a> Emulator<'a> {
             if self.dirty && self.last_publish.elapsed() >= FRAME_GAP {
                 self.publish();
             }
-            let wait = if self.dirty {
+            let wait = if self.edge.is_some() {
+                AUTOSCROLL_GAP
+            } else if self.dirty {
                 FRAME_GAP.saturating_sub(self.last_publish.elapsed())
             } else if closed_at.is_some() && self.exit.is_none() {
                 Duration::from_millis(50)
@@ -295,7 +310,11 @@ impl<'a> Emulator<'a> {
                     Ok(PtyEvent::Closed) => { closed_at.get_or_insert_with(Instant::now); }
                     Err(_) => {}
                 },
-                default(wait) => {}
+                default(wait) => {
+                    if self.edge.is_some() {
+                        self.autoscroll();
+                    }
+                }
             }
         }
     }
@@ -335,6 +354,8 @@ impl<'a> Emulator<'a> {
         if self.selecting || self.anchor.is_some() {
             let _ = self.term.set_selection(None);
             self.selecting = false;
+            self.dragging = false;
+            self.edge = None;
             self.anchor = None;
         }
         if let Ok(bar) = self.term.scrollbar()
@@ -438,9 +459,16 @@ impl<'a> Emulator<'a> {
             Input::ClearSelection => {
                 let _ = self.term.set_selection(None);
                 self.selecting = false;
+                self.dragging = false;
+                self.edge = None;
                 self.anchor = None;
                 self.dirty = true;
             }
+            Input::ClearScrollback => {
+                self.term.vt_write(b"\x1b[3J");
+                self.dirty = true;
+            }
+            Input::OptionAsAlt(on) => self.option_as_alt = on,
             Input::Copy(reply) => {
                 let _ = reply.send(self.selected_text());
             }
@@ -501,6 +529,11 @@ impl<'a> Emulator<'a> {
         if self
             .keys
             .set_options_from_terminal(&self.term)
+            .set_macos_option_as_alt(if self.option_as_alt {
+                OptionAsAlt::True
+            } else {
+                OptionAsAlt::False
+            })
             .encode_to_vec(&event, &mut bytes)
             .is_ok()
         {
@@ -521,6 +554,11 @@ impl<'a> Emulator<'a> {
         if self
             .keys
             .set_options_from_terminal(&self.term)
+            .set_macos_option_as_alt(if self.option_as_alt {
+                OptionAsAlt::True
+            } else {
+                OptionAsAlt::False
+            })
             .encode_to_vec(&event, &mut bytes)
             .is_ok()
         {
@@ -588,7 +626,7 @@ impl<'a> Emulator<'a> {
                     self.pressed = Some(button);
                     self.report_mouse(mouse::Action::Press, Some(ghost(button)), x, y, mods);
                 } else if button == Button::Left {
-                    self.begin_selection(x, y, clicks);
+                    self.begin_selection(x, y, clicks, shift);
                 }
             }
             MouseKind::Release(button) => {
@@ -598,18 +636,24 @@ impl<'a> Emulator<'a> {
                         self.report_mouse(mouse::Action::Release, Some(ghost(button)), x, y, mods);
                     }
                 } else if button == Button::Left {
-                    self.selecting = self.selecting || self.anchor.is_some();
-                    self.anchor = None;
+                    self.dragging = false;
+                    self.edge = None;
                 }
             }
             MouseKind::Motion(button) => {
                 if tracked {
                     self.report_mouse(mouse::Action::Motion, button.map(ghost), x, y, mods);
-                } else if button == Some(Button::Left) && self.anchor.is_some() {
+                } else if button == Some(Button::Left) && self.dragging {
                     self.drag_selection(x, y);
                 }
             }
         }
+    }
+
+    /// The row of the whole screen (history first) a viewport row shows now.
+    fn screen_row(&self, viewport_row: u16) -> usize {
+        let offset = self.term.scrollbar().map(|b| b.offset).unwrap_or(0) as usize;
+        offset + usize::from(viewport_row)
     }
 
     fn point(&self, col: u16, row: u16) -> Point {
@@ -619,13 +663,28 @@ impl<'a> Emulator<'a> {
         })
     }
 
-    fn begin_selection(&mut self, x: f32, y: f32, clicks: u32) {
+    fn screen_point(col: u16, row: usize) -> Point {
+        Point::Screen(PointCoordinate {
+            x: col,
+            y: row as u32,
+        })
+    }
+
+    /// A press that is not the program's: starts a selection (a drag then grows it), selects the word or the line for two
+    /// and three clicks, and with Shift extends the selection there is.
+    fn begin_selection(&mut self, x: f32, y: f32, clicks: u32, shift: bool) {
         let (col, row) = self.cell_at(x, y);
+        let screen = self.screen_row(row);
+        self.dragging = true;
+        if shift && clicks <= 1 && self.anchor.is_some() {
+            self.drag_selection(x, y);
+            return;
+        }
         let _ = self.term.set_selection(None);
         self.selecting = false;
-        self.anchor = Some((col, row));
+        self.anchor = Some((col, screen));
         if clicks >= 2 {
-            let Ok(grid) = self.term.grid_ref(self.point(col, row)) else {
+            let Ok(grid) = self.term.grid_ref(Self::screen_point(col, screen)) else {
                 return;
             };
             let found = if clicks == 2 {
@@ -641,17 +700,22 @@ impl<'a> Emulator<'a> {
         self.dirty = true;
     }
 
+    /// The pointer moved with the button down: the selection runs from the anchor to the cell under it. Past the top or
+    /// bottom edge the view also scrolls, by a timer, for as long as the pointer stays out there.
     fn drag_selection(&mut self, x: f32, y: f32) {
         let Some((acol, arow)) = self.anchor else {
             return;
         };
+        let height = f32::from(self.cell.1.max(1)) * f32::from(self.rows);
+        self.edge = (y < 0.0 || y >= height).then_some((x, y));
         let (col, row) = self.cell_at(x, y);
-        if (col, row) == (acol, arow) && !self.selecting {
+        let here = self.screen_row(row);
+        if (col, here) == (acol, arow) && !self.selecting {
             return;
         }
         let (Ok(start), Ok(end)) = (
-            self.term.grid_ref(self.point(acol, arow)),
-            self.term.grid_ref(self.point(col, row)),
+            self.term.grid_ref(Self::screen_point(acol, arow)),
+            self.term.grid_ref(Self::screen_point(col, here)),
         ) else {
             return;
         };
@@ -660,6 +724,25 @@ impl<'a> Emulator<'a> {
             self.selecting = true;
             self.dirty = true;
         }
+    }
+
+    /// One step of a drag held past an edge: a row or more, by how far out the pointer is, then the selection again.
+    fn autoscroll(&mut self) {
+        let Some((x, y)) = self.edge else {
+            return;
+        };
+        let ch = f32::from(self.cell.1.max(1));
+        let height = ch * f32::from(self.rows);
+        let (out, down) = if y < 0.0 {
+            (-y, false)
+        } else {
+            (y - height, true)
+        };
+        let rows = (1.0 + out / ch).floor().min(6.0) as isize;
+        self.term
+            .scroll_viewport(ScrollViewport::Delta(if down { rows } else { -rows }));
+        self.drag_selection(x, y);
+        self.dirty = true;
     }
 
     fn wheel(&mut self, ticks: i32, x: f32, y: f32, shift: bool) {
@@ -682,7 +765,11 @@ impl<'a> Emulator<'a> {
             || self.term.mode(Mode::ALT_SCREEN).unwrap_or(false)
             || self.term.mode(Mode::ALT_SCREEN_LEGACY).unwrap_or(false);
         if alt_screen {
-            // The alternate screen has no history: the wheel moves the program's own cursor, as xterm's alternate scroll does.
+            // The alternate screen has no history: with alternate scroll on (DECSET 1007) the wheel moves the program's own
+            // cursor, three arrows a tick, as xterm's does; with it off the wheel is the program's to ignore.
+            if !self.term.mode(Mode::ALT_SCROLL).unwrap_or(false) {
+                return;
+            }
             let code = if up { Code::Up } else { Code::Down };
             for _ in 0..ticks.unsigned_abs().min(20) * 3 {
                 self.send_key(

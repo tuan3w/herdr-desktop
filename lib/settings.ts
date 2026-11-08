@@ -29,6 +29,10 @@ export function setSidebarCollapsed(collapsed: boolean): void {
 }
 /** Pane font size in points (the view scales it down to fit the pane's columns in the width). */
 export const paneFontSize = signal(13);
+/** Point size of the native terminal's text (`components/terminal-lab.tsx`; rows are 1.25 times it, whole points), 10 to 16. The read-only pane view keeps `paneFontSize` until it is replaced. */
+export const terminalFontSize = signal(12);
+/** Option (Alt) is the Meta key in the terminal on macOS: Option+B sends ESC b. Elsewhere Alt always does. */
+export const terminalOptionAsMeta = signal(true);
 /** Minimum contrast of terminal text against its background, 1 (off) to 7. */
 export const minContrast = signal(4.5);
 /** Announce new agent output politely to a screen reader (off: only "needs you" is announced). */
@@ -61,6 +65,8 @@ interface Saved {
   themeId: string;
   sidebarCollapsed: boolean;
   paneFontSize: number;
+  terminalFontSize: number;
+  terminalOptionAsMeta: boolean;
   minContrast: number;
   announceOutput: boolean;
   largeTargets: boolean;
@@ -85,6 +91,14 @@ export async function loadSettings(): Promise<void> {
       if (typeof saved.sidebarCollapsed === "boolean") sidebarCollapsed.set(saved.sidebarCollapsed);
       if (typeof saved.paneFontSize === "number" && saved.paneFontSize >= 9 && saved.paneFontSize <= 24)
         paneFontSize.set(saved.paneFontSize);
+      if (
+        typeof saved.terminalFontSize === "number" &&
+        Number.isInteger(saved.terminalFontSize) &&
+        saved.terminalFontSize >= 10 &&
+        saved.terminalFontSize <= 16
+      )
+        terminalFontSize.set(saved.terminalFontSize);
+      if (typeof saved.terminalOptionAsMeta === "boolean") terminalOptionAsMeta.set(saved.terminalOptionAsMeta);
       if (typeof saved.minContrast === "number" && saved.minContrast >= 1 && saved.minContrast <= 7)
         minContrast.set(saved.minContrast);
       if (typeof saved.announceOutput === "boolean") announceOutput.set(saved.announceOutput);
@@ -113,6 +127,8 @@ effect(() => {
     themeId: themeId(),
     sidebarCollapsed: sidebarCollapsed(),
     paneFontSize: paneFontSize(),
+    terminalFontSize: terminalFontSize(),
+    terminalOptionAsMeta: terminalOptionAsMeta(),
     minContrast: minContrast(),
     announceOutput: announceOutput(),
     largeTargets: largeTargets(),

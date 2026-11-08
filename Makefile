@@ -4,10 +4,22 @@
 # nsh runs the headless runner with the app's own environment.
 export HERDR_DESKTOP_TEST := 1
 
+# The terminal (native/app, feature `terminal`, on by default) builds libghostty-vt with zig 0.15.2 on the first compile:
+# a copy under .scratch/zig is found without the person's PATH changing (docs/DEVELOPMENT.md "Building the terminal").
+# `baseline` keeps the library's CPU code portable: a shipped binary cannot use the build machine's SIMD.
+export LIBGHOSTTY_VT_SYS_CPU := baseline
+ifneq ($(wildcard .scratch/zig/zig),)
+PATH := $(CURDIR)/.scratch/zig:$(PATH)
+endif
+# zig 0.15.2 cannot link against the macOS 26 SDK: a copy of `xcrun` that names the 15.4 SDK, kept in .scratch/zigenv.
+ifneq ($(wildcard .scratch/zigenv/xcrun),)
+PATH := $(CURDIR)/.scratch/zigenv:$(PATH)
+endif
+
 CORE := native/core/Cargo.toml
 APP  := native/app/Cargo.toml
 
-.PHONY: lint fmt fmt-check hooks verify verify-mac check test test-smoke core docs a11y copy run package theme perf cpu perf-check schema shots shots-mac
+.PHONY: lint fmt fmt-check hooks verify verify-mac check test test-smoke core docs consistency a11y copy run package theme perf cpu perf-check schema shots shots-mac
 
 # Linux: everything. `a11y` needs AT-SPI (dbus, Xvfb, python3-gi), which only Linux has.
 verify: check test core docs a11y
@@ -35,6 +47,7 @@ hooks:
 check:
 	nsh check
 	node scripts/absolute-imports.mjs --check
+	node scripts/check-consistency.mjs
 	node_modules/.bin/oxlint --deny-warnings
 	node_modules/.bin/oxfmt --check
 
@@ -57,6 +70,10 @@ core:
 
 docs:
 	node scripts/check-docs.mjs
+
+# Ratchet on the ladders of lib/layout.ts: fails on a violation not in scripts/consistency-baseline.json.
+consistency:
+	node scripts/check-consistency.mjs
 
 # AT-SPI tree of every screen: no unnamed control (needs dbus-run-session, xvfb-run, python3-gi).
 a11y:

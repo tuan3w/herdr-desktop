@@ -9,6 +9,8 @@ import {
   diffSplit,
   minContrast,
   paneFontSize,
+  terminalFontSize,
+  terminalOptionAsMeta,
   themeId,
 } from "#lib/settings";
 import { swatches } from "#lib/theme/build";
@@ -17,6 +19,9 @@ import { THEMES } from "#lib/theme/themes";
 
 /** 9 to 24 pt, the range `loadSettings` accepts. */
 const FONT_SIZES = Array.from({ length: 16 }, (_, i) => ({ value: String(i + 9), title: `${i + 9} pt` }));
+
+/** 10 to 16 pt in steps of 1, the range `loadSettings` accepts for the terminal. */
+const TERMINAL_SIZES = Array.from({ length: 7 }, (_, i) => ({ value: String(i + 10), title: `${i + 10} pt` }));
 
 /** 1 (off) to 7 in halves: WCAG's 3 for large text, 4.5 for body text and 7 for the strictest level all fall on it. */
 const CONTRASTS = Array.from({ length: 13 }, (_, i) => 1 + i / 2);
@@ -30,7 +35,7 @@ function ThemePreview(props: { spec: ThemeSpec }) {
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      class="h-14 flex-row overflow-hidden rounded-md border border-border"
+      class="h-14 flex-row overflow-hidden rounded-sm border border-border"
       style={{ backgroundColor: sw().page }}
     >
       <View class="w-8 gap-2 p-2" style={{ backgroundColor: sw().sidebar }}>
@@ -52,13 +57,13 @@ function ThemePreview(props: { spec: ThemeSpec }) {
 function ThemePicker() {
   return (
     <RadioGroup value={themeId()} onChange={(id) => themeId.set(id)} label="Theme" class="gap-3">
-      <View class="flex-row gap-3">
+      <View class="flex-row flex-wrap gap-3">
         <Each of={THEMES} key={(t: ThemeSpec) => t.id}>
           {(spec) => (
             <RadioItem
               value={spec().id}
               label={`${spec().name}: ${spec().blurb}`}
-              class="min-w-0 flex-1 gap-2 rounded-lg border border-border bg-background p-2 hover:bg-accent checked:border-primary checked:bg-accent"
+              class="w-28 gap-2 rounded-lg border border-border p-2 hover:bg-accent checked:border-primary"
             >
               <ThemePreview spec={spec()} />
               <Text class="px-1 text-sm font-medium text-foreground">{spec().name}</Text>
@@ -114,6 +119,33 @@ export function LookPage() {
               onChange={(v) => paneFontSize.set(Number(v))}
             />
           </View>
+        }
+      />
+      <SettingRow
+        label="Terminal font size"
+        description="The size the terminal's text is drawn at; rows are one and a quarter times it, so box lines stay joined."
+        control={
+          <View class="w-44">
+            <SelectField
+              small
+              name="Terminal font size"
+              items={TERMINAL_SIZES}
+              value={String(terminalFontSize())}
+              onChange={(v) => terminalFontSize.set(Number(v))}
+            />
+          </View>
+        }
+      />
+      <SettingRow
+        onPress={() => terminalOptionAsMeta.set(!terminalOptionAsMeta())}
+        label="Option is Meta in the terminal"
+        description="On a Mac, Option+B and Option+F move by word in a shell instead of typing a symbol."
+        control={
+          <Switch
+            label="Option is Meta in the terminal"
+            checked={terminalOptionAsMeta()}
+            onChange={(v) => terminalOptionAsMeta.set(v)}
+          />
         }
       />
       <SettingRow

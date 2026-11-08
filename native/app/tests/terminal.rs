@@ -39,8 +39,6 @@ const COLORS: Colors = Colors {
 };
 
 fn start(script: &str) -> Session {
-    // SAFETY: set before any thread of this test reads it, to the same value every time.
-    unsafe { std::env::set_var("HERDR_DESKTOP_TERMINAL", "1") };
     Session::start(Config {
         launch: Launch {
             argv: vec!["sh".into(), "-c".into(), script.into()],
@@ -273,6 +271,249 @@ fn a_drag_selects_text_and_copy_answers_with_it() {
     assert_eq!(session.selection().as_deref(), Some("world"));
 }
 
+/// A mouse input at cell (`col`, `row`) of the 8x16 test cells.
+fn mouse(kind: MouseKind, col: f32, row: f32, clicks: u32, shift: bool) -> Input {
+    Input::Mouse {
+        kind,
+        x: col * 8.0 + 1.0,
+        y: row * 16.0 + 1.0,
+        clicks,
+        shift,
+        ctrl: false,
+        alt: false,
+    }
+}
+
+#[test]
+fn a_triple_click_selects_the_line_and_shift_click_extends_a_selection() {
+    let session = start("printf 'one two three\\r\\nsecond line\\r\\n'; sleep 5");
+    wait_for(&session, "the text", |f| f.text().contains("second line"));
+    session.send(mouse(MouseKind::Press(Button::Left), 1.0, 0.0, 3, false));
+    assert_eq!(session.selection().as_deref(), Some("one two three"));
+
+    // A plain press, a release, then shift-click further on: the selection grows from where it began.
+    session.send(mouse(MouseKind::Press(Button::Left), 4.0, 0.0, 1, false));
+    session.send(mouse(MouseKind::Release(Button::Left), 4.0, 0.0, 1, false));
+    session.send(mouse(MouseKind::Press(Button::Left), 6.0, 1.0, 1, true));
+    session.send(mouse(MouseKind::Release(Button::Left), 6.0, 1.0, 1, true));
+    let text = session.selection().expect("a selection");
+    assert!(
+        text.starts_with("two three") && text.ends_with("second"),
+        "{text:?}"
+    );
+}
+
+#[test]
+fn shift_forces_selection_while_a_program_tracks_the_mouse() {
+    let session = start("printf '\\033[?1000h\\033[?1006hhello world\\r\\n'; cat -v");
+    wait_for(&session, "the text", |f| f.text().contains("hello world"));
+    session.send(mouse(MouseKind::Press(Button::Left), 0.0, 0.0, 1, true));
+    session.send(mouse(
+        MouseKind::Motion(Some(Button::Left)),
+        4.0,
+        0.0,
+        1,
+        true,
+    ));
+    session.send(mouse(MouseKind::Release(Button::Left), 4.0, 0.0, 1, true));
+    assert_eq!(session.selection().as_deref(), Some("hello"));
+    std::thread::sleep(Duration::from_millis(200));
+    assert!(
+        !session.frame().text().contains("^[[<"),
+        "the program was told about a selection: {}",
+        session.frame().text()
+    );
+}
+
+#[test]
+fn right_and_middle_buttons_and_modifiers_are_reported_to_a_tracking_program() {
+    let tracking = "printf '\\033[?1000h\\033[?1002h\\033[?1006h'";
+    // Right is button 2, release is a lower-case m; shift (+4), alt (+8) and ctrl (+16) add to the button.
+    echo(
+        tracking,
+        vec![
+            mouse(MouseKind::Press(Button::Right), 4.0, 2.0, 1, false),
+            mouse(MouseKind::Release(Button::Right), 4.0, 2.0, 1, false),
+            mouse(MouseKind::Press(Button::Middle), 0.0, 0.0, 1, false),
+        ],
+        "^[[<2;5;3M^[[<2;5;3m^[[<1;1;1M",
+    );
+    // A drag: motion with the left button is button 0 plus 32.
+    echo(
+        tracking,
+        vec![
+            mouse(MouseKind::Press(Button::Left), 0.0, 0.0, 1, false),
+            mouse(MouseKind::Motion(Some(Button::Left)), 2.0, 0.0, 1, false),
+        ],
+        "^[[<0;1;1M^[[<32;3;1M",
+    );
+    // Control held is +16.
+    echo(
+        tracking,
+        vec![Input::Mouse {
+            kind: MouseKind::Press(Button::Left),
+            x: 1.0,
+            y: 1.0,
+            clicks: 1,
+            shift: false,
+            ctrl: true,
+            alt: false,
+        }],
+        "^[[<16;1;1M",
+    );
+}
+
+#[test]
+fn old_x10_mouse_reports_are_encoded_for_programs_that_never_asked_for_sgr() {
+    // Mode 1000 without 1006: `ESC [ M` then button, column and row each plus 32 (a space is 0): press left at (1,1).
+    echo(
+        "printf '\\033[?1000h'",
+        vec![mouse(MouseKind::Press(Button::Left), 0.0, 0.0, 1, false)],
+        "^[[M !!",
+    );
+}
+
+#[test]
+fn a_selection_stays_on_its_text_while_output_scrolls_the_screen() {
+    let session = start(
+        "printf 'keep this words\\r\\n'; sleep 1; i=0; while [ $i -lt 30 ]; do echo more $i; i=$((i+1)); done; sleep 5",
+    );
+    wait_for(&session, "the text", |f| {
+        f.text().contains("keep this words")
+    });
+    session.send(mouse(MouseKind::Press(Button::Left), 5.0, 0.0, 2, false));
+    session.send(mouse(MouseKind::Release(Button::Left), 5.0, 0.0, 2, false));
+    assert_eq!(session.selection().as_deref(), Some("this"));
+    // The line scrolls out of the viewport into the history; the selection is on the text, not on a screen row.
+    wait_for(&session, "the output", |f| f.text().contains("more 29"));
+    assert_eq!(session.selection().as_deref(), Some("this"));
+}
+
+#[test]
+fn dragging_past_the_bottom_edge_scrolls_and_keeps_extending_the_selection() {
+    let session = start("i=0; while [ $i -lt 100 ]; do echo line $i; i=$((i+1)); done; sleep 5");
+    wait_for(&session, "the end", |f| f.text().contains("line 99"));
+    session.send(Input::ScrollTo(20));
+    let before = wait_for(&session, "scrolled", |f| f.scroll.offset == 20);
+    session.send(mouse(MouseKind::Press(Button::Left), 0.0, 1.0, 1, false));
+    // Past the bottom edge: 10 rows of 16 px are 160 px, the pointer is 40 px below.
+    session.send(Input::Mouse {
+        kind: MouseKind::Motion(Some(Button::Left)),
+        x: 9.0,
+        y: 200.0,
+        clicks: 1,
+        shift: false,
+        ctrl: false,
+        alt: false,
+    });
+    let after = wait_for(&session, "the view followed the pointer", |f| {
+        f.scroll.offset >= before.scroll.offset + 6
+    });
+    let text = session.selection().expect("a selection");
+    assert!(
+        text.contains("line 21") && text.lines().count() >= 6,
+        "{text:?}"
+    );
+    // Releasing stops it.
+    session.send(Input::Mouse {
+        kind: MouseKind::Release(Button::Left),
+        x: 9.0,
+        y: 200.0,
+        clicks: 1,
+        shift: false,
+        ctrl: false,
+        alt: false,
+    });
+    std::thread::sleep(Duration::from_millis(200));
+    let rev = session.frame().scroll.offset;
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(
+        session.frame().scroll.offset,
+        rev,
+        "still scrolling after the release"
+    );
+    assert!(after.scroll.offset > before.scroll.offset);
+}
+
+#[test]
+fn the_wheel_on_the_alternate_screen_sends_arrows_only_when_alternate_scroll_is_on() {
+    // DECSET 1007 on: three arrows a tick.
+    echo(
+        "printf '\\033[?1049h\\033[?1007h'",
+        vec![Input::Wheel {
+            ticks: 1,
+            x: 1.0,
+            y: 1.0,
+            shift: false,
+        }],
+        "^[[A^[[A^[[A",
+    );
+    // Off: the wheel says nothing (a sentinel key proves the program was listening).
+    let session = start("printf '\\033[?1049h\\033[?1007l'; cat -v");
+    wait_for(&session, "ready", |f| f.rev > 0);
+    std::thread::sleep(Duration::from_millis(300));
+    session.send(Input::Wheel {
+        ticks: 2,
+        x: 1.0,
+        y: 1.0,
+        shift: false,
+    });
+    session.send(Input::Text("Z".into()));
+    let frame = wait_for(&session, "the sentinel", |f| f.text().contains('Z'));
+    assert_eq!(frame.text().trim(), "Z");
+}
+
+#[test]
+fn the_wheel_scrolls_three_lines_a_tick_and_clear_scrollback_forgets_the_history() {
+    let session = start("i=0; while [ $i -lt 100 ]; do echo line $i; i=$((i+1)); done; sleep 5");
+    let end = wait_for(&session, "the end", |f| f.text().contains("line 99"));
+    session.send(Input::Wheel {
+        ticks: 2,
+        x: 1.0,
+        y: 1.0,
+        shift: false,
+    });
+    let up = wait_for(&session, "scrolled", |f| !f.scroll.at_end());
+    assert_eq!(up.scroll.offset, end.scroll.offset - 6);
+    session.send(Input::ClearScrollback);
+    let cleared = wait_for(&session, "no history", |f| f.scroll.total <= 10);
+    assert!(cleared.scroll.at_end());
+}
+
+#[test]
+fn select_all_selects_what_is_on_screen_and_in_the_history() {
+    let session = start("printf 'a1\\r\\nb2\\r\\n'; sleep 5");
+    wait_for(&session, "the text", |f| f.text().contains("b2"));
+    session.send(Input::SelectAll);
+    let text = session.selection().expect("a selection");
+    assert!(text.contains("a1") && text.contains("b2"), "{text:?}");
+    session.send(Input::ClearSelection);
+    assert_eq!(session.selection(), None);
+}
+
+#[test]
+fn a_bordered_box_stays_in_contiguous_rows_with_its_corners_in_line() {
+    // What the owner saw broken: box-drawing rows drawn apart. The grid must hold them in adjacent rows, one cell each.
+    let session = start(
+        "printf '\\342\\224\\214\\342\\224\\200\\342\\224\\200\\342\\224\\220\\r\\n\\342\\224\\202ab\\342\\224\\202\\r\\n\\342\\224\\224\\342\\224\\200\\342\\224\\200\\342\\224\\230\\r\\n'; sleep 5",
+    );
+    let frame = wait_for(&session, "the box", |f| f.text().contains('┘'));
+    let rows: Vec<String> = frame.rows[..3]
+        .iter()
+        .map(|r| r.text().trim_end().to_owned())
+        .collect();
+    assert_eq!(rows, ["┌──┐", "│ab│", "└──┘"]);
+}
+
+#[test]
+fn alt_sends_an_escape_prefix_when_option_is_meta() {
+    echo(
+        "",
+        vec![Input::OptionAsAlt(true), key("alt+b"), key("alt+f")],
+        "^[b^[f",
+    );
+}
+
 #[test]
 fn the_scrollback_is_scrolled_with_the_wheel_and_to_an_absolute_row() {
     let session = start("i=0; while [ $i -lt 100 ]; do echo line $i; i=$((i+1)); done; sleep 5");
@@ -372,7 +613,6 @@ fn the_end_of_the_program_is_reported_and_restart_runs_it_again() {
 
 #[test]
 fn a_program_that_cannot_start_says_so_in_the_terminal() {
-    unsafe { std::env::set_var("HERDR_DESKTOP_TERMINAL", "1") };
     let session = Session::start(Config {
         launch: Launch {
             argv: vec!["/no/such/program".into()],

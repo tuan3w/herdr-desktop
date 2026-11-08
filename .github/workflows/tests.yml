@@ -31,6 +31,10 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 60
     steps:
+      # zig 0.15.2 builds libghostty-vt (the terminal): UNVERIFIED in CI, see docs/RELEASING.md
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
       - uses: actions/checkout@v4
 
       - uses: oven-sh/setup-bun@v2

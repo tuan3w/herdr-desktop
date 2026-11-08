@@ -1,5 +1,8 @@
 [profile.dev]
 debug = 0
+# The incremental cache grew to 2-4 GB on a disk that is nearly full (a linker failed for lack of space on 2026-11-08);
+# a clean rebuild costs a little time, the cache costs the build.
+incremental = false
 
 [build]
 target-dir = "target"

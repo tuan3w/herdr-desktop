@@ -90,6 +90,11 @@ pub enum Input {
     ScrollEnd,
     SelectAll,
     ClearSelection,
+    /// Forgets the history (what `clear` does on other terminals: ED 3), keeping the screen.
+    ClearScrollback,
+    /// Whether Option (Alt) is the Meta key: sends an ESC prefix instead of typing a composed character (macOS only; the
+    /// other platforms always send the prefix). On by default.
+    OptionAsAlt(bool),
     /// The selected text, answered once.
     Copy(Sender<Option<String>>),
     Colors(Colors),
