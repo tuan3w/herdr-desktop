@@ -3,8 +3,7 @@ import { expect, test } from "nsh/test";
 import type { EntryView } from "herdr-desktop/native";
 
 import {
-  arrange,
-  crumbs,
+  fileGlyph,
   entryLabel,
   joinPath,
   modifiedText,
@@ -37,31 +36,7 @@ test("a link goes where it belongs: files to the viewer, a remote machine's loca
   expect(routeLink("url", "file:///etc/passwd", remote)).toBe("address");
 });
 
-test("a folder lists folders first, then by the order asked, and hides dotfiles unless asked", () => {
-  const entries = [
-    entry("app", { kind: "dir", modified: 10 }),
-    entry("big.log", { size: 5000, modified: 20 }),
-    entry(".env", { size: 10, modified: 30 }),
-    entry("notes.txt", { size: 100, modified: 40 }),
-    entry("zeta", { kind: "dir", modified: 50 }),
-  ];
-  const names = (sort: "name" | "modified" | "size", hidden = false) =>
-    arrange(entries, { sort, hidden }).map((e) => e.name);
-  expect(names("name")).toEqual(["app", "big.log", "notes.txt", "zeta"]);
-  expect(names("name", true)).toContain(".env");
-  expect(names("modified")).toEqual(["zeta", "app", "notes.txt", "big.log"]);
-  expect(names("size")).toEqual(["app", "zeta", "big.log", "notes.txt"]);
-  expect(names("size", true)).toEqual(["app", "zeta", "big.log", "notes.txt", ".env"]);
-});
-
-test("a path is cut into the folders that lead to it, and a file's folder is the one above", () => {
-  expect(crumbs("/home/dev/app")).toEqual([
-    { name: "/", path: "/" },
-    { name: "home", path: "/home" },
-    { name: "dev", path: "/home/dev" },
-    { name: "app", path: "/home/dev/app" },
-  ]);
-  expect(crumbs("/")).toEqual([{ name: "/", path: "/" }]);
+test("a file's folder is the one above it, and a name joins a folder without a doubled slash", () => {
   expect(parentOf("/home/dev/app")).toBe("/home/dev");
   expect(parentOf("/home")).toBe("/");
   expect(parentOf("/")).toBeNull();
@@ -76,11 +51,18 @@ test("sizes and times read the way a person says them", () => {
   expect(sizeText(1.5 * 1024 * 1024)).toBe("1.5 MB");
   expect(sizeText(40 * 1024 * 1024)).toBe("40 MB");
   expect(sizeText(3 * 1024 ** 3)).toBe("3.0 GB");
+  // past a gigabyte the unit keeps climbing, and a size the machine could not give says nothing
+  expect(sizeText(1.2 * 1024 ** 4)).toBe("1.2 TB");
+  expect(sizeText(-5)).toBe("");
+  expect(sizeText(Number.NaN)).toBe("");
   const now = 1_790_000_000;
   expect(modifiedText(now - 10, now)).toBe("just now");
   expect(modifiedText(now - 600, now)).toBe("10 min ago");
   expect(modifiedText(now - 3 * 86400, now)).toBe("3 d ago");
   expect(modifiedText(null, now)).toBe("");
+  // a clock a few seconds ahead is still now; a date well in the future is shown as the date, never "just now"
+  expect(modifiedText(now + 20, now)).toBe("just now");
+  expect(modifiedText(now + 5 * 86400, now)).toMatch(/^\d{1,2} [A-Z][a-z]{2}$/);
   // beyond a month: the date, and the year only when it is not this one
   expect(modifiedText(now - 90 * 86400, now)).toMatch(/^\d{1,2} [A-Z][a-z]{2}$/);
   expect(modifiedText(now - 800 * 86400, now)).toMatch(/^\d{1,2} [A-Z][a-z]{2} \d{4}$/);
@@ -105,4 +87,17 @@ test("the viewer steps through the pictures when it shows a picture, and through
   expect(placeText(pictures, "d.JPG", true)).toBe("Photo 2 of 2");
   expect(placeText(stepNames(entries, "c.md"), "c.md", false)).toBe("File 3 of 4");
   expect(placeText(pictures, "gone.png", true)).toBe("");
+});
+
+test("a file's glyph is by its kind, the same wherever it is listed", () => {
+  expect(fileGlyph("src", true)).toBe("folder");
+  expect(fileGlyph("shot.PNG", false)).toBe("image");
+  expect(fileGlyph("clip.mp4", false)).toBe("film");
+  expect(fileGlyph("song.ogg", false)).toBe("music");
+  expect(fileGlyph("bundle.tar.gz", false)).toBe("archive");
+  expect(fileGlyph("run.sh", false)).toBe("terminal");
+  expect(fileGlyph("Cargo.toml", false)).toBe("sliders");
+  expect(fileGlyph("README.md", false)).toBe("list");
+  expect(fileGlyph("main.rs", false)).toBe("file");
+  expect(fileGlyph("data.bin", false)).toBe("file");
 });

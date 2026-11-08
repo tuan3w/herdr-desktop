@@ -3,7 +3,8 @@ import { announce, cleanup, computed, effect, signal, Text, untracked, View } fr
 
 import type { UploadView } from "herdr-desktop/native";
 
-import { Btn, Field, FieldRow, Icon, Modal, notify, Progress } from "#kit";
+import { FolderField } from "#components/folder-field";
+import { Btn, FieldRow, Icon, Modal, notify, Progress } from "#kit";
 import { sending, sizeText } from "#lib/files";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
@@ -157,7 +158,7 @@ export function SendFiles() {
       onClose={close}
       title={`Send to ${machineName()}`}
       description={`${request()?.paths.length ?? 0} ${request()?.paths.length === 1 ? "file" : "files"}: ${names()}`}
-      disablePointerDismissal
+      disablePointerDismissal={started()}
       actions={
         <>
           <If when={!started()}>
@@ -173,11 +174,13 @@ export function SendFiles() {
       <View class="gap-3">
         <If when={!started()}>
           <FieldRow>
-            <Field
+            <FolderField
               autoFocus
-              mono
               reserve
               label="Into this folder on the machine *"
+              machine={request()?.machine ?? ""}
+              active={request() !== null}
+              recents={[request()?.folder ?? ""]}
               value={folder()}
               onChange={(v) => {
                 folder.set(v);

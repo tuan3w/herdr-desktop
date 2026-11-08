@@ -139,8 +139,8 @@ pub struct FileData {
     pub text: Option<String>,
     /// A text file over 4 MB: page through it with `Lines`.
     pub large: bool,
-    /// The `file:` address of the picture on THIS computer, for `image` files (a copy for a remote
-    /// machine's). Absent when the picture is too big to open: see `notice`.
+    /// The picture as a `data:image/...;base64,` address, for `image` files (never a `file:` address: the packaged
+    /// app cannot grant one to an image). Absent when the picture is too big to show: see `notice`.
     #[prop(skip_none)]
     pub image: Option<String>,
     /// A sentence to show above the content: why a picture was not opened.
@@ -295,7 +295,7 @@ fn entry_view(e: files::Entry) -> EntryView {
     }
 }
 
-fn file_data(view: FileView, local: bool) -> FileData {
+fn file_data(view: FileView, image: Option<String>, local: bool) -> FileData {
     FileData {
         path: view.path,
         name: view.name,
@@ -304,9 +304,7 @@ fn file_data(view: FileView, local: bool) -> FileData {
         kind: view.kind.into(),
         text: view.text,
         large: view.large,
-        image: view
-            .image
-            .map(|p| files::uri_from_path(&p.to_string_lossy())),
+        image,
         notice: view.notice,
         local,
     }
@@ -386,9 +384,16 @@ impl Files {
         run(move || {
             let files = engine.files_of(&machine)?;
             let local = engine.is_local_machine(&machine)?;
-            files::open(files.as_ref(), &path, &engine.files_cache(), &machine)
-                .map(|view| file_data(view, local))
-                .map_err(|e| e.message)
+            let view = files::open(files.as_ref(), &path, &engine.files_cache(), &machine)
+                .map_err(|e| e.message)?;
+            // A `file:` address is never granted to an image in the packaged app: the bytes go with the address.
+            let image = view
+                .image
+                .as_deref()
+                .map(files::picture_data_url)
+                .transpose()
+                .map_err(|e| e.message)?;
+            Ok(file_data(view, image, local))
         })
         .await
     }

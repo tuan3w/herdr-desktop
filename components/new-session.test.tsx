@@ -1,4 +1,4 @@
-import { Herdr, Sessions } from "herdr-desktop/native";
+import { Files, Herdr, Sessions } from "herdr-desktop/native";
 import { afterEach, expect, open, test } from "nsh/test";
 
 import type { App } from "nsh/test";
@@ -100,18 +100,86 @@ test("a project's New session starts on its machine in its folder", async () => 
   expect(app.value(FOLDER)).toBe("/tmp");
 });
 
-test("Browse folders walks the machine's folders and hands back the one chosen", async () => {
-  const app = await form();
+/**
+ * The `Folder` path field against the test seam's synthetic folder (`Files.testTree`: `assets`, `docs`, `src` and a hidden
+ * file) on this computer. The one list is the kit's `Autocomplete`: rows are labelled by the folder's name.
+ */
+const field = (params: Record<string, unknown> = {}) =>
+  open("./new-session-folder-lab.tsx", { ...DESKTOP, host: { params } });
+const tree = () => Files.testTree();
+const folder = (name: string) => `label:${name}`;
+
+test("typing lists the subfolders of the nearest folder that match, files and hidden ones left out, and Tab completes one with a slash", async () => {
+  const app = await field();
   await app.waitFor(OMP);
-  await app.type(FOLDER, "/");
-  await app.press("Browse folders");
-  await app.waitFor("Choose a folder");
-  await app.waitFor("label:Open tmp");
-  await app.press("label:Open tmp");
-  await app.waitFor("label:Folders in /tmp");
-  await app.press("Use this folder");
-  await app.waitUntil(() => app.value(FOLDER) === "/tmp");
-  expect(app.shows("Choose a folder")).toBe(false);
+  await app.type(FOLDER, `${tree()}/`);
+  await app.waitFor(folder("assets"));
+  expect(app.shows(folder("docs"))).toBe(true);
+  expect(app.shows(folder("src"))).toBe(true);
+  expect(app.shows(folder("README.md"))).toBe(false);
+
+  await app.clear(FOLDER);
+  await app.type(FOLDER, `${tree()}/D`);
+  await app.waitUntil(() => app.shows(folder("docs")) && !app.shows(folder("assets")));
+  await app.keyboard.press("tab");
+  await app.waitUntil(() => app.value(FOLDER) === `${tree()}/docs/`);
+  // The next level lists: docs holds no folder.
+  await app.waitFor(`No folders in ${tree()}/docs/`);
+});
+
+test("Down and Enter complete the highlighted folder, and the form is still open", async () => {
+  const app = await field();
+  await app.waitFor(OMP);
+  await app.type(FOLDER, `${tree()}/`);
+  await app.waitFor(folder("assets"));
+  await app.keyboard.press("down");
+  await app.keyboard.press("down");
+  await app.keyboard.press("enter");
+  await app.waitUntil(() => app.value(FOLDER) === `${tree()}/docs/`);
+  expect(app.shows("New agent session")).toBe(true);
+});
+
+test("Escape closes the list and keeps the dialog; the second Escape is the dialog's", async () => {
+  const app = await field();
+  await app.waitFor(OMP);
+  await app.type(FOLDER, `${tree()}/`);
+  await app.waitFor(folder("assets"));
+  await app.keyboard.press("escape");
+  await app.waitUntil(() => !app.shows(folder("assets")));
+  expect(app.shows("New agent session")).toBe(true);
+  expect(app.value(FOLDER)).toBe(`${tree()}/`);
+});
+
+test("a name that is not there says so in the list, not in red, and the path under a file does the same", async () => {
+  const app = await field();
+  await app.waitFor(OMP);
+  await app.type(FOLDER, `${tree()}/zzz`);
+  await app.waitFor(`No folder named zzz in ${tree()}/`);
+  expect(app.shows("Enter an absolute path on that machine, starting with / or ~/.")).toBe(false);
+  await app.clear(FOLDER);
+  await app.type(FOLDER, `${tree()}/README.md/x`);
+  await app.waitFor(`No folder named README.md in ${tree()}/`);
+});
+
+test("an empty field offers the projects of the machine, and choosing one fills the field", async () => {
+  const app = await field();
+  await app.waitFor(OMP);
+  // Clearing a field whose list is open keeps the list: it is the menu to browse.
+  await app.type(FOLDER, `${tree()}/zz-none`);
+  await app.waitFor(`No folder named zz-none in ${tree()}/`);
+  await app.clear(FOLDER);
+  await app.waitFor("Projects");
+  await app.press("label:/^payments-api/");
+  await app.waitUntil(() => app.value(FOLDER) === "/home/dev/payments-api");
+});
+
+test("one dialog is on screen while the list is open", async () => {
+  const app = await field();
+  await app.waitFor(OMP);
+  await app.type(FOLDER, `${tree()}/`);
+  await app.waitFor(folder("assets"));
+  expect(app.texts().filter((t) => t === "New agent session")).toHaveLength(1);
+  expect(app.shows("Browse folders")).toBe(false);
 });
 
 test("Past sessions opens from the form for the agent and folder chosen, and says when the agent keeps no list", async () => {

@@ -68,33 +68,53 @@ test("a PDF says what it is and offers the system's viewer", async () => {
   expect(app.shows("Copy path")).toBe(true);
 });
 
-test("an SVG is a picture whose source is text: it copies as contents, not as an image", async () => {
+test("an SVG is a picture whose source is text: its menu copies contents, not an image", async () => {
   const app = await lab();
   await app.press("View logo.svg");
-  await app.waitFor("label:logo.svg, picture");
-  expect(app.shows("Copy contents")).toBe(true);
+  await app.waitFor("label:Picture, logo.svg");
+  await app.press("More");
+  await app.waitFor("Copy contents");
   expect(app.shows("Copy image")).toBe(false);
   await app.press("Copy contents");
   await app.waitFor("Contents copied");
   expect(app.clipboard()).toContain("<svg");
 });
 
-test("a picture has zoom, fit, actual size and a turn, and copies as an image", async () => {
+test("a picture is a lightbox of its name, a menu and Close: zoom is a key, and the menu copies the image", async () => {
   const app = await lab();
   await app.press("View shot-2.png");
-  await app.waitFor("label:Picture tools");
-  expect(app.shows("Copy image")).toBe(true);
-  expect(app.shows("Zoom in")).toBe(true);
-  expect(app.shows("Zoom out")).toBe(true);
-  expect(app.shows("Rotate")).toBe(true);
-  await app.press("Actual size");
+  await app.waitFor("label:Picture, shot-2.png");
+  expect(app.shows("More")).toBe(true);
+  // none of the old viewer's rows of buttons is on screen before the menu opens
+  for (const gone of [
+    "Fit",
+    "Actual size",
+    "Copy path",
+    "Zoom in",
+    "Zoom out",
+    "Rotate",
+    "Send to the agent",
+    "Open",
+  ]) {
+    expect(app.shows(gone)).toBe(false);
+  }
+  await app.keyboard.press("1");
   await app.waitFor("label:Zoom 100%");
-  await app.press("Zoom in");
+  await app.keyboard.press("plus");
   await app.waitFor("label:Zoom 125%");
   await app.keyboard.press("minus");
   await app.waitFor("label:Zoom 100%");
+  await app.keyboard.press("plus");
+  await app.keyboard.press("plus");
+  await app.waitFor("label:Zoom 156%");
   await app.keyboard.press("0");
-  await app.press("Rotate");
+  await app.waitFor("label:Zoom 156%", { state: "gone" });
+  await app.keyboard.press("r");
+  await app.press("More");
+  await app.waitFor("Copy image");
+  for (const entry of ["Send to the agent", "Copy path", "Open", "Reveal", "Rotate"]) {
+    expect(app.shows(entry)).toBe(true);
+  }
   await app.press("Copy image");
   await app.waitFor("Image copied");
 });
@@ -152,32 +172,28 @@ test("a text file over 4 MB is paged by lines: the count grows, Ctrl+F finds thr
   await app.waitUntil(() => said(app, "0089999 hay"));
 });
 
-test("Space previews the highlighted file beside the list, the preview follows the highlight, and Escape closes it first", async () => {
+test("Space previews the highlighted file beside the list, the preview follows the highlight, and Space closes it", async () => {
   const app = await lab();
   await app.press("Browse viewers");
   await app.waitFor("label:/^bundle.zip, file/");
   await app.keyboard.press("space");
   await app.waitFor("label:Preview");
   await app.waitFor("label:Contents of bundle.tar.gz");
-  await app.type("label:Find in this folder", "");
   await app.keyboard.press("down");
   await app.waitFor("label:Contents of bundle.zip");
   await app.keyboard.press("down");
   await app.waitFor("label:config.json, read only");
-  await app.keyboard.press("escape");
+  await app.keyboard.press("space");
   await app.waitFor("label:Preview", { state: "gone" });
   expect(app.shows("label:/^bundle.zip, file/")).toBe(true);
   await app.keyboard.press("space");
   await app.waitFor("label:Preview");
-  await app.keyboard.press("space");
-  await app.waitFor("label:Preview", { state: "gone" });
 });
 
 test("Enter opens the previewed file in the full viewer, which steps through the folder with the bracket keys", async () => {
   const app = await lab();
   await app.press("Browse viewers");
   await app.waitFor("label:/^bundle.zip, file/");
-  await app.type("label:Find in this folder", "");
   await app.keyboard.press("down");
   await app.keyboard.press("enter");
   await app.waitFor("label:Contents of bundle.zip");

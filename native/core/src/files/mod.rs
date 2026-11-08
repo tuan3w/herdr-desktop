@@ -52,8 +52,8 @@ pub use resolve::{candidates, parent, path_from_uri, uri_from_path};
 pub use tunnel::{Tunnel, TunnelError, free_port, localhost_port};
 pub use upload::{UploadError, upload};
 pub use view::{
-    CLIPBOARD_IMAGE_CAP, FileView, IMAGE_CAP, TEXT_CAP, ViewKind, image_data_url, open, size_text,
-    view_kind,
+    CLIPBOARD_IMAGE_CAP, FileView, IMAGE_CAP, PICTURE_DATA_CAP, TEXT_CAP, ViewKind, image_data_url,
+    open, picture_data_url, size_text, view_kind,
 };
 pub use walk::{
     IGNORED_PATHS, IGNORED_SKIP, TREE_BYTES, TREE_PATHS, TREE_TIME, Tree, TreeEntry, TreeLimits,

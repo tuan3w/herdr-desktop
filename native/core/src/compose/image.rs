@@ -17,9 +17,16 @@ use image::{
     DynamicImage, ExtendedColorType, ImageDecoder, ImageEncoder, ImageFormat, ImageReader, Limits,
 };
 
-/// The longest side a picture is scaled to unless the person asked for the original: what every agent's vision
-/// model reads anyway, and what keeps a retina screenshot under the size cap.
-pub const LONG_EDGE: u32 = 2000;
+/// The longest side a picture is scaled to unless the person asked for the original: Claude's vision scales anything
+/// longer down to about 1568 px before reading it, so more pixels only cost bandwidth (often over ssh) and tokens.
+pub const LONG_EDGE: u32 = 1568;
+
+/// What a scaled picture aims to weigh at most: a screenshot that would be heavier as a PNG goes as a JPEG, then at a
+/// lower quality, then smaller (owner, 2026-11-08: "must compress, since it can cause lots of bandwidth").
+pub const TARGET_BYTES: usize = 1024 * 1024;
+
+/// JPEG qualities tried in turn: 85 keeps the text of a screenshot readable; 75 is the floor before pixels go.
+const QUALITIES: [u8; 2] = [85, 75];
 
 /// The most bytes one picture may be after encoding: the cap `attach::MAX_PICTURE_BYTES` sends as a picture.
 pub const MAX_BYTES: usize = 5 * 1024 * 1024;
@@ -94,19 +101,33 @@ pub fn prepare(bytes: &[u8], dir: &Path, fit: Fit) -> Result<Picture, PictureErr
     if let Fit::Long(edge) = fit {
         img = shrink_to(img, edge);
     }
+    // A scaled picture aims at the target; the original setting keeps every pixel it can and only respects the cap.
+    let limit = match fit {
+        Fit::Long(_) => TARGET_BYTES,
+        Fit::Original => MAX_BYTES,
+    };
+    let mut quality = 0;
     let encoded = loop {
-        let bytes = encode(&img, jpeg)?;
-        if bytes.len() <= MAX_BYTES {
+        let bytes = encode(&img, jpeg, QUALITIES[quality])?;
+        if bytes.len() <= limit {
             break bytes;
         }
-        // Over the cap: a PNG without transparency is the same picture as a JPEG at a fraction of the size;
-        // after that the only thing left to give up is pixels.
+        // Over: a PNG without transparency is the same picture as a JPEG at a fraction of the size; then a lower
+        // quality; after that the only thing left to give up is pixels.
         if !jpeg && !has_transparency(&img) {
             jpeg = true;
             continue;
         }
+        if jpeg && quality + 1 < QUALITIES.len() {
+            quality += 1;
+            continue;
+        }
         let long = img.width().max(img.height());
         if long <= MIN_EDGE {
+            // As small as it may get: under the hard cap it still goes, over it is refused.
+            if bytes.len() <= MAX_BYTES {
+                break bytes;
+            }
             return Err(PictureError::TooBigToSend(MAX_BYTES >> 20));
         }
         img = shrink_to(img, (long * 3 / 4).max(MIN_EDGE));
@@ -206,11 +227,11 @@ fn shrink_to(img: DynamicImage, edge: u32) -> DynamicImage {
     img.resize_exact(nw, nh, FilterType::Lanczos3)
 }
 
-fn encode(img: &DynamicImage, jpeg: bool) -> Result<Vec<u8>, PictureError> {
+fn encode(img: &DynamicImage, jpeg: bool, quality: u8) -> Result<Vec<u8>, PictureError> {
     let mut out = Vec::new();
     if jpeg {
         let rgb = img.to_rgb8();
-        JpegEncoder::new_with_quality(&mut out, 90)
+        JpegEncoder::new_with_quality(&mut out, quality)
             .write_image(&rgb, rgb.width(), rgb.height(), ExtendedColorType::Rgb8)
             .map_err(|e| PictureError::Io(e.to_string()))?;
     } else if img.color().has_alpha() {
@@ -287,11 +308,24 @@ mod tests {
     use image::{Rgb, RgbImage, Rgba, RgbaImage};
 
     fn png_of(img: &DynamicImage) -> Vec<u8> {
-        encode(img, false).expect("png")
+        encode(img, false, 85).expect("png")
     }
 
     fn jpeg_of(img: &DynamicImage) -> Vec<u8> {
-        encode(img, true).expect("jpeg")
+        encode(img, true, 90).expect("jpeg")
+    }
+
+    /// A picture like a window screenshot: flat panels and a few lines, which a PNG keeps small.
+    fn window(w: u32, h: u32) -> DynamicImage {
+        DynamicImage::ImageRgb8(RgbImage::from_fn(w, h, |x, y| {
+            if y % 40 == 0 {
+                Rgb([200, 200, 200])
+            } else if x < w / 4 {
+                Rgb([245, 244, 240])
+            } else {
+                Rgb([255, 255, 255])
+            }
+        }))
     }
 
     fn gradient(w: u32, h: u32) -> DynamicImage {
@@ -345,14 +379,28 @@ mod tests {
     #[test]
     fn a_big_screenshot_is_scaled_to_the_long_edge_and_stays_a_lossless_png() {
         let dir = tempfile::tempdir().expect("dir");
-        let shot = png_of(&gradient(3000, 1500));
+        let shot = png_of(&window(3000, 1500));
         let p = prepare(&shot, dir.path(), Fit::Long(LONG_EDGE)).expect("prepared");
-        assert_eq!((p.width, p.height), (2000, 1000), "aspect kept");
-        assert_eq!(p.mime, "image/png");
+        assert_eq!((p.width, p.height), (1568, 784), "aspect kept");
+        assert_eq!(
+            p.mime, "image/png",
+            "light enough as a PNG, so its text stays sharp"
+        );
         assert!(p.scaled);
         let back = read_back(&p);
-        assert_eq!((back.width(), back.height()), (2000, 1000));
+        assert_eq!((back.width(), back.height()), (1568, 784));
         assert_eq!(p.bytes, std::fs::metadata(&p.path).expect("meta").len());
+    }
+
+    #[test]
+    fn a_heavy_screenshot_goes_as_a_jpeg_under_the_target() {
+        let dir = tempfile::tempdir().expect("dir");
+        // Noise is the worst case: as a 1568 x 980 PNG it is several MB.
+        let heavy = png_of(&noise(1568, 980));
+        assert!(heavy.len() > TARGET_BYTES, "{}", heavy.len());
+        let p = prepare(&heavy, dir.path(), Fit::Long(LONG_EDGE)).expect("prepared");
+        assert_eq!(p.mime, "image/jpeg");
+        assert!(p.bytes as usize <= TARGET_BYTES, "{}", p.bytes);
     }
 
     #[test]
@@ -374,7 +422,7 @@ mod tests {
         let p = prepare(&photo, dir.path(), Fit::Long(LONG_EDGE)).expect("prepared");
         assert_eq!(p.mime, "image/jpeg");
         assert_eq!(p.path.extension().and_then(|e| e.to_str()), Some("jpg"));
-        assert_eq!((p.width, p.height), (2000, 1333));
+        assert_eq!((p.width, p.height), (1568, 1045));
     }
 
     #[test]

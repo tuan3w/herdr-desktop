@@ -66,6 +66,8 @@ pub fn save_to_project(
     let folder = format!("{}/{ATTACHMENTS_DIR}", cwd.trim_end_matches('/'));
     fs.mkdir(&folder)
         .map_err(|e| format!("Could not make {ATTACHMENTS_DIR}: {}", e.message))?;
+    // The folder ignores itself, so a picture is never committed and the project's own .gitignore is never asked to change.
+    let own = self_ignored(fs, cwd);
     let name = clean_name(name);
     for n in 1..=NAMES {
         let path = join(&folder, &candidate(&name, n)).map_err(|e| e.message)?;
@@ -73,7 +75,7 @@ pub fn save_to_project(
             Ok(()) => {
                 return Ok(Saved {
                     path,
-                    ignored: gitignored(fs, cwd),
+                    ignored: own || gitignored(fs, cwd),
                 });
             }
             Err(e) if e.kind == FileErrorKind::Exists => {}
@@ -83,6 +85,15 @@ pub fn save_to_project(
     Err(format!(
         "{ATTACHMENTS_DIR} already holds {NAMES} files named like {name}"
     ))
+}
+
+/// Writes `.herdr-desktop/.gitignore` holding `*` when it is not there; true when it is in place.
+fn self_ignored(fs: &dyn Files, cwd: &str) -> bool {
+    let path = format!("{}/.herdr-desktop/.gitignore", cwd.trim_end_matches('/'));
+    match write_new(fs, &path, b"*\n") {
+        Ok(()) => true,
+        Err(e) => e.kind == FileErrorKind::Exists,
+    }
 }
 
 fn write_new(fs: &dyn Files, path: &str, bytes: &[u8]) -> Result<(), crate::files::FileError> {
@@ -173,13 +184,13 @@ mod tests {
             b.path,
             format!("{cwd}/.herdr-desktop/attachments/shot-2.png")
         );
-        assert!(!a.ignored, "no .gitignore says so");
-        std::fs::write(dir.path().join(".gitignore"), "target/\n.herdr-desktop/\n").expect("write");
-        assert!(
-            save_to_project(&fs, &cwd, &source, "x.png")
-                .expect("saved")
-                .ignored
+        // The folder ignores itself: the project's own .gitignore is left alone.
+        assert!(a.ignored);
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join(".herdr-desktop/.gitignore")).expect("read"),
+            "*\n"
         );
+        assert!(!dir.path().join(".gitignore").exists());
     }
 
     #[test]

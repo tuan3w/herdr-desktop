@@ -471,6 +471,23 @@ impl Media {
             .map_err(|_| "the data directory is not text".to_owned())
     }
 
+    /// Test seam: a sparse file `huge.png` one byte over what the viewer hands to the window (no bytes are written) and
+    /// its path, for the too-large message. Throws unless `HERDR_DESKTOP_TEST=1`.
+    pub fn test_big_picture() -> Result<String, String> {
+        if !test_seam_open() {
+            return Err(format!("The test seam is closed: set {TEST_FLAG}=1"));
+        }
+        let dir = engine()?.test_tree_dir().with_file_name("test-big");
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let path = dir.join("huge.png");
+        std::fs::File::create(&path)
+            .and_then(|f| f.set_len(files::PICTURE_DATA_CAP + 1))
+            .map_err(|e| e.to_string())?;
+        path.into_os_string()
+            .into_string()
+            .map_err(|_| "the data directory is not text".to_owned())
+    }
+
     /// Test seam: the most the cache may hold, in bytes. Throws unless `HERDR_DESKTOP_TEST=1`.
     pub fn test_cap(bytes: f64) -> Result<(), String> {
         if !test_seam_open() {

@@ -1,11 +1,11 @@
 import { Files as MachineFiles, Herdr, Media } from "herdr-desktop/native";
 import { host, keymap, mount, signal, Text, View } from "nsh";
 
-import { Files } from "#components/files";
+import { FilesTab } from "#components/files";
 import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
-import { browseFiles, browsing, viewFile } from "#lib/files";
 import { startHerdr } from "#lib/herdr";
 import { clock, shownPlayer } from "#lib/media";
+import { browseFiles, lastAsked, viewFile } from "#lib/open-files";
 import { registerPane, searchInPane } from "#lib/pane-input";
 import { GLOBAL, keysOf } from "#lib/shortcuts";
 
@@ -28,6 +28,11 @@ const long = typeof host.params.long === "string" ? host.params.long : null;
 const sim = host.params.sim === true;
 // A text file of about 7 MB, over the 4 MB the viewer holds: it is paged by lines.
 const big = Media.testBigLog(typeof host.params.lines === "number" ? host.params.lines : 120_000);
+// A sparse picture one byte over what the viewer hands to the window: the too-large message.
+const hugePicture = Media.testBigPicture();
+
+/** What `Probe shot-2.png` found: the start and the length of the address the viewer is given. */
+const probed = signal("");
 
 /** What the open chat was asked to mention. */
 const mentioned = signal("");
@@ -48,7 +53,7 @@ function Lab() {
     for (let i = 0; i < 20; i++) {
       viewFile("local", name);
       await wait(700);
-      browsing.set(null);
+      lastAsked.set(null);
       await wait(300);
     }
     cycles.set(
@@ -59,67 +64,82 @@ function Lab() {
   return (
     <ThemeRoot>
       <PopupRoot class="flex-1 bg-background">
-        <View class="flex-1 flex-row flex-wrap content-start items-start gap-2 p-4">
-          <Btn label="Browse media" onPress={() => browseFiles("local", media)} />
-          <Btn label="Play clip.ogv" onPress={() => viewFile("local", `${media}/clip.ogv`)} />
-          <Btn label="Play song.ogg" onPress={() => viewFile("local", `${media}/song.ogg`)} />
-          <Btn label="Play tone.wav" onPress={() => viewFile("local", `${media}/tone.wav`)} />
-          <Btn label="Play hevc.mp4" onPress={() => viewFile("local", `${media}/hevc.mp4`)} />
-          <Btn label="Play broken.mp4" onPress={() => viewFile("local", `${media}/broken.mp4`)} />
-          <If when={long}>{(path) => <Btn label="Play the long clip" onPress={() => viewFile("local", path())} />}</If>
-          <Btn label="Browse viewers" onPress={() => browseFiles("local", viewers)} />
-          <Btn label="View report.pdf" onPress={() => viewFile("local", `${viewers}/report.pdf`)} />
-          <Btn label="View bundle.zip" onPress={() => viewFile("local", `${viewers}/bundle.zip`)} />
-          <Btn label="View bundle.tar.gz" onPress={() => viewFile("local", `${viewers}/bundle.tar.gz`)} />
-          <Btn label="View table.csv" onPress={() => viewFile("local", `${viewers}/table.csv`)} />
-          <Btn label="View config.json" onPress={() => viewFile("local", `${viewers}/config.json`)} />
-          <Btn label="View logo.svg" onPress={() => viewFile("local", `${viewers}/logo.svg`)} />
-          <Btn label="View server.log" onPress={() => viewFile("local", `${viewers}/server.log`)} />
-          <Btn label="View tool.bin" onPress={() => viewFile("local", `${viewers}/tool.bin`)} />
-          <Btn label="View shot-2.png" onPress={() => viewFile("local", `${project}/assets/shot-2.png`)} />
-          <Btn label="Browse project" onPress={() => browseFiles("local", project)} />
-          <Btn label="View big.log" onPress={() => viewFile("local", big)} />
-          <Btn
-            label="Open the chat"
-            onPress={() =>
-              registerPane({
-                focusComposer: () => {},
-                mention: (m, p) => {
-                  mentioned.set(`${m} ${p}`);
-                  return true;
-                },
-              })
-            }
-          />
-          <Btn label="Open and close 20 viewers" onPress={() => void churn(`${media}/clip.ogv`, "video")} />
-          <Btn label="Open and close 20 text viewers" onPress={() => void churn(`${viewers}/server.log`, "text")} />
-          <If when={sim}>
+        <View class="flex-1 flex-row">
+          <View class="w-[420px] shrink-0 flex-row flex-wrap content-start items-start gap-2 p-4">
+            <Btn label="Browse media" onPress={() => browseFiles("local", media)} />
+            <Btn label="Play clip.ogv" onPress={() => viewFile("local", `${media}/clip.ogv`)} />
+            <Btn label="Play song.ogg" onPress={() => viewFile("local", `${media}/song.ogg`)} />
+            <Btn label="Play tone.wav" onPress={() => viewFile("local", `${media}/tone.wav`)} />
+            <Btn label="Play hevc.mp4" onPress={() => viewFile("local", `${media}/hevc.mp4`)} />
+            <Btn label="Play broken.mp4" onPress={() => viewFile("local", `${media}/broken.mp4`)} />
+            <If when={long}>
+              {(path) => <Btn label="Play the long clip" onPress={() => viewFile("local", path())} />}
+            </If>
+            <Btn label="Browse viewers" onPress={() => browseFiles("local", viewers)} />
+            <Btn label="View report.pdf" onPress={() => viewFile("local", `${viewers}/report.pdf`)} />
+            <Btn label="View bundle.zip" onPress={() => viewFile("local", `${viewers}/bundle.zip`)} />
+            <Btn label="View bundle.tar.gz" onPress={() => viewFile("local", `${viewers}/bundle.tar.gz`)} />
+            <Btn label="View table.csv" onPress={() => viewFile("local", `${viewers}/table.csv`)} />
+            <Btn label="View config.json" onPress={() => viewFile("local", `${viewers}/config.json`)} />
+            <Btn label="View logo.svg" onPress={() => viewFile("local", `${viewers}/logo.svg`)} />
+            <Btn label="View server.log" onPress={() => viewFile("local", `${viewers}/server.log`)} />
+            <Btn label="View tool.bin" onPress={() => viewFile("local", `${viewers}/tool.bin`)} />
+            <Btn label="View shot-2.png" onPress={() => viewFile("local", `${project}/assets/shot-2.png`)} />
             <Btn
-              label="Sim loaded 125 s"
-              onPress={() => player()?.loaded({ duration: 125, width: 320, height: 180 })}
+              label="Probe shot-2.png"
+              onPress={() =>
+                void MachineFiles.open("local", `${project}/assets/shot-2.png`).then((d) =>
+                  probed.set(`probe: ${(d.image ?? "none").slice(0, 22)} ${(d.image ?? "").length}`),
+                )
+              }
             />
+            <Text>{probed()}</Text>
+            <Btn label="Browse project" onPress={() => browseFiles("local", project)} />
+            <Btn label="View big.log" onPress={() => viewFile("local", big)} />
+            <Btn label="View huge.png" onPress={() => viewFile("local", hugePicture)} />
             <Btn
-              label="Sim loaded sound 125 s"
-              onPress={() => player()?.loaded({ duration: 125, width: 0, height: 0 })}
+              label="Open the chat"
+              onPress={() =>
+                registerPane({
+                  focusComposer: () => {},
+                  mention: (m, p) => {
+                    mentioned.set(`${m} ${p}`);
+                    return true;
+                  },
+                })
+              }
             />
-            <Btn
-              label="Sim progress +5 s"
-              onPress={() => {
-                simTime.update((t) => t + 5);
-                player()?.progress({ currentTime: simTime(), duration: 125 });
-              }}
-            />
-            <Btn label="Sim ended" onPress={() => player()?.ended()} />
-            <Btn label="Sim error" onPress={() => player()?.failed("Missing a plug-in to decode this format")} />
-          </If>
-          <View class="w-full gap-1">
-            <Text>{cycles()}</Text>
-            <Text>{mentioned() === "" ? "nothing mentioned" : `mentioned ${mentioned()}`}</Text>
-            <Text>{`player ${player() ? `${player()!.state()} at ${clock(player()!.position())}` : "none"}`}</Text>
-            <Text>{`volume ${player() ? Math.round(player()!.volume() * 100) : 100}%`}</Text>
+            <Btn label="Open and close 20 viewers" onPress={() => void churn(`${media}/clip.ogv`, "video")} />
+            <Btn label="Open and close 20 text viewers" onPress={() => void churn(`${viewers}/server.log`, "text")} />
+            <If when={sim}>
+              <Btn
+                label="Sim loaded 125 s"
+                onPress={() => player()?.loaded({ duration: 125, width: 320, height: 180 })}
+              />
+              <Btn
+                label="Sim loaded sound 125 s"
+                onPress={() => player()?.loaded({ duration: 125, width: 0, height: 0 })}
+              />
+              <Btn
+                label="Sim progress +5 s"
+                onPress={() => {
+                  simTime.update((t) => t + 5);
+                  player()?.progress({ currentTime: simTime(), duration: 125 });
+                }}
+              />
+              <Btn label="Sim ended" onPress={() => player()?.ended()} />
+              <Btn label="Sim error" onPress={() => player()?.failed("Missing a plug-in to decode this format")} />
+            </If>
+            <View class="w-full gap-1">
+              <Text>{cycles()}</Text>
+              <Text>{mentioned() === "" ? "nothing mentioned" : `mentioned ${mentioned()}`}</Text>
+              <Text>{`player ${player() ? `${player()!.state()} at ${clock(player()!.position())}` : "none"}`}</Text>
+              <Text>{`volume ${player() ? Math.round(player()!.volume() * 100) : 100}%`}</Text>
+            </View>
           </View>
+          {/* The tab area is the app's; the lab draws the Files tab asked for beside its buttons. */}
+          <If when={lastAsked()}>{(id) => <FilesTab id={id()} active />}</If>
         </View>
-        <Files />
         <ToastHost />
       </PopupRoot>
     </ThemeRoot>

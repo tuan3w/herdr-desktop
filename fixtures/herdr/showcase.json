@@ -1,0 +1,552 @@
+{
+ "snapshot": {
+  "version": "0.9.5",
+  "protocol": 22,
+  "focused_workspace_id": "w1",
+  "workspaces": [
+   {
+    "workspace_id": "w1",
+    "number": 1,
+    "label": "payments-api",
+    "focused": true,
+    "pane_count": 3,
+    "tab_count": 1,
+    "active_tab_id": "w1:t1",
+    "agent_status": "blocked",
+    "worktree": {
+     "repo_key": "git:payments-api",
+     "repo_name": "payments-api",
+     "repo_root": "/home/dev/payments-api",
+     "checkout_path": "/home/dev/payments-api",
+     "is_linked_worktree": false
+    }
+   },
+   {
+    "workspace_id": "w2",
+    "number": 2,
+    "label": "payments-api split",
+    "focused": false,
+    "pane_count": 1,
+    "tab_count": 1,
+    "active_tab_id": "w2:t1",
+    "agent_status": "working",
+    "worktree": {
+     "repo_key": "git:payments-api",
+     "repo_name": "payments-api",
+     "repo_root": "/home/dev/payments-api",
+     "checkout_path": "/home/dev/payments-split",
+     "is_linked_worktree": true
+    }
+   },
+   {
+    "workspace_id": "w3",
+    "number": 3,
+    "label": "frontend",
+    "focused": false,
+    "pane_count": 1,
+    "tab_count": 1,
+    "active_tab_id": "w3:t1",
+    "agent_status": "idle",
+    "worktree": {
+     "repo_key": "git:frontend",
+     "repo_name": "frontend",
+     "repo_root": "/home/dev/frontend",
+     "checkout_path": "/home/dev/frontend",
+     "is_linked_worktree": false
+    }
+   },
+   {
+    "workspace_id": "w4",
+    "number": 4,
+    "label": "frontend react-19",
+    "focused": false,
+    "pane_count": 1,
+    "tab_count": 1,
+    "active_tab_id": "w4:t1",
+    "agent_status": "working",
+    "worktree": {
+     "repo_key": "git:frontend",
+     "repo_name": "frontend",
+     "repo_root": "/home/dev/frontend",
+     "checkout_path": "/home/dev/frontend-react-19",
+     "is_linked_worktree": true
+    }
+   },
+   {
+    "workspace_id": "w6",
+    "number": 5,
+    "label": "infra",
+    "focused": false,
+    "pane_count": 2,
+    "tab_count": 1,
+    "active_tab_id": "w6:t1",
+    "agent_status": "working",
+    "worktree": {
+     "repo_key": "git:infra",
+     "repo_name": "infra",
+     "repo_root": "/home/dev/infra",
+     "checkout_path": "/home/dev/infra",
+     "is_linked_worktree": false
+    }
+   },
+   {
+    "workspace_id": "w7",
+    "number": 6,
+    "label": "docs",
+    "focused": false,
+    "pane_count": 2,
+    "tab_count": 1,
+    "active_tab_id": "w7:t1",
+    "agent_status": "idle"
+   }
+  ],
+  "tabs": [
+   {
+    "tab_id": "w1:t1",
+    "workspace_id": "w1",
+    "number": 1,
+    "label": "main",
+    "focused": true,
+    "pane_count": 3,
+    "agent_status": "blocked"
+   },
+   {
+    "tab_id": "w2:t1",
+    "workspace_id": "w2",
+    "number": 1,
+    "label": "main",
+    "focused": false,
+    "pane_count": 1,
+    "agent_status": "working"
+   },
+   {
+    "tab_id": "w3:t1",
+    "workspace_id": "w3",
+    "number": 1,
+    "label": "main",
+    "focused": false,
+    "pane_count": 1,
+    "agent_status": "idle"
+   },
+   {
+    "tab_id": "w4:t1",
+    "workspace_id": "w4",
+    "number": 1,
+    "label": "main",
+    "focused": false,
+    "pane_count": 1,
+    "agent_status": "working"
+   },
+   {
+    "tab_id": "w6:t1",
+    "workspace_id": "w6",
+    "number": 1,
+    "label": "main",
+    "focused": false,
+    "pane_count": 2,
+    "agent_status": "working"
+   },
+   {
+    "tab_id": "w7:t1",
+    "workspace_id": "w7",
+    "number": 1,
+    "label": "main",
+    "focused": false,
+    "pane_count": 2,
+    "agent_status": "idle"
+   }
+  ],
+  "panes": [
+   {
+    "pane_id": "w1:p1",
+    "terminal_id": "tw1:p1",
+    "workspace_id": "w1",
+    "tab_id": "w1:t1",
+    "focused": false,
+    "agent_status": "blocked",
+    "revision": 10,
+    "agent": "claude",
+    "cwd": "/home/dev/payments-api",
+    "terminal_title": "Add idempotency keys to refunds",
+    "terminal_title_stripped": "Add idempotency keys to refunds",
+    "label": "Add idempotency keys to refunds"
+   },
+   {
+    "pane_id": "w1:p2",
+    "terminal_id": "tw1:p2",
+    "workspace_id": "w1",
+    "tab_id": "w1:t1",
+    "focused": false,
+    "agent_status": "working",
+    "revision": 11,
+    "agent": "codex",
+    "cwd": "/home/dev/payments-api",
+    "terminal_title": "Load test the checkout path",
+    "terminal_title_stripped": "Load test the checkout path",
+    "label": "Load test the checkout path"
+   },
+   {
+    "pane_id": "w1:p3",
+    "terminal_id": "tw1:p3",
+    "workspace_id": "w1",
+    "tab_id": "w1:t1",
+    "focused": false,
+    "agent_status": "done",
+    "revision": 12,
+    "agent": "claude",
+    "cwd": "/home/dev/payments-api",
+    "terminal_title": "Fix currency rounding",
+    "terminal_title_stripped": "Fix currency rounding",
+    "label": "Fix currency rounding"
+   },
+   {
+    "pane_id": "w2:p1",
+    "terminal_id": "tw2:p1",
+    "workspace_id": "w2",
+    "tab_id": "w2:t1",
+    "focused": false,
+    "agent_status": "working",
+    "revision": 13,
+    "agent": "claude",
+    "cwd": "/home/dev/payments-split",
+    "terminal_title": "Partial refunds for split payments",
+    "terminal_title_stripped": "Partial refunds for split payments",
+    "label": "Partial refunds for split payments"
+   },
+   {
+    "pane_id": "w3:p1",
+    "terminal_id": "tw3:p1",
+    "workspace_id": "w3",
+    "tab_id": "w3:t1",
+    "focused": false,
+    "agent_status": "done",
+    "revision": 14,
+    "agent": "claude",
+    "cwd": "/home/dev/frontend",
+    "terminal_title": "Fix the login redirect",
+    "terminal_title_stripped": "Fix the login redirect",
+    "label": "Fix the login redirect"
+   },
+   {
+    "pane_id": "w4:p1",
+    "terminal_id": "tw4:p1",
+    "workspace_id": "w4",
+    "tab_id": "w4:t1",
+    "focused": false,
+    "agent_status": "working",
+    "revision": 15,
+    "agent": "claude",
+    "cwd": "/home/dev/frontend-react-19",
+    "terminal_title": "Upgrade to React 19",
+    "terminal_title_stripped": "Upgrade to React 19",
+    "label": "Upgrade to React 19"
+   },
+   {
+    "pane_id": "w6:p1",
+    "terminal_id": "tw6:p1",
+    "workspace_id": "w6",
+    "tab_id": "w6:t1",
+    "focused": false,
+    "agent_status": "working",
+    "revision": 16,
+    "agent": "claude",
+    "cwd": "/home/dev/infra",
+    "terminal_title": "Rotate the staging certificates",
+    "terminal_title_stripped": "Rotate the staging certificates",
+    "label": "Rotate the staging certificates"
+   },
+   {
+    "pane_id": "w6:p2",
+    "terminal_id": "tw6:p2",
+    "workspace_id": "w6",
+    "tab_id": "w6:t1",
+    "focused": false,
+    "agent_status": "idle",
+    "revision": 17,
+    "agent": "omp",
+    "cwd": "/home/dev/infra",
+    "terminal_title": "Terraform plan for eu-west-2",
+    "terminal_title_stripped": "Terraform plan for eu-west-2",
+    "label": "Terraform plan for eu-west-2"
+   },
+   {
+    "pane_id": "w7:p1",
+    "terminal_id": "tw7:p1",
+    "workspace_id": "w7",
+    "tab_id": "w7:t1",
+    "focused": false,
+    "agent_status": "idle",
+    "revision": 18,
+    "agent": "claude",
+    "cwd": "/home/dev/docs",
+    "terminal_title": "Rewrite the API quickstart",
+    "terminal_title_stripped": "Rewrite the API quickstart",
+    "label": "Rewrite the API quickstart"
+   },
+   {
+    "pane_id": "w7:p2",
+    "terminal_id": "tw7:p2",
+    "workspace_id": "w7",
+    "tab_id": "w7:t1",
+    "focused": false,
+    "agent_status": "done",
+    "revision": 19,
+    "agent": "codex",
+    "cwd": "/home/dev/docs",
+    "terminal_title": "Changelog for 2.4",
+    "terminal_title_stripped": "Changelog for 2.4",
+    "label": "Changelog for 2.4"
+   }
+  ],
+  "layouts": [],
+  "agents": [
+   {
+    "pane_id": "w1:p1",
+    "terminal_id": "tw1:p1",
+    "workspace_id": "w1",
+    "tab_id": "w1:t1",
+    "focused": false,
+    "agent_status": "blocked",
+    "revision": 10,
+    "agent": "claude",
+    "cwd": "/home/dev/payments-api",
+    "terminal_title": "Add idempotency keys to refunds",
+    "terminal_title_stripped": "Add idempotency keys to refunds",
+    "state_change_seq": 1
+   },
+   {
+    "pane_id": "w1:p2",
+    "terminal_id": "tw1:p2",
+    "workspace_id": "w1",
+    "tab_id": "w1:t1",
+    "focused": false,
+    "agent_status": "working",
+    "revision": 11,
+    "agent": "codex",
+    "cwd": "/home/dev/payments-api",
+    "terminal_title": "Load test the checkout path",
+    "terminal_title_stripped": "Load test the checkout path",
+    "state_change_seq": 2
+   },
+   {
+    "pane_id": "w1:p3",
+    "terminal_id": "tw1:p3",
+    "workspace_id": "w1",
+    "tab_id": "w1:t1",
+    "focused": false,
+    "agent_status": "done",
+    "revision": 12,
+    "agent": "claude",
+    "cwd": "/home/dev/payments-api",
+    "terminal_title": "Fix currency rounding",
+    "terminal_title_stripped": "Fix currency rounding",
+    "state_change_seq": 3
+   },
+   {
+    "pane_id": "w2:p1",
+    "terminal_id": "tw2:p1",
+    "workspace_id": "w2",
+    "tab_id": "w2:t1",
+    "focused": false,
+    "agent_status": "working",
+    "revision": 13,
+    "agent": "claude",
+    "cwd": "/home/dev/payments-split",
+    "terminal_title": "Partial refunds for split payments",
+    "terminal_title_stripped": "Partial refunds for split payments",
+    "state_change_seq": 4
+   },
+   {
+    "pane_id": "w3:p1",
+    "terminal_id": "tw3:p1",
+    "workspace_id": "w3",
+    "tab_id": "w3:t1",
+    "focused": false,
+    "agent_status": "done",
+    "revision": 14,
+    "agent": "claude",
+    "cwd": "/home/dev/frontend",
+    "terminal_title": "Fix the login redirect",
+    "terminal_title_stripped": "Fix the login redirect",
+    "state_change_seq": 5
+   },
+   {
+    "pane_id": "w4:p1",
+    "terminal_id": "tw4:p1",
+    "workspace_id": "w4",
+    "tab_id": "w4:t1",
+    "focused": false,
+    "agent_status": "working",
+    "revision": 15,
+    "agent": "claude",
+    "cwd": "/home/dev/frontend-react-19",
+    "terminal_title": "Upgrade to React 19",
+    "terminal_title_stripped": "Upgrade to React 19",
+    "state_change_seq": 6
+   },
+   {
+    "pane_id": "w6:p1",
+    "terminal_id": "tw6:p1",
+    "workspace_id": "w6",
+    "tab_id": "w6:t1",
+    "focused": false,
+    "agent_status": "working",
+    "revision": 16,
+    "agent": "claude",
+    "cwd": "/home/dev/infra",
+    "terminal_title": "Rotate the staging certificates",
+    "terminal_title_stripped": "Rotate the staging certificates",
+    "state_change_seq": 7
+   },
+   {
+    "pane_id": "w6:p2",
+    "terminal_id": "tw6:p2",
+    "workspace_id": "w6",
+    "tab_id": "w6:t1",
+    "focused": false,
+    "agent_status": "idle",
+    "revision": 17,
+    "agent": "omp",
+    "cwd": "/home/dev/infra",
+    "terminal_title": "Terraform plan for eu-west-2",
+    "terminal_title_stripped": "Terraform plan for eu-west-2",
+    "state_change_seq": 8
+   },
+   {
+    "pane_id": "w7:p1",
+    "terminal_id": "tw7:p1",
+    "workspace_id": "w7",
+    "tab_id": "w7:t1",
+    "focused": false,
+    "agent_status": "idle",
+    "revision": 18,
+    "agent": "claude",
+    "cwd": "/home/dev/docs",
+    "terminal_title": "Rewrite the API quickstart",
+    "terminal_title_stripped": "Rewrite the API quickstart",
+    "state_change_seq": 9
+   },
+   {
+    "pane_id": "w7:p2",
+    "terminal_id": "tw7:p2",
+    "workspace_id": "w7",
+    "tab_id": "w7:t1",
+    "focused": false,
+    "agent_status": "done",
+    "revision": 19,
+    "agent": "codex",
+    "cwd": "/home/dev/docs",
+    "terminal_title": "Changelog for 2.4",
+    "terminal_title_stripped": "Changelog for 2.4",
+    "state_change_seq": 10
+   }
+  ]
+ },
+ "panes": {
+  "w1:p1": {
+   "screen": [
+    "",
+    "\u001b[0m\u001b[38;2;153;153;153m  \u001b[0mApply migration 0042 to the local database",
+    "\u001b[0m\u001b[38;2;153;153;153m  ⎿  $ npm run migrate -- --to 0042\u001b[0m",
+    "",
+    "\u001b[0m\u001b[38;2;177;185;249m────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m",
+    " \u001b[0m\u001b[1m\u001b[38;2;177;185;249mBash command\u001b[0m",
+    " \u001b[0m\u001b[38;2;153;153;153mApply migration 0042 to the local database\u001b[0m",
+    "\u001b[0m\u001b[38;2;80;80;80m╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\u001b[0m",
+    " npm run migrate -- --to 0042",
+    "\u001b[0m\u001b[38;2;80;80;80m╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\u001b[0m",
+    " Do you want to proceed?",
+    " \u001b[0m\u001b[38;2;177;185;249m❯ \u001b[0m\u001b[38;2;153;153;153m1. \u001b[0m\u001b[38;2;177;185;249mYes\u001b[0m",
+    "   \u001b[0m\u001b[38;2;153;153;153m2. \u001b[0mYes, and don't ask again for \u001b[0m\u001b[1mnpm run migrate:* \u001b[0mcommands in this project",
+    "   \u001b[0m\u001b[38;2;153;153;153m3. \u001b[0mNo",
+    "",
+    " \u001b[0m\u001b[38;2;153;153;153mEsc to cancel · Tab to amend\u001b[0m"
+   ]
+  },
+  "w1:p2": {
+   "screen": [
+    "",
+    "  Running k6 against /checkout at 200 rps",
+    "  p95 412 ms after 3 of 5 stages",
+    "  ⠋ Working (esc to interrupt)"
+   ]
+  },
+  "w1:p3": {
+   "screen": [
+    "",
+    "  Done: amounts are rounded once, in minor units. 38 tests pass."
+   ]
+  },
+  "w2:p1": {
+   "screen": [
+    "",
+    "  Editing src/refunds/split.ts",
+    "  ⠋ Working (esc to interrupt)"
+   ]
+  },
+  "w3:p1": {
+   "screen": [
+    "",
+    "  Fixed. 16 of 16 auth tests pass."
+   ]
+  },
+  "w4:p1": {
+   "screen": [
+    "",
+    "  Reading src/components/Table.tsx",
+    "  ⠋ Working (esc to interrupt)"
+   ]
+  },
+  "w6:p1": {
+   "screen": [
+    "",
+    "  terraform plan -target=module.certs",
+    "  ⠋ Working (esc to interrupt)"
+   ]
+  },
+  "w6:p2": {
+   "screen": [
+    "",
+    "  π > "
+   ]
+  },
+  "w7:p1": {
+   "screen": [
+    "",
+    "  > "
+   ]
+  },
+  "w7:p2": {
+   "screen": [
+    "",
+    "  Wrote CHANGELOG.md for 2.4.0."
+   ]
+  }
+ },
+ "worktrees": {
+  "repos": [
+   {
+    "root": "/home/dev/payments-api",
+    "linked": [
+     {
+      "path": "/home/dev/payments-split",
+      "branch": "split"
+     }
+    ]
+   },
+   {
+    "root": "/home/dev/frontend",
+    "linked": [
+     {
+      "path": "/home/dev/frontend-react-19",
+      "branch": "react-19"
+     }
+    ]
+   },
+   {
+    "root": "/home/dev/infra"
+   }
+  ],
+  "create_at": "/home/dev"
+ }
+}

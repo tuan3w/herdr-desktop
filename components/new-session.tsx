@@ -3,9 +3,9 @@ import { announce, computed, effect, keymap, signal, Text, untracked, View } fro
 
 import type { AgentRoute, SessionInfo, WorktreeLookup } from "herdr-desktop/native";
 
-import { FolderPicker } from "#components/folder-picker";
+import { FolderField } from "#components/folder-field";
 import { PastSessions } from "#components/past-sessions";
-import { Autocomplete, Btn, Field, FieldRow, Icon, Modal, notify, SelectField, Spinner } from "#kit";
+import { Btn, Field, FieldRow, Icon, Modal, notify, SelectField, Spinner } from "#kit";
 import { allRows, board, revision } from "#lib/herdr";
 import {
   agentChoices,
@@ -72,7 +72,6 @@ export function NewSession(props: {
   const routes = signal<AgentRoute[] | undefined>(undefined);
   const probeFailure = signal<StartFailure | undefined>(undefined);
   const sessions = signal<SessionInfo[]>([]);
-  const picking = signal(false);
   const history = signal(false);
   const found = signal<WorktreeLookup | undefined>(undefined);
   const checkout = signal(THIS_FOLDER);
@@ -86,7 +85,7 @@ export function NewSession(props: {
   let latest = 0;
   let lookedAt = 0;
   let lookupTimer: ReturnType<typeof setTimeout> | undefined;
-  /** The next change of folder is a choice (a pick or a browse), not typing: look at once. */
+  /** The next change of folder is not typing (opening, another machine): look at once. */
   let lookNow = true;
 
   /** The machines that are switched on, with whether each can be started on now. */
@@ -386,7 +385,7 @@ export function NewSession(props: {
         onClose={() => props.onClose()}
         title="New agent session"
         description="A chat with an agent that runs on the machine and keeps working when this window closes."
-        disablePointerDismissal
+        disablePointerDismissal={busy() || prompt().trim() !== ""}
         actions={
           <>
             <Btn variant="ghost" label="Past sessions" disabled={!ready()} onPress={() => history.set(true)} />
@@ -415,36 +414,27 @@ export function NewSession(props: {
             )}
           </If>
           <FieldRow>
-            <Autocomplete
+            <FolderField
               autoFocus
               required
-              mono
               reserve
               label="Folder *"
               placeholder="/home/you/project"
+              machine={machine()}
+              active={props.open}
               value={folder()}
               onChange={(v) => {
                 folder.set(v);
                 folderTouched.set(true);
                 failure.set(undefined);
               }}
-              suggestions={recents()}
+              recents={recents()}
               onSubmit={() => void start()}
               onBlur={() => attempted.set(true)}
               error={folderMistake()}
-              hint="An absolute path on that machine, or ~/ for its home."
+              hint="An absolute path on that machine, or ~/ for its home. Tab completes a folder."
             />
           </FieldRow>
-          <View class="flex-row">
-            <Btn
-              small
-              variant="ghost"
-              icon="folder"
-              label="Browse folders"
-              disabled={!ready()}
-              onPress={() => picking.set(true)}
-            />
-          </View>
           <If when={choosing()}>
             <FieldRow>
               <SelectField label="Checkout" items={checkoutItems()} value={checkout()} onChange={chooseCheckout} />
@@ -530,18 +520,6 @@ export function NewSession(props: {
           <If when={failure()}>{(said) => problem(said)}</If>
         </View>
       </Modal>
-      <FolderPicker
-        open={picking()}
-        machine={machine()}
-        start={folder()}
-        onClose={() => picking.set(false)}
-        onPick={(path) => {
-          lookNow = true;
-          folder.set(path);
-          folderTouched.set(true);
-          failure.set(undefined);
-        }}
-      />
       <PastSessions
         open={history()}
         machine={machine()}

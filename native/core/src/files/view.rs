@@ -16,6 +16,11 @@ pub const TEXT_CAP: u64 = 4 * 1024 * 1024;
 /// The largest picture the viewer opens (mobile's limit): a bigger one says how big it is instead.
 pub const IMAGE_CAP: u64 = 40 * 1024 * 1024;
 
+/// The largest picture the viewer hands to the window: it travels as one `data:` address held in the JS heap
+/// (base64 makes 16 MiB about 21 MB of string), so a bigger file says so and offers Open and Reveal. Not
+/// `IMAGE_CAP`: that one bounds how much of another machine's file is copied.
+pub const PICTURE_DATA_CAP: u64 = 16 * 1024 * 1024;
+
 /// How many bytes are looked at to tell text from binary.
 const SNIFF: usize = 8 * 1024;
 
@@ -182,6 +187,11 @@ pub fn open(files: &dyn Files, path: &str, cache: &Path, key: &str) -> Result<Fi
                     size_text(stat.size),
                     size_text(IMAGE_CAP)
                 ));
+            } else if stat.size > PICTURE_DATA_CAP {
+                view.notice = Some(format!(
+                    "This picture is too large to show here ({}). Open or Reveal it.",
+                    size_text(stat.size)
+                ));
             } else {
                 view.image = Some(local_copy(files, path, &name, &stat, cache, key)?);
                 // An SVG is also text: its source is shown on request and copied as text.
@@ -289,6 +299,71 @@ fn local_copy(
             Err(e)
         }
     }
+}
+
+/// The mime type of a picture: what its first bytes announce, else what its name says. `None` for a name that is
+/// no picture and bytes that are none either.
+fn picture_mime(name: &str, head: &[u8]) -> Option<&'static str> {
+    let sniffed = if head.starts_with(&[0x89, b'P', b'N', b'G']) {
+        Some("image/png")
+    } else if head.starts_with(&[0xff, 0xd8, 0xff]) {
+        Some("image/jpeg")
+    } else if head.starts_with(b"GIF8") {
+        Some("image/gif")
+    } else if head.len() >= 12 && &head[..4] == b"RIFF" && &head[8..12] == b"WEBP" {
+        Some("image/webp")
+    } else if head.len() >= 12
+        && &head[4..8] == b"ftyp"
+        && [&b"heic"[..], b"heix", b"mif1", b"heim", b"hevc"].contains(&&head[8..12])
+    {
+        Some("image/heic")
+    } else if head.starts_with(b"BM") {
+        Some("image/bmp")
+    } else {
+        None
+    };
+    sniffed.or_else(|| match extension(name).as_deref() {
+        Some("png") => Some("image/png"),
+        Some("jpg" | "jpeg") => Some("image/jpeg"),
+        Some("gif") => Some("image/gif"),
+        Some("webp") => Some("image/webp"),
+        Some("heic") => Some("image/heic"),
+        Some("bmp") => Some("image/bmp"),
+        Some("svg") => Some("image/svg+xml"),
+        _ => None,
+    })
+}
+
+/// The picture at `path` (a file on this computer, as [`FileView::image`] names it) as a `data:` address for the
+/// window. The packaged app grants an image address only when it is an asset, `data:`, `blob:` or an allowed
+/// http(s) host, and a `file://` address can never be granted (its host is empty), so the bytes travel with the
+/// address. Up to [`PICTURE_DATA_CAP`]; call it off the UI thread.
+pub fn picture_data_url(path: &Path) -> Result<String, FileError> {
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let io = |e: std::io::Error| {
+        FileError::new(FileErrorKind::Other, format!("cannot read {name}: {e}"))
+    };
+    let size = std::fs::metadata(path).map_err(io)?.len();
+    if size > PICTURE_DATA_CAP {
+        return Err(FileError::new(
+            FileErrorKind::Other,
+            format!(
+                "This picture is too large to show here ({}). Open or Reveal it.",
+                size_text(size)
+            ),
+        ));
+    }
+    let bytes = std::fs::read(path).map_err(io)?;
+    let mime = picture_mime(&name, &bytes[..bytes.len().min(16)]).ok_or_else(|| {
+        FileError::new(
+            FileErrorKind::Other,
+            format!("{name} is not a picture the viewer can show"),
+        )
+    })?;
+    Ok(format!("data:{mime};base64,{}", base64(&bytes)))
 }
 
 /// The largest picture `Copy image` puts on the clipboard: it travels as one base64 string.

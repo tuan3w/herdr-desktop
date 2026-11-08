@@ -9,6 +9,7 @@ import { FileActions } from "#components/file-actions";
 import { ArchiveView, BinaryView, BODY, CsvView, PdfView, PlayCard } from "#components/file-kinds";
 import { ImageView } from "#components/image-view";
 import { LargeText } from "#components/large-text";
+import { fileMenu, Lightbox } from "#components/lightbox-view";
 import { Markdown } from "#components/markdown";
 import { MediaPlayer } from "#components/media-player";
 import { PaneFind } from "#components/pane-find";
@@ -36,7 +37,7 @@ export interface ViewerNav {
  * One file, read only, by what it is: text as code (`CodeBlock`: the language its name says, line numbers, selection and
  * copy, `mod+f` to find a line, the line a link named marked and scrolled to; above 512 KB the read-only editor), Markdown
  * as a document, a table as a table, minified JSON laid out, a text file over 4 MB paged by lines with a search through
- * all of it, a picture with zoom, pan and turn, a video or a sound in the player, a PDF handed to the system's viewer, an
+ * all of it, a picture in the lightbox (`Lightbox`), a video or a sound in the player, a PDF handed to the system's viewer, an
  * archive as a list, anything else as a hex peek. Above the content, what can be done with the file (`FileActions`).
  * Each of the views with two ways to read (a document and its source, a table and its text, formatted and as written) has
  * a switch. `quick` is the preview beside a folder's list: smaller, nothing plays, nothing is copied from another machine.
@@ -53,18 +54,16 @@ export function FileViewer(props: {
   const data = held(() => props.data);
   const mode = signal<"rich" | "source">("rich");
   const finding = signal(false);
-  const size = signal<string>("");
   // The line shown marked and scrolled to: the one a link named, then each match of the find bar.
   const line = signal(props.line ?? 0);
   const body = props.quick ? QUICK_BODY : BODY;
 
-  // Another file in the same viewer: its own switch, find bar and picture size.
+  // Another file in the same viewer: its own switch and find bar.
   effect(() => {
     void data().path;
     untracked(() => {
       mode.set("rich");
       finding.set(false);
-      size.set("");
     });
   });
 
@@ -110,13 +109,7 @@ export function FileViewer(props: {
 
   const place = () => (props.nav ? placeText(props.nav.names, name(), isImageName(name())) : "");
   const meta = () =>
-    [
-      place(),
-      size(),
-      sizeText(data().size),
-      modifiedText(data().modified, Math.floor(Date.now() / 1000)),
-      props.machineName,
-    ]
+    [place(), sizeText(data().size), modifiedText(data().modified, Math.floor(Date.now() / 1000)), props.machineName]
       .filter(Boolean)
       .join(" · ");
 
@@ -133,7 +126,7 @@ export function FileViewer(props: {
     const at = nav.names.indexOf(name());
     return at >= 0 && nav.names[at + step] !== undefined;
   };
-  // `[` and `]` walk the folder from any file; a picture also answers Left and Right (in `ImageView`).
+  // `[` and `]` walk the folder from any file; in the lightbox a picture answers Left and Right.
   effect(() => {
     if (props.quick || !props.nav) return;
     return keymap.bind({ "[": () => stepTo(-1), "]": () => stepTo(1) }, { when: "notEditing" });
@@ -141,7 +134,18 @@ export function FileViewer(props: {
   effect(() => {
     if (!props.quick && props.nav) announce([place(), name()].filter(Boolean).join(", "));
   });
-  const stepWord = () => (isImageName(name()) ? "photo" : "file");
+  // A picture is not a step of this view: it opens in the lightbox over it, and closing that returns to the folder.
+  const lightboxed = () => !props.quick && kind() === "image";
+  const pictureMenu = computed(() =>
+    fileMenu({
+      machine: props.machine,
+      path: data().path,
+      name: name(),
+      local: data().local,
+      text: /\.svg$/i.test(name()) ? (data().text ?? undefined) : undefined,
+      image: !/\.svg$/i.test(name()) && data().image !== undefined,
+    }),
+  );
 
   const textBody = () => (
     <View class="gap-2">
@@ -192,7 +196,6 @@ export function FileViewer(props: {
 
   const isKind = (...kinds: string[]) => kinds.includes(kind());
   const large = () => data().large && kind() === "text";
-  const setSize = (w: number, h: number) => size.set(`${w} × ${h}`);
   const markdownHeight = props.quick ? "h-[300px]" : "h-[400px]";
 
   // One branch per kind, each reading only what decides it: a switch of the find bar or the view must not rebuild a player.
@@ -229,7 +232,7 @@ export function FileViewer(props: {
           </Each>
         </If>
       </If>
-      <If when={isKind("image")}>
+      <If when={props.quick && isKind("image")}>
         <If
           when={data().image}
           else={
@@ -243,16 +246,7 @@ export function FileViewer(props: {
             </View>
           }
         >
-          {(url) => (
-            <ImageView
-              url={url()}
-              name={name()}
-              height={body}
-              quick={props.quick}
-              onStep={stepTo}
-              onSize={(s) => setSize(s.width, s.height)}
-            />
-          )}
+          {(url) => <ImageView url={url()} name={name()} height={body} />}
         </If>
       </If>
       <If when={isKind("pdf")}>
@@ -296,7 +290,7 @@ export function FileViewer(props: {
     </>
   );
 
-  return (
+  const page = () => (
     <View class="gap-3">
       <View class="flex-row items-center gap-2">
         <If when={!props.quick}>
@@ -323,20 +317,10 @@ export function FileViewer(props: {
         </If>
         <If when={props.nav && !props.quick}>
           <If when={canStep(-1)}>
-            <IconButton
-              icon="chevron-left"
-              label={`Previous ${stepWord()}`}
-              shortcut={isImageName(name()) ? "Left" : "["}
-              onPress={() => stepTo(-1)}
-            />
+            <IconButton icon="chevron-left" label="Previous file" shortcut="[" onPress={() => stepTo(-1)} />
           </If>
           <If when={canStep(1)}>
-            <IconButton
-              icon="chevron-right"
-              label={`Next ${stepWord()}`}
-              shortcut={isImageName(name()) ? "Right" : "]"}
-              onPress={() => stepTo(1)}
-            />
+            <IconButton icon="chevron-right" label="Next file" shortcut="]" onPress={() => stepTo(1)} />
           </If>
         </If>
       </View>
@@ -347,7 +331,6 @@ export function FileViewer(props: {
           name={name()}
           local={data().local}
           text={data().large ? undefined : showsText()}
-          image={kind() === "image" && !/\.svg$/i.test(name()) && data().image !== undefined}
         />
       </If>
       <If when={data().notice && kind() !== "image"}>
@@ -357,5 +340,23 @@ export function FileViewer(props: {
       </If>
       {content()}
     </View>
+  );
+
+  return (
+    <If when={lightboxed()} else={page()}>
+      <Lightbox
+        url={data().image ?? undefined}
+        name={name()}
+        names={props.nav?.names}
+        go={props.nav?.go}
+        entries={pictureMenu()}
+        empty={
+          data().image === undefined
+            ? { title: "This picture is not shown", hint: data().notice ?? `${name()} · ${sizeText(data().size)}` }
+            : undefined
+        }
+        onClose={props.onBack}
+      />
+    </If>
   );
 }
