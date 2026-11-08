@@ -60,6 +60,7 @@ import {
   toggleProject,
   treeOffset,
 } from "#lib/sidebar";
+import { openAgentBeside } from "#lib/split";
 import { stateWord } from "#lib/status";
 import { lookUpBranches } from "#lib/worktrees";
 
@@ -184,6 +185,22 @@ function copyEntries(nameWhat: string, name: string, pathWhat: string, path: str
   ];
 }
 
+/** `Open to the side`: the agent's view in a group beside the focused tab (the project menu opens its first agent). */
+const sideEntry = (row: BoardRow | undefined, offline: boolean) => ({
+  label: "Open to the side",
+  accelerator: "S",
+  onSelect: () => {
+    if (row) void openAgentBeside(row);
+  },
+  disabled: offline || !row,
+});
+
+/** What an agent row's menu offers: show it beside the focused tab, then the copies. */
+const rowEntries = (row: BoardRow) => [
+  sideEntry(row, row.offline),
+  ...copyEntries("Name", row.name, "Folder", row.cwd),
+];
+
 /** `Open project`: the project's page; the header's press folds, so this is where the page is reached. */
 const openEntry = (project: BoardProject) => ({
   label: "Open project",
@@ -205,6 +222,7 @@ function projectEntries(project: BoardProject) {
       },
       disabled: project.rows.length === 0,
     },
+    sideEntry(project.rows[0], project.rows.length === 0),
     {
       label: project.pinned ? "Unpin" : "Pin to the top",
       accelerator: "P",
@@ -424,7 +442,7 @@ function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
           </View>
           <ActionMenu
             label={`Options for ${row().name}`}
-            entries={copyEntries("Name", row().name, "Folder", row().cwd)}
+            entries={rowEntries(row())}
             onOpenChange={(open) => menuOpen.set(open)}
           />
         </View>
@@ -447,7 +465,7 @@ function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> 
     <View
       role="button"
       onPress={() => void openAgent(row())}
-      onContextMenu={copyMenu(() => copyEntries("Name", row().name, "Folder", row().cwd))}
+      onContextMenu={copyMenu(() => rowEntries(row()))}
       accessibilityState={{ selected: isOpen(row()) }}
       accessibilityLabel={rowLabel(row(), nameOf(props.item().project))}
       onFocus={() => {

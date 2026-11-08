@@ -7,6 +7,8 @@ import {
   activate,
   BOARD,
   bucket,
+  changesKey,
+  companionOf,
   CONTEXT_CAP,
   type Contexts,
   defaultLayout,
@@ -28,6 +30,7 @@ import {
   sessionKey,
   withoutPanels,
   withPanel,
+  withSplit,
   writeDock,
 } from "#lib/dock";
 
@@ -280,4 +283,64 @@ test("a folder in no project, or only in another machine's, finds none", () => {
   const projects = [project("m1/a", ["/var/x"], [], "m1")];
   expect(projectOfFolder(projects, "local", "/var/x", real)).toBeNull();
   expect(projectOfFolder([project("local/a", ["/var/x"])], "local", "/var/xy", real)).toBeNull();
+});
+
+const CHAT = sessionKey("local", "pane:w1:p1");
+const KEEPER = sessionKey("local", "abc234");
+const CHANGES = changesKey("local", "/src/pay");
+const why = (c: { key: string } | { why: string }): string => ("why" in c ? c.why : "");
+
+test("a chat in a git folder has its Changes as companion, else the terminal of its pane, else nothing to show and why", () => {
+  expect(companionOf(CHAT, { cwd: "/src/pay", repo: true })).toEqual({ key: CHANGES });
+  expect(companionOf(CHAT, { cwd: "/src/pay", repo: false })).toEqual({ key: paneKey("local", "w1:p1") });
+  expect(companionOf(CHAT, { repo: false })).toEqual({ key: paneKey("local", "w1:p1") });
+  // A keeper's session has no pane: outside a repository there is nothing to put beside it.
+  expect(why(companionOf(KEEPER, { cwd: "/tmp/x", repo: false }))).toContain("git");
+});
+
+test("a Changes tab has its folder's agent as companion; a terminal has Changes or its chat; the board has none", () => {
+  expect(companionOf(CHANGES, { repo: true, view: CHAT })).toEqual({ key: CHAT });
+  expect(why(companionOf(CHANGES, { repo: true }))).toContain("agent");
+  expect(companionOf(A, { cwd: "/src/pay", repo: true, view: CHAT })).toEqual({ key: changesKey("local", "/src/pay") });
+  expect(companionOf(A, { cwd: "/src/pay", repo: false, view: CHAT })).toEqual({ key: CHAT });
+  expect(why(companionOf(BOARD, { repo: true }))).toContain("board");
+});
+
+test("a chat split beside its Changes is saved and comes back as the same two groups", () => {
+  const layout: DockAreaLayout = {
+    center: {
+      type: "split",
+      axis: "horizontal",
+      children: [
+        { type: "tabs", panels: [CHAT], activeIndex: 0 },
+        { type: "tabs", panels: [CHANGES], activeIndex: 0 },
+      ],
+      sizes: [640, null],
+    },
+  };
+  const doc: Contexts = {
+    current: "local/pay",
+    contexts: {
+      [HOME]: { layout: defaultLayout(), focused: BOARD, savedAt: 1 },
+      "local/pay": { layout, focused: CHANGES, savedAt: 2 },
+    },
+    strays: [],
+  };
+  const back = readDock(writeDock(doc))!;
+  expect(groups(back.contexts["local/pay"].layout).map((g) => g.panels)).toEqual([[CHAT], [CHANGES]]);
+  expect(back.contexts["local/pay"].layout.center).toMatchObject({ sizes: [640, null] });
+  expect(back.contexts["local/pay"].focused).toBe(CHANGES);
+});
+
+test("a view split off beside a group becomes a group of its own: next to it in a split that runs the same way, else in a split around it", () => {
+  const one = withSplit(split([A]), B, A, "right");
+  expect(groups(one).map((g) => g.panels)).toEqual([[A], [B]]);
+  const three = withSplit(one, CHANGES, A, "right");
+  expect(groups(three).map((g) => g.panels)).toEqual([[A], [CHANGES], [B]]);
+  const down = withSplit(split([A], [B]), CHANGES, B, "bottom");
+  expect(groups(down).map((g) => g.panels)).toEqual([[A], [B], [CHANGES]]);
+  expect(down.center).toMatchObject({ children: [{ type: "tabs" }, { type: "split", axis: "vertical" }] });
+  // A view that was a tab of the group leaves it, and the group that held it alone is not left behind empty.
+  expect(groups(withSplit(split([A, B]), B, A, "right")).map((g) => g.panels)).toEqual([[A], [B]]);
+  expect(groups(withSplit(emptyLayout(), A, "none", "right")).map((g) => g.panels)).toEqual([[A]]);
 });

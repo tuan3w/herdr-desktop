@@ -3,15 +3,22 @@ import { announce } from "nsh";
 
 import type { BoardProject, BoardRow, ChangeView, DiffView, GroupView, StatusView } from "herdr-desktop/native";
 
+import { narrow } from "#kit";
 import {
   changesKey,
   context,
   focused,
   projectOfFolder,
+  groupOf,
   HOME,
+  homeOf,
   inside,
+  layout,
+  openBeside,
   openPanel,
+  panelsOf,
   parseChangesKey,
+  parseSessionKey,
   rowKeyOf,
 } from "#lib/dock";
 import { sizeText } from "#lib/files";
@@ -351,9 +358,22 @@ export function currentCheckout(): { machine: string; cwd: string } | null {
   return null;
 }
 
-/** Opens the Changes tab of a checkout (in its project, next to the agents'), or shows it when it is open. */
+/**
+ * Opens the Changes tab of a checkout, or shows it when it is open. While a chat is the tab in front the window has room
+ * for (not `narrow()`), it opens beside the chat (when the folder belongs to the project shown), which stays in view with its question; in a narrow window, or from
+ * anything but a chat, it is a tab of the group as before.
+ */
 export function openChanges(machine: string, cwd: string): Promise<void> {
-  return openPanel(changesKey(machine, cwd));
+  const key = changesKey(machine, cwd);
+  const front = focused();
+  const group = groupOf(layout(), front);
+  const beside =
+    !narrow() &&
+    homeOf(key) === context() &&
+    parseSessionKey(front) !== null &&
+    group?.panels[group.active] === front &&
+    !panelsOf(layout()).includes(key);
+  return beside ? openBeside(key, "right").then(() => undefined) : openPanel(key);
 }
 
 /** `Review changes`: the Changes tab of the checkout the focused tab is in; says why when there is none. */

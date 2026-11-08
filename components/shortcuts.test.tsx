@@ -9,7 +9,7 @@ test("the list names every shortcut with its keys as this platform writes them, 
   expect(app.shows("Keyboard shortcuts")).toBe(true);
   expect(app.shows("label:Command palette: Ctrl+P")).toBe(true);
   expect(app.shows("label:Next agent that needs you: Ctrl+J")).toBe(true);
-  expect(app.shows("label:Split right: Ctrl+\\")).toBe(true);
+  expect(app.shows("label:Open beside: Ctrl+\\")).toBe(true);
   expect(app.shows("label:Switch to the previous agent: Ctrl+Tab")).toBe(true);
   expect(app.shows("label:Back to the place you came from: Ctrl+[")).toBe(true);
   // F1 is Help on Linux, so it is listed there beside the shared key

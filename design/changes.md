@@ -1,6 +1,6 @@
 # Changes
 
-Changes (`components/changes.tsx`) is where a person reads what the agents changed in a checkout, answers it, and takes a change back. It is a dock tab of the project (`changes:<machine>/<folder>`, `changesKey` in `lib/dock.ts`), opened by `Review changes` (`mod+shift+g`, `reviewChanges` in `lib/changes.ts`), which means the checkout of the focused tab, else of the project in view.
+Changes (`components/changes.tsx`) is where a person reads what the agents changed in a checkout, answers it, and takes a change back. It is a dock tab of the project (`changes:<machine>/<folder>`, `changesKey` in `lib/dock.ts`), opened by `Review changes` (`mod+shift+g`, `reviewChanges` in `lib/changes.ts`), which means the checkout of the focused tab, else of the project in view. While a chat is in front and the window is not narrow it opens **beside** the chat (a split, `design/tabs.md`) and a second press shows the same tab: the chat and its waiting question stay in view. On a Changes tab, `Open beside` puts the folder's chat next to it.
 
 ## Decided, not built yet: an inspector tab
 

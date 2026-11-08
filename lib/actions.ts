@@ -16,6 +16,8 @@ import {
   groups,
   lastPane,
   layout,
+  focusOtherGroup,
+  mergeSplits,
   moveFocused,
   openPane,
   openPanel,
@@ -45,6 +47,7 @@ import {
 import { perfOpen } from "#lib/perf";
 import { setSidebarCollapsed, themeId } from "#lib/settings";
 import { type GlobalShortcut, GLOBAL, keysOf, type ShortcutGroup } from "#lib/shortcuts";
+import { splitTab } from "#lib/split";
 import { THEMES } from "#lib/theme/themes";
 
 /**
@@ -376,8 +379,8 @@ export const globalActions: Record<GlobalShortcut, () => void> = {
   tab8: () => selectNth(8),
   tab9: () => selectNth(9),
   closeTab: () => closeTab(focused()),
-  splitRight: () => void moveFocused("right"),
-  splitDown: () => void moveFocused("bottom"),
+  splitRight: () => void splitTab(focused(), "right"),
+  splitDown: () => void splitTab(focused(), "bottom"),
   copyCode: () => (chatInFront() ? copyCode() : announce("Open a chat first")),
   copyReply: () => (chatInFront() ? copyReply() : announce("Open a chat first")),
   attachFiles: () => (chatInFront() ? attachFiles() : announce("Open a chat first")),
@@ -412,6 +415,8 @@ const extra: Record<string, () => void> = {
   moveLeft: () => void moveFocused("left"),
   moveUp: () => void moveFocused("top"),
   moveOther: () => void moveFocused("other"),
+  focusOther: () => void focusOtherGroup(),
+  mergeSplits: () => void mergeSplits(),
   accessibilityGuide: () => void openUrl(ACCESSIBILITY_GUIDE),
 };
 
@@ -490,6 +495,12 @@ export function actions(): Action[] {
   global("attachFiles", ["file", "picture", "image", "photo", "upload"], !chatInFront());
   global("quoteCopied", ["quote", "reply", "blockquote"], !chatInFront());
   global("closeTab", ["view"], focused() === "board" || focused() === "");
+  global(
+    "splitRight",
+    ["split", "side by side", "companion", "changes", "next to"],
+    focused() === "board" || focused() === "",
+  );
+  global("splitDown", ["split", "below", "companion", "changes"], focused() === "board" || focused() === "");
   global("devPanel", ["performance", "frame"]);
   global("undo");
   const terminal = parsePaneKey(focused());
@@ -576,6 +587,20 @@ export function actions(): Action[] {
   list.push({ id: "moveLeft", label: "Move tab to split left", group: "Tabs", disabled: !canMove });
   list.push({ id: "moveUp", label: "Move tab to split up", group: "Tabs", disabled: !canMove });
   list.push({ id: "moveOther", label: "Move tab to other group", group: "Tabs", disabled: !sideBySide });
+  list.push({
+    id: "focusOther",
+    label: "Focus the other group",
+    group: "Tabs",
+    disabled: !sideBySide,
+    keywords: ["split", "switch"],
+  });
+  list.push({
+    id: "mergeSplits",
+    label: "Merge splits",
+    group: "Tabs",
+    disabled: !sideBySide,
+    keywords: ["close split", "one group"],
+  });
   if (group) {
     group.panels.slice(0, 9).forEach((key, i) =>
       list.push({

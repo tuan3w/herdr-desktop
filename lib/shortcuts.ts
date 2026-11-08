@@ -137,8 +137,8 @@ export const GLOBAL: Record<GlobalShortcut, Shortcut> = {
   tab8: { keys: ["mod+shift+8"], label: "Open tab 8", group: "tabs" },
   tab9: { keys: ["mod+shift+9"], label: "Open tab 9", group: "tabs" },
   closeTab: { keys: ["mod+w"], label: "Close tab (the pane keeps running)", group: "tabs" },
-  splitRight: { keys: ["mod+\\"], label: "Split right", group: "tabs" },
-  splitDown: { keys: ["mod+shift+\\"], label: "Split down", group: "tabs" },
+  splitRight: { keys: ["mod+\\"], label: "Open beside", group: "tabs" },
+  splitDown: { keys: ["mod+shift+\\"], label: "Open below", group: "tabs" },
   copyCode: {
     keys: ["mod+shift+c"],
     label: "Copy code (the block under the pointer, else the last one)",

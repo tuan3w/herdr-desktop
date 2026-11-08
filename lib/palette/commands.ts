@@ -81,6 +81,10 @@ const NEEDS: Record<string, string> = {
   moveLeft: "Open a second tab first",
   moveUp: "Open a second tab first",
   moveOther: "Split first: there is one group",
+  focusOther: "Split first: there is one group",
+  mergeSplits: "There is one group: nothing to merge",
+  splitRight: "The board has no split: open an agent first",
+  splitDown: "The board has no split: open an agent first",
 };
 
 /** Settings that are a switch: on the palette they flip, and say whether they are on. */

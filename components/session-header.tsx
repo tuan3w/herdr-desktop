@@ -3,12 +3,15 @@ import { effect, lifecycle, Text, untracked, View } from "nsh";
 import type { SessionView } from "herdr-desktop/native";
 
 import { SessionOverview } from "#components/session-overview";
-import { Btn, Clipped, FOCUS_RING, Icon } from "#kit";
+import { Btn, Clipped, FOCUS_RING, Icon, IconButton } from "#kit";
 import { openChanges } from "#lib/changes";
 import { changedBranch, changedFiles, readCount } from "#lib/changes-count";
+import { sessionKey } from "#lib/dock";
 import { projectOf, rowOf } from "#lib/herdr";
 import { hoverTransition } from "#lib/motion";
 import { phaseStatus, sessionTitle } from "#lib/session-text";
+import { keyLabel } from "#lib/shortcuts";
+import { splitTab } from "#lib/split";
 
 /** From this much of the context window used the header says so: the agent starts to forget, which is worth a look. */
 const CONTEXT_WARN = 85;
@@ -17,7 +20,8 @@ const CONTEXT_WARN = 85;
  * The top of a chat, one line: `title · project · branch`. The title opens the session's facts (`SessionOverview`:
  * agent, machine, folder, id, settings, `End session`) until the inspector exists. It carries no state word and no mark:
  * what the agent needs is the answer dock's to say, once, and the sidebar row's. `Show terminal` (a session read from a
- * terminal agent's log) goes back to the pane.
+ * terminal agent's log) goes back to the pane. `Open beside` (the columns icon) splits: a chat alone in its group gets its
+ * Changes (else its terminal) next to it, so a second view is one press away.
  */
 export function SessionHeader(props: {
   view: SessionView;
@@ -88,6 +92,12 @@ export function SessionHeader(props: {
           onPress={() => void openChanges(props.machine, props.view.cwd)}
         />
       </If>
+      <IconButton
+        icon="columns"
+        label="Open beside"
+        shortcut={keyLabel("splitRight")}
+        onPress={() => void splitTab(sessionKey(props.machine, props.id), "right")}
+      />
       <If when={props.onShowTerminal}>
         <Btn small variant="ghost" label="Show terminal" onPress={() => props.onShowTerminal?.()} />
       </If>

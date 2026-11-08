@@ -12,13 +12,15 @@ Owner decision 2026-11-07, from a prototype (unverified in the app):
 - **One left edge.** Header, conversation and composer share a gutter; the conversation keeps a readable measure (about 720 pt) and extra width goes to the inspector.
 - **The composer is one line tall until the text needs more**, shows an attachment once (a thumbnail, with no `[Image #n]` text beside it), and keeps its help line inside the box.
 
+A chat's header ends with `Open beside` (the columns icon, `mod+\`): a second view of the agent, its Changes or terminal, next to the conversation (`design/tabs.md`, Splits).
+
 Today's code is the layout below.
 
 ## What it is
 
 A **read-only view**: herdr gives the app the rows of the pane and takes text and key names back; there is no cursor and no mouse, so it cannot be a terminal and does not pretend to be one. The tab says so: its title is `<agent> (view)` and the header says `Read-only view`. Top to bottom (today): `PaneHeader`, a notice when the machine is not connected (the text is the last it showed, sending is off), `PaneFind` while open, the `PaneScreen`, `AnswerDock` while the agent asks something, `Composer`. A pane herdr no longer has shows `This agent is gone` and nothing to send to.
 
-The pane's columns fill the width (`PaneScreen` scales the font from `paneFontSize` down to 9 pt, then the view scrolls sideways); the person has no layout choice. There are no key buttons, no typing mode and no command list in this tab: a keyboard belongs in a real terminal, which this app does not have yet (`docs/specs/terminal.md` decides what it will be: libghostty-vt, a prototype behind `HERDR_DESKTOP_TERMINAL=1`).
+The pane's columns fill the width (`PaneScreen` scales the font from `paneFontSize` down to 9 pt, then the view scrolls sideways); the person has no layout choice. There are no key buttons, no typing mode and no command list in this tab: a keyboard belongs in a real terminal, which this app does not have yet (`docs/specs/terminal.md` decides what it will be: libghostty-vt, built in, with mouse and selection, but no tab shows it yet).
 
 ## What a person does here
 

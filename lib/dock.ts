@@ -135,6 +135,39 @@ export function otherGroup(layout: DockAreaLayout, key: string): Group | undefin
   return all.length > 1 && at >= 0 ? all[(at + 1) % all.length] : undefined;
 }
 
+/** What `companionOf` needs to know about the tab and its agent; the caller reads it from the board and from git. */
+export interface CompanionFacts {
+  /** The folder the agent works in, when known. */
+  cwd?: string;
+  /** Whether that folder is a git repository: Changes has something to read only then. */
+  repo: boolean;
+  /** The agent's own tab key in its default view (its chat, else its terminal): what a Changes tab or a terminal puts beside itself. */
+  view?: string;
+}
+
+/**
+ * The view that goes beside `key` when a person splits it alone: an agent's chat gets its Changes (a git folder) or else
+ * the terminal of its pane; Changes and a terminal get the agent's own view. Never the key itself, so a split never
+ * shows one view twice. `why` says what to do when there is none (the board, a keeper's chat outside a repository).
+ */
+export function companionOf(key: string, facts: CompanionFacts): { key: string } | { why: string } {
+  if (key === BOARD) return { why: "The board has no split: open an agent, then split it" };
+  const changes = parseChangesKey(key);
+  if (changes) {
+    return facts.view && facts.view !== key
+      ? { key: facts.view }
+      : { why: "No agent works in this folder: start one to show beside the changes" };
+  }
+  const folder = facts.cwd ? changesKey(parsePaneKeyMachine(key), facts.cwd) : null;
+  if (folder && facts.repo) return { key: folder };
+  const chat = parseSessionKey(key);
+  if (chat?.id.startsWith(PANE)) return { key: paneKey(chat.machine, chat.id.slice(PANE.length)) };
+  if (facts.view && facts.view !== key) return { key: facts.view };
+  return { why: "Nothing to show beside this: its folder is not a git repository and it has no terminal" };
+}
+
+const parsePaneKeyMachine = (key: string): string => (parseSessionKey(key) ?? parsePaneKey(key))?.machine ?? "";
+
 /** A node cleaned of what a stale or edited file could hold; `null` when nothing of it is left. */
 function clean(node: unknown, seen: Set<string>): DockNode | null {
   if (typeof node !== "object" || node === null) return null;
@@ -165,6 +198,39 @@ function clean(node: unknown, seen: Set<string>): DockNode | null {
     return children.length === 0 ? null : { type: "split", axis: n.axis, children, sizes: kept };
   }
   return null;
+}
+
+/**
+ * `layout` with `key` in a group of its own beside the group holding `near` (`right` or `bottom`): taken out of any group
+ * first, and put next to that group in its parent when the parent runs the same way, else in a split made around it.
+ * Done as data: the area adopts a layout it is given, whereas asking it to split a tab it has only just been handed
+ * did nothing on the macOS host.
+ */
+export function withSplit(
+  layout: DockAreaLayout,
+  key: string,
+  near: string,
+  where: "right" | "bottom",
+): DockAreaLayout {
+  const base = withoutPanels(layout, new Set([key]));
+  const axis = where === "right" ? "horizontal" : "vertical";
+  const fresh: DockNode = { type: "tabs", panels: [key], activeIndex: 0 };
+  const walk = (node: DockNode): DockNode => {
+    if (node.type === "tabs") return node;
+    const at = node.children.findIndex((c) => c.type === "tabs" && c.panels.includes(near));
+    if (at >= 0) {
+      if (node.axis === axis) {
+        const children = [...node.children];
+        children.splice(at + 1, 0, fresh);
+        return { ...node, children, sizes: children.map(() => null) };
+      }
+      const children = [...node.children];
+      children[at] = { type: "split", axis, children: [children[at], fresh], sizes: [null, null] };
+      return { ...node, children };
+    }
+    return { ...node, children: node.children.map(walk) };
+  };
+  return groups(base).length === 0 ? { center: rootOf(fresh) } : { ...base, center: rootOf(walk(base.center)) };
 }
 
 /** The layout of a context with no tab: what a project shows before anything is opened in it. */
@@ -775,6 +841,12 @@ export function selectNth(n: number): void {
   chosen(key);
 }
 
+/** Shows `key` in its group and makes it the tab the keys act on. */
+export function selectTab(key: string): void {
+  area?.selectPanel(key);
+  chosen(key);
+}
+
 /** Why a split or move did nothing, for a person who asked for it. */
 const ALONE = "Open a second tab in this group first: a tab cannot split away from an empty group";
 
@@ -809,5 +881,72 @@ export async function moveFocused(where: Placement | "other"): Promise<boolean> 
   area.splitAt(id, key, where);
   chosen(key);
   announce(`Moved ${where === "bottom" ? "down" : where === "top" ? "up" : where}`);
+  return true;
+}
+
+/**
+ * Opens `key` in a group of its own beside the focused tab's (`where`), or, when the window already has more than one
+ * group, in the next group: a third column is never the answer to "show it beside". A view that is open is shown where it
+ * is, never twice. The tab lands in the context shown (`here`): it is the person's choice to see it beside this one.
+ */
+export async function openBeside(key: string, where: "right" | "bottom" = "right"): Promise<boolean> {
+  if (!area || key === "") return false;
+  const anchor = focused();
+  const at = groupOf(layout(), key);
+  const together = at !== undefined && at.panels.includes(anchor);
+  if (at && !together) {
+    area.selectPanel(key);
+    chosen(key);
+    announce("Already open: showing it");
+    return true;
+  }
+  if (at && key === anchor) {
+    announce("Already open here");
+    return true;
+  }
+  const other = otherGroup(layout(), anchor);
+  // A tab another context holds comes here (the person asked to see it beside this one).
+  const holder = holderOf(key);
+  if (holder !== undefined && holder !== context()) editSaved(holder, (l) => withoutPanels(l, new Set([key])));
+  if (other && !at) {
+    setLayout(withPanel(layout(), key, other.panels[0]));
+    chosen(key);
+    announce("Opened in the other group");
+    return true;
+  }
+  setLayout(withSplit(layout(), key, anchor, where));
+  if (context() === HOME && homeOf(key) === null && key !== BOARD) strays.add(key);
+  chosen(key);
+  announce(`Opened ${where === "bottom" ? "below" : "beside"}`);
+  return true;
+}
+
+/** Shows the displayed tab of the next group and makes it the one the keys act on; says so when there is one group. */
+export function focusOtherGroup(): boolean {
+  const target = otherGroup(layout(), focused());
+  const key = target?.panels[target.active];
+  if (!target || key === undefined) {
+    announce("There is only one group");
+    return false;
+  }
+  area?.selectPanel(key);
+  chosen(key);
+  return true;
+}
+
+/** Brings every other group's tabs into the focused one, which closes the splits. */
+export async function mergeSplits(): Promise<boolean> {
+  const key = focused();
+  const here = groupOf(layout(), key);
+  if (!area || !here || groups(layout()).length < 2) {
+    announce("There is nothing to merge: one group");
+    return false;
+  }
+  const id = here.id ?? (await area.groupOf(key));
+  if (id === null || id === undefined) return false;
+  for (const g of groups(layout()))
+    if (g !== here && !g.panels.includes(key)) for (const p of g.panels) area.movePanel(p, { group: id });
+  chosen(key);
+  announce("Splits merged");
   return true;
 }
