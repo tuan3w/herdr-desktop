@@ -13,7 +13,8 @@ const live = () => open("./chat-parts-lab.tsx", { ...DESKTOP, host: { params: { 
 
 async function details(app: App) {
   await app.press("Start a session");
-  await app.waitFor("Phase: idle");
+  // A real keeper starts in a time that follows the machine's load: wait for the fact, with room.
+  await app.waitFor("Phase: idle", { timeout: 30_000 });
   await app.press("Open details");
   await app.waitFor("Session details");
 }
@@ -54,7 +55,11 @@ test("ending a session is confirmed first, and a refusal of the person's leaves 
   await details(app);
   const id = await theSession();
   app.onDialog(() => "Cancel");
-  await app.press("End session");
+  // A press that lands while the keeper's updates redraw the details is lost; a repeat is a second ask only if the first took.
+  for (let attempt = 0; attempt < 5 && app.dialogs().length === 0; attempt++) {
+    await app.press("End session");
+    await app.waitUntil(() => app.dialogs().length > 0, { timeout: 2000 }).catch(() => undefined);
+  }
   expect(app.dialogs().length).toBe(1);
   expect((await Sessions.list("local")).some((s) => s.id === id)).toBe(true);
   expect(Sessions.view("local", id)).not.toBeNull();

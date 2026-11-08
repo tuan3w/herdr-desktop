@@ -4,7 +4,7 @@
 
 ## What a dialog is for
 
-A dialog is for **a decision or a short form**: confirm a destructive step, name something, start a session, pick one thing and go. It is never for **browsing or viewing** (settings, a file, a list of past sessions, an agent's details). Why: a dialog is inert behind a scrim, so everything under it, including a question waiting for the person, is hidden while they read, and a thing people open to look at stays open for minutes.
+A dialog is for **a decision or a short form**: confirm a destructive step, name something, start a session, pick one thing and go. It is never for **browsing or viewing** (a file, a list of past sessions, an agent's details). **Settings is the one exception**, decided by the owner (2026-11-08): it is a short-lived setup surface of many small choices that apply at once, opened for a moment and closed, and a dialog keeps the layout behind it unchanged. Why: a dialog is inert behind a scrim, so everything under it, including a question waiting for the person, is hidden while they read, and a thing people open to look at stays open for minutes.
 
 ```
 What does the person need?
@@ -20,7 +20,7 @@ What does the person need?
       └── A picture the person must see large → Lightbox (pictures only)
 ```
 
-Decided and built: Settings is a page of the main region and Machines a page of it (`design/patterns.md`). Decided, not built yet (owner, 2026-11-07): these still open as a `Modal` and move out: the agent's details (the inspector; today a popover under the chat's title, no longer a `Modal`), past sessions and the file viewer (a tab), and the shortcut sheet. Until each moves it keeps the rules below.
+Decided and built: Settings is a large dialog and Machines a page of it, edited inline (`design/patterns.md`). Decided, not built yet (owner, 2026-11-07): these still open as a `Modal` and move out: the agent's details (the inspector; today a popover under the chat's title, no longer a `Modal`), past sessions and the file viewer (a tab), and the shortcut sheet. Until each moves it keeps the rules below.
 
 Decided and built: the dock has no dialogs, and neither has bulk answering (`BulkAnswer` is a part of the Board's page with a two-press button and a lasting result toast, not a confirm). Triage is gone (the Board's filtered view is the bulk path), `Show all N lines` opens the whole command in the dock and `N more…` opens every answer in it. Proposed, not yet decided (design review of the kit batch): web pages become a tab; the switcher and the links list take the palette's face; the picture viewer stays a Lightbox, pictures only (the owner's list names "picture viewers": to confirm).
 
@@ -29,7 +29,7 @@ Decided and built: the dock has no dialogs, and neither has bulk answering (`Bul
 - **Title always**, sentence case, 16 pt (`text-lg`), naming the object or the outcome ("Close 3 agents?", "Add machine"), never "Confirm" or "Warning". **Description** when the title does not say what happens, with numbers ("stops 3 agents, discards 2 unsent prompts"). Why: it is read aloud once on opening and is the only text a screen reader gets before the buttons.
 - **Footer**: right-aligned, **Cancel first** (`ghost`), the one `primary` last, the outcome as a verb with its object ("Start agent", "Close 3 agents"), never OK, Yes or Submit. A helper action (Copy message, Test connection) sits before Cancel as `ghost` or plain. A destructive extra inside a form (Remove machine) is not in the footer: it goes at the end of the body, apart. Why: proximity reads as equivalence, and the last button is where Enter and the eye go.
 - **Primary is not disabled for a missing field**: pressing it shows the error under the field and moves focus there (`design/forms.md`). Disabled only while busy (`loading`) or when nothing can be done (no target). Why: a dead button cannot say what is wrong.
-- **Sizes** (`Modal`): 560 pt default; `wide` 760 pt only for text the user writes; `huge` 1000 pt only for the Lightbox; max 94% of the window. Decided, not built yet: a small 400 pt width for Confirm and Alert, so a short question is not a wide empty card.
+- **Sizes** (`Modal`): 560 pt default; `wide` 760 pt only for text the user writes; `huge` 1000 pt only for the Lightbox; the large size (`DIALOG_LARGE`, 880 x 640, a header with the title and `Close`, no footer, content fills it) only for Settings; max 94% of the window. Decided, not built yet: a small 400 pt width for Confirm and Alert, so a short question is not a wide empty card.
 - **Focus**: the first field has the focus (`autoFocus`); a text-free dialog has none from code (a view cannot take focus: unverified which button nsh's alert focuses), so Enter and Escape must be safe there. Tab is trapped by nsh's layer, Escape asks. Focus is not returned to the opener by us (`docs/ACCESSIBILITY.md`).
 - **Escape and the scrim**: Escape always asks (Cancel). A scrim press asks, except where text was typed, a task runs or a question is destructive (`disablePointerDismissal`). Why: a mis-click must never lose work or leave an alert.
 - **Motion**: the popup scales from `DIALOG_SCALE` (0.97) to 1 and back over `DURATION.dialog` (200 ms) with nsh's layer fade, which is a fixed 200 ms: the one exit that is not quicker, so scale and scrim end together. It animates even when a shortcut opened it: dialogs are rare and the origin is the window's center. The palette is the exception (`paletteEnter`, 120 ms, instant close) because it opens many times a day. Reduced motion: no scale.
@@ -42,12 +42,12 @@ Decided and built: the dock has no dialogs, and neither has bulk answering (`Bul
 | Confirm | A plain choice with an outcome ("Send 3 notes to api-fix?") | Anything that loses data | `Cancel`, verb. First field or none. Esc = Cancel |
 | DestructiveConfirm | What an Undo toast cannot restore: `confirmDestructive`, `BulkConfirm` | Cheap reversible steps (Undo toast); a second confirm after a press-twice | `Cancel`, then the danger verb **with the count**. Esc = Cancel, scrim ignored |
 | Alert | A blocking failure the person must act on, what happened and what to do | Inline form errors (stay in the dialog, under the field); anything a toast can say | One button naming the next step. Announced as an alert. Esc closes |
-| FormDialog | 1 to 5 fields: name, machine, start | Settings, lists to manage | Enter submits; `mod+↵` in a text area; error on blur and submit; typed text kept on failure; `disablePointerDismissal` |
+| FormDialog | 1 to 5 fields: name, machine, start | lists to manage | Enter submits; `mod+↵` in a text area; error on blur and submit; typed text kept on failure; `disablePointerDismissal` |
 | Wizard | Steps that depend on the previous one | Anything one form can hold: remember the last choices instead | Step list, `Back`, at most 3, `Next` then the verb on the last |
 | Picker | A path or files on a machine, as a decision | Browsing a tree for minutes | `Cancel`, "Use this folder" / "Attach 3"; the count is in the button; may open over its form |
 | Progress | The person must wait (checking, stopping) | A long copy: a `loading` toast with Stop lets them look away | `Stop` while running; never closes on error, lists what failed |
 | Lightbox | A picture or a diagram | Files (a tab), text, pages | `huge`; Left and Right walk; Esc closes; description has "2 of 5" |
-| Sheet | Inspector overlay in a window under about 1000 pt | Settings pages | Covers the conversation: scrim, Esc, focus held |
+| Sheet | Inspector overlay in a window under about 1000 pt | Browsing pages | Covers the conversation: scrim, Esc, focus held |
 | Palette | Search many times a day | A list that needs a title | `PaletteDialog`, no title, instant close |
 | Info | A glance under one screen with no scroll (About) | A reference longer than a screen | A `Close` with its Esc hint; scrim closes |
 | Approval | The agent asks | A dialog: the dock answers, and its overflow opens inside it | Whole command, risk line, keys 1 to 3, press twice for a risky one, nothing sent by time |

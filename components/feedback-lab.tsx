@@ -31,6 +31,7 @@ function Lab() {
   const letGo = signal(false);
   const typed = signal(false);
   const long = signal(false);
+  const large = signal(false);
   let lines = 0;
   const send = (ok: boolean) => {
     const sent = new Promise<boolean>((resolve) => setTimeout(() => resolve(ok), 20000));
@@ -81,6 +82,7 @@ function Lab() {
           <Btn label="Open refusing dialog" onPress={() => refusing.set(true)} />
           <Btn label="Open drafting dialog" onPress={() => typed.set(true)} />
           <Btn label="Open long dialog" onPress={() => long.set(true)} />
+          <Btn label="Open large dialog" onPress={() => large.set(true)} />
         </View>
         <Text class="text-sm text-foreground">{`undone ${undone()}`}</Text>
         <Each of={log()}>{(line) => <Text class="text-xs text-muted-foreground">{line()}</Text>}</Each>
@@ -142,6 +144,18 @@ function Lab() {
             {(line) => <Text class="text-sm text-foreground">{line()}</Text>}
           </Each>
         </View>
+      </Modal>
+      <Modal
+        open={large()}
+        size="settings"
+        title="Large dialog"
+        onClose={(change) => {
+          say(`large ${change.reason}`);
+          large.set(false);
+        }}
+        actions={<Btn label="Close large" onPress={() => large.set(false)} />}
+      >
+        <Text class="text-sm text-foreground">Content large</Text>
       </Modal>
       <ToastHost />
     </ThemeRoot>

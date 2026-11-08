@@ -8,7 +8,7 @@ The working state of the app. It changes with every slice, so it lives here and 
 - Sidebar grouped by project, one-line rows, project header as one quiet line, the rail while the Board is open, a footer for connection problems.
 - The Board as a project-grouped table with filter chips, and bulk answering of terminal prompts (two presses, every command shown, per-pane re-read).
 - The one answer dock in the composer's place; the ranked chat turn (calls as one muted line, effects and failures always visible).
-- Settings and Machines as pages in the main region.
+- Settings dialog (large, centered; Machines inline in its page).
 - Quiet code toolbar, tooltip clamping, menu letters, toast at the top right.
 
 ## Open

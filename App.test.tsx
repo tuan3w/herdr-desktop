@@ -58,18 +58,23 @@ test("the board shows the sidebar as the rail, still naming what needs you, and 
   expect(app.shows("label:Search projects")).toBe(false);
 });
 
-test("Settings is a page of the main region: a waiting question stays marked in the sidebar, and closing returns to the open agent", async () => {
+test("Settings is a dialog over an unchanged window: a waiting question stays marked in the sidebar, the workspace stays mounted, and closing returns to the open agent", async () => {
   const app = await ready();
   await app.press(sidebarRow(FIRST));
   await app.waitFor("label:Search projects");
   await pressSettled(app, "label:Settings", "label:Settings sections");
   expect(app.shows("label:Board, 2 need you")).toBe(true);
   expect(app.shows("label:/^payments, This computer, 2 need you/")).toBe(true);
-  // the workspace is hidden, not gone: Close brings back the same tab
-  expect(app.shows("Show terminal")).toBe(false);
+  // the workspace is not hidden or replaced: the same tab is still there behind the dialog
+  expect(app.shows("Show terminal")).toBe(true);
   await pressSettled(app, "label:Close settings", () => !app.shows("label:Settings sections"));
   expect(await front(app)).toBe(FIRST);
   expect(app.shows("Show terminal")).toBe(true);
+  // Escape closes it too, and nothing was answered by opening or closing it
+  await pressSettled(app, "label:Settings", "label:Settings sections");
+  await app.keyboard.press("escape");
+  await app.waitFor("label:Settings sections", { state: "gone" });
+  expect(await front(app)).toBe(FIRST);
 });
 
 test("the toggle expands the sidebar for the visit on the board without changing the saved preference", async () => {

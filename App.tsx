@@ -34,7 +34,6 @@ import {
   newSessionOpen,
   newSessionProject,
   palette,
-  settingsPage,
   shortcutsOpen,
 } from "#lib/actions";
 import { BOARD, dockReady, focused, loadDock, openPane, openSession, showBoard, startDock } from "#lib/dock";
@@ -173,19 +172,16 @@ function App() {
           <ResizablePanel class="min-w-0">
             <If when={ready()} else={<LoadingScreen />}>
               <View class="size-full">
-                {/* Hidden, not unmounted: the open tabs, scroll places and panes are still there when Settings closes. */}
-                <View class={settingsPage() === null ? "min-h-0 min-w-0 flex-1" : "hidden"}>
+                <View class="min-h-0 min-w-0 flex-1">
                   <Workspace />
                 </View>
-                <If when={settingsPage() !== null}>
-                  <Settings />
-                </If>
                 <BulkBar />
                 <StatusBar />
               </View>
             </If>
           </ResizablePanel>
         </ResizablePanelGroup>
+        <Settings />
         <Palette open={palette()} onClose={() => palette.set(false)} />
         <Switcher open={switcherOpen()} onClose={() => switcherOpen.set(false)} />
         <Shortcuts open={shortcutsOpen()} onClose={() => shortcutsOpen.set(false)} />

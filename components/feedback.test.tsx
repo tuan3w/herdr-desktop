@@ -257,6 +257,21 @@ test("a dialog taller than the window keeps its title and its actions, and only 
   expect(app.shows("Long dialog")).toBe(false);
 });
 
+test("the large dialog has its title and Close at the top, its content fills it, a toast draws above it, and Escape asks", async () => {
+  const app = await lab();
+  await app.press("Open large dialog");
+  expect(app.shows("Large dialog")).toBe(true);
+  expect(app.shows("Content large")).toBe(true);
+  await app.keyboard.press("escape");
+  await app.clock!.runFor(400);
+  expect(app.texts()).toContain("large escape-key");
+  expect(app.shows("Large dialog")).toBe(false);
+  await app.press("Open large dialog");
+  await app.press("Close large");
+  await app.clock!.runFor(400);
+  expect(app.shows("Large dialog")).toBe(false);
+});
+
 test("asking twice at once shows one alert: the second answer is no, so nothing is confirmed twice", async () => {
   const app = await lab();
   app.onDialog(() => "Delete");

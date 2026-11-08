@@ -1,6 +1,7 @@
-import { announce, effect, type JSX, Scroll, signal, Text, untracked, View } from "nsh";
+import { announce, effect, type JSX, Scroll, signal, Text, untracked, View, windowSize } from "nsh";
 import { AlertDialog, Dialog } from "nsh/base";
 
+import { largeDialogSize } from "#lib/layout";
 import { enterScale } from "#lib/motion";
 
 import { EDGE } from "./core";
@@ -16,7 +17,9 @@ const BODY_PAD = 32;
  * A modal form or detail, as Base UI's Dialog behaves: scrim, popup that scales in from 0.97 and back out as the dialog closes, title, optional
  * description, content, and a footer of `actions` aligned right. Open it for rare, user-invoked tasks only. `wide`
  * (760pt, not 560) is for text the user writes, such as a prompt; `huge` (1000pt) is for a file browser or a viewer, where
- * the content is the point.
+ * the content is the point. `size="settings"` is the one large dialog (`DIALOG_LARGE`, 880 x 640, the window less a 24-pt
+ * margin when it is smaller): its content fills the popup and brings its own layout (a list at the left, a scroll at the
+ * right), under a header of the title and the `actions` at the top right, with no footer.
  *
  * `open` is the owner's. Escape and a press on the scrim only ask: `onClose(change)` hears the `reason`
  * (`escape-key`, `outside-press`) and the owner closes by setting `open` false, or refuses by leaving it true (the
@@ -38,6 +41,7 @@ export function Modal(props: {
   actions?: JSX.Element;
   wide?: boolean;
   huge?: boolean;
+  size?: "settings";
   disablePointerDismissal?: boolean;
   onOpenChangeComplete?: (open: boolean) => void;
 }) {
@@ -56,6 +60,7 @@ export function Modal(props: {
     if (reason === "outside-press" && props.disablePointerDismissal) return;
     state.set(false, reason);
   };
+  const large = () => (props.size === "settings" ? largeDialogSize(windowSize()) : undefined);
   const pop = enterScale(() => props.open);
   const viewport = signal(0);
   const content = signal(0);
@@ -70,6 +75,49 @@ export function Modal(props: {
       untracked(() => announce(props.description ? `${props.title}. ${props.description}` : props.title));
     announced = now;
   });
+  // Built once, by `size`, so the ordinary dialog keeps exactly the tree it always had.
+  const body = () =>
+    props.size === "settings" ? (
+      <View style={[pop, large()]} class={`rounded-lg bg-card ${EDGE.lg}`}>
+        <View class="shrink-0 flex-row items-center gap-3 border-b border-border py-3 pl-6 pr-3">
+          <View class="min-w-0 flex-1">
+            <Text role="header" class="text-lg font-semibold text-card-foreground">
+              {props.title}
+            </Text>
+          </View>
+          {props.actions}
+        </View>
+        <View class="min-h-0 flex-1 overflow-hidden rounded-b-lg">{props.children}</View>
+      </View>
+    ) : (
+      <View
+        style={pop}
+        class={`max-h-[94%] max-w-[94%] rounded-lg bg-card ${EDGE.lg} ${props.huge ? "w-[1000px]" : props.wide ? "w-[760px]" : "w-[560px]"}`}
+      >
+        <View class="min-h-0 shrink">
+          <View class={`shrink-0 gap-1 border-b px-6 pb-4 pt-6 ${edge()}`}>
+            <Text role="header" class="text-lg font-semibold text-card-foreground">
+              {props.title}
+            </Text>
+            <If when={props.description}>
+              <Text class="text-sm text-muted-foreground" style={{ userSelect: "text" }}>
+                {props.description}
+              </Text>
+            </If>
+          </View>
+          <Scroll
+            class="min-h-0 shrink"
+            contentClass="px-6 py-4"
+            onLayout={({ bounds }) => viewport.set(bounds.size.height)}
+          >
+            <View onLayout={({ bounds }) => content.set(bounds.size.height)}>{props.children}</View>
+          </Scroll>
+          <View class={`shrink-0 flex-row items-center justify-end gap-2 border-t px-6 pb-6 pt-4 ${edge()}`}>
+            {props.actions}
+          </View>
+        </View>
+      </View>
+    );
   // The scrim is the dialog's own, so a press on it is told apart from Escape and can be refused: nsh's backdrop reports
   // both as the same cancel without a reason.
   return (
@@ -92,33 +140,7 @@ export function Modal(props: {
           onPress={() => ask("outside-press")}
           class="absolute inset-0 bg-black/40"
         />
-        <View
-          style={pop}
-          class={`max-h-[94%] max-w-[94%] rounded-lg bg-card ${EDGE.lg} ${props.huge ? "w-[1000px]" : props.wide ? "w-[760px]" : "w-[560px]"}`}
-        >
-          <View class="min-h-0 shrink">
-            <View class={`shrink-0 gap-1 border-b px-6 pb-4 pt-6 ${edge()}`}>
-              <Text role="header" class="text-lg font-semibold text-card-foreground">
-                {props.title}
-              </Text>
-              <If when={props.description}>
-                <Text class="text-sm text-muted-foreground" style={{ userSelect: "text" }}>
-                  {props.description}
-                </Text>
-              </If>
-            </View>
-            <Scroll
-              class="min-h-0 shrink"
-              contentClass="px-6 py-4"
-              onLayout={({ bounds }) => viewport.set(bounds.size.height)}
-            >
-              <View onLayout={({ bounds }) => content.set(bounds.size.height)}>{props.children}</View>
-            </Scroll>
-            <View class={`shrink-0 flex-row items-center justify-end gap-2 border-t px-6 pb-6 pt-4 ${edge()}`}>
-              {props.actions}
-            </View>
-          </View>
-        </View>
+        {body()}
         <ToastHost dialog={id} />
       </PopupRoot>
     </Dialog>

@@ -9,7 +9,7 @@ const KEY = "herdr.settings.v1";
 
 const saved = (a: App): Record<string, unknown> => JSON.parse(a.storage()[KEY] ?? "{}");
 
-/** Settings is a page beside the lab's buttons: it opens on Look, and `page` goes to another one by its nav entry. */
+/** Settings is a dialog over the lab: it opens on Look, and `page` goes to another one by its nav entry. */
 /** A row that only that page has, to wait for it. */
 const FIRST_ROW: Record<string, string> = {
   Notifications: "label:Notify me when an agent needs me",
@@ -142,7 +142,10 @@ test("About names the app's version from nsh.json, and Machines is a page of Set
   await a.press("label:Machines");
   await a.waitFor("Add machine");
   expect(a.shows("This computer")).toBe(true);
-  // a page, not a dialog: the nav is still there and Close leaves Settings altogether
+  // the nav is still there beside the page, and a press on the scrim does not close the dialog (it holds the form being filled)
+  await a.press("id:dialog-scrim");
+  expect(a.shows("label:Settings sections")).toBe(true);
+  // Close leaves Settings altogether
   expect(a.shows("label:Settings sections")).toBe(true);
   await a.press("label:Close settings");
   await a.waitFor("label:Settings sections", { state: "gone" });

@@ -34,7 +34,7 @@ An agent appears **once per view**. The conversation keeps a readable measure; e
 - The sidebar is grouped by project only; attention is a mark on the row, said once, never a second list.
 - Answering happens in the agent's own conversation, in the one answer dock; answering many at once is the overview's filtered view. Jumping to the next waiting agent never answers and never advances by itself.
 - A chat turn is ranked by consequence, not time: the pending question, the final answer, failures and effects outside the working tree are always visible; everything else folds to one muted line.
-- Settings and anything the person looks at for minutes open in the main region, never in a modal over the sidebar, so a question waiting for them stays visible.
+- Settings is a large centered dialog with a list of its pages at the left (owner decision, 2026-11-08, replacing the page in the main region). Anything else the person looks at for minutes (files, changes, an agent's details) is a region or a tab, not a dialog, so a question waiting for them stays visible.
 - Looks follow `design/taste.md`.
 
 ## Principles

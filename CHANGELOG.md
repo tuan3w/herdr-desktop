@@ -9,12 +9,11 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 - **A project in the sidebar is one quiet line.** The name with its chevron right after it folds or unfolds the project; no hover boxes. `+` and `...` appear at the right in space kept for them, so the name never moves or re-truncates. `Open project` is the first entry of `...`.
 - **A tool call is one quiet line.** Calls read like `Created package.json +48 ›`: no icon, no check, a red `Failed` only when one failed, and a run of calls sits in one hairline box. Opening a call shows its full path, then the diff or output in place. A code block is one surface: a copy icon and a `...` menu (Wrap lines, Line numbers) appear over its corner with no fill or strip, only when the pointer or keyboard is on the block.
 - **The message box says things once, and the chat reads easier.** The box no longer repeats its keys under a placeholder that already says how to start; its edge is a quiet hairline until you type in it. Answers use the kit's 1.55 line spacing and tables are single hairlines between rows, with no filled header.
-- **Settings and Machines are pages, not dialogs.** Settings opens in the
-  main area with a list of its pages at the left (Look, Notifications,
-  Accessibility, Machines, About), so the sidebar, and any question waiting
-  in it, stays in view. Machines lists each computer with its live, stale or
-  offline state; adding or editing one happens in the same page, and `Esc`
-  steps back from the form, then closes Settings.
+- **Settings is a large dialog over the window.** It opens centered with a list of its pages at the left (Look,
+  Notifications, Accessibility, Machines, About) and the page at the right, so the layout behind it does not move.
+  Machines lists each computer with its live, stale or offline state; adding or editing one happens in the same
+  page, and `Esc` steps back from the form, then closes Settings. A press outside
+  it does not close it.
 - **Questions are answered where you type.** When an agent asks for
   permission, or a terminal agent shows a menu, its chat shows the question
   and its answers in place of the message box, and the box comes back, with

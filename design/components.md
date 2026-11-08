@@ -1,6 +1,6 @@
 # Components
 
-The kit lives in `components/kit/`; `./kit` re-exports it. Use it, do not rebuild it in a screen. Forms and dialogs are in `forms.md`, feedback and Settings in `patterns.md`.
+The kit lives in `components/kit/`; `./kit` re-exports it. Use it, do not rebuild it in a screen. Forms and dialogs are in `forms.md`, feedback and Settings (a large dialog: `Modal` with the large size) in `patterns.md`.
 
 ## Btn
 

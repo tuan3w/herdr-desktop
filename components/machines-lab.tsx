@@ -5,7 +5,7 @@ import { NameDialog } from "#components/name-dialog";
 import { Settings } from "#components/settings";
 import { StartAgent } from "#components/start-agent";
 import { Btn, PopupRoot, ThemeRoot } from "#kit";
-import { openSettings, settingsPage } from "#lib/actions";
+import { openSettings } from "#lib/actions";
 import { revision, startHerdr } from "#lib/herdr";
 import { pressTransition } from "#lib/motion";
 import {
@@ -96,9 +96,7 @@ function Lab() {
           <Text>{`notify=${(revision(), Herdr.setting("notify.needsYou") === true)}/${(revision(), Herdr.setting("notify.alsoDone") === true)}`}</Text>
           <Text>{`press=${pressTransition() === undefined ? "still" : "eased"}`}</Text>
         </View>
-        <If when={settingsPage() !== null}>
-          <Settings />
-        </If>
+        <Settings />
         <StartAgent
           open={start()}
           onClose={() => start.set(false)}

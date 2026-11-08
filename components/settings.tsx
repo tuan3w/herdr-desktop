@@ -1,16 +1,16 @@
 import { Herdr } from "herdr-desktop/native";
-import { computed, effect, keymap, openUrl, Scroll, signal, Text, untracked, View } from "nsh";
+import { computed, effect, openUrl, Scroll, signal, Text, untracked, View } from "nsh";
 import { Button } from "nsh/base";
 
 import type { NotificationSupport } from "herdr-desktop/native";
 
 import { Machines, machineForm } from "#components/machines";
 import { LookPage } from "#components/settings-look";
-import { Btn, FOCUS_RING, notify, SettingRow, Switch } from "#kit";
+import { Btn, FOCUS_RING, Modal, notify, SettingRow, Switch } from "#kit";
 import { closeSettings, settingsPage } from "#lib/actions";
 import type { SettingsPage } from "#lib/actions";
 import { revision } from "#lib/herdr";
-import { COLUMN } from "#lib/layout";
+import { DIALOG_LARGE } from "#lib/layout";
 import { hoverTransition } from "#lib/motion";
 import { announceOutput, checkUpdates, largeTargets, reduceMotionOverride, settingsReady } from "#lib/settings";
 import { availableUpdate, checkForUpdate } from "#lib/updates";
@@ -188,65 +188,59 @@ function NavItem(props: { page: (typeof PAGES)[number] }) {
 }
 
 /**
- * Every preference of the app, as a page of the main region (the sidebar stays, so a question that waits stays in view): a nav of
- * pages at the left (Look, Notifications, Accessibility, Machines, About) and the chosen page's rows beside it, at a readable
- * measure. Each option applies and is saved the moment it changes (`lib/settings.ts`, and the engine's settings file for the
- * notification switches). `Escape` goes one layer back (a machine's form, then the page); `Close` and the sidebar's Settings
- * row do the same with the pointer.
+ * Every preference of the app, as a large centered dialog over the unchanged window: a nav of pages at the left (Look,
+ * Notifications, Accessibility, Machines, About) and the chosen page's rows beside it, at a readable measure. Each option
+ * applies and is saved the moment it changes (`lib/settings.ts`, and the engine's settings file for the notification
+ * switches). It is open while `settingsPage()` is set. `Escape` goes one layer back (a machine's form, then the dialog);
+ * `Close` and the sidebar's Settings row do the same with the pointer. Opening or closing it answers nothing.
  */
 export function Settings() {
-  effect(() =>
-    keymap.bind("escape", () => {
-      if (machineForm()) machineForm.set(null);
-      else closeSettings();
-    }),
-  );
   const page = () => PAGES.find((p) => p.id === settingsPage()) ?? PAGES[0];
   return (
-    <View class="min-h-0 flex-1 flex-row">
-      <View
-        role="navigation"
-        accessibilityLabel="Settings sections"
-        class="w-52 shrink-0 gap-1 border-r border-border bg-sidebar p-3"
-      >
-        <View class="items-start">
-          <Btn
-            variant="ghost"
-            small
-            icon="arrow-left"
-            label="Close"
-            name="Close settings"
-            onPress={() => closeSettings()}
-          />
-        </View>
-        <View class="gap-1 pt-2">
+    <Modal
+      open={settingsPage() !== null}
+      size="settings"
+      title="Settings"
+      disablePointerDismissal
+      onClose={() => {
+        if (machineForm()) machineForm.set(null);
+        else closeSettings();
+      }}
+      actions={<Btn variant="ghost" small label="Close" name="Close settings" onPress={() => closeSettings()} />}
+    >
+      <View class="size-full flex-row">
+        <View
+          role="navigation"
+          accessibilityLabel="Settings sections"
+          class="w-52 shrink-0 gap-1 border-r border-border bg-sidebar p-3"
+        >
           <Each of={PAGES} key={(p: (typeof PAGES)[number]) => p.id}>
             {(p) => <NavItem page={p()} />}
           </Each>
         </View>
+        <Scroll class="min-w-0 flex-1" contentClass="px-8 py-6">
+          <View class="w-full gap-4" style={{ maxWidth: DIALOG_LARGE.measure }}>
+            <Text role="header" class="text-xl font-medium text-foreground">
+              {page().title}
+            </Text>
+            <If when={page().id === "look"}>
+              <LookPage />
+            </If>
+            <If when={page().id === "notifications"}>
+              <NotificationsPage />
+            </If>
+            <If when={page().id === "accessibility"}>
+              <AccessibilityPage />
+            </If>
+            <If when={page().id === "machines"}>
+              <Machines />
+            </If>
+            <If when={page().id === "about"}>
+              <AboutPage />
+            </If>
+          </View>
+        </Scroll>
       </View>
-      <Scroll class="min-w-0 flex-1" contentClass="px-8 py-6">
-        <View class="w-full gap-4" style={{ maxWidth: COLUMN.page + 80 }}>
-          <Text role="header" class="text-xl font-medium text-foreground">
-            {page().title}
-          </Text>
-          <If when={page().id === "look"}>
-            <LookPage />
-          </If>
-          <If when={page().id === "notifications"}>
-            <NotificationsPage />
-          </If>
-          <If when={page().id === "accessibility"}>
-            <AccessibilityPage />
-          </If>
-          <If when={page().id === "machines"}>
-            <Machines />
-          </If>
-          <If when={page().id === "about"}>
-            <AboutPage />
-          </If>
-        </View>
-      </Scroll>
-    </View>
+    </Modal>
   );
 }

@@ -1,6 +1,17 @@
 import { expect, test } from "nsh/test";
 
-import { HIT, RADIUS, RAIL_WIDTH, ROW, SIDEBAR_WIDTH, SPACE, TAILWIND, TYPE } from "#lib/layout";
+import {
+  DIALOG_LARGE,
+  HIT,
+  largeDialogSize,
+  RADIUS,
+  RAIL_WIDTH,
+  ROW,
+  SIDEBAR_WIDTH,
+  SPACE,
+  TAILWIND,
+  TYPE,
+} from "#lib/layout";
 
 import config from "../nsh.json";
 
@@ -51,4 +62,12 @@ test("the sidebar is wide enough for a 13-pt title and its bounds nest", () => {
   expect(SIDEBAR_WIDTH.narrow).toBeLessThanOrEqual(SIDEBAR_WIDTH.default);
   expect(SIDEBAR_WIDTH.default).toBeLessThanOrEqual(SIDEBAR_WIDTH.max);
   expect(RAIL_WIDTH).toBeGreaterThanOrEqual(HIT.large + 2 * SPACE[2]);
+});
+
+test("the large dialog keeps its own size in a roomy window and the margin on every side in a small one", () => {
+  expect(largeDialogSize({ width: 1280, height: 800 })).toEqual({ width: 880, height: 640 });
+  // 760 wide: the window less 24 pt either side, never wider than itself
+  expect(largeDialogSize({ width: 760, height: 800 }).width).toBe(760 - 2 * DIALOG_LARGE.margin);
+  expect(largeDialogSize({ width: 1280, height: 500 }).height).toBe(500 - 2 * DIALOG_LARGE.margin);
+  expect(largeDialogSize({ width: 10, height: 10 })).toEqual({ width: 0, height: 0 });
 });

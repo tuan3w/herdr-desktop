@@ -61,8 +61,8 @@ export const shortcutsOpen = signal(false);
 export type SettingsPage = "look" | "notifications" | "accessibility" | "machines" | "about";
 
 /**
- * The page of Settings in the main region, or `null` while the workspace is shown. It is not a dialog: a question that waits
- * stays visible in the sidebar and in the answer dock while a font is chosen.
+ * The page of Settings while its dialog is open, or `null` while it is closed. A dialog over an unchanged window, by the owner's
+ * choice (`design/dialogs.md`): the sidebar's marks stay under the scrim.
  */
 export const settingsPage = signal<SettingsPage | null>(null);
 

@@ -11,7 +11,7 @@
 // The picture is nsh's own `app.screenshot` of the window it opened (PNG bytes from the host), so no screen capture, no
 // Screen Recording permission and no window id are involved. nsh starts and closes its own host; this script spawns only
 // that one child and, on a timeout, kills exactly that PID.
-import { spawnSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,12 +38,11 @@ const flagged = new Set([
   "js",
   "fixture",
 ]);
-const positional = args.filter(
+const scenario = args.find(
   (a, i) => !a.startsWith("--") && !(i > 0 && flagged.has(args[i - 1].slice(2)) && args[i - 1].startsWith("--")),
 );
 
 const entry = opt("entry");
-const scenario = positional[0];
 if (!entry && !scenario) {
   console.error(
     "usage: shots-mac.mjs <scenario> | --entry <components/x-lab.tsx> [--size WxH] [--theme light|dark|both] [--press sel]... [--wait ms] [--name n]",

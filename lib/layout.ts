@@ -74,6 +74,18 @@ export const RAIL_WIDTH = 64;
  */
 export const COLUMN = { home: 1440, chat: 768, page: 640 } as const;
 
+/** The large dialog (`Modal size="settings"`): its own size, the margin it keeps from the window's edge and the measure of its page. */
+export const DIALOG_LARGE = { width: 880, height: 640, margin: 24, measure: 560 } as const;
+
+/** The size of the large dialog in a window of `win`: its own, or the window less the margin on every side. */
+export function largeDialogSize(win: { width: number; height: number }): { width: number; height: number } {
+  const room = (side: number) => Math.max(0, side - 2 * DIALOG_LARGE.margin);
+  return {
+    width: Math.min(DIALOG_LARGE.width, room(win.width)),
+    height: Math.min(DIALOG_LARGE.height, room(win.height)),
+  };
+}
+
 /** Pointer hit targets in points; `largeTargets` (Settings) raises every control that reads `hit()` to the second. */
 export const HIT = { pointer: 28, large: 44 } as const;
 
