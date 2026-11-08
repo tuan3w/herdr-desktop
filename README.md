@@ -5,11 +5,10 @@
 > Alpha software. Native (Rust and TSX on [nsh](https://github.com/longbridge/nsh), real AppKit widgets, no web view), built for macOS on Apple silicon. Expect rough edges; the [changelog](CHANGELOG.md) says what works.
 
 <p align="center">
-  <img src="docs/screenshots/glance.png" width="900" alt="Herdr Desktop in light mode. The sidebar lists ten agents across four projects. The open agent, 'Add idempotency keys to refunds', is asking permission to run 'npm run migrate -- --to 0042'. The answer dock shows the exact command, marks 'Yes' as one that changes a database, and says nothing is sent until you choose. The Activity panel on the right shows a subagent and a test watcher running, with two finished tasks folded.">
+  <img src="docs/screenshots/glance.png" width="100%" alt="Herdr Desktop in light mode. The sidebar lists ten agents across four projects. The open agent, 'Add idempotency keys to refunds', is asking permission to run 'npm run migrate -- --to 0042'. The answer dock shows the exact command, marks 'Yes' as one that changes a database, and says nothing is sent until you choose. The Activity panel on the right shows a subagent and a test watcher running, with two finished tasks folded.">
 </p>
 <p align="center">
-  <img src="docs/screenshots/review.png" width="440" alt="An agent's finished turn next to its changes. The reads, searches and commands are folded into one line, and the failed test run stays in view below the answer. The Changes review beside it shows a readable diff of login-form.tsx, file 1 of 3, with a Mark reviewed button.">
-  <img src="docs/screenshots/night.png" width="440" alt="The same window in dark mode. An agent upgrading to React 19 is still working, and the inspector shows the conversation of one of its subagents, 'Move refs to plain props in components/forms', which has been running for 37 minutes.">
+  <img src="docs/screenshots/review.png" width="49%" alt="An agent's finished turn next to its changes. The reads, searches and commands are folded into one line, and the failed test run stays in view below the answer. The Changes review beside it shows a readable diff of login-form.tsx, file 1 of 3, with a Mark reviewed button.">&nbsp;<img src="docs/screenshots/night.png" width="49%" alt="The same window in dark mode. An agent upgrading to React 19 is still working, and the inspector shows the conversation of one of its subagents, 'Move refs to plain props in components/forms', which has been running for 37 minutes.">
 </p>
 
 ## The idea
