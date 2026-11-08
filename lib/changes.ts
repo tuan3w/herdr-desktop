@@ -173,17 +173,56 @@ export function stepFile(order: readonly ChangeView[], current: string | null, b
   return order[Math.max(0, Math.min(order.length - 1, at + by))].path;
 }
 
-/** `12 files · +340 −120`, or `1 file`: what the header says. */
-export function summaryText(files: readonly ChangeView[]): string {
-  const n = files.length;
+/** `1 file`, `12 files`. */
+export const filesText = (n: number): string => `${n} ${n === 1 ? "file" : "files"}`;
+
+/** What the header counts: the files and the lines added and removed in them (a file git could not count adds nothing). */
+export function totalsOf(files: readonly ChangeView[]): { files: number; added: number; removed: number } {
   let added = 0;
   let removed = 0;
   for (const f of files) {
     added += f.added ?? 0;
     removed += f.removed ?? 0;
   }
-  const count = `${n} ${n === 1 ? "file" : "files"}`;
-  return added + removed > 0 ? `${count} \u00b7 ${plusMinus(added, removed)}` : count;
+  return { files: files.length, added, removed };
+}
+
+/** One letter for a file's state in the list's fixed column (the row's accessible name says the word, `KIND_WORD`). */
+export const KIND_MARK: Record<Kind, string> = {
+  conflicted: "!",
+  modified: "M",
+  added: "A",
+  deleted: "D",
+  renamed: "R",
+  untracked: "U",
+};
+
+/** The agents of a checkout as the header says them: the one agent's name, else a count; the tip lists them. Empty when none. */
+export function agentPart(rows: readonly Pick<BoardRow, "name" | "agent">[]): { text: string; tip: string } {
+  const names = rows.map((r) => r.name || r.agent);
+  if (names.length === 0) return { text: "", tip: "" };
+  return { text: names.length === 1 ? names[0] : `${names.length} agents`, tip: names.join(", ") };
+}
+
+/** This computer's machine id (`store::LOCAL_ID` in the core): the header names a machine only when it is another one. */
+export const LOCAL = "local";
+
+/**
+ * Which of the header's optional parts fit beside the project and the branch. Widths are the texts' own, in points (each
+ * laid out once with no clamp, as the sidebar does). `room` is the identity's share of the line; the scope (counts and
+ * progress) has been taken off it first. The agent goes first and then the machine, whole or not at all, never a stub; the
+ * project and the branch are never dropped (they fade when really too long).
+ */
+export function identityFit(o: { room: number; project: number; branch: number; machine: number; agent: number }): {
+  machine: boolean;
+  agent: boolean;
+} {
+  const base = o.project + o.branch;
+  const both = base + o.machine + o.agent <= o.room;
+  return {
+    agent: o.agent > 0 && both,
+    machine: o.machine > 0 && (both || base + o.machine <= o.room),
+  };
 }
 
 /** The branch line: `main`, `main · 2 ahead · 1 behind`, `detached at 4f9a1c2`, plus `worktree` for a linked one. */

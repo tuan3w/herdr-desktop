@@ -13,6 +13,7 @@ import {
   type Item,
   type Kind,
   KIND_WORD,
+  LOCAL,
   listItems,
   type Marks,
   type Note,
@@ -136,6 +137,8 @@ export interface ChangesModel {
   staleNotes: Accessor<ReadonlySet<number>>;
   agents: Accessor<BoardRow[]>;
   repoName: Accessor<string>;
+  /** The machine's name for a header, empty for this computer (nothing to say) and while the board does not know it. */
+  machineName: Accessor<string>;
   /** The one message the notes make. */
   message: Accessor<string>;
   sendNotes: (row: BoardRow) => Promise<boolean>;
@@ -184,6 +187,9 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
   const reviewedCount = computed(() => files().filter((f) => isReviewed(marks(), f)).length);
   const agents = computed(() => (revision(), agentsIn(allRows(board()), machine, root(), Git.canonicalPath)));
   const repoName = computed(() => checkoutName(machine, root()));
+  const machineName = computed(() =>
+    machine === LOCAL ? "" : (board().projects.find((p) => p.machine === machine)?.machineName ?? machine),
+  );
   const message = computed(() => notesMessage(notes(), repoName()));
   const branch = computed(() => (status() && !status()!.problem ? branchText(status()!) : ""));
 
@@ -547,6 +553,7 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
     staleNotes,
     agents,
     repoName,
+    machineName,
     message,
     sendNotes,
     revertFile,

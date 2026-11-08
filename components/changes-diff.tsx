@@ -157,18 +157,18 @@ export function ChangesDiff(props: { model: ChangesModel; onBack?: () => void })
               </Text>
               <Text class="text-xs text-muted-foreground">{text(c())}</Text>
             </View>
+            {/* One primary per area: the next step is Mark reviewed; once done it is a quiet state. The keys are in the tooltip of the icon and in the shortcut sheet, not boxed inside buttons. */}
             <Btn
               small
+              variant={model.reviewed(c()) ? "ghost" : "primary"}
               icon={model.reviewed(c()) ? "check" : undefined}
               label={model.reviewed(c()) ? "Mark not reviewed" : "Mark reviewed"}
-              hint="x"
               onPress={() => model.toggleReviewed(c())}
             />
-            <Btn
-              small
+            <IconButton
               icon="pencil"
               label="Add note"
-              hint="c"
+              shortcut="c"
               buttonRef={(node) => {
                 addButton = node;
               }}

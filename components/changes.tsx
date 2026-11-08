@@ -5,13 +5,18 @@ import type { ChangeView, StatusView } from "herdr-desktop/native";
 import { ChangesDiff } from "#components/changes-diff";
 import { ChangesList } from "#components/changes-list";
 import { SendNotes } from "#components/changes-notes";
-import { Btn, dialogDepth, Empty, IconButton, narrow, Skeleton, snug } from "#kit";
-import { summaryText } from "#lib/changes";
+import { Btn, Clipped, dialogDepth, Empty, IconButton, narrow, NUM, Skeleton, snug, Tipped } from "#kit";
+import { agentPart, filesText, identityFit, totalsOf } from "#lib/changes";
 import { createChanges } from "#lib/changes-model";
 
 /** The width of the file list beside the diff, and its narrower form in a snug window. */
 const LIST_WIDTH = 304;
 const LIST_WIDTH_SNUG = 256;
+
+/** What the header's cut project or branch fades into: the page. */
+const FADE = "from-background/0 to-background";
+/** The gaps between the header's four texts (`gap-1.5` three times), taken off the room before the parts are fitted. */
+const IDENTITY_GAPS = 18;
 
 /** What stands in for the tab when git has nothing to show: the folder is not a repository, the machine is away, git is missing. */
 function Problem(props: { status: StatusView; onRetry: () => void }) {
@@ -116,11 +121,33 @@ export function Changes(props: { machine: string; cwd: string; active: boolean }
   });
   cleanup(() => model.attach(null));
 
-  // The repository's name is the list's heading and the reviewed count its progress: this line is the branch and the totals.
-  const summary = () =>
-    [model.branch(), ready() && model.files().length > 0 ? summaryText(model.files()) : ""]
-      .filter(Boolean)
-      .join(" \u00b7 ");
+  // The header's own widths: the identity's share of the line and each part laid out once with no clamp, so an optional
+  // part (the agent, then the machine) is whole or left out and never cut. Nothing optional shows before the first measure.
+  const room = signal(0);
+  const natural = signal<Record<string, number>>({});
+  const measure = (key: string) => (e: { lines: { bounds: { size: { width: number } } }[] }) => {
+    const width = Math.ceil(e.lines.reduce((sum, l) => sum + l.bounds.size.width, 0));
+    if (natural()[key] !== width) natural.set({ ...natural(), [key]: width });
+  };
+  const branchPart = () => (model.branch() ? `\u00b7 ${model.branch()}` : "");
+  const machinePart = () => (model.machineName() ? `\u00b7 ${model.machineName()}` : "");
+  const agent = () => agentPart(model.agents());
+  const agentWords = () => (agent().text ? `\u00b7 by ${agent().text}` : "");
+  const fit = () => {
+    const n = natural();
+    return room() === 0
+      ? { machine: false, agent: false }
+      : identityFit({
+          room: room() - IDENTITY_GAPS,
+          project: n.project ?? 0,
+          branch: n.branch ?? 0,
+          machine: n.machine ?? 0,
+          agent: n.agent ?? 0,
+        });
+  };
+  const totals = () => totalsOf(model.files());
+  const reviewedText = () => `${model.reviewedCount()} of ${model.files().length} reviewed`;
+  const reading = () => status() === null && !model.failure();
 
   return (
     <View
@@ -128,13 +155,72 @@ export function Changes(props: { machine: string; cwd: string; active: boolean }
       accessibilityLabel={`Changes in ${model.repoName()}`}
       class="min-h-0 min-w-0 flex-1 bg-background"
     >
-      <View class="min-h-12 flex-row items-center gap-3 border-b border-border px-6 py-2">
-        <Text
-          class="min-w-0 flex-1 text-xs text-muted-foreground"
-          style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
+      <View class="min-h-10 flex-row items-center gap-3 border-b border-border px-4 py-1">
+        <View
+          class="min-w-0 flex-1 flex-row items-baseline gap-1.5"
+          onLayout={({ bounds }) => room.set(bounds.size.width)}
         >
-          {summary()}
-        </Text>
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            class="pointer-events-none absolute left-0 top-0 opacity-0"
+          >
+            <Text class="text-sm font-medium" onTextLayout={measure("project")}>
+              {model.repoName()}
+            </Text>
+            <Text class="text-xs" onTextLayout={measure("branch")}>
+              {branchPart()}
+            </Text>
+            <Text class="text-xs" onTextLayout={measure("machine")}>
+              {machinePart()}
+            </Text>
+            <Text class="text-xs" onTextLayout={measure("agent")}>
+              {agentWords()}
+            </Text>
+          </View>
+          <Clipped fade={[FADE]} boxClass="min-w-0 shrink" class="text-sm font-medium text-foreground">
+            {model.repoName()}
+          </Clipped>
+          <If when={branchPart()}>
+            <Clipped fade={[FADE]} boxClass="min-w-0 shrink" class="text-xs text-muted-foreground">
+              {branchPart()}
+            </Clipped>
+          </If>
+          <If when={fit().machine}>
+            <Text style={{ numberOfLines: 1 }} class="shrink-0 text-xs text-muted-foreground">
+              {machinePart()}
+            </Text>
+          </If>
+          <If when={fit().agent}>
+            <Tipped label={agent().tip}>
+              <Text style={{ numberOfLines: 1 }} class="shrink-0 text-xs text-muted-foreground">
+                {agentWords()}
+              </Text>
+            </Tipped>
+          </If>
+        </View>
+        <If when={reading()}>
+          <Text class="shrink-0 text-xs text-muted-foreground">Reading changes{"\u2026"}</Text>
+        </If>
+        <If when={ready() && model.files().length > 0}>
+          <View class="shrink-0 flex-row items-baseline gap-3">
+            <Text style={NUM} class="text-xs text-muted-foreground">
+              {filesText(totals().files)}
+            </Text>
+            <If when={totals().added + totals().removed > 0}>
+              <View class="flex-row items-baseline gap-1.5">
+                <Text style={NUM} class="text-xs text-success">{`+${totals().added}`}</Text>
+                <Text style={NUM} class="text-xs text-destructive">{`\u2212${totals().removed}`}</Text>
+              </View>
+            </If>
+            <Text
+              style={NUM}
+              class={`text-xs ${model.reviewedCount() > 0 ? "text-foreground" : "text-muted-foreground"}`}
+            >
+              {reviewedText()}
+            </Text>
+          </View>
+        </If>
         <If when={model.notes().length > 0}>
           <Btn
             variant="primary"

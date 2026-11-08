@@ -21,7 +21,11 @@ import {
   splitPath,
   statsText,
   stepFile,
-  summaryText,
+  totalsOf,
+  filesText,
+  identityFit,
+  agentPart,
+  KIND_MARK,
   withCheckout,
   withMark,
 } from "#lib/changes";
@@ -139,9 +143,43 @@ test("j and k stop at the ends of the list and start from the nearest end when n
 });
 
 test("the header counts files and lines and says nothing it does not know", () => {
-  expect(summaryText(FILES)).toBe("5 files \u00b7 +23 \u221214");
-  expect(summaryText([change("a", { added: null, removed: null, binary: true })])).toBe("1 file");
-  expect(summaryText([])).toBe("0 files");
+  expect(totalsOf(FILES)).toEqual({ files: 5, added: 23, removed: 14 });
+  expect(totalsOf([change("a", { added: null, removed: null, binary: true })])).toEqual({
+    files: 1,
+    added: 0,
+    removed: 0,
+  });
+  expect(filesText(1)).toBe("1 file");
+  expect(filesText(0)).toBe("0 files");
+});
+
+test("the header drops the agent, then the machine, whole, and never the project or the branch", () => {
+  const w = { project: 80, branch: 60, machine: 70, agent: 90 };
+  expect(identityFit({ ...w, room: 400 })).toEqual({ machine: true, agent: true });
+  expect(identityFit({ ...w, room: 290 })).toEqual({ machine: true, agent: false });
+  expect(identityFit({ ...w, room: 200 })).toEqual({ machine: false, agent: false });
+  expect(identityFit({ ...w, room: 100 })).toEqual({ machine: false, agent: false });
+  // This computer has no machine part: the agent has the room alone.
+  expect(identityFit({ ...w, machine: 0, room: 240 })).toEqual({ machine: false, agent: true });
+  // Nothing known, nothing drawn.
+  expect(identityFit({ ...w, machine: 0, agent: 0, room: 999 })).toEqual({ machine: false, agent: false });
+});
+
+test("the header names the one agent, else counts them, and says nothing when none works there", () => {
+  expect(agentPart([])).toEqual({ text: "", tip: "" });
+  expect(agentPart([{ name: "claude-1", agent: "claude" }])).toEqual({ text: "claude-1", tip: "claude-1" });
+  expect(
+    agentPart([
+      { name: "", agent: "omp" },
+      { name: "b", agent: "claude" },
+    ]),
+  ).toEqual({ text: "2 agents", tip: "omp, b" });
+});
+
+test("every kind of change has its own one-letter mark", () => {
+  expect(new Set(Object.values(KIND_MARK)).size).toBe(Object.keys(KIND_MARK).length);
+  expect(KIND_MARK.modified).toBe("M");
+  expect(KIND_MARK.conflicted).toBe("!");
 });
 
 test("the branch line says where HEAD is, how far from its upstream, and a linked worktree", () => {

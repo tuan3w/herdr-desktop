@@ -4,7 +4,7 @@ import { expect, open, test } from "nsh/test";
 import type { App } from "nsh/test";
 
 import { changeEntries } from "#components/changes-diff";
-import { filePosition, folderTail, headings, splitMiddle } from "#components/changes-list";
+import { headings } from "#components/changes-list";
 import { changeText } from "#components/diff-block";
 import type { MenuAction, MenuEntry, MenuGroup } from "#kit";
 import type { Item } from "#lib/changes";
@@ -52,8 +52,14 @@ test("the changed files are grouped by what happened, each with how much changed
   expect(app.shows(`label:src/tokens.ts, renamed, from src/token.ts, +1 ${MINUS}1`)).toBe(true);
   expect(app.shows(`label:src/rate-limit.ts, new, not in git, +17 ${MINUS}0`)).toBe(true);
   expect(app.shows("label:assets/logo.png, modified, binary, 12 bytes")).toBe(true);
-  expect(said(app, `8 files \u00b7 +38 ${MINUS}8`)).toBe(true);
-  expect(said(app, "File 1 of 8")).toBe(true);
+  // The header says the totals and the progress once, as parts of one line.
+  expect(said(app, "8 files")).toBe(true);
+  expect(said(app, "+38")).toBe(true);
+  expect(said(app, `${MINUS}8`)).toBe(true);
+  expect(said(app, "0 of 8 reviewed")).toBe(true);
+  // One letter per file in its own column; the row's accessible name keeps the word.
+  expect(said(app, "M")).toBe(true);
+  expect(said(app, "U")).toBe(true);
 });
 
 test("the first file's change is drawn at once, and a press shows another", async () => {
@@ -376,33 +382,20 @@ test("the group headings stay at the top of the list while their files scroll un
   expect(headings([])).toEqual([]);
 });
 
-test("a 90 character file name is cut in its middle to a length a row fits, keeping both ends and the extension", () => {
-  const name = `${"a".repeat(40)}-the-long-middle-of-it-${"b".repeat(20)}.test.tsx`;
-  expect(name.length).toBeGreaterThanOrEqual(90);
-  const shown = splitMiddle(name, 32);
-  expect(shown.length).toBeLessThanOrEqual(32);
-  expect(shown).toContain("\u2026");
-  expect(shown.startsWith("aaaa")).toBe(true);
-  expect(shown.endsWith(".tsx")).toBe(true);
-  expect(splitMiddle("auth.ts", 32)).toBe("auth.ts");
-  // No extension, and a dotfile: the cut still fits.
-  expect(splitMiddle("x".repeat(90), 32).length).toBeLessThanOrEqual(32);
-  expect(splitMiddle(`.${"y".repeat(60)}`, 32).length).toBeLessThanOrEqual(32);
+test("the header says what is reviewed before git answers, and the branch once it has", async () => {
+  // A tab that is not in front reads nothing: its header is what a person sees before git answers.
+  const waiting = await lab({ hidden: true });
+  expect(said(waiting, "Reading changes\u2026")).toBe(true);
+  expect(said(waiting, "payments")).toBe(true);
+  const app = await ready();
+  expect(said(app, "Reading changes\u2026")).toBe(false);
+  expect(said(app, "\u00b7 main")).toBe(true);
+  expect(said(app, "\u00b7 by 2 agents")).toBe(true);
 });
 
-test("a folder shows its last two segments and says that it left the rest out", () => {
-  expect(folderTail("")).toBe("");
-  expect(folderTail("src/")).toBe("src/");
-  expect(folderTail("src/lib/")).toBe("src/lib/");
-  expect(folderTail(".claude/skills/herdr/scripts/")).toBe("\u2026/herdr/scripts/");
-});
-
-test("the list says where the file in view stands among the files it lists", () => {
-  const file = (path: string) => ({ kind: "file", key: path, change: { path } }) as unknown as Item;
-  const items = [{ kind: "head", key: "h" } as unknown as Item, file("a"), file("b"), file("c")];
-  expect(filePosition(items, "b")).toEqual({ at: 2, of: 3 });
-  expect(filePosition(items, "gone")).toEqual({ at: 0, of: 3 });
-  expect(filePosition(items, undefined)).toEqual({ at: 0, of: 3 });
+test("a long file name is not cut by a count: the row holds it whole under its own label", async () => {
+  const app = await ready({ kind: "many" });
+  expect(app.shows("label:/^module1\\.ts, /") || app.shows("label:/^src\\/gen\\/module\\d+\\.ts, /")).toBe(true);
 });
 
 test("the diff header says which change is in view, and how many before the first step", () => {
