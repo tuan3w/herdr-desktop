@@ -1,25 +1,38 @@
-# herdr-desktop
+# Herdr Desktop
 
-A native desktop client for [herdr](https://herdr.dev), the terminal multiplexer for coding agents. It is the desktop counterpart of `herdr-mobile`: one window shows every agent on every machine, says the moment one needs you, lets you answer safely, and lets you look away.
+**The calm way to work with coding agents.** One native window for every agent on every machine: it tells you the moment one needs you, lets you answer safely, shows what it did, and lets you look away.
 
-Built with [nsh](https://github.com/longbridge/nsh) (Rust + TSX, native widgets: GTK 4 on Linux, AppKit on macOS; no web view for the UI). macOS (Apple silicon) is the focus and the only platform releases are built for right now; Linux builds are paused (it still builds from source). Neither has been verified on a real Mac by the author yet ([docs/MACOS.md](docs/MACOS.md)). License: GPL-3.0-or-later.
+> Alpha software. Native (Rust and TSX on [nsh](https://github.com/longbridge/nsh), real AppKit widgets, no web view), built for macOS on Apple silicon. Expect rough edges; the [changelog](CHANGELOG.md) says what works.
+
+<p align="center">
+  <img src="docs/screenshots/glance.png" width="900" alt="Herdr Desktop in light mode. The sidebar lists ten agents across four projects. The open agent, 'Add idempotency keys to refunds', is asking permission to run 'npm run migrate -- --to 0042'. The answer dock shows the exact command, marks 'Yes' as one that changes a database, and says nothing is sent until you choose. The Activity panel on the right shows a subagent and a test watcher running, with two finished tasks folded.">
+</p>
+<p align="center">
+  <img src="docs/screenshots/review.png" width="440" alt="An agent's finished turn next to its changes. The reads, searches and commands are folded into one line, and the failed test run stays in view below the answer. The Changes review beside it shows a readable diff of login-form.tsx, file 1 of 3, with a Mark reviewed button.">
+  <img src="docs/screenshots/night.png" width="440" alt="The same window in dark mode. An agent upgrading to React 19 is still working, and the inspector shows the conversation of one of its subagents, 'Move refs to plain props in components/forms', which has been running for 37 minutes.">
+</p>
+
+## The idea
+
+You run several agents at once (Claude Code, Codex, omp) under the [herdr](https://herdr.dev) terminal multiplexer, on this computer and on others over ssh, while you do something else. You are a **supervisor, not a pair-programmer**. Every time you glance at the window you ask the same five things, in order:
+
+1. **Does anything need me?** Which agent, what exactly it asks, what happens if I say yes.
+2. **Is everything alive and on track?** What runs, for how long, whether a machine went quiet.
+3. **What did it do?** The outcome: what changed, what failed, the answer. Not the process.
+4. **Steer it.** Correct, redirect, stop, start.
+5. **Can I trust it?** The agent, and this app: live, stale or offline.
+
+Herdr Desktop is built around those questions and nothing else. What needs you is the loudest thing on the screen and the only loud thing. Everything else is quiet, said once, and folded until you ask. A window you keep open all day should cost nothing when nothing happens: at rest it draws no frames.
 
 ## What it does
 
-- **Sidebar and Board.** Agents grouped by project (a repository with its worktrees, or a folder; the same project on two machines is two groups), chat sessions and terminal agents together. A row is a state glyph and a title, and a waiting agent is a mark on its row, said once. The Board is the same list as a table with state filter chips. One count is shared by the status line, the window title and notifications. (The table Board is decided, not built yet; today's Board is project cards.)
-- **Answer.** Permission prompts of terminal agents become buttons showing the exact command, in the agent's own conversation (`mod+j` jumps to the next one that waits). Risky answers are two-step. Nothing is sent when the question changed.
-- **Watch and steer.** A live read-only view of each pane, a message box, a Stop button, links; chat sessions have slash commands.
-- **Many machines.** This computer plus any machine reachable with `ssh` (your `~/.ssh/config`, agent and ProxyJump are honoured; no password prompts).
-- **Agent sessions.** ACP agents (for example `omp acp`) started from the app, with a chat transcript, a permission dock and replay after a restart.
-- **Accessible.** Screen-reader roles and labels on every control, keyboard everywhere, contrast-tested themes, reduced motion.
-
-Feature-by-feature status against the phone app is in [docs/PARITY.md](docs/PARITY.md).
-
-## A look
-
-<p><img src="docs/screenshots/home.png" alt="Home: projects and their agents" width="440"> <img src="docs/screenshots/chat.png" alt="Chat with highlighted code, light" width="440"> <img src="docs/screenshots/chat-dark.png" alt="Chat with highlighted code, dark" width="440"></p>
-
-Illustrations from scripted data, not a gallery: they date. `make shots` takes current ones into `.scratch/shots/` (not committed).
+- **One list of every agent.** The sidebar groups agents by project (a repository with its worktrees, or a folder), across machines. A row is a state shape and a title; an agent that waits for you is marked once. `⌘J` jumps to the next one that waits.
+- **Answer where the question is.** A permission prompt becomes the exact command and its choices, in the agent's own conversation. Risky answers take two presses. Nothing is ever approved by a timer, and nothing is sent if the question changed meanwhile.
+- **A conversation ranked by consequence.** The chat is read from the agent's own log. Reads, searches and commands fold into one quiet line (`Read 8 files, ran 4 commands`); the final answer, failures and anything that leaves the working tree (a push, a delete, an install) stay in view.
+- **Review what it changed.** `Edited 7 files` opens those seven files, not the whole folder; generated output waits folded; `Mark reviewed` moves to the next file. It stays readable in a half-window split.
+- **Files, pictures and links.** Browse a machine's folders in a tab, view code and pictures, paste a screenshot into a message (scaled and compressed before it crosses the network).
+- **Many machines.** This computer plus any machine your `ssh` reaches (your `~/.ssh/config`, agent and ProxyJump; no password prompts). A dropped machine says so and never pretends to be live.
+- **Keyboard first and accessible.** Every action has a key, shown in its tooltip and in the palette (`⌘P`); every control is named for screen readers; themes are contrast-tested in light and dark; reduced motion is honoured.
 
 ## Install
 
@@ -37,26 +50,21 @@ curl -fsSL .../scripts/install.sh | sh -s -- --edge                    # the new
 curl -fsSL .../scripts/install.sh | sh -s -- --uninstall               # remove it (your data stays)
 ```
 
-`APP_DIR=DIR` chooses another place. Prefer to read it first: [scripts/install.sh](scripts/install.sh). The archives, `SHA256SUMS` and the notes of each release are on the [Releases page](https://github.com/tuan3w/herdr-desktop/releases); `edge` there is the build of the latest `main`, replaced after every push that builds.
+`APP_DIR=DIR` chooses another place. Prefer to read it first: [scripts/install.sh](scripts/install.sh). Archives, `SHA256SUMS` and release notes are on the [Releases page](https://github.com/tuan3w/herdr-desktop/releases).
 
-**Linux is paused.** New releases hold the macOS zip only: the owner is focusing on macOS, so no Linux package is built or tested on every change. On Linux the installer says `no Linux build in this release`; build from source (below). Linux x86_64 archives exist for `0.1.0-alpha.1` to `alpha.3` and the installer still installs them with `--version`. The Linux code, `make` targets and CI jobs are kept working and run by hand: [docs/RELEASING.md](docs/RELEASING.md), "Linux (paused)".
+**Linux is paused.** The code still builds from source with GTK 4 (below), but no Linux package is built or tested on every change ([docs/RELEASING.md](docs/RELEASING.md), "Linux (paused)").
 
 ## Status
 
-Alpha: `0.1.0-alpha.3` is the current test release ([CHANGELOG.md](CHANGELOG.md) says what works and what does not). macOS (Apple silicon) is the platform of the releases and of CI: every push to `main` builds and signs the app and lints the code; the slow tests run nightly. Nobody has run it on a real Mac yet, and Linux builds are paused. `docs/PARITY.md` is the ledger of what is done.
+Alpha (`0.1.0-alpha.x`). The author uses it on macOS every day; it has not been tried widely. What works and what does not is in [CHANGELOG.md](CHANGELOG.md); what is built and still open is in [docs/STATUS.md](docs/STATUS.md).
 
 ## Build
 
-Needs Linux with GTK 4.14+, `libgtk-4-dev`, `clang`, `pkg-config`, and [nsh](https://nsh.dev) 0.4.0:
-
 ```sh
 NSH_VERSION=v0.4.0 sh -c "$(curl -fsSL https://nsh.dev/install.sh)"
-make        # check, test, core, docs, a11y
-make run    # dev window
-make package            # .scratch/dist/Herdr Desktop.tar.gz
-local/install.sh        # install it for your user (--uninstall removes it)
+make            # check, tests, core, docs (Linux; on a Mac: make verify-mac)
+make run        # a dev window
+make package    # .scratch/dist/Herdr Desktop.app (macOS) or a tarball (Linux)
 ```
 
-On a Mac (Xcode command line tools, clang) the same commands work with `make verify-mac` in place of `make` (no AT-SPI audit) and `make package` producing `Herdr Desktop.app`. Releases are cut as in [docs/RELEASING.md](docs/RELEASING.md).
-
-[AGENTS.md](AGENTS.md) is how to work here, [DESIGN.md](DESIGN.md) the design system, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) how the pieces fit.
+The build needs zig 0.15 on the path (for the terminal emulator library) ([docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)). [AGENTS.md](AGENTS.md) is how to work here, [DESIGN.md](DESIGN.md) the design system, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) how the pieces fit. License: GPL-3.0-or-later.
