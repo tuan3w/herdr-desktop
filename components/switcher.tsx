@@ -99,7 +99,7 @@ export function Switcher(props: { open: boolean; onClose: () => void }) {
           searchAccessibilityLabel="Filter recent agents and projects"
           placeholder="Filter"
           searchBarClass="mb-2 rounded-md border border-border px-3"
-          searchClass="h-9 text-sm"
+          searchClass="h-8 text-sm"
           listClass="max-h-[360px]"
           itemClass="group flex-row items-center rounded-md px-3 py-2 focus:bg-accent hover:bg-accent"
           renderItem={(entry) => <Row item={() => byId().get(entry.id)} />}

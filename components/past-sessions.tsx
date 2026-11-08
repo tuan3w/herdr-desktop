@@ -10,6 +10,9 @@ import { agentLabel, epochSeconds, startFailure } from "#lib/new-session";
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 /** The tallest the list grows before it scrolls inside the dialog, in points. */
 const LIST_HEIGHT = 360;
+/** What a cut line fades into on a dialog (`Clipped` `fade`): the card, then a hovered row's `hover:bg-accent`. */
+const CARD = "from-card/0 to-card";
+const CARD_HOVER = "from-accent/0 to-accent opacity-0 group-hover/row:opacity-100";
 
 /**
  * `Past sessions`: the conversations an agent kept in its own store on a machine, newest first, each with its
@@ -150,9 +153,9 @@ export function PastSessions(props: {
         </If>
         <If when={loading()}>
           <View accessibilityLabel="Loading past sessions" class="gap-2">
-            <Skeleton class="h-9 w-full" />
-            <Skeleton class="h-9 w-full" />
-            <Skeleton class="h-9 w-full" />
+            <Skeleton class="h-8 w-full" />
+            <Skeleton class="h-8 w-full" />
+            <Skeleton class="h-8 w-full" />
           </View>
         </If>
         <If when={result()}>
@@ -184,11 +187,15 @@ export function PastSessions(props: {
                           accessibilityLabel={[title(s()), agentLabel(past().agent), s().cwd, age(s()), count(s())]
                             .filter(Boolean)
                             .join(", ")}
-                          class="flex-row items-center gap-3 rounded-md px-2 py-2 hover:bg-accent"
+                          class="group/row flex-row items-center gap-3 rounded-md px-2 py-2 hover:bg-accent"
                         >
                           <View class="min-w-0 flex-1 gap-1">
-                            <Clipped class="text-sm font-medium text-foreground">{title(s())}</Clipped>
-                            <Clipped class="font-mono text-xs text-muted-foreground">{s().cwd}</Clipped>
+                            <Clipped fade={[CARD, CARD_HOVER]} class="text-sm font-medium text-foreground">
+                              {title(s())}
+                            </Clipped>
+                            <Clipped fade={[CARD, CARD_HOVER]} class="font-mono text-xs text-muted-foreground">
+                              {s().cwd}
+                            </Clipped>
                           </View>
                           <Text class="text-xs text-muted-foreground">
                             {[age(s()), count(s())].filter(Boolean).join(" · ")}

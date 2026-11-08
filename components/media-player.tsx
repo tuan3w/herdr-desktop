@@ -396,7 +396,7 @@ export function MediaPlayer(props: {
 
   const Problem = (p: { title: string; detail?: string; copying?: boolean }) => (
     <View role="alert" class="items-center gap-3 px-6">
-      <View class="size-10 items-center justify-center rounded-full bg-background">
+      <View class="size-8 items-center justify-center rounded-full bg-background">
         <Icon name="alert" size={20} tone="warning" />
       </View>
       <Text class="text-center text-base font-medium text-foreground" style={{ userSelect: "text" }}>

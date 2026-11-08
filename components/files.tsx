@@ -5,7 +5,7 @@ import { Command, type CommandItem } from "nsh/base";
 import type { EntryView, FileData, FolderView } from "herdr-desktop/native";
 
 import { FileViewer, type ViewerNav } from "#components/file-viewer";
-import { ActionMenu, Btn, Empty, Field, Icon, IconButton, type IconName, Modal, notify, Skeleton } from "#kit";
+import { ActionMenu, Btn, Clipped, Empty, Field, Icon, IconButton, type IconName, Modal, notify, Skeleton } from "#kit";
 import {
   arrange,
   browsing,
@@ -46,11 +46,9 @@ function EntryRow(props: { entry: () => EntryView | undefined; now: () => number
   return (
     <If when={entry()}>
       {(e) => (
-        <View class={`w-full flex-row items-center gap-3 ${e().readable ? "" : "opacity-60"}`}>
+        <View class={`w-full flex-row items-center gap-3 ${e().readable ? "" : "opacity-50"}`}>
           <Icon name={iconOf(e())} size={16} tone="muted-foreground" />
-          <Text class="min-w-0 flex-1 text-sm text-foreground" style={{ numberOfLines: 1 }}>
-            {e().name}
-          </Text>
+          <Clipped class="min-w-0 flex-1 text-sm text-foreground">{e().name}</Clipped>
           <Text class="w-20 text-right text-xs text-muted-foreground">
             {e().kind === "file" ? sizeText(e().size) : e().readable ? "" : "No permission"}
           </Text>
@@ -312,9 +310,9 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null>; 
         </If>
         <If when={!failure() && loading() && listing() === null}>
           <View class="h-[300px] gap-2" accessibilityLabel="Loading the folder" accessibilityState={{ busy: true }}>
-            <Skeleton class="h-9 w-full" />
-            <Skeleton class="h-9 w-full" />
-            <Skeleton class="h-9 w-full" />
+            <Skeleton class="h-8 w-full" />
+            <Skeleton class="h-8 w-full" />
+            <Skeleton class="h-8 w-full" />
           </View>
         </If>
         <If when={!failure() && listing() !== null}>
@@ -329,7 +327,7 @@ function Browser(props: { request: () => Browse; file: Signal<FileData | null>; 
                 searchAccessibilityLabel="Find in this folder"
                 placeholder="Find in this folder"
                 searchBarClass="mb-1 rounded-md border border-border px-3"
-                searchClass="h-9 text-sm"
+                searchClass="h-8 text-sm"
                 listClass="h-[290px]"
                 itemClass="group flex-row items-center rounded-md px-3 py-2 focus:bg-accent hover:bg-accent"
                 groupClass="px-3 pb-1 pt-2 text-xs font-medium text-muted-foreground"

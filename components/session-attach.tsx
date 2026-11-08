@@ -4,9 +4,12 @@ import { Command, type CommandItem } from "nsh/base";
 
 import type { FolderView } from "herdr-desktop/native";
 
-import { Btn, Icon, IconButton, Modal } from "#kit";
+import { Btn, Clipped, Icon, IconButton, Modal } from "#kit";
 import { arrange, joinPath, parentOf, sizeText } from "#lib/files";
 import { fileName, MAX_FILES } from "#lib/session-compose";
+
+/** What a cut line fades into on a dialog (`Clipped` `fade`): the card. */
+const CARD = "from-card/0 to-card";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
@@ -110,12 +113,9 @@ export function AttachPicker(props: {
       <View class="gap-2">
         <View class="flex-row items-center gap-2">
           <IconButton icon="arrow-up" label="Up one folder" onPress={() => void go(parentOf(here()) ?? here())} />
-          <Text
-            class="min-w-0 flex-1 font-mono text-xs text-muted-foreground"
-            style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
-          >
+          <Clipped fade={[CARD]} boxClass="min-w-0 flex-1" class="font-mono text-xs text-muted-foreground">
             {here()}
-          </Text>
+          </Clipped>
         </View>
         <If when={failure()}>
           {(message) => (
@@ -137,7 +137,7 @@ export function AttachPicker(props: {
             searchAccessibilityLabel="Find in this folder"
             placeholder="Find in this folder"
             searchBarClass="mb-1 rounded-md border border-border px-3"
-            searchClass="h-9 text-sm"
+            searchClass="h-8 text-sm"
             listClass="h-[260px]"
             itemClass="group flex-row items-center rounded-md px-3 py-2 focus:bg-accent hover:bg-accent"
             groupClass="px-3 pb-1 pt-2 text-xs font-medium text-muted-foreground"
@@ -150,12 +150,7 @@ export function AttachPicker(props: {
                   accessibilityLabel={`${item.label}${entry()?.kind === "dir" ? ", folder" : on() ? ", ticked" : ""}`}
                 >
                   <Icon name={entry()?.kind === "dir" ? "folder" : "file"} size={14} tone="muted-foreground" />
-                  <Text
-                    class="min-w-0 flex-1 text-sm text-foreground"
-                    style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
-                  >
-                    {item.label}
-                  </Text>
+                  <Clipped class="min-w-0 flex-1 text-sm text-foreground">{item.label}</Clipped>
                   <If when={entry()?.kind === "file"}>
                     <Text class="text-xs text-muted-foreground">{sizeText(entry()?.size ?? 0)}</Text>
                   </If>

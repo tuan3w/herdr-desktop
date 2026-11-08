@@ -4,11 +4,14 @@ import { Button } from "nsh/base";
 
 import type { EntryView, FolderView } from "herdr-desktop/native";
 
-import { Btn, Field, FOCUS_RING_INSET, Icon, IconButton, Modal, Skeleton } from "#kit";
+import { Btn, Clipped, Field, FOCUS_RING_INSET, Icon, IconButton, Modal, Skeleton } from "#kit";
 import { joinPath, parentOf, showHidden } from "#lib/files";
 
 /** The tallest the list grows before it scrolls, in points, and how many folders it draws before it says to type a path. */
 const LIST_HEIGHT = 300;
+/** What a cut line fades into on a dialog (`Clipped` `fade`): the card, then a hovered row's `hover:bg-accent`. */
+const CARD = "from-card/0 to-card";
+const CARD_HOVER = "from-accent/0 to-accent opacity-0 group-hover/row:opacity-100";
 const MAX_ROWS = 400;
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
@@ -110,8 +113,8 @@ export function FolderPicker(props: {
         </If>
         <If when={loading() && listing() === null}>
           <View accessibilityLabel="Loading folders" class="gap-1">
-            <Skeleton class="h-9 w-full" />
-            <Skeleton class="h-9 w-full" />
+            <Skeleton class="h-8 w-full" />
+            <Skeleton class="h-8 w-full" />
           </View>
         </If>
         <If when={listing()}>
@@ -122,15 +125,12 @@ export function FolderPicker(props: {
                   <Button
                     accessibilityLabel={`Open ${entry().name}`}
                     onPress={() => void go(joinPath(here(), entry().name))}
-                    class={`h-9 flex-row items-center gap-2 rounded-md px-2 hover:bg-accent ${entry().readable ? "" : "opacity-60"} ${FOCUS_RING_INSET}`}
+                    class={`h-8 group/row flex-row items-center gap-2 rounded-md px-2 hover:bg-accent ${entry().readable ? "" : "opacity-50"} ${FOCUS_RING_INSET}`}
                   >
                     <Icon name="folder" size={16} tone="muted-foreground" />
-                    <Text
-                      class="min-w-0 flex-1 text-sm text-foreground"
-                      style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
-                    >
+                    <Clipped fade={[CARD, CARD_HOVER]} boxClass="min-w-0 flex-1" class="text-sm text-foreground">
                       {entry().name}
-                    </Text>
+                    </Clipped>
                     <If when={!entry().readable}>
                       <Text class="text-xs text-muted-foreground">No permission</Text>
                     </If>

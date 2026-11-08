@@ -9,6 +9,9 @@ import { Btn, Clipped, confirmDestructive, Empty, notify, Switch } from "#kit";
 import { revision } from "#lib/herdr";
 import { linkGlyph, linkText } from "#lib/machine-state";
 
+/** What a cut line fades into on a dialog (`Clipped` `fade`): the card. */
+const CARD = "from-card/0 to-card";
+
 interface Row {
   machine: MachineView;
   status: MachineStatus | undefined;
@@ -121,12 +124,14 @@ export function Machines() {
                 <View class="flex-row items-center gap-3 border-t border-border py-3">
                   <StatusGlyph status={row().status ? linkGlyph(row().status!.state) : "unknown"} size={16} />
                   <View class="min-w-0 flex-1 gap-1">
-                    <Clipped class="text-sm font-medium text-foreground">{row().machine.name}</Clipped>
+                    <Clipped fade={[CARD]} class="text-sm font-medium text-foreground">
+                      {row().machine.name}
+                    </Clipped>
                     <Clipped lines={2} class="text-xs text-muted-foreground">
                       {row().status ? linkText(row().status!) : "Not started"}
                     </Clipped>
                     <If when={!row().machine.local}>
-                      <Clipped class="text-xs text-muted-foreground">
+                      <Clipped fade={[CARD]} class="text-xs text-muted-foreground">
                         {`${row().machine.dest}${row().machine.port ? `:${row().machine.port}` : ""}${row().machine.session ? ` · session ${row().machine.session}` : ""}`}
                       </Clipped>
                     </If>

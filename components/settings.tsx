@@ -182,7 +182,7 @@ function NavItem(props: { page: (typeof PAGES)[number] }) {
       style={hoverTransition()}
       class={`min-h-8 flex-row items-center gap-3 rounded-md px-3 hover:bg-accent selected:bg-accent ${FOCUS_RING}`}
     >
-      <Text class="text-sm text-foreground">{props.page.title}</Text>
+      <Text class={`text-sm text-foreground ${current() ? "font-medium" : ""}`}>{props.page.title}</Text>
     </Button>
   );
 }

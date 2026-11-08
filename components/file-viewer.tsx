@@ -19,6 +19,8 @@ import { registerPane } from "#lib/pane-input";
 
 /** Characters above which a file stays in the editor: the code view builds a row per line, the editor reads a file of any size. */
 const CODE_VIEW_LIMIT = 512 * 1024;
+/** What a cut line fades into on a dialog (`Clipped` `fade`): the card, then a hovered row's `hover:bg-accent`. */
+const CARD = "from-card/0 to-card";
 
 /** The height of the content in the preview beside a folder's list. */
 const QUICK_BODY = 300;
@@ -301,8 +303,12 @@ export function FileViewer(props: {
           <Btn small icon="arrow-left" label="Files" name="Back to the folder" onPress={props.onBack} />
         </If>
         <View class="min-w-0 flex-1 gap-1">
-          <Clipped class="text-sm font-medium text-foreground">{name()}</Clipped>
-          <Clipped class="text-xs text-muted-foreground">{meta()}</Clipped>
+          <Clipped fade={[CARD]} class="text-sm font-medium text-foreground">
+            {name()}
+          </Clipped>
+          <Clipped fade={[CARD]} class="text-xs text-muted-foreground">
+            {meta()}
+          </Clipped>
         </View>
         <If when={switchable() !== null && !props.quick}>
           <Segmented
@@ -345,7 +351,7 @@ export function FileViewer(props: {
         />
       </If>
       <If when={data().notice && kind() !== "image"}>
-        <View class="rounded-md border border-border bg-muted px-3 py-2">
+        <View class="rounded-md bg-muted px-3 py-2">
           <Text class="text-sm text-foreground">{data().notice}</Text>
         </View>
       </If>
