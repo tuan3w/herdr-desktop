@@ -76,26 +76,19 @@ export function SessionComposer(props: {
   const placeholder = () => c.off() ?? "Ask anything · @ for files · / for commands";
   const attachKey = () => keyText(keysOf(GLOBAL.attachFiles)[0]!);
 
-  /** What the line in the box's bottom row says: the failure, else what the typed command takes, else what a send does, else the keys. */
+  /** What the line in the box's bottom row says: the failure, else what the typed command takes, else what a send does, beside the mode and model under the box. The keys are not here: the placeholder says how to start and the keyboard sheet lists the rest. */
   const line = (): { text: string; alert: boolean } | null => {
     if (c.error() !== "") return { text: c.error(), alert: true };
     const ghost = c.ghost();
     if (ghost) return { text: `${c.value().trim()} takes ${ghost}`, alert: false };
     const note = deliveryNote(props.view());
     if (note) return { text: note, alert: false };
-    if (c.focused() && c.off() === null)
-      return {
-        text: enterNewline()
-          ? `${keyText("mod+enter")} send · Enter new line · @ files · / commands`
-          : "Enter send · Shift+Enter new line · @ files · / commands",
-        alert: false,
-      };
     return null;
   };
 
   return (
     <View
-      class={`${CHAT_COLUMN} gap-2 pb-3 pt-2`}
+      class={`${CHAT_COLUMN} gap-1 pb-2 pt-2`}
       ref={(node: ViewRef) => {
         card.set(node);
       }}
@@ -126,41 +119,10 @@ export function SessionComposer(props: {
           onPick={(i) => c.pickMention(i)}
         />
       </If>
-      <View class="gap-1 rounded-2xl border border-input bg-card px-3 pb-2 pt-2 focus-within:border-ring">
+      <View class="gap-1 rounded-xl border border-border bg-card px-2 py-2 focus-within:border-primary">
         <PictureStrip composer={c} />
         <ChipRow composer={c} machine={props.machine} />
-        <Input
-          ref={(node: InputRef) => c.setInput(node)}
-          value={c.value()}
-          onChange={({ value: v }) => c.onChange(v)}
-          onSelectionChange={({ start }) => c.onSelection(start)}
-          onCaretMove={(e) => c.onCaret(e.pageBounds)}
-          onPaste={(e) => c.onPaste(e)}
-          onCompositionChange={({ composing }) => c.setComposing(composing)}
-          placeholder={placeholder()}
-          accessibilityLabel="Message"
-          disabled={c.off() !== null}
-          multiline
-          submitBehavior={enterNewline() ? "newline" : "submit"}
-          onSubmit={() => void c.send()}
-          onContentSizeChange={({ size }) =>
-            height.set(Math.min(COMPOSER_INPUT.max, Math.max(COMPOSER_INPUT.min, Math.ceil(size.height) + 4)))
-          }
-          autoCorrect={false}
-          autoCapitalize="none"
-          autoComplete="off"
-          onFocus={() => {
-            clearTimeout(blurTimer);
-            c.setFocused(true);
-          }}
-          onBlur={() => {
-            clearTimeout(blurTimer);
-            blurTimer = setTimeout(() => c.setFocused(false), 150);
-          }}
-          style={{ height: height() }}
-          class="bg-transparent px-1 text-sm text-foreground placeholder:text-muted-foreground"
-        />
-        <View class="flex-row items-center gap-1">
+        <View class="flex-row items-end gap-1">
           <ActionMenu
             label="Attach"
             icon="plus"
@@ -179,21 +141,54 @@ export function SessionComposer(props: {
               },
             ]}
           />
-          <SessionModeChip machine={props.machine} id={props.id} />
-          <View class="min-w-0 flex-1 px-1">
-            <If when={line() !== null}>
-              <Text
-                role={line()?.alert ? "alert" : "text"}
-                class={`text-xs ${line()?.alert ? "text-destructive" : "text-muted-foreground"}`}
-                style={{ numberOfLines: line()?.alert ? 3 : 1, textOverflow: "ellipsis" }}
-              >
-                {line()?.text}
-              </Text>
-            </If>
-          </View>
-          <SessionModelPicker machine={props.machine} id={props.id} />
+          <Input
+            ref={(node: InputRef) => c.setInput(node)}
+            value={c.value()}
+            onChange={({ value: v }) => c.onChange(v)}
+            onSelectionChange={({ start }) => c.onSelection(start)}
+            onCaretMove={(e) => c.onCaret(e.pageBounds)}
+            onPaste={(e) => c.onPaste(e)}
+            onCompositionChange={({ composing }) => c.setComposing(composing)}
+            placeholder={placeholder()}
+            accessibilityLabel="Message"
+            disabled={c.off() !== null}
+            multiline
+            submitBehavior={enterNewline() ? "newline" : "submit"}
+            onSubmit={() => void c.send()}
+            onContentSizeChange={({ size }) =>
+              height.set(Math.min(COMPOSER_INPUT.max, Math.max(COMPOSER_INPUT.min, Math.ceil(size.height) + 4)))
+            }
+            autoCorrect={false}
+            autoCapitalize="none"
+            autoComplete="off"
+            onFocus={() => {
+              clearTimeout(blurTimer);
+              c.setFocused(true);
+            }}
+            onBlur={() => {
+              clearTimeout(blurTimer);
+              blurTimer = setTimeout(() => c.setFocused(false), 150);
+            }}
+            style={{ height: height() }}
+            class="min-w-0 flex-1 bg-transparent px-1 text-sm text-foreground placeholder:text-muted-foreground"
+          />
           <SendButton c={c} />
         </View>
+      </View>
+      <View class="min-h-8 flex-row items-center gap-1 px-1">
+        <View class="min-w-0 flex-1">
+          <If when={line() !== null}>
+            <Text
+              role={line()?.alert ? "alert" : "text"}
+              class={`text-xs ${line()?.alert ? "text-destructive" : "text-muted-foreground"}`}
+              style={{ numberOfLines: line()?.alert ? 3 : 1, textOverflow: "ellipsis" }}
+            >
+              {line()?.text}
+            </Text>
+          </If>
+        </View>
+        <SessionModeChip machine={props.machine} id={props.id} />
+        <SessionModelPicker machine={props.machine} id={props.id} />
       </View>
       <AttachPicker
         open={c.attaching()}

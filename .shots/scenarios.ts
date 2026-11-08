@@ -384,7 +384,7 @@ export const SCENARIOS: Record<string, Scenario> = {
     params: { mode: "scripted", scene: "tools", quiet: true },
     steps: async (app) => {
       await app.wait(700);
-      await app.press("label:/^Worked, 1 command, 1 file changed, 1 failed/");
+      await app.press("label:/^Read 1 file, ran 1 command, edited 1 file/");
       await app.wait(300);
       await app.press("label:/^Tool: Edited src\\/auth\\.ts/");
       await app.wait(300);

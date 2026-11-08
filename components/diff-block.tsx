@@ -4,9 +4,9 @@ import { Button } from "nsh/base";
 
 import type { CodeDiffRef } from "herdr-desktop/native";
 
-import { copyMenu, copyText, FOCUS_RING, Icon, Tipped } from "#kit";
+import { CodeTools } from "#components/code-tools";
+import { copyMenu, copyText, FOCUS_RING, IconButton } from "#kit";
 import { CODE_MAX_HEIGHT, diffLabel } from "#lib/highlight";
-import { hoverTransition } from "#lib/motion";
 import { codeWhitespace, codeWrap, diffSplit } from "#lib/settings";
 
 /** Where the change in view stands: `Change 2 of 5`, or how many there are before the first step (`5 changes`); nothing when none. */
@@ -60,7 +60,7 @@ export function DiffBlock(props: {
 
   return (
     <View
-      class="w-full overflow-hidden rounded-md"
+      class="group w-full overflow-hidden rounded-md"
       style={{ backgroundColor: token("code-bg") }}
       onContextMenu={copyMenu(() =>
         [
@@ -110,12 +110,42 @@ export function DiffBlock(props: {
         <Text class="pr-2 text-xs text-muted-foreground" style={{ fontVariant: ["tabular-nums"], userSelect: "none" }}>
           {`+${counts().added} \u2212${counts().removed}`}
         </Text>
-        <Tool label="Previous change" icon="arrow-up" disabled={counts().changes === 0} onPress={() => step(-1)} />
-        <Tool label="Next change" icon="chevron-down" disabled={counts().changes === 0} onPress={() => step(1)} />
-        <If when={!props.created}>
-          <Tool label="Side by side" text="Split" selected={split()} onPress={() => diffSplit.set(!split())} />
-        </If>
-        <Tool label="Wrap lines" text="Wrap" selected={codeWrap()} onPress={() => codeWrap.set(!codeWrap())} />
+        <CodeTools
+          label="Diff options"
+          entries={[
+            ...(props.created
+              ? []
+              : [
+                  {
+                    type: "checkbox" as const,
+                    label: "Side by side",
+                    checked: split(),
+                    onCheckedChange: (on: boolean) => diffSplit.set(on),
+                  },
+                ]),
+            {
+              type: "checkbox",
+              label: "Wrap lines",
+              checked: codeWrap(),
+              onCheckedChange: (on: boolean) => codeWrap.set(on),
+            },
+          ]}
+        >
+          <IconButton
+            icon="arrow-up"
+            label="Previous change"
+            disabled={counts().changes === 0}
+            onPress={() => step(-1)}
+            tipSide="top"
+          />
+          <IconButton
+            icon="chevron-down"
+            label="Next change"
+            disabled={counts().changes === 0}
+            onPress={() => step(1)}
+            tipSide="top"
+          />
+        </CodeTools>
       </View>
       <CodeDiff
         ref={(ref: CodeDiffRef) => {
@@ -140,34 +170,5 @@ export function DiffBlock(props: {
         }}
       />
     </View>
-  );
-}
-
-function Tool(props: {
-  label: string;
-  onPress: () => void;
-  text?: string;
-  icon?: "arrow-up" | "chevron-down";
-  selected?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <Tipped label={props.label}>
-      <Button
-        onPress={props.onPress}
-        accessibilityLabel={props.label}
-        selected={props.selected}
-        disabled={props.disabled}
-        style={hoverTransition()}
-        class={`min-h-7 flex-row items-center gap-1 rounded-md px-2 hover:bg-accent selected:bg-accent ${FOCUS_RING}`}
-      >
-        <If when={props.icon}>{(name) => <Icon name={name()} size={14} tone="muted-foreground" />}</If>
-        <If when={props.text}>
-          <Text class="text-xs text-muted-foreground" style={{ userSelect: "none" }}>
-            {props.text}
-          </Text>
-        </If>
-      </Button>
-    </Tipped>
   );
 }

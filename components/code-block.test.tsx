@@ -37,13 +37,16 @@ test("copy puts the whole code on the clipboard, says Copied, and goes back to C
   await app.waitUntil(() => app.shows("Copy code"));
 });
 
-test("line numbers and wrapping are toggles that stay reachable without hovering", async () => {
+test("line numbers are a check in the options menu, which stays reachable without hovering", async () => {
   const app = await lab({ part: "one", lang: "rust" });
-  await app.waitFor("Line numbers");
+  await app.waitFor("Code options");
   expect(app.texts().includes("10")).toBe(false);
-  await app.press("Line numbers");
+  await app.press("label:Code options");
+  await app.waitFor("label:Line numbers");
+  await app.press("label:Line numbers");
+  await app.waitFor("label:Line numbers, checked");
   await app.waitUntil(() => app.texts().includes("10"));
-  await app.press("Line numbers");
+  await app.press("label:Line numbers, checked");
   await app.waitUntil(() => !app.texts().includes("10"));
 });
 

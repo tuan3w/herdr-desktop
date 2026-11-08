@@ -13,6 +13,22 @@ import { safeCode } from "#lib/visible-text";
 const EXTENSIONS = [{ name: "mermaid", language: "mermaid" }];
 
 /**
+ * A table the way the kit draws one: a hairline under each row and nothing else. `TextView` gives every cell a right and
+ * bottom line, the grid a top and left one and the header row a filled band; the cells drop their right line, the header
+ * its fill, and the wrapper clips the grid's top and left line by pulling the scroll view one point up and left
+ * (emil-surfaces: one edge, never two).
+ */
+const TABLE_CLASSES = {
+  paragraph: "text-base",
+  listMarker: "text-base",
+  table: "overflow-hidden",
+  tableScroll: "-ml-px -mt-px",
+  tableHead: "bg-transparent",
+  tableCell: "border-r-0",
+  tableHeaderCell: "font-medium",
+};
+
+/**
  * Where the open or folded state of a message's code blocks lives, when the caller keeps it (a chat's recycled list cell
  * must not): `get` answers `undefined` for a block nobody has toggled.
  */
@@ -121,8 +137,8 @@ export function MarkdownText(props: {
                   <TextView
                     markdown={text().text}
                     options={{ streaming: streaming() && part().key === last() }}
-                    class={props.class}
-                    classes={{ code: inlineCodeClasses }}
+                    class={`text-base text-foreground ${props.class ?? ""}`}
+                    classes={{ code: inlineCodeClasses, ...TABLE_CLASSES }}
                     selectable
                     extensions={EXTENSIONS}
                     renderCustom={custom}

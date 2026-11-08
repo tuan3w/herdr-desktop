@@ -14,7 +14,7 @@ import { plainText } from "#lib/plain-text";
 import type { SessionModel } from "#lib/session";
 import { loadPicture, pictureSize, pictureState } from "#lib/session-pictures";
 import type { External, Failure, Row } from "#lib/session-rows";
-import { durationText, itemLabel, oneLine, toolLine, toolStatusText, visibleText, workLine } from "#lib/session-text";
+import { durationText, itemLabel, toolLine, toolStatusText, visibleText, workLine } from "#lib/session-text";
 
 /** The widest a line of the conversation is: past this, text is hard to follow and the window is better left calm. */
 const COLUMN = CHAT_COLUMN;
@@ -162,7 +162,7 @@ function WorkRow(props: { row: Extract<Row, { kind: "work" }>; model: SessionMod
   const work = () => props.row.work;
   const line = () => workLine(work().summary);
   return (
-    <Line class="pt-1">
+    <Line class="py-2">
       <Disclosure
         onPress={() => props.model.toggle(props.row)}
         label={line()}
@@ -170,6 +170,7 @@ function WorkRow(props: { row: Extract<Row, { kind: "work" }>; model: SessionMod
         class="-ml-2 min-h-9 flex-row items-center gap-2 self-start rounded-md px-2"
       >
         <Text class="text-sm text-muted-foreground">{line()}</Text>
+        <DiffStat added={work().summary.added} removed={work().summary.removed} />
         <Icon name={work().open ? "chevron-down" : "chevron-right"} size={12} tone="muted-foreground" />
       </Disclosure>
     </Line>
@@ -288,40 +289,34 @@ function ThoughtRow(props: { row: Extract<Row, { kind: "thought" }>; ctx: RowCon
   );
 }
 
-/** A call, folded into its line, open to its details. */
+/** A call: one muted line in a hairline box with the calls around it, open to its details in place. */
 function ToolEntry(props: { row: Extract<Row, { kind: "tool" }>; ctx: RowContext }) {
   const tool = () => props.row.item.tool!;
-  // A failed step says how it ended on its own line, in the warning colour, without opening it.
-  const result = (): string | null => {
-    const t = tool();
-    if (t.status !== "failed") return null;
-    const last = [...t.head, ...t.tail].reverse().find((l) => l.trim() !== "");
-    return last === undefined ? null : oneLine(visibleText(last), 160);
-  };
+  // The run of calls is one hairline box: every row shares its sides and a hairline above it, the ends round and close it.
+  const edge = () => props.row.edge;
+  const box = () =>
+    `border-x border-t border-border ${edge() === "first" || edge() === "only" ? "rounded-t-lg" : ""} ${
+      edge() === "last" || edge() === "only" ? "rounded-b-lg border-b" : ""
+    }`;
   return (
     <Line>
-      <ToolRow
-        tool={tool()}
-        cwd={props.ctx.cwd}
-        open={props.row.open}
-        onToggle={() => props.ctx.model.toggle(props.row)}
-      />
-      <If when={result()}>
-        {(text) => (
-          <Text class="ml-8 text-xs text-warning" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
-            {text()}
-          </Text>
-        )}
-      </If>
-      <If when={props.row.open}>
-        <ToolDetails
+      <View class={`overflow-hidden ${box()}`}>
+        <ToolRow
           tool={tool()}
-          machine={props.ctx.machine}
           cwd={props.ctx.cwd}
-          all={props.row.all}
-          onMore={() => props.ctx.model.choose(`more:${props.row.item.id}`, props.row.all)}
+          open={props.row.open}
+          onToggle={() => props.ctx.model.toggle(props.row)}
         />
-      </If>
+        <If when={props.row.open}>
+          <ToolDetails
+            tool={tool()}
+            machine={props.ctx.machine}
+            cwd={props.ctx.cwd}
+            all={props.row.all}
+            onMore={() => props.ctx.model.choose(`more:${props.row.item.id}`, props.row.all)}
+          />
+        </If>
+      </View>
     </Line>
   );
 }

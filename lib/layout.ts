@@ -19,14 +19,14 @@ export const SPACE = { 0.5: 2, 1: 4, 2: 8, 3: 12, 4: 16, 6: 24, 8: 32, 12: 48 } 
  * Text sizes `[points, line height as a multiple]`, in two tiers (emil-typography: every size from a scale, leading by role).
  * Chrome (sidebar, rows, controls, buttons, meta) is dense UI: `sm` 13 is the body of it, `xs` 12 the floor for meta and
  * ages (emil: "almost never below 12"), leading 1.4 so a one-line control stays under its row height. Reading (chat prose,
- * Markdown) is `base` 14 at 1.5: more leading than chrome because lines are long and wrap (emil: body 1.5 to 1.6), and 14
+ * Markdown) is `base` 14 at 1.55 (the kit's): more leading than chrome because lines are long and wrap (emil: body 1.5 to 1.6), and 14
  * is the desktop floor for text read in paragraphs. `lg` and up are headings, tighter as they grow (display wants about
  * 1.1). Nothing else is used: no `text-[13px]`.
  */
 export const TYPE = {
   xs: [12, 1.4],
   sm: [13, 1.4],
-  base: [14, 1.5],
+  base: [14, 1.55],
   lg: [16, 1.4],
   xl: [18, 1.35],
   "2xl": [22, 1.3],

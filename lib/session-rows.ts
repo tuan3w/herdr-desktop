@@ -86,6 +86,9 @@ export interface TurnCarry {
   groups: Contribution[];
 }
 
+/** Where a call stands in a run of calls drawn as one bordered box: its rows share the box's sides, only the ends round. */
+export type Edge = "only" | "first" | "mid" | "last";
+
 /** One line of the transcript's list. */
 export type Row =
   | { kind: "earlier"; key: string; sig: string; text: string }
@@ -94,7 +97,7 @@ export type Row =
   | { kind: "work"; key: string; sig: string; work: Work }
   | { kind: "effects"; key: string; sig: string; effects: TurnEffects }
   | { kind: "narration"; key: string; sig: string; item: SessionItem }
-  | { kind: "tool"; key: string; sig: string; item: SessionItem; open: boolean; all: boolean }
+  | { kind: "tool"; key: string; sig: string; item: SessionItem; open: boolean; all: boolean; edge: Edge }
   | { kind: "subagent"; key: string; sig: string; item: SessionItem; open: boolean; all: boolean }
   | { kind: "thought"; key: string; sig: string; item: SessionItem; open: boolean; seconds: number | null }
   | { kind: "note"; key: string; sig: string; item: SessionItem }
@@ -161,8 +164,7 @@ const isNarration = (items: readonly SessionItem[], at: number): boolean => {
 };
 
 /** Part of a work group: a call, a thought, or narration between calls. */
-const isMember = (items: readonly SessionItem[], at: number): boolean =>
-  isWork(items[at]!) || isNarration(items, at);
+const isMember = (items: readonly SessionItem[], at: number): boolean => isWork(items[at]!) || isNarration(items, at);
 
 function summarize(group: readonly SessionItem[]): WorkSummary {
   const out: WorkSummary = {
@@ -212,7 +214,8 @@ function contribute(group: readonly SessionItem[], cwd: string | null | undefine
         result: last === undefined ? null : oneLine(visibleText(last), 160),
       });
     }
-    if (tool.effect) out.external.push({ id: item.id, kind: tool.effect.kind, text: oneLine(visibleText(tool.effect.text), 160) });
+    if (tool.effect)
+      out.external.push({ id: item.id, kind: tool.effect.kind, text: oneLine(visibleText(tool.effect.text), 160) });
     for (const d of tool.diffs) paths.add(d.path);
     const { added, removed } = diffStat(tool);
     out.added += added;
@@ -294,7 +297,8 @@ export function buildRows(
           const mkey = itemKey(member.id);
           const mopen = input.open.get(mkey) ?? false;
           if (member.kind === "message" && member.role !== "thought") {
-            if ((member.text ?? "").trim() !== "") keep({ kind: "narration", key: mkey, sig: `${member.rev}`, item: member });
+            if ((member.text ?? "").trim() !== "")
+              keep({ kind: "narration", key: mkey, sig: `${member.rev}`, item: member });
           } else if (member.kind === "message") {
             const secs = spanSeconds(member, member, group[at + 1] ?? after, input.nowMs);
             keep({
@@ -307,7 +311,19 @@ export function buildRows(
             });
           } else {
             const all = input.open.get(moreKey(member.id)) ?? false;
-            keep({ kind: "tool", key: mkey, sig: `${member.rev}|${mopen}|${all}`, item: member, open: mopen, all });
+            const isCall = (m: SessionItem | undefined) => m !== undefined && m.kind !== "message";
+            const before = isCall(group[at - 1]);
+            const next = isCall(group[at + 1]);
+            const edge: Edge = before ? (next ? "mid" : "last") : next ? "first" : "only";
+            keep({
+              kind: "tool",
+              key: mkey,
+              sig: `${member.rev}|${mopen}|${all}|${edge}`,
+              item: member,
+              open: mopen,
+              all,
+              edge,
+            });
           }
         });
       }

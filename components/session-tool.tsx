@@ -7,11 +7,11 @@ import { CodeBlock } from "#components/code-block";
 import { DiffBlock } from "#components/diff-block";
 import { openLink } from "#components/links-dialog";
 import { StatusGlyph } from "#components/status-glyph";
-import { FOCUS_RING, FOCUS_RING_INSET, Icon } from "#kit";
+import { FOCUS_RING, FOCUS_RING_INSET, Icon, Tipped } from "#kit";
 import { viewFile } from "#lib/files";
 import { hoverTransition } from "#lib/motion";
 import { pictureSize } from "#lib/session-pictures";
-import { outputView, shortPath, toolIcon, toolKindOf, toolLine, toolStatusText, visibleText } from "#lib/session-text";
+import { outputView, shortPath, toolKindOf, toolLine, toolStatusText, visibleText } from "#lib/session-text";
 
 /** Lines of a call's input shown before it is cut. */
 const INPUT_LINES = 12;
@@ -44,27 +44,33 @@ export function Disclosure(props: {
   );
 }
 
-/** A call's state as a shape: waiting is a dashed ring, running a half ring, done a quiet check, failed a cross. */
+/**
+ * A call's state, said only when it is an exception: waiting is a dashed ring, running a half ring, failed the word
+ * `Failed` in red. A call that finished well draws nothing: success is silence, and the folded line already counts it.
+ */
 export function ToolStatus(props: { status: ToolStatusName }) {
   return (
-    <View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      class="size-4 shrink-0 items-center justify-center"
-    >
-      <If when={props.status === "completed"}>
-        <Icon name="check" size={14} tone="muted-foreground" />
-      </If>
+    <>
       <If when={props.status === "failed"}>
-        <Icon name="x" size={14} tone="destructive" />
+        <Text accessibilityElementsHidden class="shrink-0 text-sm text-destructive">
+          Failed
+        </Text>
       </If>
-      <If when={props.status === "inProgress"}>
-        <StatusGlyph status="working" size={12} />
+      <If when={props.status === "inProgress" || props.status === "pending"}>
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          class="size-4 shrink-0 items-center justify-center"
+        >
+          <If when={props.status === "inProgress"}>
+            <StatusGlyph status="working" size={12} />
+          </If>
+          <If when={props.status === "pending"}>
+            <StatusGlyph status="unknown" size={12} />
+          </If>
+        </View>
       </If>
-      <If when={props.status === "pending"}>
-        <StatusGlyph status="unknown" size={12} />
-      </If>
-    </View>
+    </>
   );
 }
 
@@ -81,31 +87,37 @@ export function DiffStat(props: { added: number; removed: number }) {
 }
 
 /**
- * One tool call as one quiet line: the kind's icon, a verb, what it acted on in monospace, the size of an edit, a state
- * shape. A press opens its details (`ToolDetails`). The row is a button named by what it says and whether it is open.
+ * One tool call as one muted line: a muted verb, what it acted on, the size of an edit, `Failed` when it failed, a
+ * chevron. No icon and no check: success is silence. A press opens its details (`ToolDetails`) under it, in place. The
+ * row is a button named by what it says and whether it is open; a tooltip carries the whole subject.
  */
 export function ToolRow(props: { tool: ToolItem; cwd: string; open: boolean; onToggle: () => void }) {
   const line = () => toolLine(props.tool, props.cwd);
   const said = () => [line().verb, line().object].filter(Boolean).join(" ");
   return (
-    <Disclosure
-      onPress={props.onToggle}
-      label={`Tool: ${said()}, ${toolStatusText(props.tool.status)}`}
-      open={props.open}
-      class="min-h-8 flex-row items-center gap-2 rounded-md px-2 py-1"
-    >
-      <Icon name={toolIcon(line().kind)} size={14} tone="muted-foreground" />
-      <Text class="min-w-0 flex-1 text-sm text-muted-foreground" style={{ numberOfLines: 1, textOverflow: "ellipsis" }}>
-        <If when={line().verb}>
-          <Text class="text-muted-foreground">{`${line().verb} `}</Text>
-        </If>
-        <Text class={line().verb ? "font-mono text-xs text-foreground" : "text-sm text-foreground"}>
-          {line().object}
+    <Tipped label={line().object}>
+      <Disclosure
+        onPress={props.onToggle}
+        label={`Tool: ${said()}, ${toolStatusText(props.tool.status)}`}
+        open={props.open}
+        class="min-h-8 flex-row items-center gap-2 px-3"
+      >
+        <Text
+          class="min-w-0 flex-1 text-sm text-muted-foreground"
+          style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
+        >
+          <If when={line().verb}>
+            <Text class="text-muted-foreground">{`${line().verb} `}</Text>
+          </If>
+          <Text class={line().verb ? "font-mono text-xs text-foreground" : "text-sm text-foreground"}>
+            {line().object}
+          </Text>
         </Text>
-      </Text>
-      <DiffStat added={line().added} removed={line().removed} />
-      <ToolStatus status={props.tool.status} />
-    </Disclosure>
+        <DiffStat added={line().added} removed={line().removed} />
+        <ToolStatus status={props.tool.status} />
+        <Icon name={props.open ? "chevron-down" : "chevron-right"} size={12} tone="muted-foreground" />
+      </Disclosure>
+    </Tipped>
   );
 }
 
@@ -238,8 +250,17 @@ export function ToolDetails(props: { tool: ToolItem; machine: string; cwd: strin
       : o.lines.join("\n");
   };
   const subject = () => visibleText(props.tool.subject ?? "");
-  const showSubject = () => subject() !== "" && props.tool.diffs.length === 0;
+  // The row already says a one-line command; the block is for one the row had to cut or fold.
+  const showSubject = () =>
+    props.tool.diffs.length === 0 &&
+    (subject().includes("\n") || subject().length > toolLine(props.tool).object.length);
   const total = () => output().lines.length + output().hidden;
+  // The row shows a short path; the whole one is a caption under it, only for a call that acted on a file.
+  const fullPath = () => {
+    const kind = toolKindOf(props.tool);
+    const path = props.tool.diffs[0]?.path ?? (kind === "read" || kind === "edit" ? subject() : "");
+    return path && path !== toolLine(props.tool, props.cwd).object ? path : "";
+  };
   // What the agent sent the tool, for a call whose subject does not already say it (a command's input is the command).
   const inputText = () => {
     const input = props.tool.input;
@@ -255,7 +276,15 @@ export function ToolDetails(props: { tool: ToolItem; machine: string; cwd: strin
     return [cwd && cwd !== props.cwd ? `In ${cwd}` : "", how].filter(Boolean).join(" · ");
   };
   return (
-    <View class="ml-4 mb-1 gap-2 border-l border-border pl-3 pt-1">
+    <View class="gap-2 px-3 pb-2 pt-1">
+      <If when={fullPath()}>
+        <Text
+          class="font-mono text-xs text-muted-foreground"
+          style={{ numberOfLines: 1, textOverflow: "ellipsis", userSelect: "text" }}
+        >
+          {fullPath()}
+        </Text>
+      </If>
       <If when={showSubject()}>
         <CodeBlock code={subject()} language="bash" compact collapsedLines={0} maxHeight={TOOL_BLOCK_HEIGHT} />
       </If>

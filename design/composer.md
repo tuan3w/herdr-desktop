@@ -32,7 +32,7 @@ An agent that cannot see (`SessionView.acceptsPictures`) is told on the thumbnai
 
 ## The rest
 
-- Grows to 12 lines (`COMPOSER_INPUT`) then scrolls. One calm focus border. Help is one status line in the bottom row of the box, between the mode and the model (error, command arguments, what a send will do, or the keys on focus): one line cut with an ellipsis, an error up to three. The field is one line high (28 pt, `COMPOSER_INPUT.min`) and grows with its text.
+- Grows to 12 lines (`COMPOSER_INPUT`) then scrolls. One line at rest (attach, text, send); model and mode sit under the box. A neutral hairline at rest (`border-border`, radius xl); the primary border appears only while the field has focus. The box says each thing once: the placeholder says how to start (`@` files, `/` commands), the keys live in the keyboard sheet. The bottom row has one status line between the mode and the model only when something needs saying (error, command arguments, the queue note): one line cut with an ellipsis, an error up to three. The field is one line high (28 pt, `COMPOSER_INPUT.min`) and grows with its text.
 - Enter sends, Shift+Enter is a new line; Settings `enterNewline` turns it round (`mod+Enter` sends). Nothing sends while an input method composes.
 - Up in an empty box brings the last message back, Down goes forward, Escape on a recalled message gives back the draft. Escape never clears the box (`mod+z` stays native). History is memory only.
 - `quoteCopied` (`mod+shift+q`) quotes the copied text with `> `: nsh gives an app no way to read a selection out of the conversation.

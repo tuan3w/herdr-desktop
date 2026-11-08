@@ -355,7 +355,10 @@ function scene(name: string): Scene {
             subject: "git push origin main",
             effect: { kind: "push", text: "Pushed to origin/main" },
           }),
-          say("agent", "Fixed in `src/auth.ts`: `login` goes back to the page that was asked for. The tests pass and it is pushed."),
+          say(
+            "agent",
+            "Fixed in `src/auth.ts`: `login` goes back to the page that was asked for. The tests pass and it is pushed.",
+          ),
         ],
       };
     case "code":

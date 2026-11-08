@@ -21,13 +21,13 @@ Two tiers (emil-typography: sizes come from a scale, leading follows role). **Ch
 |---|---|---|---|
 | `text-xs` | 12 / 1.4 | chrome | meta lines, ages, tags, counts, captions, group labels (`Pill`, `SectionTitle`, `Badge`). 12 is the floor: below it Inter loses its counters |
 | `text-sm` | 13 / 1.4 | chrome | row titles, labels, buttons, fields, menus, nav (most of the app) |
-| `text-base` | 14 / 1.5 | reading | chat prose and Markdown body; also a section heading in Settings and an empty state's title, set `font-medium` |
+| `text-base` | 14 / 1.55 | reading | chat prose and Markdown body; also a section heading in Settings and an empty state's title, set `font-medium` |
 | `text-lg` | 16 / 1.4 | heading | a dialog's title, a Markdown second-level heading |
 | `text-xl` | 18 / 1.35 | heading | a Markdown first-level heading; not used elsewhere yet (kept so the scale has no hole) |
 | `text-2xl` | 22 / 1.3 | heading | the title of an open record |
 | `text-3xl` | 26 / 1.25 | heading | a page title (`PageHeader`) |
 
-Why these numbers: desktop chrome sits at 13 with 12 meta (a phone scale of 15 and 13 was 2 to 4 px too big and cost one row in six); reading text stays at 14 because long lines want a bigger size and more leading (1.5; chrome 1.4 so a one-line control stays short); headings step about 1.2 and tighten (1.25 at 26) as display type wants. Do not add `text-4xl` or arbitrary sizes (`text-[13px]`): hierarchy comes from the step, the weight and `foreground` against `muted-foreground`. Most of a screen is one size (`text-sm`); that sameness is what lets the one large title and the few grey labels read.
+Why these numbers: desktop chrome sits at 13 with 12 meta (a phone scale of 15 and 13 was 2 to 4 px too big and cost one row in six); reading text stays at 14 because long lines want a bigger size and more leading (1.55; chrome 1.4 so a one-line control stays short); headings step about 1.2 and tighten (1.25 at 26) as display type wants. Do not add `text-4xl` or arbitrary sizes (`text-[13px]`): hierarchy comes from the step, the weight and `foreground` against `muted-foreground`. Most of a screen is one size (`text-sm`); that sameness is what lets the one large title and the few grey labels read.
 
 ## Weights
 

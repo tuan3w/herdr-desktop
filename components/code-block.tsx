@@ -4,7 +4,8 @@ import { Button } from "nsh/base";
 
 import type { CodeViewRef } from "herdr-desktop/native";
 
-import { copyMenu, FOCUS_RING, Icon, notify, Tipped } from "#kit";
+import { CodeTools } from "#components/code-tools";
+import { copyMenu, FOCUS_RING, Icon, IconButton, notify } from "#kit";
 import { touched } from "#lib/code-blocks";
 import { CODE_COLLAPSED_LINES, CODE_MAX_HEIGHT, codeLabel, lineCount } from "#lib/highlight";
 import { hoverTransition } from "#lib/motion";
@@ -13,7 +14,7 @@ import { restartable } from "#lib/timer";
 
 /**
  * The one renderer of code in the chat: a markdown fence, a command's output, a file. A quiet surface one shade off
- * the page, the language in the corner, and on hover or keyboard focus three small tools (wrap, line numbers, copy).
+ * the page, the language in the corner, and on hover or keyboard focus a copy icon and a `...` menu (wrap, line numbers), drawn over the block with no fill.
  * Past `collapsedLines` it folds with a fade and `Show all N lines`; open, a long block scrolls inside itself.
  * Colours are the theme's `code-*` tokens, so nothing here names a colour.
  *
@@ -39,7 +40,7 @@ export function CodeBlock(props: {
   onOpenChange?: (open: boolean) => void;
   /** Height at which an open block scrolls inside itself (default 560). */
   maxHeight?: number;
-  /** No header row: the block is only its code, and the tools float over its corner on hover. For a command or an output whose kind the row around it already says. */
+  /** No header row and no surface: the block is only its code, flat under the row that says what it is, and the tools float over its corner on hover. */
   compact?: boolean;
   /** Show the header's tools (default true). Off where the card around the block has its own `Copy`. */
   tools?: boolean;
@@ -117,8 +118,8 @@ export function CodeBlock(props: {
 
   return (
     <View
-      class={`group relative w-full overflow-hidden rounded-md ${props.compact ? "py-1" : ""}`}
-      style={{ backgroundColor: token("code-bg") }}
+      class={`group relative w-full overflow-hidden ${props.compact ? "" : "rounded-md"}`}
+      style={props.compact ? undefined : { backgroundColor: token("code-bg") }}
       onContextMenu={copyMenu(() => [{ label: "Copy code", onSelect: copy }])}
       onMouseEnter={() => touched.set(mine)}
       onMouseLeave={() => touched.release(mine)}
@@ -133,26 +134,35 @@ export function CodeBlock(props: {
         </View>
       </If>
       <If when={props.tools ?? true}>
-        <View
-          class="absolute right-1 top-1 z-10 flex-row items-center gap-1 rounded-md opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
-          style={{ backgroundColor: token("code-bg") }}
+        <CodeTools
+          label="Code options"
+          class={`absolute right-1 z-10 ${props.compact ? "top-1" : "top-0.5"}`}
+          entries={[
+            {
+              type: "checkbox",
+              label: "Wrap lines",
+              checked: codeWrap(),
+              onCheckedChange: (on: boolean) => codeWrap.set(on),
+            },
+            ...(props.lineNumbers === undefined
+              ? [
+                  {
+                    type: "checkbox" as const,
+                    label: "Line numbers",
+                    checked: codeLineNumbers(),
+                    onCheckedChange: (on: boolean) => codeLineNumbers.set(on),
+                  },
+                ]
+              : []),
+          ]}
         >
-          <Tool label="Wrap lines" text="Wrap" selected={codeWrap()} onPress={() => codeWrap.set(!codeWrap())} />
-          <If when={props.lineNumbers === undefined}>
-            <Tool
-              label="Line numbers"
-              text="Lines"
-              selected={codeLineNumbers()}
-              onPress={() => codeLineNumbers.set(!codeLineNumbers())}
-            />
-          </If>
-          <Tool
-            label={copied() ? "Copied" : "Copy code"}
-            text={copied() ? "Copied" : "Copy"}
+          <IconButton
             icon={copied() ? "check" : "copy"}
+            label={copied() ? "Copied" : "Copy code"}
             onPress={copy}
+            tipSide="top"
           />
-        </View>
+        </CodeTools>
       </If>
       {/* One view for a block being written and for the same block finished: it reads `follow` once, when it is made, so
           a reader at the end stays there, and a second view would start again at the top. */}
@@ -173,32 +183,6 @@ export function CodeBlock(props: {
         </Button>
       </If>
     </View>
-  );
-}
-
-/** A small text tool of a block's header: 24 pt high, quiet, named for screen readers by what it does. */
-function Tool(props: {
-  label: string;
-  text: string;
-  onPress: () => void;
-  selected?: boolean;
-  icon?: "copy" | "check";
-}) {
-  return (
-    <Tipped label={props.label}>
-      <Button
-        onPress={props.onPress}
-        accessibilityLabel={props.label}
-        selected={props.selected}
-        style={hoverTransition()}
-        class={`min-h-7 flex-row items-center gap-1 rounded-md px-2 hover:bg-accent selected:bg-accent ${FOCUS_RING}`}
-      >
-        <If when={props.icon}>{(name) => <Icon name={name()} size={14} tone="muted-foreground" />}</If>
-        <Text class="text-xs text-muted-foreground" style={{ userSelect: "none" }}>
-          {props.text}
-        </Text>
-      </Button>
-    </Tipped>
   );
 }
 
