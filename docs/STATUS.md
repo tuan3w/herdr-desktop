@@ -13,6 +13,7 @@ The working state of the app. It changes with every slice, so it lives here and 
 - Changes review says what is reviewed (project, branch, machine, agent, totals, progress in one header) and its rows are 32 pt with a status letter, the whole name and green/red counts; rendered on macOS only, Linux and the agent-in-header fit unverified.
 
 - Worktrees: the branch of each checkout in the sidebar, `Checkout` and `New worktree…` in New session, and `New worktree…` in the project menu; tested against the scripted herdr only, never rendered (Linux or macOS), no live herdr with worktrees, no remote machine, no untrusted-repository flow against herdr.
+- Split is discoverable: `Open beside` (`mod+\`, chat header, palette, row and project menus) opens a lone tab's companion (Changes or terminal) beside it, `Review changes` opens beside the chat, `Merge splits` and `Focus the other group` in the palette; tested headless, **not rendered on Linux, narrow behaviour unverified**.
 
 ## Open
 

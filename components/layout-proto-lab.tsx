@@ -4,8 +4,8 @@ import { Sidebar } from "#components/sidebar";
 import { StatusGlyph } from "#components/status-glyph";
 import { Btn, compact, Icon, IconButton, PopupRoot, snug, TabBar, TabItem, ThemeRoot, ToastHost } from "#kit";
 import type { IconName } from "#kit";
-import { RAIL_WIDTH, SIDEBAR_WIDTH } from "#lib/layout";
 import { startHerdr } from "#lib/herdr";
+import { RAIL_WIDTH, SIDEBAR_WIDTH } from "#lib/layout";
 import { boardFront } from "#lib/settings";
 import { loadSidebar } from "#lib/sidebar";
 import type { AgentStatus } from "#lib/status";
@@ -35,8 +35,9 @@ if (variant === "w") boardFront.set(true);
 
 /** The default theme of a lab has no `success` token: a stand-in green. */
 const GREEN = "#2fa35f";
-const NUM = { fontVariant: ["tabular-nums"] } as const;
-const sideWidth = () => (compact() || variant === "w" ? RAIL_WIDTH : snug() ? SIDEBAR_WIDTH.narrow : SIDEBAR_WIDTH.default);
+const NUM: { fontVariant: "tabular-nums"[] } = { fontVariant: ["tabular-nums"] };
+const sideWidth = () =>
+  compact() || variant === "w" ? RAIL_WIDTH : snug() ? SIDEBAR_WIDTH.narrow : SIDEBAR_WIDTH.default;
 const noop = () => {};
 /** The inspector docks only in a wide window; at 960 it overlays, under 900 it is the one region (see `Main`). */
 const docked = () => !snug();
@@ -45,7 +46,9 @@ const INSPECTOR = 380;
 /** One header line of a region: 40 pt, a hairline under it. */
 function Header(props: { title: string; sub?: string; focus?: boolean; children?: unknown }) {
   return (
-    <View class={`h-10 flex-row items-center gap-2 border-b border-border px-3 ${props.focus ? "border-t-2 border-t-primary" : ""}`}>
+    <View
+      class={`h-10 flex-row items-center gap-2 border-b border-border px-3 ${props.focus ? "border-t-2 border-t-primary" : ""}`}
+    >
       <Text class="shrink text-sm font-medium text-foreground">{props.title}</Text>
       <Text class="flex-1 text-xs text-muted-foreground">{props.sub ?? ""}</Text>
       {props.children as never}
@@ -58,10 +61,12 @@ function Fold(props: { text: string; count?: string; bad?: string }) {
     <View class="flex-row items-center gap-2 py-1">
       <Text class="text-sm text-muted-foreground">{props.text}</Text>
       <If when={props.count}>
-        <Text style={{ ...NUM, color: GREEN }} class="text-sm">{props.count}</Text>
+        <Text style={{ color: GREEN }} class="text-sm">
+          {props.count}
+        </Text>
       </If>
       <If when={props.bad}>
-        <Text style={NUM} class="text-sm text-destructive">{props.bad}</Text>
+        <Text class="text-sm text-destructive">{props.bad}</Text>
       </If>
       <Icon name="chevron-right" size={12} tone="muted-foreground" />
     </View>
@@ -74,17 +79,24 @@ function Conversation(props: { tight?: boolean; working?: string }) {
   return (
     <View class={`flex-1 overflow-hidden ${props.tight ? "px-3 pt-3" : "px-6 pt-6"} ${gap}`}>
       <View class="self-end rounded-lg bg-muted px-3 py-2">
-        <Text class="text-base text-foreground">Ledger totals are off by a cent after a refund. Find out why and fix it.</Text>
+        <Text class="text-base text-foreground">
+          Ledger totals are off by a cent after a refund. Find out why and fix it.
+        </Text>
       </View>
-      <Text class="text-base text-foreground">I'll start with how the refund path rounds, then check the totals it feeds.</Text>
+      <Text class="text-base text-foreground">
+        I'll start with how the refund path rounds, then check the totals it feeds.
+      </Text>
       <Fold text="Read 6 files, searched 3 times" />
       <Text class="text-base text-foreground">
-        Refunds round half-up per line, the ledger rounds half-even per total: that is the cent. One rule everywhere fixes it.
+        Refunds round half-up per line, the ledger rounds half-even per total: that is the cent. One rule everywhere
+        fixes it.
       </Text>
       <Fold text="Edited post.rs" count="+14" bad={"−3"} />
       <Fold text="Ran 2 commands, 1 failed" />
       <If when={!props.tight}>
-        <Text class="text-base text-foreground">One test still fails on a fixture that expected the old cent. I need to run it again.</Text>
+        <Text class="text-base text-foreground">
+          One test still fails on a fixture that expected the old cent. I need to run it again.
+        </Text>
       </If>
       <If when={props.working}>
         <Text class="text-sm text-muted-foreground">{props.working}</Text>
@@ -160,8 +172,12 @@ function FileRow(props: { f: [string, string, string, string, string]; on?: bool
       <Text class="w-4 text-center text-xs font-medium text-muted-foreground">{props.f[0]}</Text>
       <Text class="text-sm text-foreground">{props.f[1]}</Text>
       <Text class="flex-1 text-xs text-muted-foreground">{props.bare ? "" : props.f[2]}</Text>
-      <Text style={{ ...NUM, color: GREEN }} class="text-xs">{props.f[3]}</Text>
-      <Text style={NUM} class="w-6 text-right text-xs text-destructive">{props.f[4]}</Text>
+      <Text style={{ color: GREEN }} class="text-xs">
+        {props.f[3]}
+      </Text>
+      <Text style={NUM} class="w-6 text-right text-xs text-destructive">
+        {props.f[4]}
+      </Text>
     </View>
   );
 }
@@ -188,8 +204,12 @@ function Diff(props: { lines?: number }) {
           style={l[2] === "add" ? { backgroundColor: "rgba(47,163,95,0.12)" } : undefined}
           class={`min-h-5 flex-row gap-2 px-3 ${l[2] === "del" ? "bg-destructive/10" : ""}`}
         >
-          <Text style={NUM} class="w-5 text-right font-mono text-xs text-muted-foreground">{l[0]}</Text>
-          <Text class="w-3 font-mono text-xs text-muted-foreground">{l[2] === "add" ? "+" : l[2] === "del" ? "−" : " "}</Text>
+          <Text style={NUM} class="w-5 text-right font-mono text-xs text-muted-foreground">
+            {l[0]}
+          </Text>
+          <Text class="w-3 font-mono text-xs text-muted-foreground">
+            {l[2] === "add" ? "+" : l[2] === "del" ? "−" : " "}
+          </Text>
           <Text class="font-mono text-xs text-foreground">{l[1]}</Text>
         </View>
       ))}
@@ -202,9 +222,15 @@ function ChangesContext() {
   return (
     <View class="min-h-8 flex-row items-center gap-2 px-3">
       <Text class="flex-1 text-xs text-muted-foreground">payments-api · fix-rounding · by claude</Text>
-      <Text style={NUM} class="text-xs text-muted-foreground">6 files</Text>
-      <Text style={{ ...NUM, color: GREEN }} class="text-xs">+63</Text>
-      <Text style={NUM} class="text-xs text-destructive">{"−8"}</Text>
+      <Text style={NUM} class="text-xs text-muted-foreground">
+        6 files
+      </Text>
+      <Text style={{ color: GREEN }} class="text-xs">
+        +63
+      </Text>
+      <Text style={NUM} class="text-xs text-destructive">
+        {"−8"}
+      </Text>
     </View>
   );
 }
@@ -243,13 +269,19 @@ function SubagentsTab() {
         <View class={`min-h-8 flex-row items-center gap-2 rounded-md px-3 ${i === 0 ? "bg-accent" : ""}`}>
           <StatusGlyph status={s[0]} />
           <Text class="flex-1 text-sm text-foreground">{s[1]}</Text>
-          <Text style={NUM} class="text-xs text-muted-foreground">{s[2]}</Text>
-          <Text style={NUM} class="w-20 text-right text-xs text-muted-foreground">{s[3]}</Text>
+          <Text style={NUM} class="text-xs text-muted-foreground">
+            {s[2]}
+          </Text>
+          <Text style={NUM} class="w-20 text-right text-xs text-muted-foreground">
+            {s[3]}
+          </Text>
         </View>
       ))}
       <View class="mt-2 gap-1 px-3">
         <Text class="text-xs text-muted-foreground">Assignment</Text>
-        <Text class="text-sm text-foreground">Check the rounding rules in src/tax and report where they differ from the ledger. Report only.</Text>
+        <Text class="text-sm text-foreground">
+          Check the rounding rules in src/tax and report where they differ from the ledger. Report only.
+        </Text>
         <Text class="pt-2 text-xs text-muted-foreground">Read-only: open its conversation</Text>
       </View>
       <View class="mt-4 gap-1 px-3">
@@ -349,7 +381,14 @@ function Shell(props: { children?: unknown }) {
 }
 
 function Baseline() {
-  return <ChatPane title="payments-api · fix ledger rounding" sub="" dock actions={header(<IconButton icon="ellipsis" label="More" onPress={noop} />)} />;
+  return (
+    <ChatPane
+      title="payments-api · fix ledger rounding"
+      sub=""
+      dock
+      actions={header(<IconButton icon="ellipsis" label="More" onPress={noop} />)}
+    />
+  );
 }
 
 function BaselineChanges() {
@@ -411,9 +450,22 @@ function InspectorI(props: { tab: Tab }) {
 function ComboC() {
   return (
     <View class="min-w-0 flex-1 flex-row">
-      <ChatPane title="payments-api" sub="fix rounding" tight dock focus actions={header(<IconButton icon="x" label="Close side" onPress={noop} />)} />
+      <ChatPane
+        title="payments-api"
+        sub="fix rounding"
+        tight
+        dock
+        focus
+        actions={header(<IconButton icon="x" label="Close side" onPress={noop} />)}
+      />
       <View class="w-px bg-border" />
-      <ChatPane title="auth" sub="session refresh" tight working="Editing src/auth/session.ts" actions={header(<IconButton icon="x" label="Close side" onPress={noop} />)} />
+      <ChatPane
+        title="auth"
+        sub="session refresh"
+        tight
+        working="Editing src/auth/session.ts"
+        actions={header(<IconButton icon="x" label="Close side" onPress={noop} />)}
+      />
       <Inspector tab="Changes" width={304} follow="Following payments-api" />
     </View>
   );
@@ -422,20 +474,89 @@ function ComboC() {
 /** The wall: nine live cards. INVENTED rows, in the way `PaneScreen` would give the last six. */
 type Card = { status: AgentStatus; title: string; project: string; rows: string[]; ask?: string };
 const CARDS: Card[] = [
-  { status: "blocked", title: "fix ledger rounding", project: "payments-api", rows: ["running 14 tests", "test refund_rounding ... FAILED", "left: 1204", "right: 1203", "1 failed; 13 passed", ""], ask: "Run cargo test -p ledger refund_rounding?" },
-  { status: "blocked", title: "refresh tokens", project: "auth", rows: ["Reading src/auth/session.ts", "The refresh path never rotates", "the token, so a stolen one lives", "for 30 days.", "", ""], ask: "Delete .cache/tokens.db?" },
-  { status: "working", title: "table virtualisation", project: "web", rows: ["Editing src/table/rows.tsx", "+ const visible = slice(rows, top)", "+ const pad = top * ROW", "Running bun test", "PASS rows.test.tsx", "PASS scroll.test.tsx"] },
-  { status: "done", title: "docs pass", project: "auth", rows: ["Updated 4 files.", "README now says how to rotate", "a key. No code changed.", "", "Done.", ""] },
-  { status: "working", title: "migration check", project: "payments-api", rows: ["Reading migrations/0042.sql", "Reading migrations/0043.sql", "Comparing schema.sql", "2 columns differ", "Writing the report", ""] },
+  {
+    status: "blocked",
+    title: "fix ledger rounding",
+    project: "payments-api",
+    rows: [
+      "running 14 tests",
+      "test refund_rounding ... FAILED",
+      "left: 1204",
+      "right: 1203",
+      "1 failed; 13 passed",
+      "",
+    ],
+    ask: "Run cargo test -p ledger refund_rounding?",
+  },
+  {
+    status: "blocked",
+    title: "refresh tokens",
+    project: "auth",
+    rows: [
+      "Reading src/auth/session.ts",
+      "The refresh path never rotates",
+      "the token, so a stolen one lives",
+      "for 30 days.",
+      "",
+      "",
+    ],
+    ask: "Delete .cache/tokens.db?",
+  },
+  {
+    status: "working",
+    title: "table virtualisation",
+    project: "web",
+    rows: [
+      "Editing src/table/rows.tsx",
+      "+ const visible = slice(rows, top)",
+      "+ const pad = top * ROW",
+      "Running bun test",
+      "PASS rows.test.tsx",
+      "PASS scroll.test.tsx",
+    ],
+  },
+  {
+    status: "done",
+    title: "docs pass",
+    project: "auth",
+    rows: ["Updated 4 files.", "README now says how to rotate", "a key. No code changed.", "", "Done.", ""],
+  },
+  {
+    status: "working",
+    title: "migration check",
+    project: "payments-api",
+    rows: [
+      "Reading migrations/0042.sql",
+      "Reading migrations/0043.sql",
+      "Comparing schema.sql",
+      "2 columns differ",
+      "Writing the report",
+      "",
+    ],
+  },
   { status: "idle", title: "meeting notes", project: "notes", rows: ["Waiting for input", "", "", "", "", ""] },
   { status: "idle", title: "backup script", project: "scripts", rows: ["Waiting for input", "", "", "", "", ""] },
-  { status: "working", title: "dark theme tokens", project: "web", rows: ["Reading theme/dark.ts", "Editing theme/dark.ts", "+ muted: step(6)", "Running bun run check", "No errors.", ""] },
+  {
+    status: "working",
+    title: "dark theme tokens",
+    project: "web",
+    rows: [
+      "Reading theme/dark.ts",
+      "Editing theme/dark.ts",
+      "+ muted: step(6)",
+      "Running bun run check",
+      "No errors.",
+      "",
+    ],
+  },
   { status: "idle", title: "release notes", project: "web", rows: ["Waiting for input", "", "", "", "", ""] },
 ];
 
 function WallCard(props: { c: Card; on?: boolean }) {
   return (
-    <View class={`min-w-0 flex-1 gap-2 rounded-lg border p-3 ${props.on ? "border-primary bg-accent/40" : "border-border"}`}>
+    <View
+      class={`min-w-0 flex-1 gap-2 rounded-lg border p-3 ${props.on ? "border-primary bg-accent/40" : "border-border"}`}
+    >
       <View class="flex-row items-center gap-2">
         <StatusGlyph status={props.c.status} />
         <Text class="flex-1 text-sm font-medium text-foreground">{props.c.title}</Text>

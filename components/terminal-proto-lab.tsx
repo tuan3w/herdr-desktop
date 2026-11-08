@@ -182,7 +182,6 @@ function Pane({ name, width, height, scale = 1 }: { name: string; width: number;
   const lh = lineHeight(size, lead);
   const rows = Math.floor(height / lh);
   const cw = size * RATIO;
-  const cols = Math.floor(width / cw);
   const r640 = Math.floor(640 / lh);
   const r800 = Math.floor(800 / lh);
   return (

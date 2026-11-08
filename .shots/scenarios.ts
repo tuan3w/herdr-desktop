@@ -37,6 +37,26 @@ const showTerminal = async (app: App) => {
 export const SCENARIOS: Record<string, Scenario> = {
   // Throwaway: the terminal's font size and leading drawn as rows of text (`components/terminal-proto-lab.tsx`); `--fixture A..E|compare`.
   "terminal-proto": { fixture: "A", entry: "../components/terminal-proto-lab.tsx", steps: async () => {} },
+  // The native terminal (`components/terminal-lab.tsx`) running synthetic programs from `.scratch/term/` (run from the repo root):
+  // a fake agent TUI (box drawing, truecolor, a bar, a diff), `vim -u NONE -N` with the mouse on, and a long coloured listing.
+  "terminal-tui": {
+    fixture: "mixed",
+    entry: "../components/terminal-lab.tsx",
+    params: { command: "python3 -I .scratch/term/tui.py" },
+    steps: async (app) => app.wait(1500),
+  },
+  "terminal-vim": {
+    fixture: "mixed",
+    entry: "../components/terminal-lab.tsx",
+    params: { command: "vim -u NONE -N -c 'syntax on' -c 'set mouse=a number' .scratch/term/vim.txt" },
+    steps: async (app) => app.wait(1500),
+  },
+  "terminal-ls": {
+    fixture: "mixed",
+    entry: "../components/terminal-lab.tsx",
+    params: { command: "cat .scratch/term/ls.txt; sleep 60" },
+    steps: async (app) => app.wait(1500),
+  },
   // The home: projects as cards (a repository with a linked worktree, two workspaces of one repository, a folder), each
   // agent in its project, and what needs you above them.
   board: { fixture: "projects", steps: async () => {} },
@@ -582,6 +602,17 @@ export const TAB_SCENARIOS: Record<string, Scenario> = {
   "tabs-few": { ...tabs(2) },
   "tabs-many": { ...tabs(9) },
   "tabs-twenty": { ...tabs(20) },
+  // The glance test of the tab signs on the fixture whose agents differ in state: waiting, finished and not reviewed,
+  // working, all in one project (a project has its own strip).
+  "tabs-mixed": {
+    fixture: "mixed",
+    steps: async (app) => {
+      for (const name of ["payments review", "auth", "Fix login flow", "Refactor ledger", "upgrade deps"]) {
+        await pressFirst(app, `text:${name}`);
+      }
+      await app.wait(500);
+    },
+  },
 };
 Object.assign(SCENARIOS, TAB_SCENARIOS);
 
@@ -684,3 +715,6 @@ const LAYOUT_PROTO = "../components/layout-proto-lab.tsx";
 for (const v of ["baseline", "baseline-changes", "s", "i", "i-subagents", "w", "c"]) {
   SCENARIOS[`layout-proto-${v}`] = { fixture: v, entry: LAYOUT_PROTO, steps: async () => {} };
 }
+
+// THROWAWAY (focus ring prototype): `components/focus-proto-lab.tsx`, three ring candidates, every control drawn focused. Delete with the lab.
+SCENARIOS["focus-proto"] = { fixture: "x", entry: "../components/focus-proto-lab.tsx", steps: async () => {} };
