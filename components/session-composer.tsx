@@ -72,8 +72,13 @@ export function SessionComposer(props: {
     mention: c.mentionPath,
   });
 
-  const anchor = () => c.caretBounds() ?? card();
-  const placeholder = () => c.off() ?? "Ask anything · @ for files · / for commands";
+  // The lists hang from the box, not the caret: a second line or a picture strip moves the caret, and a list that follows it
+  // would move under the pointer. Its bottom edge stays 8 pt over the box's top edge.
+  const box = signal<ViewRef | null>(null);
+  const anchor = () => box() ?? card();
+  // While the commands are listed the box says what typing does; the keys of the list say the rest.
+  const placeholder = () =>
+    c.off() ?? (c.listed() === "slash" ? "Type to filter" : "Ask anything · @ for files · / for commands");
   const attachKey = () => keyText(keysOf(GLOBAL.attachFiles)[0]!);
 
   /** What the line in the box's bottom row says: the failure, else what the typed command takes, else what a send does, beside the mode and model under the box. The keys are not here: the placeholder says how to start and the keyboard sheet lists the rest. */
@@ -119,7 +124,12 @@ export function SessionComposer(props: {
           onPick={(i) => c.pickMention(i)}
         />
       </If>
-      <View class="gap-1 rounded-xl border border-border bg-card px-2 py-2 focus-within:border-ring focus-within:outline-[0.5px] focus-within:outline-offset-0 focus-within:outline-ring">
+      <View
+        ref={(node: ViewRef) => {
+          box.set(node);
+        }}
+        class="gap-1 rounded-xl border border-border bg-card px-2 py-2 focus-within:border-ring focus-within:outline-[0.5px] focus-within:outline-offset-0 focus-within:outline-ring"
+      >
         <PictureStrip composer={c} />
         <ChipRow composer={c} machine={props.machine} />
         <View class="flex-row items-end gap-1">
@@ -129,7 +139,7 @@ export function SessionComposer(props: {
             disabled={c.off() !== null}
             entries={[
               {
-                label: "Files from this computer…",
+                label: "Add files or photos",
                 icon: "upload",
                 shortcut: attachKey(),
                 onSelect: () => void c.attachFromComputer(),
@@ -138,6 +148,14 @@ export function SessionComposer(props: {
                 label: c.local() ? "Files in the project…" : "Files on the machine…",
                 icon: "folder",
                 onSelect: () => c.attaching.set(true),
+              },
+              { label: "Mention a file", icon: "file", onSelect: () => c.insert(startsWord(c.value()) ? "@" : " @") },
+              {
+                label: "Slash commands",
+                icon: "terminal",
+                // A command is only the first word of the message.
+                disabled: c.value() !== "",
+                onSelect: () => c.insert("/"),
               },
             ]}
           />
@@ -207,6 +225,9 @@ export function SessionComposer(props: {
     </View>
   );
 }
+
+/** Whether a character typed at the end of `text` starts a word, which `@` needs to mean a mention. */
+const startsWord = (text: string): boolean => text === "" || /\s$/.test(text);
 
 /** The round button: Send, Queue message while the agent works, Stop while a turn runs with nothing typed. */
 function SendButton(props: { c: Composer }): JSX.Element {

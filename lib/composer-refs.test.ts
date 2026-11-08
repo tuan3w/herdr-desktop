@@ -4,7 +4,6 @@ import {
   acceptMention,
   activeRefs,
   emptyHistory,
-  fileGlyph,
   insertToken,
   keepAtomic,
   looksBinary,
@@ -204,15 +203,6 @@ test("Up walks back through what was sent and Down walks forward to what was bei
   expect(home.history.at).toBeNull();
   expect(recallDown(home.history)).toBeNull();
   expect(recallUp(emptyHistory(), "")).toBeNull();
-});
-
-test("a file's icon is by its kind: folders, pictures, scripts, configuration and code are told apart", () => {
-  expect(fileGlyph("src", true)).toBe("folder");
-  expect(fileGlyph("shot.PNG", false)).toBe("image");
-  expect(fileGlyph("run.sh", false)).toBe("terminal");
-  expect(fileGlyph("Cargo.toml", false)).toBe("sliders");
-  expect(fileGlyph("README.md", false)).toBe("list");
-  expect(fileGlyph("main.rs", false)).toBe("file");
 });
 
 test("a picture's bytes that arrive as text are not text, and a log or a cell is", () => {

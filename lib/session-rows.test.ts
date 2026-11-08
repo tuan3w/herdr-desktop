@@ -2,7 +2,7 @@ import { expect, test } from "nsh/test";
 
 import type { SessionItem, ToolItem, ToolStatusName } from "herdr-desktop/native";
 
-import { buildRows, type Row, type RowInput, spanSeconds, type TurnCarry, unitStart } from "#lib/session-rows";
+import { buildRows, itemKey, type Row, type RowInput, spanSeconds, type TurnCarry, unitStart } from "#lib/session-rows";
 
 let next = 1;
 const say = (role: "user" | "agent" | "thought", text: string): SessionItem => ({
@@ -78,13 +78,13 @@ test("a choice of the person beats the default either way", () => {
   const items = [say("user", "go"), tool("ls"), say("agent", "ok")];
   const group = buildRows(input(items))[1]!;
   const opened = buildRows(input(items, { open: new Map([[group.key, true]]) }));
-  expect(kinds(opened)).toEqual(["user", "work", "tool", "agent"]);
+  expect(kinds(opened)).toEqual(["user", "work", "calls", "agent"]);
   const live = [say("user", "go"), tool("ls", "inProgress")];
   const key = buildRows(input(live, { running: true }))[1]!.key;
   expect(kinds(buildRows(input(live, { running: true, open: new Map([[key, true]]) })))).toEqual([
     "user",
     "work",
-    "tool",
+    "calls",
   ]);
 });
 
@@ -93,7 +93,37 @@ test("narration between calls folds with them: only the turn's last message stay
   const rows = buildRows(input(items));
   expect(kinds(rows)).toEqual(["user", "work", "agent"]);
   const open = buildRows(input(items, { open: new Map([[rows[1]!.key, true]]) }));
-  expect(kinds(open)).toEqual(["user", "work", "tool", "narration", "tool", "agent"]);
+  expect(kinds(open)).toEqual(["user", "work", "calls", "narration", "calls", "agent"]);
+});
+
+test("calls with nothing between them are one row, so they draw as one box; narration or a thought splits the run", () => {
+  const items = [
+    say("user", "go"),
+    tool("a"),
+    tool("b"),
+    tool("c"),
+    say("agent", "now the tests"),
+    tool("d"),
+    say("agent", "All green."),
+  ];
+  const group = buildRows(input(items))[1]!;
+  const rows = buildRows(input(items, { open: new Map([[group.key, true]]) }));
+  const runs = rows.flatMap((r) => (r.kind === "calls" ? [r.calls.length] : []));
+  expect(runs).toEqual([3, 1]);
+});
+
+test("a call's own open choice changes its run's row and no other", () => {
+  const items = [say("user", "go"), tool("a"), tool("b"), say("agent", "ok"), tool("c"), say("agent", "done")];
+  const group = buildRows(input(items))[1]!;
+  const base = new Map([[group.key, true]]);
+  const before = buildRows(input(items, { open: base }));
+  const after = buildRows(
+    input(items, { open: new Map([...base, [itemKey(items[2]!.id), true]]) }),
+    new Map(before.map((r) => [r.key, r])),
+  );
+  const calls = (rows: Row[]) => rows.filter((r) => r.kind === "calls");
+  expect(calls(after)[0]).not.toBe(calls(before)[0]);
+  expect(calls(after)[1]).toBe(calls(before)[1]);
 });
 
 test("the unit a streaming message belongs to becomes a group when a call follows it", () => {
@@ -179,7 +209,7 @@ test("a push after reads and edits is visible while the reads and edits fold", (
   expect(kinds(rows)).toEqual(["user", "work", "agent", "effects"]);
   const fx = effectsOf(rows)!;
   expect(fx.external.map((e) => e.text)).toEqual(["Pushed to origin/main"]);
-  expect(fx.edited).toEqual({ files: 2, added: 12, removed: 4 });
+  expect(fx.edited).toEqual({ files: 2, added: 12, removed: 4, paths: ["src/a.ts", "src/b.ts"] });
   expect(fx.failures).toEqual([]);
 });
 
@@ -204,7 +234,7 @@ test("failures come first, then what happened outside the machine, then the edit
 
 test("a turn that only read and edited locally has an edit line and no more; a turn that read has none", () => {
   const edits = effectsOf(buildRows(input([say("user", "go"), edit("a.ts", 3, 1), say("agent", "ok")])))!;
-  expect(edits.edited).toEqual({ files: 1, added: 3, removed: 1 });
+  expect(edits.edited).toEqual({ files: 1, added: 3, removed: 1, paths: ["a.ts"] });
   expect(edits.external).toEqual([]);
   expect(effectsOf(buildRows(input([say("user", "go"), tool("ls"), say("agent", "ok")])))).toBeNull();
 });

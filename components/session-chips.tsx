@@ -1,26 +1,27 @@
 import { Image, Text, View } from "nsh";
 import { Button } from "nsh/base";
 
-import { Btn, EDGE, FOCUS_RING, FOCUS_RING_INSET, Icon, type IconName, Spinner, Tipped } from "#kit";
+import { EDGE, FOCUS_RING, FOCUS_RING_INSET, Icon, type IconName, Spinner, Tipped } from "#kit";
 import type { Composer } from "#lib/composer";
 import type { MentionRef, PasteRef, PictureRef, Ref } from "#lib/composer-refs";
-import { fileGlyph, pictureDetail, pictureLabel } from "#lib/composer-refs";
-import { browseFiles, viewFile } from "#lib/files";
+import { pictureDetail, pictureLabel } from "#lib/composer-refs";
+import { fileGlyph } from "#lib/files";
+import { browseFiles, viewFile } from "#lib/open-files";
 import { fileName } from "#lib/session-compose";
 
-/** The thumbnails are 56 pt: big enough to tell one screenshot from another, small enough for ten in a row. */
-const THUMB = 56;
+/** The thumbnails are 72 pt cards: big enough to read what a screenshot is, small enough for a row of them. */
+const THUMB = 72;
 
 /**
- * A small round button on a chip's corner or edge that takes it off. 24 pt square for the pointer, named for what it
- * removes. Not a kit `IconButton` (32 pt, with a tooltip of its own): it sits inside a chip the tooltip already names.
+ * A small round button that takes a chip off: on a picture card it sits in the reserved top right corner and shows with
+ * the pointer or the focus on the card (`group`), so nothing moves. 24 pt square for the pointer, named for what it removes. Not a kit `IconButton` (32 pt, with a tooltip of its own): it sits inside a chip the tooltip already names.
  */
 function RemoveButton(props: { label: string; onPress: () => void; floating?: boolean }) {
   return (
     <Button
       accessibilityLabel={props.label}
       onPress={props.onPress}
-      class={`size-6 items-center justify-center rounded-full ${props.floating ? `absolute -right-2 -top-2 bg-popover ${EDGE.sm}` : "hover:bg-accent"} ${FOCUS_RING}`}
+      class={`size-7 items-center justify-center rounded-full ${props.floating ? `absolute right-1 top-1 bg-popover opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 ${EDGE.sm}` : "hover:bg-accent"} ${FOCUS_RING}`}
     >
       <Icon name="x" size={12} tone="muted-foreground" />
     </Button>
@@ -28,7 +29,7 @@ function RemoveButton(props: { label: string; onPress: () => void; floating?: bo
 }
 
 /**
- * The pictures of the message as thumbnails above the box: 56 pt, rounded, a cross on each, the type and size on hover (and
+ * The pictures of the message as cards inside the box above the text: 72 pt, radius nested in the box's (16 less 8 padding), a cross in the corner on hover or focus, the type and size on hover (and
  * in the name a screen reader reads: `Image 1 of 3, PNG, 1.2 MB`). Pressing one opens it in the viewer the app already has.
  * Pictures still being decoded show a placeholder each. When the agent cannot see them, a dashed edge says so on the
  * picture itself and the row under the strip says what to do.
@@ -38,20 +39,21 @@ export function PictureStrip(props: { composer: Composer }) {
   return (
     <If when={c.pictures().length + c.preparing().length > 0}>
       <View class="gap-2">
-        <View class="flex-row flex-wrap gap-3 pt-2" role="list" accessibilityLabel="Pictures in the message">
+        <View class="flex-row flex-wrap gap-2" role="list" accessibilityLabel="Pictures in the message">
           <Each of={c.pictures()} key={(p: PictureRef) => p.id}>
             {(picture, i) => (
               <View
                 role="group"
                 accessibilityLabel={pictureLabel(picture(), i(), c.pictures().length)}
                 style={{ width: THUMB, height: THUMB }}
+                class="group"
               >
                 <Tipped label={pictureDetail(picture())}>
                   <Button
                     accessibilityLabel={`Open ${pictureLabel(picture(), i(), c.pictures().length)}`}
                     onPress={() => viewFile("local", picture().path)}
                     style={{ width: THUMB, height: THUMB }}
-                    class={`overflow-hidden rounded-lg bg-muted ${c.blind() ? "border border-dashed border-muted-foreground" : "border border-border"} ${FOCUS_RING}`}
+                    class={`overflow-hidden rounded-md bg-muted border border-border ${FOCUS_RING}`}
                   >
                     <Image
                       src={`data:image/jpeg;base64,${picture().thumb}`}
@@ -75,27 +77,13 @@ export function PictureStrip(props: { composer: Composer }) {
                 role="group"
                 accessibilityLabel={`Preparing ${pending().name}`}
                 style={{ width: THUMB, height: THUMB }}
-                class="items-center justify-center rounded-lg border border-dashed border-border bg-muted"
+                class="items-center justify-center rounded-md border border-dashed border-border bg-muted"
               >
                 <Spinner size={16} tone="muted-foreground" />
               </View>
             )}
           </Each>
         </View>
-        <If when={c.notice() !== null}>
-          <View class="flex-row flex-wrap items-center gap-2">
-            <Icon name="alert" size={14} tone="muted-foreground" />
-            <Text role="alert" class="text-xs text-muted-foreground">
-              {c.notice()}
-            </Text>
-            <Btn
-              small
-              variant="outline"
-              label="Save to the project and mention the path"
-              onPress={() => void c.saveToProject()}
-            />
-          </View>
-        </If>
       </View>
     </If>
   );

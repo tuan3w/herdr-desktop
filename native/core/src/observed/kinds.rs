@@ -71,6 +71,55 @@ static CODEX: LazyLock<ObservedKind> = LazyLock::new(|| ObservedKind {
     integration: Some("codex"),
 });
 
+/// A subagent's own transcript: the same format as its parent's log, read-only (it is steered through its
+/// parent), no questions answered from here. Claude Code writes it with `isSidechain` on every line.
+static CLAUDE_SUBAGENT: LazyLock<ObservedKind> = LazyLock::new(|| ObservedKind {
+    id: "claude",
+    label: "Claude Code",
+    new_mapper: claude::new_sidechain_mapper,
+    locator: &*CLAUDE_LOCATOR,
+    ask: None,
+    wakes_on_background: false,
+    integration: None,
+});
+
+static OMP_SUBAGENT: LazyLock<ObservedKind> = LazyLock::new(|| ObservedKind {
+    id: "omp",
+    label: "omp",
+    new_mapper: omp::new_mapper,
+    locator: &OMP_LOCATOR,
+    ask: None,
+    wakes_on_background: false,
+    integration: None,
+});
+
+/// A Codex subagent's rollout starts with a replay of its parent, which its mapper skips by
+/// `subagent_history_start_ordinal`.
+static CODEX_SUBAGENT: LazyLock<ObservedKind> = LazyLock::new(|| ObservedKind {
+    id: "codex",
+    label: "Codex",
+    new_mapper: codex::new_mapper,
+    locator: &*CODEX_LOCATOR,
+    ask: None,
+    wakes_on_background: false,
+    integration: None,
+});
+
+/// The kind of a subagent's transcript of a parent of kind `id`.
+pub fn subagent_kind_for(id: &str) -> Option<&'static ObservedKind> {
+    match id {
+        "omp" => Some(&OMP_SUBAGENT),
+        "claude" => Some(&CLAUDE_SUBAGENT),
+        "codex" => Some(&CODEX_SUBAGENT),
+        _ => None,
+    }
+}
+
+/// The Codex locator, which also finds a thread's rollout by its id (a subagent's).
+pub(crate) fn codex_locator() -> &'static CodexLocator {
+    &CODEX_LOCATOR
+}
+
 /// The kind whose herdr agent label is `label`, if its panes can open as a chat.
 pub fn kind_for(label: &str) -> Option<&'static ObservedKind> {
     match label {

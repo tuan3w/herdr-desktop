@@ -1,5 +1,4 @@
-import type { IconName } from "#kit";
-import { isImageName, sizeText } from "#lib/files";
+import { sizeText } from "#lib/files";
 
 /**
  * What the chat's message box holds besides its words, and the rules that keep the two in step. A box is one native text
@@ -266,22 +265,6 @@ export function markRuns(
   }
   push(to, false);
   return runs;
-}
-
-const CODE =
-  /\.(rs|ts|tsx|js|jsx|mjs|py|go|java|kt|c|cc|cpp|h|hpp|rb|php|swift|dart|lua|zig|css|html|svelte|vue|sql)$/i;
-const SCRIPT = /\.(sh|bash|zsh|fish|ps1|bat)$|^Makefile$|^Dockerfile$/i;
-const CONFIG = /\.(json|toml|ya?ml|ini|conf|lock|env|xml)$|^\./;
-
-/** The icon of a file by its name: a shape per kind, never a colour. */
-export function fileGlyph(name: string, folder: boolean): IconName {
-  if (folder) return "folder";
-  if (isImageName(name)) return "image";
-  if (SCRIPT.test(name)) return "terminal";
-  if (CONFIG.test(name)) return "sliders";
-  if (CODE.test(name)) return "file";
-  if (/\.(md|markdown|txt|rst)$/i.test(name)) return "list";
-  return "file";
 }
 
 /** `PNG` or `JPEG`: what a chip says about a prepared picture. */

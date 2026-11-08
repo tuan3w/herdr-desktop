@@ -1,12 +1,12 @@
 import { Herdr, Sessions } from "herdr-desktop/native";
-import { announce, cleanup, Clipboard, computed, effect, signal, Text, untracked, View } from "nsh";
+import { announce, cleanup, Clipboard, computed, effect, keymap, signal, Text, untracked, View } from "nsh";
 
 import type { SessionInfo, SessionView } from "herdr-desktop/native";
 
 import { AnswerDock, focusAnswers } from "#components/answer-dock";
-import { SessionActivity } from "#components/session-activity";
 import { SessionComposer, type SessionComposerHandle } from "#components/session-composer";
 import { SessionHeader } from "#components/session-header";
+import { ActivityLine, createActivity, SessionInspector } from "#components/session-inspector";
 import { SessionPlan } from "#components/session-plan";
 import { SessionQuestion } from "#components/session-question";
 import { createSignin, SessionSignin } from "#components/session-signin";
@@ -22,8 +22,10 @@ import { showTerminal } from "#lib/open-agent";
 import { registerPane } from "#lib/pane-input";
 import { createSessionModel, latest, type SessionPort, sessionPort } from "#lib/session";
 import { lastCode, lastReply } from "#lib/session-copy";
-import { oneLine, tailText, visibleText } from "#lib/session-text";
+import { inspectorOpen } from "#lib/session-inspector";
+import { oneLine, sessionTitle, tailText, visibleText } from "#lib/session-text";
 import { announceOutput } from "#lib/settings";
+import { INSPECTOR_KEY } from "#lib/shortcuts";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
@@ -100,6 +102,15 @@ export function SessionChat(props: {
     },
   });
   const signin = createSignin(props.port);
+  // What a terminal agent runs beside the chat: the inspector's, with one quiet line in the chat while it is closed.
+  const activity = createActivity(
+    () => model.view()?.observed ?? undefined,
+    () => props.active,
+  );
+  effect(() => {
+    if (!props.active || !activity.any()) return;
+    return keymap.bind(INSPECTOR_KEY, () => inspectorOpen.update((o) => !o), { when: "always" });
+  });
   // Once the agent no longer asks for a sign-in (and is not just reopening), what an earlier attempt said is over.
   effect(() => {
     const phase = model.view()?.phase;
@@ -144,6 +155,18 @@ export function SessionChat(props: {
     }
   });
   void open();
+  // herdr's snapshot may not know a pane's agent yet (a tab restored at launch opens before the first snapshot), and the open
+  // then fails with "no session log": it is tried once more when herdr reports the agent, so the person need not press
+  // `Try again` for what was only early.
+  let retried = false;
+  if (observedPane) {
+    const pane = meta(props.machine, observedPane);
+    effect(() => {
+      if (opening().state !== "failed" || !pane()?.agent || retried) return;
+      retried = true;
+      untracked(() => void open());
+    });
+  }
   cleanup(() => {
     if (props.open !== false) Sessions.detach(props.machine, props.id);
   });
@@ -301,70 +324,89 @@ export function SessionChat(props: {
           const question = () => view().waiting[0]?.ask === "question";
           return (
             <>
-              <SessionHeader
-                view={view()}
-                machine={props.machine}
-                id={props.id}
-                active={props.active}
-                onShowTerminal={observedPane ? () => void showTerminal(props.machine, observedPane) : undefined}
-              />
-              <If when={view().connectionLost}>
-                <View role="alert" class="flex-row items-center gap-2 border-b border-border bg-muted px-4 py-2">
-                  <Text class="min-w-0 flex-1 text-xs text-foreground">{`Not connected to ${machineName()}. The agent keeps running; reconnect to carry on.`}</Text>
-                  <Btn small label="Reconnect" loading={reconnecting()} onPress={() => void reconnect()} />
-                </View>
-              </If>
-              <If when={view().observed && view().observed!.link !== "following" && view().observed!.linkText}>
-                <View class="border-b border-border bg-muted px-4 py-2">
-                  <Text class="text-xs text-muted-foreground">{view().observed!.linkText}</Text>
-                </View>
-              </If>
-              <If when={view().observed?.problem}>
-                <View role="alert" class="border-b border-border bg-muted px-4 py-2">
-                  <Text class="text-xs text-foreground">{view().observed!.problem}</Text>
-                </View>
-              </If>
-              <If when={view().observed}>{(observed) => <SessionActivity observed={observed()} />}</If>
-              <If when={view().phase === "authRequired"}>
-                <SessionSignin
-                  view={view()}
-                  where={local() ? "this computer" : machineName()}
-                  active={props.active}
-                  signin={signin}
-                />
-              </If>
-              <If when={view().phase !== "authRequired"}>
-                <SessionPlan plan={view().plan} running={view().running} />
-                <SessionTranscript
-                  ctx={ctx}
-                  panel={sessionKey(props.machine, props.id)}
-                  active={props.active}
-                  atEnd={atEnd}
-                  unseen={unseen}
-                  waiting={() => waiting(view())}
-                  opening={() => view().phase === "connecting"}
-                />
-                {/* The dock stays mounted: it keeps its `Answer sent` line after the question is gone. */}
-                <AnswerDock ask={ask()} onNext={() => goAttention(1)} />
-                <If when={question()}>
-                  <SessionQuestion machine={props.machine} id={props.id} view={view()} />
-                </If>
-                {/* The message box stands aside while the agent asks and comes back, draft and queue as they were, when it does not. */}
-                <If when={!ask() && !question()}>
-                  <SessionComposer
+              <View class="min-h-0 flex-1 flex-row">
+                <View class="min-h-0 flex-1">
+                  <SessionHeader
+                    view={view()}
                     machine={props.machine}
                     id={props.id}
+                    active={props.active}
+                    onShowTerminal={observedPane ? () => void showTerminal(props.machine, observedPane) : undefined}
+                    inspector={
+                      activity.any()
+                        ? { open: inspectorOpen(), toggle: () => inspectorOpen.update((o) => !o) }
+                        : undefined
+                    }
+                  />
+                  <If when={view().connectionLost}>
+                    <View role="alert" class="flex-row items-center gap-2 border-b border-border bg-muted px-4 py-2">
+                      <Text class="min-w-0 flex-1 text-xs text-foreground">{`Not connected to ${machineName()}. The agent keeps running; reconnect to carry on.`}</Text>
+                      <Btn small label="Reconnect" loading={reconnecting()} onPress={() => void reconnect()} />
+                    </View>
+                  </If>
+                  <If when={view().observed && view().observed!.link !== "following" && view().observed!.linkText}>
+                    <View class="border-b border-border bg-muted px-4 py-2">
+                      <Text class="text-xs text-muted-foreground">{view().observed!.linkText}</Text>
+                    </View>
+                  </If>
+                  <If when={view().observed?.problem}>
+                    <View role="alert" class="border-b border-border bg-muted px-4 py-2">
+                      <Text class="text-xs text-foreground">{view().observed!.problem}</Text>
+                    </View>
+                  </If>
+                  <ActivityLine activity={activity} />
+                  <If when={view().phase === "authRequired"}>
+                    <SessionSignin
+                      view={view()}
+                      where={local() ? "this computer" : machineName()}
+                      active={props.active}
+                      signin={signin}
+                    />
+                  </If>
+                  <If when={view().phase !== "authRequired"}>
+                    <SessionPlan plan={view().plan} running={view().running} />
+                    <SessionTranscript
+                      ctx={ctx}
+                      panel={sessionKey(props.machine, props.id)}
+                      active={props.active}
+                      atEnd={atEnd}
+                      unseen={unseen}
+                      waiting={() => waiting(view())}
+                      opening={() => view().phase === "connecting"}
+                    />
+                    {/* The dock stays mounted: it keeps its `Answer sent` line after the question is gone. */}
+                    <AnswerDock ask={ask()} onNext={() => goAttention(1)} />
+                    <If when={question()}>
+                      <SessionQuestion machine={props.machine} id={props.id} view={view()} />
+                    </If>
+                    {/* The message box stands aside while the agent asks and comes back, draft and queue as they were, when it does not. */}
+                    <If when={!ask() && !question()}>
+                      <SessionComposer
+                        machine={props.machine}
+                        id={props.id}
+                        port={props.port}
+                        view={view}
+                        onHandle={(h) => {
+                          composer = h;
+                          cleanup(() => {
+                            if (composer === h) composer = undefined;
+                          });
+                        }}
+                      />
+                    </If>
+                  </If>
+                </View>
+                <If when={inspectorOpen() && activity.any()}>
+                  <SessionInspector
+                    activity={activity}
                     port={props.port}
-                    view={view}
-                    onHandle={(h) => {
-                      composer = h;
-                      cleanup(() => {
-                        if (composer === h) composer = undefined;
-                      });
-                    }}
+                    machine={props.machine}
+                    parentTitle={sessionTitle(view(), view().agent)}
+                    active={props.active}
+                    panel={sessionKey(props.machine, props.id)}
                   />
                 </If>
-              </If>
+              </View>
               <If when={dropping()}>
                 <View
                   accessibilityElementsHidden

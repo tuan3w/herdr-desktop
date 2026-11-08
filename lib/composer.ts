@@ -38,7 +38,6 @@ import {
 import { sessionKey } from "#lib/dock";
 import { sending } from "#lib/files";
 import { changedTick, noteMentioned, readChanged, relativeIn, searchMentions, warmMentions } from "#lib/mention";
-import { agentLabel } from "#lib/new-session";
 import { noteSent, slashMemory } from "#lib/pane-memory";
 import type { SessionPort } from "#lib/session";
 import { MAX_FILES, restoreText } from "#lib/session-compose";
@@ -79,7 +78,6 @@ export interface Composer {
   /** Pictures being decoded and scaled: a placeholder each. */
   preparing: Accessor<{ id: string; name: string }[]>;
   error: Accessor<string>;
-  notice: Accessor<string | null>;
   focused: Accessor<boolean>;
   composing: Accessor<boolean>;
   /** `/` list rows, `@` list. */
@@ -90,8 +88,6 @@ export interface Composer {
   listed: Accessor<"slash" | "mention" | null>;
   highlighted: Accessor<number>;
   caretBounds: Accessor<Bounds | null>;
-  /** The agent cannot see and a picture is in the box. */
-  blind: Accessor<boolean>;
   /** The agent's own words for a command's arguments, shown under the box. */
   ghost: Accessor<string | null>;
   running: Accessor<boolean>;
@@ -121,7 +117,6 @@ export interface Composer {
   removeRef(ref: Ref): void;
   removeAttached(path: string): void;
   expandPaste(ref: PasteRef): void;
-  saveToProject(): Promise<void>;
   addPaths(paths: string[]): Promise<void>;
   dropUris(uris: string[]): void;
   attachFromComputer(): Promise<void>;
@@ -498,7 +493,10 @@ export function createComposer(props: {
 
   // ---- sending ----
   const send = async () => {
-    if (off() !== null || !typed() || composing()) return;
+    if (off() !== null || !typed() || composing() || savingPictures) return;
+    // An agent that cannot see takes its pictures as files, as herdr-mobile does: saved into the project and named by path
+    // in the words, with nothing to read or press first.
+    if (blind() && !(await picturesAsFiles())) return;
     const raw = value();
     const refs = refsNow();
     const carried = attached();
@@ -746,9 +744,11 @@ export function createComposer(props: {
 
   // ---- an agent that cannot see: the picture goes into the project and is mentioned by path ----
   const blind = computed(() => off() === null && !view().acceptsPictures && pictures().length > 0);
-  const gitignoreTold = new Set<string>();
 
-  const saveToProject = async () => {
+  let savingPictures = false;
+  /** Saves every picture in the box into the project and puts its path in the words; false when one could not be saved. */
+  const picturesAsFiles = async (): Promise<boolean> => {
+    savingPictures = true;
     let text = value();
     try {
       for (const p of pictures()) {
@@ -759,15 +759,14 @@ export function createComposer(props: {
         addRef(ref);
         known.update((all) => all.filter((r) => r !== p));
         text = insertToken(text, text.length, tokenOf(ref)).text;
-        if (!saved.ignored && !gitignoreTold.has(cwd())) {
-          gitignoreTold.add(cwd());
-          notify("Add .herdr-desktop/ to this project's .gitignore so the pictures are not committed");
-        }
       }
       place(text, text.length);
-      announce("Saved to the project and mentioned by path");
+      return true;
     } catch (e) {
-      refuse(`Could not save to the project: ${reason(e)}`);
+      refuse(`Could not send the picture: ${reason(e)}`);
+      return false;
+    } finally {
+      savingPictures = false;
     }
   };
 
@@ -798,11 +797,6 @@ export function createComposer(props: {
 
   const insert = (text: string) => place(value() + text, (value() + text).length);
 
-  const notices = computed(() => {
-    if (blind()) return `${agentLabel(view().agent)} cannot see images.`;
-    return null;
-  });
-
   return {
     value,
     selection,
@@ -811,7 +805,6 @@ export function createComposer(props: {
     pictures,
     preparing,
     error,
-    notice: notices,
     focused,
     composing,
     slash,
@@ -820,7 +813,6 @@ export function createComposer(props: {
     listed,
     highlighted,
     caretBounds,
-    blind,
     ghost,
     running,
     showStop,
@@ -849,7 +841,6 @@ export function createComposer(props: {
     removeRef,
     removeAttached,
     expandPaste,
-    saveToProject,
     addPaths,
     dropUris,
     attachFromComputer,

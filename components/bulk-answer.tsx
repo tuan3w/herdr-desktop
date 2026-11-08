@@ -333,7 +333,9 @@ function Line(props: { entry: () => Entry; ctx: Ctx }) {
           </Scroll>
           <If when={overflow()}>
             <View class="flex-row items-center justify-between gap-2">
-              <Text class="text-xs text-muted-foreground">
+              {/* The note wraps, so in a narrow row it is not the kit button (which shrinks, label clipped) that gives way:
+                  at 360 pt the unwrapped note squeezed `Show all` to nothing and the row could never be ticked. */}
+              <Text class="min-w-0 flex-1 text-xs text-muted-foreground">
                 {open() ? "The whole command is shown" : "The command goes on: show it all before ticking"}
               </Text>
               <If

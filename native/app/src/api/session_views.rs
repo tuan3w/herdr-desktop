@@ -940,6 +940,17 @@ pub struct SubagentRow {
     pub tool_count: usize,
     /// Names of its latest tool calls, oldest first.
     pub recent_tools: Vec<String>,
+    /// When it started by the log's clock (ms since the epoch); absent when the log does not say: then no duration
+    /// is shown.
+    #[prop(skip_none)]
+    pub started_ms: Option<u64>,
+    /// When it ended by the log's clock; absent while it runs or when the log does not say.
+    #[prop(skip_none)]
+    pub ended_ms: Option<u64>,
+    /// The `key` of the background task it runs as (started in the background), when it is one: that task is this
+    /// subagent, not a second thing.
+    #[prop(skip_none)]
+    pub task: Option<String>,
 }
 
 /// Something an observed agent runs in the background, as its log says.
@@ -958,6 +969,14 @@ pub struct BackgroundRow {
     pub detail: Option<String>,
     /// Still alive.
     pub active: bool,
+    /// When it started by the log's clock (ms since the epoch); absent when the log does not say.
+    #[prop(skip_none)]
+    pub started_ms: Option<u64>,
+    /// When it ended by the log's clock.
+    #[prop(skip_none)]
+    pub ended_ms: Option<u64>,
+    /// `Sessions.stopBackground` can ask the agent to stop it: it runs and the agent has a way.
+    pub stoppable: bool,
 }
 
 /// What an observed session adds: the pane it comes from and what its log says that a keeper's session does not.
@@ -1025,6 +1044,9 @@ impl From<&ObservedInfo> for ObservedView {
                     assignment: s.assignment.clone(),
                     tool_count: s.tool_count,
                     recent_tools: s.recent_tools.clone(),
+                    started_ms: s.started_ms,
+                    ended_ms: s.ended_ms,
+                    task: s.task.clone(),
                 })
                 .collect(),
             background: o
@@ -1037,6 +1059,9 @@ impl From<&ObservedInfo> for ObservedView {
                     title: b.title.clone(),
                     detail: b.detail.clone(),
                     active: b.active,
+                    started_ms: b.started_ms,
+                    ended_ms: b.ended_ms,
+                    stoppable: b.stoppable,
                 })
                 .collect(),
             proposed_plan_title: o.proposed_plan.as_ref().map(|p| p.title.clone()),

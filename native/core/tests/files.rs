@@ -9,13 +9,13 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use herdr_core::files::{
-    EntryKind, FileError, FileErrorKind, Files, IMAGE_CAP, LocalFiles, RemoteFiles, TEXT_CAP,
-    Tunnel, UploadError, ViewKind, candidates, join, localhost_port, open, parent, path_from_uri,
-    upload, uri_from_path, validate_path,
+    EntryKind, FileError, FileErrorKind, Files, IMAGE_CAP, LocalFiles, PICTURE_DATA_CAP,
+    RemoteFiles, TEXT_CAP, Tunnel, UploadError, ViewKind, candidates, join, localhost_port, open,
+    parent, path_from_uri, upload, uri_from_path, validate_path,
 };
 use herdr_core::files::{
     FetchError, LineIndex, MEDIA_CHUNK, MediaCache, fetch, find_line, list_archive, peek,
-    probe_codecs, read_lines, scan_lines,
+    picture_data_url, probe_codecs, read_lines, scan_lines,
 };
 use herdr_core::ssh::{SshClient, SshTarget};
 
@@ -486,6 +486,59 @@ fn a_picture_over_the_cap_is_not_opened_and_says_how_big_it_is() {
     let v = view(&LocalFiles::new(), &huge, work.path()).unwrap();
     assert_eq!((v.kind, v.image), (ViewKind::Image, None));
     assert!(v.notice.unwrap().contains("up to 40 MB"));
+}
+
+#[test]
+fn a_picture_travels_as_a_data_address_of_its_own_type_and_bytes_never_as_a_file_address() {
+    use std::io::Read;
+    let work = tempfile::tempdir().unwrap();
+    // Tiny real headers; the name lies for the last one, the bytes win.
+    let png = [0x89, b'P', b'N', b'G', 13, 10, 26, 10, 1, 2, 3];
+    let gif = *b"GIF89a\x01\x00\x01\x00\x00\x00";
+    let webp = *b"RIFF\x04\x00\x00\x00WEBPVP8 ";
+    let svg = b"<svg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/>";
+    let jpeg = [0xff, 0xd8, 0xff, 0xe0, 0, 16];
+    for (name, bytes, mime) in [
+        ("a.png", &png[..], "image/png"),
+        ("b.gif", &gif[..], "image/gif"),
+        ("c.webp", &webp[..], "image/webp"),
+        ("d.svg", &svg[..], "image/svg+xml"),
+        ("e.jpg", &jpeg[..], "image/jpeg"),
+        ("f.png", &jpeg[..], "image/jpeg"),
+    ] {
+        let path = work.path().join(name);
+        std::fs::write(&path, bytes).unwrap();
+        let url = picture_data_url(&path).unwrap();
+        let (head, body) = url.split_once(";base64,").unwrap();
+        assert_eq!(head, format!("data:{mime}"), "{name}");
+        // Decode with the system's base64 to prove the bytes are the file's.
+        let mut child = std::process::Command::new("base64")
+            .arg("-d")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        std::io::Write::write_all(&mut child.stdin.take().unwrap(), body.as_bytes()).unwrap();
+        let mut out = Vec::new();
+        child.stdout.take().unwrap().read_to_end(&mut out).unwrap();
+        child.wait().unwrap();
+        assert_eq!(out, bytes, "{name}");
+    }
+}
+
+#[test]
+fn a_picture_over_the_window_cap_is_not_read_and_says_to_open_it() {
+    let work = tempfile::tempdir().unwrap();
+    let big = work.path().join("big.png");
+    std::fs::File::create(&big)
+        .unwrap()
+        .set_len(PICTURE_DATA_CAP + 1)
+        .unwrap();
+    let v = view(&LocalFiles::new(), &big, work.path()).unwrap();
+    assert_eq!((v.kind, v.image), (ViewKind::Image, None));
+    let notice = v.notice.unwrap();
+    assert!(notice.contains("too large to show here") && notice.contains("Open or Reveal"));
+    assert!(picture_data_url(&big).is_err());
 }
 
 // ---- send a file ----------------------------------------------------------------------------------

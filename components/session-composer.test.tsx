@@ -215,20 +215,24 @@ test("a dropped picture is a thumbnail, a dropped file of the project a mention"
 test("the file dialog attaches what it picks: a picture as a thumbnail, a file of the project as a mention", async () => {
   const app = await chat();
   await app.press("label:Attach");
-  await app.press("label:/^Files from this computer/");
+  await app.press("label:Add files or photos");
   // The dialog is the system's; the seam answers it with what a test says.
-  expect(app.shows("label:/^Files from this computer/")).toBe(false);
+  expect(app.shows("label:Add files or photos")).toBe(false);
 });
 
-test("an agent that cannot see pictures says so on them and offers to save them into the project", async () => {
+test("an agent that cannot see pictures gets them as files on Send, with nothing to read or press first", async () => {
   const app = await chat("blind");
   await app.paste(BOX, { files: [`${tree(app)}/assets/shot-1.png`] });
   await app.waitFor(label("^Image 1 of 1, PNG, "));
-  await app.waitFor("Claude Code cannot see images.");
-  await app.press("Save to the project and mention the path");
-  await app.waitUntil(() => box(app).includes("@.herdr-desktop/attachments/"));
+  // No warning and no extra button: the picture looks like a picture for any agent.
+  expect(said(app, "cannot see images")).toBe(false);
+  expect(app.shows("Save to the project and mention the path")).toBe(false);
+  await app.type(BOX, "what is wrong here");
+  await app.submit(BOX);
+  // What went is the words and the picture's path in the project, and the box is empty.
+  await app.waitUntil(() => logged(app, "@.herdr-desktop/attachments/"));
+  await app.waitUntil(() => box(app) === "");
   expect(app.shows(label("^Image 1 of 1"))).toBe(false);
-  expect(app.shows("Claude Code cannot see images.")).toBe(false);
 });
 
 test("Up in an empty box brings back the last message, Down goes forward again, and Escape never clears the box", async () => {
@@ -257,16 +261,49 @@ test("a command list opens at a slash in the same list as files", async () => {
   expect(said(app, "takes <branch>")).toBe(true);
 });
 
-test("the command list tells what the highlighted command does in full, and the rows stay as they were", async () => {
+const DESCRIPTION = /^(Summarise|Review|Write|Show) /;
+/** The command names drawn in the list. */
+const names = (app: App) => app.texts().filter((t) => /^\/(compact|review|init|cost)$/.test(t));
+
+test("each command row says what it does, at once and on the row itself, and moving the highlight changes nothing on screen", async () => {
   const app = await chat("commands");
   await app.type(BOX, "/");
   await app.waitFor("label:Commands");
-  // The footer is drawn after the rows, so it is the last text of the list.
-  const footer = () => app.texts().findLast((t) => /^(Summarise|Review|Write|Show)/.test(t));
-  const rows = () => app.texts().filter((t) => /^\/(compact|review|init|cost)$/.test(t)).length;
-  await app.waitUntil(() => footer() === "Summarise the conversation to free context");
-  expect(rows()).toBe(4);
+  await app.waitUntil(() => names(app).length === 4);
+  // Every description is on its row from the start: there is no bubble that waits for the highlight to rest.
+  await app.waitUntil(() => app.texts().filter((t) => DESCRIPTION.test(t)).length === 4);
+  const before = app.texts().filter((t) => DESCRIPTION.test(t));
   await app.keyboard.press("down");
-  await app.waitUntil(() => footer() === "Review the changes on this branch");
-  expect(rows()).toBe(4);
+  expect(app.texts().filter((t) => DESCRIPTION.test(t))).toEqual(before);
+  expect(names(app)).toEqual(["/compact", "/review", "/init", "/cost"]);
+});
+
+test("Escape closes the command list and keeps the slash", async () => {
+  const app = await chat("commands");
+  await app.type(BOX, "/");
+  await app.waitFor("label:Commands");
+  await app.keyboard.press("escape");
+  await app.waitUntil(() => !app.shows("label:Commands"));
+  expect(box(app)).toBe("/");
+});
+
+test("a pinned command keeps its pin visible and leads the list", async () => {
+  const app = await chat("commands");
+  await app.type(BOX, "/");
+  await app.waitFor("label:Commands");
+  await app.press("label:Pin /cost");
+  await app.waitFor("label:Unpin /cost");
+  await app.waitUntil(() => names(app)[0] === "/cost");
+});
+
+test("the file list's preview is a bubble beside it, the keys are one row of the list that is there from the start", async () => {
+  const app = await chat();
+  await app.type(BOX, "@read");
+  await app.waitFor("label:README.md");
+  expect(said(app, "move")).toBe(true);
+  expect(said(app, "close")).toBe(true);
+  // The first lines of the file are not drawn until the highlight has rested, and then not as a row of the list.
+  expect(said(app, "# payments-api")).toBe(false);
+  await app.waitUntil(() => said(app, "# payments-api"));
+  expect(app.shows("label:README.md")).toBe(true);
 });

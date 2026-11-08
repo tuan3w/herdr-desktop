@@ -223,3 +223,11 @@ test("what a picked command takes shows after it until the first character", () 
 function commandOf(name: string, hint?: string): SlashCommand {
   return { name, description: "", source: "builtIn", trigger: "/", ...(hint ? { hint } : {}) };
 }
+
+test("a pinned command leads the matches of a word too, in the order it was pinned, then the rest as they were", () => {
+  const memory = togglePin(togglePin(emptyMemory(), "claude", "context"), "claude", "config");
+  const got = names(matchCommands("/co", "claude", claude, memory));
+  expect(got.slice(0, 2)).toEqual(["context", "config"]);
+  expect(new Set(got).size).toBe(got.length);
+  expect(got.length).toBe(names(matchCommands("/co", "claude", claude, emptyMemory())).length);
+});

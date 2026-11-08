@@ -5,13 +5,17 @@ import type { DiffItem, LocationView, PartView, ToolItem, ToolStatusName } from 
 
 import { CodeBlock } from "#components/code-block";
 import { DiffBlock } from "#components/diff-block";
-import { openLink } from "#components/links-dialog";
+import { openLink } from "#components/open-link";
 import { StatusGlyph } from "#components/status-glyph";
-import { FOCUS_RING, FOCUS_RING_INSET, Icon, Tipped } from "#kit";
-import { viewFile } from "#lib/files";
+import { Clipped, FOCUS_RING, FOCUS_RING_INSET, Icon } from "#kit";
+import { viewFile } from "#lib/open-files";
 import { hoverTransition } from "#lib/motion";
 import { pictureSize } from "#lib/session-pictures";
 import { outputView, shortPath, toolKindOf, toolLine, toolStatusText, visibleText } from "#lib/session-text";
+
+/** What a cut subject fades into: the page, then the row's hover tint. */
+const ROW_FADE = "from-background/0 to-background";
+const ROW_FADE_HOVER = "from-accent/0 to-accent opacity-0 group-hover/row:opacity-100";
 
 /** Lines of a call's input shown before it is cut. */
 const INPUT_LINES = 12;
@@ -95,29 +99,30 @@ export function ToolRow(props: { tool: ToolItem; cwd: string; open: boolean; onT
   const line = () => toolLine(props.tool, props.cwd);
   const said = () => [line().verb, line().object].filter(Boolean).join(" ");
   return (
-    <Tipped label={line().object}>
-      <Disclosure
-        onPress={props.onToggle}
-        label={`Tool: ${said()}, ${toolStatusText(props.tool.status)}`}
-        open={props.open}
-        class="min-h-8 flex-row items-center gap-2 px-3"
+    <Disclosure
+      onPress={props.onToggle}
+      label={`Tool: ${said()}, ${toolStatusText(props.tool.status)}`}
+      open={props.open}
+      class="group/row min-h-8 flex-row items-center gap-2 px-3"
+    >
+      {/* A subject too long for the row fades out whole-or-not (never a hard cut) and the whole one is the pointer's tip. */}
+      <Clipped
+        label={said()}
+        fade={[ROW_FADE, ROW_FADE_HOVER]}
+        boxClass="min-w-0 flex-1"
+        class="text-sm text-muted-foreground"
       >
-        <Text
-          class="min-w-0 flex-1 text-sm text-muted-foreground"
-          style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
-        >
-          <If when={line().verb}>
-            <Text class="text-muted-foreground">{`${line().verb} `}</Text>
-          </If>
-          <Text class={line().verb ? "font-mono text-xs text-foreground" : "text-sm text-foreground"}>
-            {line().object}
-          </Text>
+        <If when={line().verb}>
+          <Text class="text-muted-foreground">{`${line().verb} `}</Text>
+        </If>
+        <Text class={line().verb ? "font-mono text-xs text-foreground" : "text-sm text-foreground"}>
+          {line().object}
         </Text>
-        <DiffStat added={line().added} removed={line().removed} />
-        <ToolStatus status={props.tool.status} />
-        <Icon name={props.open ? "chevron-down" : "chevron-right"} size={12} tone="muted-foreground" />
-      </Disclosure>
-    </Tipped>
+      </Clipped>
+      <DiffStat added={line().added} removed={line().removed} />
+      <ToolStatus status={props.tool.status} />
+      <Icon name={props.open ? "chevron-down" : "chevron-right"} size={12} tone="muted-foreground" />
+    </Disclosure>
   );
 }
 
@@ -252,8 +257,7 @@ export function ToolDetails(props: { tool: ToolItem; machine: string; cwd: strin
   const subject = () => visibleText(props.tool.subject ?? "");
   // The row already says a one-line command; the block is for one the row had to cut or fold.
   const showSubject = () =>
-    props.tool.diffs.length === 0 &&
-    (subject().includes("\n") || subject().length > toolLine(props.tool).object.length);
+    props.tool.diffs.length === 0 && (subject().includes("\n") || subject() !== toolLine(props.tool).object);
   const total = () => output().lines.length + output().hidden;
   // The row shows a short path; the whole one is a caption under it, only for a call that acted on a file.
   const fullPath = () => {

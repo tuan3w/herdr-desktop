@@ -133,7 +133,7 @@ test("a finished turn reads like a chat: your message, the answer on the page as
 
   await app.press(label("^Read 1 file, ran 1 command$"));
   await app.waitFor(label("^Tool: Read src/auth.ts, done"));
-  expect(app.shows(label("^Tool: Ran grep -rn callback src, done"))).toBe(true);
+  expect(app.shows(label("^Tool: Ran grep callback in src, done"))).toBe(true);
   expect(app.shows(label("^Thought"))).toBe(true);
 });
 

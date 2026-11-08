@@ -397,6 +397,10 @@ pub struct SubagentInfo {
     pub log_id: Option<String>,
     /// The id of the tool call that spawned it.
     pub call_id: Option<String>,
+    /// When it started by the log's clock (ms since the epoch); `None` when the log does not say.
+    pub started_ms: Option<i64>,
+    /// When it ended by the log's clock; `None` while it runs or when the log does not say.
+    pub ended_ms: Option<i64>,
 }
 
 impl SubagentInfo {
@@ -411,6 +415,8 @@ impl SubagentInfo {
             recent_tools: Vec::new(),
             log_id: None,
             call_id: None,
+            started_ms: None,
+            ended_ms: None,
         }
     }
 }

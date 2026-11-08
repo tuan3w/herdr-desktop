@@ -2,8 +2,8 @@ import { computed, openUrl, Scroll, Text, View } from "nsh";
 import { Button, TextView, type TextViewCodeBlock, type TextViewCustomNode, type TextViewImage } from "nsh/base";
 
 import { CodeBlock, inlineCodeClasses } from "#components/code-block";
-import { openLink } from "#components/links-dialog";
 import { MermaidBlock } from "#components/mermaid-block";
+import { openLink } from "#components/open-link";
 import { type CopyEntry, copyMenu, copyText, Icon, notify } from "#kit";
 import {
   fenceLanguage,
@@ -13,7 +13,9 @@ import {
   splitFences,
   streamTail,
 } from "#lib/markdown-fences";
+import { tally } from "#lib/perf-counts";
 import { plainText } from "#lib/plain-text";
+import { Lru, MARKDOWN_ENTRIES } from "#lib/render-cache";
 import { safeCode } from "#lib/visible-text";
 
 /** A mermaid fence inside a list item or a quote is a custom node: the diagram, not a block of code. (Top-level ones are split out by `splitFences`.) */
@@ -37,6 +39,9 @@ const TABLE_CLASSES = {
   tableCell: "border-r-0",
   tableHeaderCell: "font-medium",
 };
+
+/** The parts of messages read lately, by their text: a recycled cell shown a message again does not split it again. */
+const PARTS = new Lru<string, Segment[]>(MARKDOWN_ENTRIES);
 
 /**
  * Where the open or folded state of a message's code blocks lives, when the caller keeps it (a chat's recycled list cell
@@ -112,7 +117,15 @@ export function MarkdownText(props: {
       language={block.language ? `${block.language} ${block.meta ?? ""}`.trim() : undefined}
     />
   );
-  const parts = computed(() => splitFences(props.source));
+  // A message still being written changes with every chunk: it is split as it stands and not kept.
+  const split = (source: string) => {
+    tally("md.split");
+    return splitFences(source);
+  };
+  const parts = computed(() => {
+    const source = props.source;
+    return props.streaming ? split(source) : PARTS.get(source, () => split(source));
+  });
   const last = () => parts().at(-1)?.key;
   const streaming = () => props.streaming ?? false;
   return (

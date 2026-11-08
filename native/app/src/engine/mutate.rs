@@ -226,6 +226,17 @@ impl Fleet {
             .map(drop)
     }
 
+    /// Zooms a pane (`on`) or puts it back (`!on`) with the public `pane.zoom`, so a client attached to the session shows
+    /// only that pane. Answers whether herdr changed the zoom: a pane that was already zoomed is not ours to unzoom later.
+    pub fn zoom_pane(&self, machine: &str, pane: &str, on: bool) -> Result<bool, String> {
+        let mode = if on { "on" } else { "off" };
+        let answer = self.call(machine, "pane.zoom", json!({"pane_id": pane, "mode": mode}))?;
+        let changed = |v: &Value| v.get("zoom_changed").and_then(Value::as_bool);
+        Ok(changed(&answer)
+            .or_else(|| answer.get("result").and_then(changed))
+            .unwrap_or(false))
+    }
+
     /// Starts an agent in a new tab (or workspace) in a folder: herdr starts agents in an existing pane
     /// at a shell prompt, so the pane is made first. When the agent does not start, the new pane is
     /// left (it is a shell the person may want) and the error says so.

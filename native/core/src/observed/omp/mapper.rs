@@ -1280,6 +1280,8 @@ impl OmpMapper {
                     .unwrap_or_default(),
                 log_id: None,
                 call_id: None,
+                started_ms: None,
+                ended_ms: None,
             };
             self.subagents.insert(name, info);
         }
@@ -1349,6 +1351,8 @@ impl OmpMapper {
             recent_tools: old.map(|o| o.recent_tools.clone()).unwrap_or_default(),
             log_id: None,
             call_id: None,
+            started_ms: None,
+            ended_ms: None,
         };
         self.subagents.insert(name, info);
     }

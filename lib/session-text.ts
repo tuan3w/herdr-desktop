@@ -2,6 +2,7 @@ import type { PhaseName, SessionItem, SessionView, ToolItem, ToolStatusName } fr
 
 import type { IconName } from "#kit";
 import { AGENT_KINDS } from "#lib/agent-kinds";
+import { commandSubject } from "#lib/tool-subject";
 
 /**
  * What the chat says in words, kept out of the screens so the same sentence is spoken, shown and tested once: tool
@@ -148,7 +149,12 @@ export function toolLine(tool: ToolItem, cwd?: string | null): ToolLine {
   const [doing, did] = VERBS[kind];
   const created = kind === "edit" && tool.diffs.length > 0 && tool.diffs.every((d) => d.old == null);
   const verb = live ? doing : created ? "Created" : did;
-  const shown = kind === "read" || kind === "edit" ? shortPath(target, cwd) : target;
+  const shown =
+    kind === "read" || kind === "edit"
+      ? shortPath(target, cwd)
+      : kind === "execute"
+        ? commandSubject(target) || target
+        : target;
   return { kind, verb, object: oneLine(visibleText(shown), 160), added, removed };
 }
 

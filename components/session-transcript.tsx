@@ -7,21 +7,27 @@ import type { ListRef } from "nsh/types";
 import { EarlierRow } from "#components/earlier-row";
 import type { RowContext } from "#components/session-item";
 import { SessionRow } from "#components/session-item";
+import { StatusGlyph } from "#components/status-glyph";
 import { FOCUS_RING, Icon } from "#kit";
 import { createAutoLoad, type Earlier } from "#lib/earlier";
 import { CHAT_COLUMN } from "#lib/layout";
-import { leaving } from "#lib/motion";
+import { leaving, reducedMotion } from "#lib/motion";
+import { tally } from "#lib/perf-counts";
 import type { Row } from "#lib/session-rows";
 import { visibleText } from "#lib/session-text";
-import { FOLLOW_PT, isAtEnd, pageOffset } from "#lib/transcript-scroll";
+import { DEFAULT_ROW_PT, estimateRowPt, FOLLOW_PT, isAtEnd, pageOffset } from "#lib/transcript-scroll";
 import { anchorOf, setAnchor } from "#lib/view-state";
 
 /** How long a chat waits for enough of its conversation to put the person back where they were. */
 const PLACE_MS = 1500;
 
-/** What the transcript lets the tab do: jump to the newest row. */
+/** How long a page key's target outlives its press: past nsh's eased scroll (300 ms on macOS), so a held key pages on from it. */
+const PAGE_AIM_MS = 400;
+
+/** What the transcript lets the tab do: jump to the newest row; and where it is scrolled (a lab reads it). */
 export interface TranscriptHandle {
   jump(): void;
+  where(): { offset: number; content: number; size: number };
 }
 
 /** What closes the list: that the session ended and why, or the one live line (what the agent does now, and how quiet). */
@@ -43,7 +49,9 @@ function Footer(props: { ctx: RowContext }) {
       </If>
       <If when={working()}>
         {(w) => (
-          <View role="timer" accessibilityLabel={w().toolLine} class="flex-row items-center gap-2 px-2">
+          <View role="timer" accessibilityLabel={w().toolLine} class="flex-row items-center gap-2">
+            {/* The same half ring a running call wears, so the line reads as the next row of the run above it. */}
+            <StatusGlyph status="working" size={12} />
             <Text class="text-sm text-muted-foreground">{w().toolLine}</Text>
             <If when={w().quietMinutes !== null}>
               <Text class="text-sm font-medium text-foreground">{`Quiet for ${w().quietMinutes}m`}</Text>
@@ -81,17 +89,21 @@ export function SessionTranscript(props: {
   let list: ListRef | undefined;
   const metrics = { offset: 0, content: 0, size: 0 };
   const placed = signal(false);
+  const estimate = signal(DEFAULT_ROW_PT);
+  /** Where the last page key sent the list, while its eased move may still be on the way (`page`). */
+  let aim: { offset: number; at: number } | undefined;
   let lastUser = "";
   const left = anchorOf(props.panel);
   let pending = left && !left.atEnd ? left : undefined;
 
   const jump = () => {
+    aim = undefined;
     list?.scrollToEnd({ animated: false });
     metrics.offset = Math.max(0, metrics.content - metrics.size);
     props.atEnd.set(true);
     props.unseen.set(0);
   };
-  props.onHandle?.({ jump });
+  props.onHandle?.({ jump, where: () => ({ ...metrics }) });
 
   const rows = () => props.ctx.model.rows();
 
@@ -99,6 +111,8 @@ export function SessionTranscript(props: {
   effect(() => {
     if (rows().length === 0 || placed()) return;
     untracked(() => {
+      // Once, from the rows it opens with: a change later would move every row not yet measured, under the reader.
+      estimate.set(estimateRowPt(rows()));
       placed.set(true);
       if (!pending) {
         setTimeout(jump, 0);
@@ -124,11 +138,20 @@ export function SessionTranscript(props: {
   // The offset is also written here: `onScroll` is throttled, and a held key repeats faster, so the next press would
   // read the offset from before this one and lose a page.
   const moveTo = (offset: number) => {
+    aim = undefined;
     metrics.offset = offset;
     list?.scrollToOffset({ offset, animated: false });
   };
+  // A page glides (nsh's eased scroll, on the platform's side) unless motion is reduced. While it glides the list reports
+  // the offsets it passes, so a press soon after pages on from where the last one aimed, not from where the glide is.
   const page = (direction: 1 | -1) => {
-    moveTo(pageOffset(metrics.offset, metrics.size, metrics.content, direction));
+    const now = performance.now();
+    const from = aim && now - aim.at < PAGE_AIM_MS ? aim.offset : metrics.offset;
+    const offset = pageOffset(from, metrics.size, metrics.content, direction);
+    const glide = !reducedMotion();
+    aim = glide ? { offset, at: now } : undefined;
+    metrics.offset = offset;
+    list?.scrollToOffset({ offset, animated: glide });
   };
   effect(() => {
     if (!props.active) return;
@@ -171,10 +194,11 @@ export function SessionTranscript(props: {
         }}
         each={rows() as Row[]}
         keyExtractor={(r: Row) => r.key}
-        estimatedItemSize={72}
+        estimatedItemSize={estimate()}
         maintainVisibleContentPosition={{ autoscrollToBottomThreshold: FOLLOW_PT }}
         scrollEventThrottle={50}
         onScroll={(e) => {
+          tally("scroll.event");
           metrics.offset = e.offset.y;
           metrics.content = e.contentSize.height;
           metrics.size = e.size.height;
@@ -210,7 +234,7 @@ export function SessionTranscript(props: {
           </View>
         )}
       >
-        {(row) => <SessionRow row={row} ctx={props.ctx} />}
+        {(row, index) => <SessionRow row={row} index={index} ctx={props.ctx} />}
       </List>
       <If when={shownPill.value()}>
         {(label) => (

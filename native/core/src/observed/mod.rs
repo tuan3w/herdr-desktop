@@ -16,3 +16,4 @@ pub mod model;
 pub mod names;
 pub mod omp;
 pub mod session;
+pub mod subagent;

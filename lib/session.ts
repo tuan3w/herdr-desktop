@@ -55,6 +55,21 @@ export interface SessionPort {
   reopen(): Promise<ActionResult>;
   /** Reads older turns of a terminal agent's log (`SessionView.observed.earlier` says whether there are any). */
   loadEarlier(): Promise<boolean>;
+  /** Asks a terminal agent to stop its background task `key` (`observed.background[].stoppable`); absent where nothing can be stopped. */
+  stopBackground?(key: string): Promise<ActionResult>;
+  /** The read-only transcript of a terminal agent's subagent (`observed.subagents[].name`); absent where there is none to read. */
+  subagent?(name: string): SubagentPort;
+}
+
+/** One subagent's transcript: a port that refuses every send (a subagent is steered through its parent), and how to open it. */
+export interface SubagentPort {
+  /** The chat id of the transcript (`sub:<paneId>#<name>`). */
+  id: string;
+  port: SessionPort;
+  /** Starts reading the transcript; throws with words for the person. */
+  open(): Promise<void>;
+  /** Stops reading it. The subagent is not touched. */
+  close(): void;
 }
 
 /** The `Sessions` module as one session's port. */
@@ -74,6 +89,21 @@ export function sessionPort(machine: string, id: string): SessionPort {
     authenticate: (methodId) => Sessions.authenticate(machine, id, methodId),
     reopen: () => Sessions.reopen(machine, id),
     loadEarlier: () => Promise.resolve(Sessions.loadEarlier(machine, id)),
+    stopBackground: (key) => Sessions.stopBackground(machine, id, key),
+    subagent: id.startsWith("pane:")
+      ? (name) => {
+          const pane = id.slice("pane:".length);
+          const sub = `sub:${pane}#${name}`;
+          return {
+            id: sub,
+            port: sessionPort(machine, sub),
+            open: async () => {
+              await Sessions.openSubagent(machine, pane, name);
+            },
+            close: () => Sessions.detach(machine, sub),
+          };
+        }
+      : undefined,
   };
 }
 
@@ -372,10 +402,7 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
   });
 
   const toggle = (row: Row): void =>
-    choose(
-      row.key,
-      row.kind === "work" ? row.work.open : row.kind === "tool" || row.kind === "thought" ? row.open : false,
-    );
+    choose(row.key, row.kind === "work" ? row.work.open : row.kind === "thought" ? row.open : false);
 
   const choose = (key: string, now: boolean): void => choices.update((m) => new Map(m).set(key, !now));
 

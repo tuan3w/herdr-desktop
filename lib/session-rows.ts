@@ -68,8 +68,8 @@ export interface External {
 export interface TurnEffects {
   failures: Failure[];
   external: External[];
-  /** Files edited and the lines changed across all of the turn's edits; `null` when it edited nothing. */
-  edited: { files: number; added: number; removed: number } | null;
+  /** Files edited and the lines changed across all of the turn's edits, with the paths as the agent wrote them; `null` when it edited nothing. */
+  edited: { files: number; added: number; removed: number; paths: string[] } | null;
 }
 
 /** What one work group adds to its turn's effects: computed once per group, carried to the end of the turn. */
@@ -86,8 +86,16 @@ export interface TurnCarry {
   groups: Contribution[];
 }
 
-/** Where a call stands in a run of calls drawn as one bordered box: its rows share the box's sides, only the ends round. */
-export type Edge = "only" | "first" | "mid" | "last";
+/** One call of a run, and what the person chose for it. */
+export interface Call {
+  item: SessionItem;
+  open: boolean;
+  /** Every kept line of its output, not the first lines. */
+  all: boolean;
+}
+
+/** The key of the run of calls that starts at item `id`. */
+export const callsKey = (id: number): string => `c:${id}`;
 
 /** One line of the transcript's list. */
 export type Row =
@@ -97,7 +105,7 @@ export type Row =
   | { kind: "work"; key: string; sig: string; work: Work }
   | { kind: "effects"; key: string; sig: string; effects: TurnEffects }
   | { kind: "narration"; key: string; sig: string; item: SessionItem }
-  | { kind: "tool"; key: string; sig: string; item: SessionItem; open: boolean; all: boolean; edge: Edge }
+  | { kind: "calls"; key: string; sig: string; calls: Call[] }
   | { kind: "subagent"; key: string; sig: string; item: SessionItem; open: boolean; all: boolean }
   | { kind: "thought"; key: string; sig: string; item: SessionItem; open: boolean; seconds: number | null }
   | { kind: "note"; key: string; sig: string; item: SessionItem }
@@ -233,14 +241,18 @@ function mergeEffects(groups: readonly Contribution[]): TurnEffects | null {
   const added = groups.reduce((n, g) => n + g.added, 0);
   const removed = groups.reduce((n, g) => n + g.removed, 0);
   if (failures.length === 0 && external.length === 0 && paths.size === 0) return null;
-  return { failures, external, edited: paths.size > 0 ? { files: paths.size, added, removed } : null };
+  return {
+    failures,
+    external,
+    edited: paths.size > 0 ? { files: paths.size, added, removed, paths: [...paths] } : null,
+  };
 }
 
 const effectsSig = (e: TurnEffects): string =>
   [
     e.failures.map((f) => `${f.id}:${f.result}`).join(","),
     e.external.map((x) => `${x.id}:${x.kind}`).join(","),
-    e.edited ? `${e.edited.files}+${e.edited.added}-${e.edited.removed}` : "",
+    e.edited ? `${e.edited.files}+${e.edited.added}-${e.edited.removed}:${e.edited.paths.join(",")}` : "",
   ].join("|");
 
 /**
@@ -293,13 +305,28 @@ export function buildRows(
         work: { id: item.id, open, summary },
       });
       if (open) {
+        // Calls with no narration or thought between them are one row, drawn as one hairline box: a box is one view, so
+        // it cannot be split across the list's rows.
+        let run: Call[] = [];
+        const endRun = (): void => {
+          if (run.length === 0) return;
+          keep({
+            kind: "calls",
+            key: callsKey(run[0]!.item.id),
+            sig: run.map((c) => `${c.item.rev}|${c.open}|${c.all}`).join(";"),
+            calls: run,
+          });
+          run = [];
+        };
         group.forEach((member, at) => {
           const mkey = itemKey(member.id);
           const mopen = input.open.get(mkey) ?? false;
           if (member.kind === "message" && member.role !== "thought") {
+            endRun();
             if ((member.text ?? "").trim() !== "")
               keep({ kind: "narration", key: mkey, sig: `${member.rev}`, item: member });
           } else if (member.kind === "message") {
+            endRun();
             const secs = spanSeconds(member, member, group[at + 1] ?? after, input.nowMs);
             keep({
               kind: "thought",
@@ -310,22 +337,10 @@ export function buildRows(
               seconds: secs,
             });
           } else {
-            const all = input.open.get(moreKey(member.id)) ?? false;
-            const isCall = (m: SessionItem | undefined) => m !== undefined && m.kind !== "message";
-            const before = isCall(group[at - 1]);
-            const next = isCall(group[at + 1]);
-            const edge: Edge = before ? (next ? "mid" : "last") : next ? "first" : "only";
-            keep({
-              kind: "tool",
-              key: mkey,
-              sig: `${member.rev}|${mopen}|${all}|${edge}`,
-              item: member,
-              open: mopen,
-              all,
-              edge,
-            });
+            run.push({ item: member, open: mopen, all: input.open.get(moreKey(member.id)) ?? false });
           }
         });
+        endRun();
       }
       i = end;
       continue;

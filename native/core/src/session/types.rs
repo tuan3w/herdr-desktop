@@ -460,6 +460,12 @@ pub struct SubagentView {
     pub tool_count: usize,
     /// Names of its latest tool calls, oldest first.
     pub recent_tools: Vec<String>,
+    /// When it started by the log's clock (ms since the epoch); `None` when the log does not say.
+    pub started_ms: Option<u64>,
+    /// When it ended by the log's clock; `None` while it runs or when the log does not say.
+    pub ended_ms: Option<u64>,
+    /// The key of the background task it runs as (a subagent started in the background), when it is one.
+    pub task: Option<String>,
 }
 
 /// Something an observed agent runs in the background, as its log says.
@@ -479,6 +485,12 @@ pub struct BackgroundView {
     pub detail: Option<String>,
     /// Still alive.
     pub active: bool,
+    /// When it started by the log's clock (ms since the epoch); `None` when the log does not say.
+    pub started_ms: Option<u64>,
+    /// When it ended by the log's clock.
+    pub ended_ms: Option<u64>,
+    /// The person can ask for it to stop (`ObservedHandle::stop_background`): the agent offers a way and it runs.
+    pub stoppable: bool,
 }
 
 /// A plan the agent submitted for the person's decision, which its own program asks about on its screen.

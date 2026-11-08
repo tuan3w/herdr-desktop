@@ -10,7 +10,8 @@ import { sessionKey } from "#lib/dock";
 import { projectOf, rowOf } from "#lib/herdr";
 import { hoverTransition } from "#lib/motion";
 import { phaseStatus, sessionTitle } from "#lib/session-text";
-import { keyLabel } from "#lib/shortcuts";
+import { terminalEnabled } from "#lib/settings";
+import { INSPECTOR_KEY, keyLabel, keyText } from "#lib/shortcuts";
 import { splitTab } from "#lib/split";
 
 /** From this much of the context window used the header says so: the agent starts to forget, which is worth a look. */
@@ -19,9 +20,12 @@ const CONTEXT_WARN = 85;
 /**
  * The top of a chat, one line: `title · project · branch`. The title opens the session's facts (`SessionOverview`:
  * agent, machine, folder, id, settings, `End session`) until the inspector exists. It carries no state word and no mark:
- * what the agent needs is the answer dock's to say, once, and the sidebar row's. `Show terminal` (a session read from a
- * terminal agent's log) goes back to the pane. `Open beside` (the columns icon) splits: a chat alone in its group gets its
- * Changes (else its terminal) next to it, so a second view is one press away.
+ * what the agent needs is the answer dock's to say, once, and the sidebar row's. `Terminal` (a session read from a
+ * terminal agent's log; icon, the word and its key) opens the real terminal of the pane; it exists only while the terminal
+ * tab is on in Settings (`terminalEnabled`), and off the header simply has one control fewer. `Open beside` (the columns
+ * icon) splits: a chat alone in its group gets its Changes (else, with the terminal tab on, its terminal) next to it, so a
+ * second view is one press away.
+ * `Activity` (the list icon, only when the chat has subagents or background tasks) shows or hides the inspector.
  */
 export function SessionHeader(props: {
   view: SessionView;
@@ -31,6 +35,8 @@ export function SessionHeader(props: {
   /** The tab is in front: only then does the `Changes` chip read git, once when it appears and when the agent changes state. */
   active: boolean;
   onShowTerminal?: () => void;
+  /** The chat has an inspector (a terminal agent with subagents or background tasks): its toggle, and whether it is open. */
+  inspector?: { open: boolean; toggle: () => void };
 }) {
   const status = () => phaseStatus(props.view);
   const changed = changedFiles(props.machine, props.view.cwd);
@@ -92,14 +98,34 @@ export function SessionHeader(props: {
           onPress={() => void openChanges(props.machine, props.view.cwd)}
         />
       </If>
+      <If when={props.inspector}>
+        {(i) => (
+          <IconButton
+            icon="list"
+            label={i().open ? "Hide activity" : "Show activity"}
+            tip="Activity"
+            selected={i().open}
+            shortcut={keyText(INSPECTOR_KEY)}
+            onPress={() => i().toggle()}
+          />
+        )}
+      </If>
       <IconButton
         icon="columns"
         label="Open beside"
         shortcut={keyLabel("splitRight")}
         onPress={() => void splitTab(sessionKey(props.machine, props.id), "right")}
       />
-      <If when={props.onShowTerminal}>
-        <Btn small variant="ghost" label="Show terminal" onPress={() => props.onShowTerminal?.()} />
+      <If when={terminalEnabled() && props.onShowTerminal}>
+        <Btn
+          small
+          variant="outline"
+          icon="terminal"
+          label="Terminal"
+          name="Show terminal"
+          hint={keyLabel("terminalView")}
+          onPress={() => props.onShowTerminal?.()}
+        />
       </If>
     </View>
   );

@@ -151,7 +151,7 @@ function ordered(list: SlashCommand[], uses?: (c: SlashCommand) => number): Slas
  * `$word`): once there is a space the command is chosen and the rest is its arguments.
  *
  * A bare trigger lists the pinned commands, then the most recently sent, then the rest. A word lists names that start
- * with it, then names that contain it, then descriptions that do; within a group source order, then use. Names the
+ * with it, then names that contain it, then descriptions that do; within a group source order, then use; pinned commands lead them all. Names the
  * person pinned or sent that the table lacks are candidates too (an agent without a table lists only those).
  */
 export function matchCommands(
@@ -192,7 +192,17 @@ export function matchCommands(
   }
   // A command typed in full and nothing else left to choose: nothing to show.
   if (starts.length === 1 && starts[0].name.toLowerCase() === query && inName.length === 0) return [];
-  return [...ordered(starts, uses), ...ordered(inName, uses), ...ordered(inText, uses)];
+  const found = [...ordered(starts, uses), ...ordered(inName, uses), ...ordered(inText, uses)];
+  // A pinned command leads whatever the word matched, in the order it was pinned: pinning means "keep it at the top".
+  const pins = pinnedOf(memory, agent);
+  const rank = (c: SlashCommand) => {
+    const at = pins.indexOf(usageKey(c));
+    return at < 0 ? pins.length : at;
+  };
+  return found
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => rank(a.c) - rank(b.c) || a.i - b.i)
+    .map((x) => x.c);
 }
 
 /**

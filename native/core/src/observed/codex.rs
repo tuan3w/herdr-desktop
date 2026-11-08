@@ -1247,6 +1247,8 @@ impl CodexMapper {
             call_id: old
                 .and_then(|o| o.call_id)
                 .or_else(|| str_of(item, "id").map(str::to_owned)),
+            started_ms: None,
+            ended_ms: None,
         };
         match self.subagents.iter_mut().find(|(k, _)| k == thread) {
             Some(slot) => slot.1 = info,

@@ -1,19 +1,21 @@
-import { effect, Image, type JSX, Text, untracked, View } from "nsh";
+import { effect, type JSX, Text, untracked, View } from "nsh";
 import { Button } from "nsh/base";
 
-import type { EffectKindName, ImageView } from "herdr-desktop/native";
+import type { EffectKindName } from "herdr-desktop/native";
 
 import { type Folds, MarkdownText } from "#components/markdown";
 import { DiffStat, Disclosure, PartChips, ToolDetails, ToolRow, ToolStatus } from "#components/session-tool";
+import { TurnPictures } from "#components/turn-pictures";
 import { ActionMenu, type CopyEntry, copyMenu, copyText, FOCUS_RING, Icon, type IconName, IconButton } from "#kit";
 import { openChanges } from "#lib/changes";
 import { CHAT_COLUMN } from "#lib/layout";
 import { ofKind } from "#lib/list-item";
 import { type Arrivals, arrivals, arriving } from "#lib/motion";
+import { tally } from "#lib/perf-counts";
 import { plainText } from "#lib/plain-text";
 import type { SessionModel } from "#lib/session";
-import { loadPicture, pictureSize, pictureState } from "#lib/session-pictures";
-import type { External, Failure, Row } from "#lib/session-rows";
+import { withoutPlaceholders } from "#lib/session-pictures";
+import { type Call, type External, type Failure, itemKey, moreKey, type Row } from "#lib/session-rows";
 import { durationText, itemLabel, toolLine, toolStatusText, visibleText, workLine } from "#lib/session-text";
 
 /** The widest a line of the conversation is: past this, text is hard to follow and the window is better left calm. */
@@ -32,64 +34,11 @@ function Line(props: { children: JSX.Element; class?: string }) {
   return <View class={`${COLUMN} ${props.class ?? ""}`}>{props.children}</View>;
 }
 
-/**
- * A picture in a message of a chat read from a terminal. Nothing is fetched on its own: the line says what it is and what
- * it weighs, and `Load picture` fetches it once. A failure says why and offers `Try again`.
- */
-function Picture(props: { image: ImageView; ctx: RowContext }) {
-  const state = () => pictureState(props.image.key);
-  const loaded = (): string | null => {
-    const s = state();
-    return s.state === "ready" ? s.uri : null;
-  };
-  const failed = (): string | null => {
-    const s = state();
-    return s.state === "failed" ? s.message : null;
-  };
-  const what = () => ["Picture", pictureSize(props.image.bytes), props.image.mime].filter(Boolean).join(" · ");
-  return (
-    <View class="items-start gap-1 py-1">
-      <If when={loaded()}>
-        {(uri) => (
-          <Image
-            src={uri()}
-            accessibilityLabel={`Picture, ${props.image.mime}`}
-            style={{ width: 360, height: 220, objectFit: "contain" }}
-            class="rounded-lg border border-border"
-          />
-        )}
-      </If>
-      <If when={state().state === "idle" || state().state === "failed"}>
-        <Button
-          onPress={() => void loadPicture(props.ctx.machine, props.ctx.id, props.image)}
-          accessibilityLabel={`Load picture, ${what()}`}
-          class={`h-9 flex-row items-center gap-2 rounded-md border border-border bg-muted px-3 hover:bg-accent ${FOCUS_RING}`}
-        >
-          <Icon name="image" size={14} tone="muted-foreground" />
-          <Text class="text-sm text-foreground">{what()}</Text>
-          <Text class="text-sm text-muted-foreground">{state().state === "failed" ? "· Try again" : "· Load"}</Text>
-        </Button>
-      </If>
-      <If when={state().state === "loading"}>
-        <Text
-          accessibilityState={{ busy: true }}
-          class="text-sm text-muted-foreground"
-        >{`Loading picture… ${what()}`}</Text>
-      </If>
-      <If when={failed()}>
-        {(message) => (
-          <Text role="alert" class="text-xs text-destructive">
-            {message()}
-          </Text>
-        )}
-      </If>
-    </View>
-  );
-}
-
 /** What the person wrote: a rounded bubble on the right; the agent's words are on the page, not in a bubble. */
 function UserRow(props: { row: Extract<Row, { kind: "user" }>; ctx: RowContext }) {
-  const text = () => visibleText(props.row.item.text ?? "");
+  tally("row.mount");
+  // The pictures stand where the agent's `[Image #55]` placeholders named them.
+  const text = () => visibleText(withoutPlaceholders(props.row.item.text ?? "", props.row.item.images.length));
   return (
     <Line class="items-end pt-3">
       <View
@@ -97,16 +46,20 @@ function UserRow(props: { row: Extract<Row, { kind: "user" }>; ctx: RowContext }
         accessibilityLabel={itemLabel(props.row.item)}
         class="max-w-[85%] rounded-2xl bg-muted px-4 py-2"
       >
-        <Text
-          style={{ userSelect: "text" }}
-          class="text-sm text-foreground"
-          onContextMenu={copyMenu(() => [{ label: "Copy message", onSelect: () => void copyText(text(), "Message") }])}
-        >
-          {text()}
-        </Text>
-        <Each of={props.row.item.images} key={(i: ImageView) => i.key}>
-          {(image) => <Picture image={image()} ctx={props.ctx} />}
-        </Each>
+        <If when={text()}>
+          <Text
+            style={{ userSelect: "text" }}
+            class="text-sm text-foreground"
+            onContextMenu={copyMenu(() => [
+              { label: "Copy message", onSelect: () => void copyText(text(), "Message") },
+            ])}
+          >
+            {text()}
+          </Text>
+        </If>
+        <If when={props.row.item.images.length > 0}>
+          <TurnPictures images={props.row.item.images} machine={props.ctx.machine} id={props.ctx.id} />
+        </If>
         <PartChips parts={props.row.item.parts} machine={props.ctx.machine} cwd={props.ctx.cwd} />
       </View>
     </Line>
@@ -121,6 +74,7 @@ const foldsOf = (model: SessionModel): Folds => ({
 
 /** What the agent said, as Markdown on the page. A press-free `Copy message` appears with the pointer or the focus. */
 function AgentRow(props: { row: Extract<Row, { kind: "agent" }>; ctx: RowContext }) {
+  tally("row.mount");
   const source = () => props.row.item.text ?? "";
   const folds = foldsOf(props.ctx.model);
   const entries = (): CopyEntry[] => [
@@ -139,9 +93,9 @@ function AgentRow(props: { row: Extract<Row, { kind: "agent" }>; ctx: RowContext
           foldKey={props.row.key}
           entries={entries}
         />
-        <Each of={props.row.item.images} key={(i: ImageView) => i.key}>
-          {(image) => <Picture image={image()} ctx={props.ctx} />}
-        </Each>
+        <If when={props.row.item.images.length > 0}>
+          <TurnPictures images={props.row.item.images} machine={props.ctx.machine} id={props.ctx.id} />
+        </If>
         <PartChips parts={props.row.item.parts} machine={props.ctx.machine} cwd={props.ctx.cwd} />
       </View>
       <If when={!props.row.live}>
@@ -165,6 +119,7 @@ function AgentRow(props: { row: Extract<Row, { kind: "agent" }>; ctx: RowContext
  * a press opens it to its steps. Nothing here is a link: what the turn did that matters is in the effects row.
  */
 function WorkRow(props: { row: Extract<Row, { kind: "work" }>; model: SessionModel }) {
+  tally("row.mount");
   const work = () => props.row.work;
   const line = () => workLine(work().summary);
   return (
@@ -176,7 +131,7 @@ function WorkRow(props: { row: Extract<Row, { kind: "work" }>; model: SessionMod
         class="-ml-2 min-h-9 flex-row items-center gap-2 self-start rounded-md px-2"
       >
         <Text class="text-sm text-muted-foreground">{line()}</Text>
-        <DiffStat added={work().summary.added} removed={work().summary.removed} />
+        {/* No +N −N here: the turn's effects row says the lines changed once, as the way into Changes. */}
         <Icon name={work().open ? "chevron-down" : "chevron-right"} size={12} tone="muted-foreground" />
       </Disclosure>
     </Line>
@@ -185,18 +140,17 @@ function WorkRow(props: { row: Extract<Row, { kind: "work" }>; model: SessionMod
 
 /** What the agent said between two calls: muted, inside the fold, so the turn's last message is the only one on the page. */
 function NarrationRow(props: { row: Extract<Row, { kind: "narration" }>; ctx: RowContext }) {
+  tally("row.mount");
   return (
-    <Line>
-      <View class="ml-4 border-l border-border pl-3">
-        <MarkdownText
-          source={props.row.item.text ?? ""}
-          machine={props.ctx.machine}
-          folder={props.ctx.cwd}
-          class="text-muted-foreground"
-          folds={foldsOf(props.ctx.model)}
-          foldKey={props.row.key}
-        />
-      </View>
+    <Line class="py-1">
+      <MarkdownText
+        source={props.row.item.text ?? ""}
+        machine={props.ctx.machine}
+        folder={props.ctx.cwd}
+        class="text-muted-foreground"
+        folds={foldsOf(props.ctx.model)}
+        foldKey={props.row.key}
+      />
     </Line>
   );
 }
@@ -215,6 +169,7 @@ const EFFECT_ICONS: Record<EffectKindName, IconName> = {
  * with the last line it printed), what happened outside this machine, then the edits as a link to the changes.
  */
 function EffectsRow(props: { row: Extract<Row, { kind: "effects" }>; ctx: RowContext }) {
+  tally("row.mount");
   const fx = () => props.row.effects;
   const edited = () => fx().edited;
   const editedText = () => {
@@ -250,7 +205,7 @@ function EffectsRow(props: { row: Extract<Row, { kind: "effects" }>; ctx: RowCon
       <If when={edited()}>
         {(e) => (
           <Button
-            onPress={() => void openChanges(props.ctx.machine, props.ctx.cwd)}
+            onPress={() => void openChanges(props.ctx.machine, props.ctx.cwd, { edited: e().paths })}
             accessibilityLabel={`${editedText()}, ${e().added} added, ${e().removed} removed. Open changes`}
             class={`-ml-2 min-h-9 flex-row items-center gap-2 self-start rounded-md px-2 hover:bg-accent ${FOCUS_RING}`}
           >
@@ -266,6 +221,7 @@ function EffectsRow(props: { row: Extract<Row, { kind: "effects" }>; ctx: RowCon
 
 /** One thought, a line that opens to what the agent reasoned. */
 function ThoughtRow(props: { row: Extract<Row, { kind: "thought" }>; ctx: RowContext }) {
+  tally("row.mount");
   const label = () => (props.row.seconds === null ? "Thought" : `Thought for ${durationText(props.row.seconds)}`);
   return (
     <Line>
@@ -280,7 +236,7 @@ function ThoughtRow(props: { row: Extract<Row, { kind: "thought" }>; ctx: RowCon
         <Icon name={props.row.open ? "chevron-down" : "chevron-right"} size={12} tone="muted-foreground" />
       </Disclosure>
       <If when={props.row.open}>
-        <View class="ml-4 border-l border-border pl-3">
+        <View class="pb-1 pt-1">
           <MarkdownText
             source={props.row.item.text ?? ""}
             machine={props.ctx.machine}
@@ -295,33 +251,38 @@ function ThoughtRow(props: { row: Extract<Row, { kind: "thought" }>; ctx: RowCon
   );
 }
 
-/** A call: one muted line in a hairline box with the calls around it, open to its details in place. */
-function ToolEntry(props: { row: Extract<Row, { kind: "tool" }>; ctx: RowContext }) {
-  const tool = () => props.row.item.tool!;
-  // The run of calls is one hairline box: every row shares its sides and a hairline above it, the ends round and close it.
-  const edge = () => props.row.edge;
-  const box = () =>
-    `border-x border-t border-border ${edge() === "first" || edge() === "only" ? "rounded-t-lg" : ""} ${
-      edge() === "last" || edge() === "only" ? "rounded-b-lg border-b" : ""
-    }`;
+/**
+ * A run of calls: one hairline box (radius lg), its rows split by single hairlines, no card per row. It is one view
+ * because a box cannot be cut across the list's rows: every row's corners, sides and joins are this one outline, and a
+ * row that opens grows the box. Each row opens to its details in place.
+ */
+function CallsBox(props: { row: Extract<Row, { kind: "calls" }>; ctx: RowContext }) {
+  tally("row.mount");
+  const first = () => props.row.calls[0]!.item.id;
   return (
-    <Line>
-      <View class={`overflow-hidden ${box()}`}>
-        <ToolRow
-          tool={tool()}
-          cwd={props.ctx.cwd}
-          open={props.row.open}
-          onToggle={() => props.ctx.model.toggle(props.row)}
-        />
-        <If when={props.row.open}>
-          <ToolDetails
-            tool={tool()}
-            machine={props.ctx.machine}
-            cwd={props.ctx.cwd}
-            all={props.row.all}
-            onMore={() => props.ctx.model.choose(`more:${props.row.item.id}`, props.row.all)}
-          />
-        </If>
+    <Line class="py-1">
+      <View role="group" accessibilityLabel="Calls" class="overflow-hidden rounded-lg border border-border">
+        <Each of={props.row.calls} key={(c: Call) => c.item.id}>
+          {(call) => (
+            <View class={call().item.id === first() ? "" : "border-t border-border"}>
+              <ToolRow
+                tool={call().item.tool!}
+                cwd={props.ctx.cwd}
+                open={call().open}
+                onToggle={() => props.ctx.model.choose(itemKey(call().item.id), call().open)}
+              />
+              <If when={call().open}>
+                <ToolDetails
+                  tool={call().item.tool!}
+                  machine={props.ctx.machine}
+                  cwd={props.ctx.cwd}
+                  all={call().all}
+                  onMore={() => props.ctx.model.choose(moreKey(call().item.id), call().all)}
+                />
+              </If>
+            </View>
+          )}
+        </Each>
       </View>
     </Line>
   );
@@ -329,6 +290,7 @@ function ToolEntry(props: { row: Extract<Row, { kind: "tool" }>; ctx: RowContext
 
 /** A call that started another agent: a bordered line with its state, outside the fold, open to what it handed back. */
 function SubagentRow(props: { row: Extract<Row, { kind: "subagent" }>; ctx: RowContext }) {
+  tally("row.mount");
   const tool = () => props.row.item.tool!;
   const line = () => toolLine(tool(), props.ctx.cwd);
   return (
@@ -372,6 +334,7 @@ type Tone = "failed" | "warning";
 
 /** A line from the app or the agent about the session (`Answered: Allow once`): quiet, centred, never folded. */
 function NoteRow(props: { text: string; title?: string | null; label: string; tone?: Tone }) {
+  tally("row.mount");
   return (
     <Line class="items-center py-1">
       <View role="group" accessibilityLabel={props.label} class="flex-row flex-wrap items-center justify-center gap-2">
@@ -411,14 +374,20 @@ function arrivedIn(model: SessionModel): Arrivals {
 }
 
 /**
+ * Rows this close to the end of the conversation can be arrivals. A row further up that a cell shows for the first time
+ * was there all along and is only being scrolled to: it must not rise (it did, three a second, scrolling up a long chat).
+ */
+const ARRIVAL_TAIL = 4;
+
+/**
  * One row of the conversation. The list recycles its cells, so each kind reads its own last row (`ofKind`) and the
  * `If`s decide which one is drawn; nothing here keeps state.
  */
-export function SessionRow(props: { row: () => Row; ctx: RowContext }) {
+export function SessionRow(props: { row: () => Row; index?: () => number; ctx: RowContext }) {
   const user = ofKind(props.row, "user");
   const agent = ofKind(props.row, "agent");
   const work = ofKind(props.row, "work");
-  const tool = ofKind(props.row, "tool");
+  const calls = ofKind(props.row, "calls");
   const thought = ofKind(props.row, "thought");
   const subagent = ofKind(props.row, "subagent");
   const note = ofKind(props.row, "note");
@@ -427,9 +396,20 @@ export function SessionRow(props: { row: () => Row; ctx: RowContext }) {
   const earlier = ofKind(props.row, "earlier");
   const other = ofKind(props.row, "other");
   const kind = () => props.row().kind;
-  // A line that arrives rises in; the cell is recycled, so this is decided per key, not per cell (`arrivals`).
-  const arrival = arriving(arrivedIn(props.ctx.model).isNew);
-  effect(() => arrival.show(props.row().key));
+  // A line that arrives rises in; the cell is recycled, so this is decided per key, not per cell (`arrivals`), and only
+  // for the end of the conversation, where lines arrive.
+  const isNew = arrivedIn(props.ctx.model).isNew;
+  const atTail = () => props.index === undefined || props.index() >= props.ctx.model.rows().length - ARRIVAL_TAIL;
+  const arrival = arriving((key) => {
+    const fresh = isNew(key) && untracked(atTail);
+    if (fresh) tally("row.rise");
+    return fresh;
+  });
+  tally("row.cell");
+  effect(() => {
+    tally("row.bind");
+    arrival.show(props.row().key);
+  });
   return (
     <View style={arrival.style}>
       <If when={kind() === "user"}>
@@ -447,8 +427,8 @@ export function SessionRow(props: { row: () => Row; ctx: RowContext }) {
       <If when={kind() === "effects"}>
         <EffectsRow row={effects()} ctx={props.ctx} />
       </If>
-      <If when={kind() === "tool"}>
-        <ToolEntry row={tool()} ctx={props.ctx} />
+      <If when={kind() === "calls"}>
+        <CallsBox row={calls()} ctx={props.ctx} />
       </If>
       <If when={kind() === "thought"}>
         <ThoughtRow row={thought()} ctx={props.ctx} />

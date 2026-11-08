@@ -799,7 +799,7 @@ impl ClaudeMapper {
                         out.push(message(Role::Thought, &id, t));
                     }
                 }
-                Some("tool_use") => out.extend(self.tool_start(b)),
+                Some("tool_use") => out.extend(self.tool_start(b, parse_stamp(e))),
                 _ => {}
             }
         }
@@ -993,7 +993,7 @@ impl ClaudeMapper {
 
     // -- tool calls ------------------------------------------------------------------------------------
 
-    fn tool_start(&mut self, b: &Value) -> Vec<Update> {
+    fn tool_start(&mut self, b: &Value, at: Option<i64>) -> Vec<Update> {
         let Some(id) = str_of(b, "id").filter(|id| !id.is_empty()) else {
             return Vec::new();
         };
@@ -1020,7 +1020,7 @@ impl ClaudeMapper {
             self.ask = parse_ask(id, input);
         }
         if name == "Agent" || name == "Task" {
-            self.start_subagent(id, input);
+            self.start_subagent(id, input, at);
         }
         let mut call = Map::new();
         call.insert("toolCallId".into(), json!(id));
@@ -1396,6 +1396,7 @@ impl ClaudeMapper {
         for (_, info) in &mut self.subagents.0 {
             if info.log_id.as_deref() == Some(id.as_str()) {
                 info.status = to.to_owned();
+                info.ended_ms = at.or(info.ended_ms);
             }
         }
         Vec::new()
@@ -1407,7 +1408,7 @@ impl ClaudeMapper {
     /// transcript is another file (`<session>/subagents/agent-<agentId>.jsonl`, [`subagent_log_path`]),
     /// found by [`SubagentInfo::log_id`] or by [`SubagentInfo::call_id`] (the file's `.meta.json` names
     /// the call).
-    fn start_subagent(&mut self, call_id: &str, input: Option<&Value>) {
+    fn start_subagent(&mut self, call_id: &str, input: Option<&Value>, at: Option<i64>) {
         if self.sidechain {
             return;
         }
@@ -1436,6 +1437,8 @@ impl ClaudeMapper {
                 recent_tools: Vec::new(),
                 log_id: None,
                 call_id: Some(call_id.to_owned()),
+                started_ms: at,
+                ended_ms: None,
             },
         );
     }
@@ -1478,6 +1481,11 @@ impl ClaudeMapper {
                 status: status.to_owned(),
                 tool_count: count.unwrap_or(have.tool_count),
                 log_id: agent_id.map(str::to_owned).or(have.log_id.clone()),
+                ended_ms: if status == "running" {
+                    have.ended_ms
+                } else {
+                    at.or(have.ended_ms)
+                },
                 ..have.clone()
             },
         );

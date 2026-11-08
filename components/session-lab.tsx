@@ -19,6 +19,7 @@ import { startHerdr } from "#lib/herdr";
 import { warmCode } from "#lib/highlight";
 import { attachFiles, copyCode, copyReply } from "#lib/pane-input";
 import { createSessionModel, type SessionPort } from "#lib/session";
+import { pictureSource } from "#lib/session-pictures";
 import { loadSettings } from "#lib/settings";
 import { GLOBAL, keysOf } from "#lib/shortcuts";
 
@@ -53,6 +54,14 @@ void loadSettings();
 warmCode();
 /** The synthetic folder the test seam copied (`fixtures/files/project`): the session's folder, so `@` lists real files. */
 const tree = MachineFiles.testTree();
+
+/** A 24 by 24 PNG made for the lab; the `pictures` scene is the chat of a terminal, whose pictures are fetched from the log. */
+const LAB_PNG =
+  "iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAIAAABvFaqvAAAAQElEQVR42u3MoREAMAgEQQpLEakETTlfTvRXFM95FDOrN069JkFgiI1GIzUJAsNGs1E1CQLDRrPRbRIEho0Gow+BQHjuK4CvmgAAAABJRU5ErkJggg==";
+pictureSource.fetch = async (_machine, _id, source) => {
+  if (source === "keeper:0:gone") throw new Error("That picture is not in the log any more.");
+  return LAB_PNG;
+};
 
 /** What ACP says besides the rows, with nothing to say. */
 const ACP: AcpView = {
@@ -332,6 +341,36 @@ function scene(name: string): Scene {
           }),
         ],
       };
+    case "calls-narration": {
+      // Three turns of a Claude Code session as a person sees it opened: narration between runs of calls, a heredoc
+      // command, a long search, a sized edit, a failed call, and a turn still running with nothing open (`Thinking`).
+      const py = `python3 - <<'E' p='components/session-lab.tsx'\nimport re\ns=open(p).read()\nopen(p,'w').write(s)\nE`;
+      const turn = (n: number): SessionItem[] => [
+        say("user", `Step ${n}: add a test for the menu pass and report back.`),
+        call("Run: python3", { toolKind: "execute", subject: py }),
+        call("Run: grep", {
+          toolKind: "execute",
+          subject:
+            "grep -n 'export.*\\(popup\\|picker\\)' components/composer-picker.tsx lib/composer-popup.ts lib/menus.ts",
+        }),
+        say("agent", "I'm adding a test for the menu pass, then checking the sizes of the popups."),
+        call("Edit src/auth.ts", { toolKind: "edit", subject: `${tree}/src/auth.ts`, diffs: [EDIT] }),
+        call("Run: sed", { toolKind: "execute", subject: "sed -n 108,118p components/composer-picker.tsx" }),
+        call("Run: pnpm test", {
+          toolKind: "execute",
+          subject: "pnpm test --filter @acme/checkout-service --coverage --reporter=verbose promo-eu regional-tax",
+          status: "failed",
+          tail: ["FAIL src/case-9.test.ts", "1 failed, 39 passed"],
+        }),
+        say("agent", "Menus pass 17 of 17; the one failure is in the old tax test."),
+        ...(n === 3 ? [] : [call("Read src/tax/rules.ts", { toolKind: "read", subject: `${tree}/src/tax/rules.ts` })]),
+        ...(n === 2 ? [] : [call("Run: python3", { toolKind: "execute", subject: py })]),
+      ];
+      return {
+        view: { running: true, phase: "working" },
+        items: [...turn(1), ...turn(2), ...turn(3)],
+      };
+    }
     case "ranked":
       // A finished turn ranked by consequence: reads, edits and narration fold into one line; the failed run, the push
       // and the edits stay in view under the answer.
@@ -399,6 +438,23 @@ function scene(name: string): Scene {
           say("agent", "Found it: `login` always redirects to `/callback`."),
         ],
       };
+    case "pictures": {
+      const shot = (n: number, bytes: number | undefined = 164) => ({
+        key: `log-${n}`,
+        mime: "image/png",
+        bytes,
+        source: `keeper:${n}:00000000000000${n}${n}`,
+      });
+      return {
+        view: { running: false, phase: "idle" },
+        items: [
+          { ...say("user", "[Image #55] not nice."), images: [shot(1)] },
+          { ...say("agent", "I see: the corners are cut off. I will round them."), images: [] },
+          { ...say("user", "[Image #56] and [Image #57] compare these"), images: [shot(2), shot(3, 20 * 1024 * 1024)] },
+          { ...say("user", "[Image #58]"), images: [{ ...shot(4), source: "keeper:0:gone" }] },
+        ],
+      };
+    }
     case "long":
       return {
         view: { running: false, phase: "idle", earlierNotice: "Earlier messages are no longer kept" },
@@ -435,6 +491,30 @@ function scene(name: string): Scene {
             { name: "init", description: "Write an AGENTS.md for this project" },
             { name: "cost", description: "Show what this session has used" },
           ],
+        },
+        items: [],
+      };
+    case "many-commands":
+      // Fourteen commands, some with long descriptions: the list scrolls past ten rows and the bubble wraps.
+      return {
+        view: {
+          phase: "idle",
+          commands: [
+            ["compact", "Summarise the conversation to free context"],
+            ["review", "Review the changes on this branch for bugs, style and missing tests"],
+            ["init", "Write an AGENTS.md for this project"],
+            ["cost", "Show what this session has used"],
+            ["model", "Choose the model for the rest of the session"],
+            ["effort", "How hard the agent thinks before it answers"],
+            ["fast", "Toggle fast mode"],
+            ["plan", "Plan, run, inspect, import, and compare native security scans of the whole repository"],
+            ["permissions", "Change what the agent may do without asking"],
+            ["rewind", "Go back to an earlier message"],
+            ["fork", "Branch the conversation from here"],
+            ["mcp", "Manage the servers the agent can reach"],
+            ["plugin", "Install or remove plugins"],
+            ["prewalk", "Walk the codebase before planning"],
+          ].map(([name, description]) => ({ name, description })),
         },
         items: [],
       };

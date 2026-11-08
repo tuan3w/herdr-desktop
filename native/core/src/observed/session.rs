@@ -22,7 +22,9 @@ use crossbeam_channel::{Receiver, RecvTimeoutError, Sender, unbounded};
 use parking_lot::{Condvar, Mutex};
 
 use super::kinds::ObservedKind;
-use super::model::{AskAnswer, Location, LogMapper, PendingAsk, Update};
+use super::model::{AskAnswer, Location, LogMapper, PendingAsk, SubagentInfo, Update};
+use super::model::{BackgroundTask, StopRoute};
+use super::subagent::SubagentLocator;
 use crate::schema::AgentStatus;
 use crate::session::adapter::{ObservedMeta, ObservedTranscript, picture_ref};
 use crate::session::{
@@ -34,6 +36,13 @@ use crate::session::{
 /// An answer within this long of its question appearing is refused: that press was meant for what was on
 /// screen before.
 const ANSWER_GUARD_MS: u64 = 400;
+
+/// Subagent transcripts open at once per parent: each is another follow of a file on the machine.
+const MAX_SUBAGENT_CHATS: usize = 2;
+
+/// What a subagent's chat answers to anything that would type into a terminal.
+const SUBAGENT_READ_ONLY: &str =
+    "A subagent is steered through its parent agent: write to the parent, which relays it.";
 
 /// What the pane is, as far as herdr says.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -160,6 +169,10 @@ struct Shared {
     restart: AtomicBool,
     /// Where the part of the log that is shown begins (0: at its start).
     head: AtomicU64,
+    /// The subagents as the log last described them (with the ids their transcripts are found by).
+    subagents: Mutex<Vec<SubagentInfo>>,
+    /// The background tasks as the log last described them.
+    tasks: Mutex<Vec<BackgroundTask>>,
 }
 
 /// Whether the log has turns that are not shown, and whether they can be had.
@@ -193,6 +206,11 @@ struct Inner {
     stop: Sender<()>,
     shared: Arc<Shared>,
     threads: Mutex<Vec<JoinHandle<()>>>,
+    on_change: Arc<dyn Fn() + Send + Sync>,
+    /// The subagent this session reads, by name; `None` for an agent's own log.
+    subagent: Option<String>,
+    /// Subagent transcripts opened from this session, oldest first; they close with it.
+    subs: Mutex<Vec<(String, ObservedHandle)>>,
 }
 
 impl Drop for Inner {
@@ -203,6 +221,10 @@ impl Drop for Inner {
 
 impl Inner {
     fn shutdown(&self) {
+        let subs: Vec<_> = self.subs.lock().drain(..).collect();
+        for (_, sub) in subs {
+            sub.detach();
+        }
         let _ = self.stop.send(());
         let _ = self.inputs.send(Input::Stop);
         if let Some(child) = self.shared.child.lock().take() {
@@ -228,6 +250,20 @@ impl ObservedHandle {
         config: ObservedConfig,
         on_change: Arc<dyn Fn() + Send + Sync>,
     ) -> Result<ObservedHandle, String> {
+        Self::open_as(host, machine, pane, kind, io, config, on_change, None)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn open_as(
+        host: Arc<KeeperHost>,
+        machine: &str,
+        pane: &str,
+        kind: &'static ObservedKind,
+        io: Arc<dyn PaneIo>,
+        config: ObservedConfig,
+        on_change: Arc<dyn Fn() + Send + Sync>,
+        subagent: Option<String>,
+    ) -> Result<ObservedHandle, String> {
         let (inputs, rx) = unbounded();
         let (stop, stop_rx) = unbounded();
         let shared = Arc::new(Shared {
@@ -243,6 +279,8 @@ impl ObservedHandle {
             widening: AtomicBool::new(false),
             restart: AtomicBool::new(false),
             head: AtomicU64::new(0),
+            subagents: Mutex::new(Vec::new()),
+            tasks: Mutex::new(Vec::new()),
         });
         let worker = Worker {
             kind,
@@ -250,10 +288,17 @@ impl ObservedHandle {
             io: io.clone(),
             config: config.clone(),
             shared: shared.clone(),
-            on_change,
+            on_change: on_change.clone(),
             mapper: (kind.new_mapper)(),
             transcript: ObservedTranscript::default(),
-            link: ObservedLink::Locating("Looking for the agent’s log".to_owned()),
+            link: ObservedLink::Locating(
+                if subagent.is_some() {
+                    "Looking for the subagent’s transcript"
+                } else {
+                    "Looking for the agent’s log"
+                }
+                .to_owned(),
+            ),
             caught_up: false,
             failed: false,
             stop: stop.clone(),
@@ -262,6 +307,7 @@ impl ObservedHandle {
             problem: None,
             arrived: HashMap::new(),
             last_state: None,
+            read_only: subagent.is_some(),
         };
         let follower = Follower {
             kind,
@@ -300,8 +346,123 @@ impl ObservedHandle {
                 stop,
                 shared,
                 threads: Mutex::new(threads),
+                on_change,
+                subagent,
+                subs: Mutex::new(Vec::new()),
             }),
         })
+    }
+
+    /// Whether this session reads a subagent's transcript (read-only: it is steered through its parent).
+    pub fn is_subagent(&self) -> bool {
+        self.inner.subagent.is_some()
+    }
+
+    fn writable(&self) -> Result<(), Refusal> {
+        match self.inner.subagent {
+            Some(_) => Err(Refusal::Blocked(SUBAGENT_READ_ONLY.into())),
+            None => Ok(()),
+        }
+    }
+
+    /// Starts reading the transcript of the subagent named `name` (as the log names it in
+    /// `observed.subagents`) as a read-only chat of its own, with the same mapper as its parent's log. An open
+    /// one is returned as it is; at most [`MAX_SUBAGENT_CHATS`] are open (the oldest closes), and all close with
+    /// this session. A transcript not written yet is an empty chat that waits (`locating`), not an error.
+    pub fn open_subagent(&self, name: &str) -> Result<ObservedHandle, String> {
+        if self.is_subagent() {
+            return Err("A subagent’s own subagents are not shown.".into());
+        }
+        if let Some(open) = self.subagent(name) {
+            return Ok(open);
+        }
+        if !self
+            .inner
+            .shared
+            .subagents
+            .lock()
+            .iter()
+            .any(|s| s.name == name)
+        {
+            return Err("The agent’s log no longer names that subagent.".into());
+        }
+        let kind = super::kinds::subagent_kind_for(self.inner.kind.id)
+            .ok_or("This agent’s subagents have no transcript this app can read.")?;
+        let mut config = self.inner.config.clone();
+        if kind.id == "codex" {
+            // Its first line says where its own part begins: the whole file is read, not its end.
+            config.tail_start = config.tail_max;
+        }
+        let io = Arc::new(SubagentIo {
+            parent: self.inner.io.clone(),
+            shared: self.inner.shared.clone(),
+            kind: self.inner.kind.id,
+            name: name.to_owned(),
+        });
+        let handle = Self::open_as(
+            self.inner.host.clone(),
+            &self.inner.machine,
+            &self.inner.pane,
+            kind,
+            io,
+            config,
+            self.inner.on_change.clone(),
+            Some(name.to_owned()),
+        )?;
+        let mut subs = self.inner.subs.lock();
+        subs.retain(|(_, h)| h.is_open());
+        while subs.len() >= MAX_SUBAGENT_CHATS {
+            let (_, oldest) = subs.remove(0);
+            oldest.detach();
+        }
+        subs.push((name.to_owned(), handle.clone()));
+        drop(subs);
+        (self.inner.on_change)();
+        Ok(handle)
+    }
+
+    /// The open transcript of the subagent named `name`.
+    pub fn subagent(&self, name: &str) -> Option<ObservedHandle> {
+        self.inner
+            .subs
+            .lock()
+            .iter()
+            .find(|(n, h)| n == name && h.is_open())
+            .map(|(_, h)| h.clone())
+    }
+
+    /// Stops reading a subagent's transcript. The subagent is not touched.
+    pub fn close_subagent(&self, name: &str) {
+        let closed: Vec<_> = {
+            let mut subs = self.inner.subs.lock();
+            let (gone, kept) = subs.drain(..).partition(|(n, _)| n == name);
+            *subs = kept;
+            gone
+        };
+        for (_, h) in &closed {
+            h.detach();
+        }
+        if !closed.is_empty() {
+            (self.inner.on_change)();
+        }
+    }
+
+    /// Asks the agent to stop the background task `key` (`observed.background[].key`, `stoppable`): a message
+    /// typed into the pane in the agent's own words for it (its stop tool), as the person would, refused like
+    /// any message while a question waits or the terminal needs the person. Nothing else is sent.
+    pub fn stop_background(&self, key: &str) -> Result<(), Refusal> {
+        self.writable()?;
+        let tasks = self.inner.shared.tasks.lock().clone();
+        let task = tasks
+            .iter()
+            .find(|t| t.key() == key)
+            .ok_or(Refusal::NothingWaiting)?;
+        if !task.status.is_active() {
+            return Err(Refusal::NothingWaiting);
+        }
+        let text = stop_text(self.inner.kind.id, task)
+            .ok_or_else(|| Refusal::Blocked("This task is stopped in the terminal.".into()))?;
+        self.send(&text).map(|_| ())
     }
 
     /// The machine the pane is on.
@@ -351,6 +512,7 @@ impl ObservedHandle {
     /// at once (omp steers a running turn; Claude Code and Codex read it after the current tool call). Refused,
     /// nothing typed, while a question waits (answer it first) or the terminal needs the person.
     pub fn send(&self, text: &str) -> Result<SendOutcome, Refusal> {
+        self.writable()?;
         let text = text.trim_end();
         if text.trim().is_empty() {
             return Err(Refusal::Invalid("There is nothing to send".into()));
@@ -381,6 +543,7 @@ impl ObservedHandle {
     /// Presses Esc in the pane while the agent works: it interrupts the turn. Refused when nothing runs (an Esc
     /// that finds the agent idle does nothing good).
     pub fn stop(&self) -> Result<(), Refusal> {
+        self.writable()?;
         match self.inner.io.state() {
             PaneState::Agent {
                 status: AgentStatus::Working,
@@ -405,6 +568,7 @@ impl ObservedHandle {
         digest: &str,
         answers: &[FieldAnswer],
     ) -> Result<(), Refusal> {
+        self.writable()?;
         let Some(driver) = self.inner.kind.ask else {
             return Err(Refusal::Blocked(
                 "This agent’s questions are answered in the terminal.".into(),
@@ -491,6 +655,7 @@ impl ObservedHandle {
     /// Declines the question with Esc, which cancels the whole tool call: sent only while the agent's dialog
     /// is on the screen, because an Esc that finds the agent working interrupts its turn.
     pub fn dismiss(&self, request_id: &str, digest: &str) -> Result<(), Refusal> {
+        self.writable()?;
         let Some(driver) = self.inner.kind.ask else {
             return Err(Refusal::Blocked(
                 "This agent’s questions are answered in the terminal.".into(),
@@ -515,9 +680,9 @@ impl ObservedHandle {
     }
 
     /// The bytes of a picture of the chat (`ImageRef::source`): from the keeper (a picture it left out of a
-    /// log line) or from omp's `blobs/` folder. At most 20 MB.
+    /// log line) or from omp's `blobs/` folder. At most 16 MiB, the cap a picture is shown at.
     pub fn log_picture(&self, source: &str) -> Result<Vec<u8>, String> {
-        const LIMIT: usize = 20 * 1024 * 1024;
+        const LIMIT: usize = 16 * 1024 * 1024;
         let reference = picture_ref(source).ok_or("That is not a picture reference.")?;
         let path = self
             .inner
@@ -586,6 +751,95 @@ impl ObservedHandle {
     /// Stops reading. The agent in the pane is not touched.
     pub fn detach(&self) {
         self.inner.shutdown();
+    }
+}
+
+/// The message that asks an agent of kind `kind` to stop `task`, in its own words; `None` when the task offers no
+/// stop by message or its id is not a plain token.
+fn stop_text(kind: &str, task: &BackgroundTask) -> Option<String> {
+    if task.stop != StopRoute::Message {
+        return None;
+    }
+    let id = [task.id.as_str()];
+    match kind {
+        "omp" => super::omp::stop_message(id),
+        "claude" => super::claude::stop_message(id),
+        "codex" => super::codex::stop_message(id),
+        _ => None,
+    }
+}
+
+/// The pane as a subagent's chat sees it: the parent's pane for whether it is still there, the parent's log
+/// for where the transcript is and whether it runs, and no hand on the terminal (it is steered through its
+/// parent).
+struct SubagentIo {
+    parent: Arc<dyn PaneIo>,
+    /// The parent session's shared state: its log path and its subagents as last described.
+    shared: Arc<Shared>,
+    /// The parent's kind id.
+    kind: &'static str,
+    name: String,
+}
+
+impl SubagentIo {
+    fn info(&self) -> Option<SubagentInfo> {
+        self.shared
+            .subagents
+            .lock()
+            .iter()
+            .find(|s| s.name == self.name)
+            .cloned()
+    }
+}
+
+impl PaneIo for SubagentIo {
+    fn state(&self) -> PaneState {
+        match self.parent.state() {
+            PaneState::Agent { cwd, .. } => {
+                let running = self.info().is_some_and(|s| {
+                    matches!(s.status.as_str(), "running" | "inProgress" | "in_progress")
+                });
+                PaneState::Agent {
+                    status: if running {
+                        AgentStatus::Working
+                    } else {
+                        AgentStatus::Idle
+                    },
+                    cwd,
+                    title: Some(self.name.clone()),
+                }
+            }
+            other => other,
+        }
+    }
+
+    fn locate(&self, _: &dyn super::model::Locator) -> Location {
+        let Some(info) = self.info() else {
+            return Location::Unlinked("The agent’s log no longer names this subagent.".to_owned());
+        };
+        let locator = SubagentLocator {
+            kind: self.kind,
+            parent_log: self.shared.log_path.lock().clone(),
+            info,
+        };
+        // The parent's pane knows the machine: its files and its herdr.
+        self.parent.locate(&locator)
+    }
+
+    fn read_screen(&self) -> Result<String, String> {
+        Err(SUBAGENT_READ_ONLY.to_owned())
+    }
+
+    fn send_input(&self, _: &str, _: &[String]) -> Result<(), String> {
+        Err(SUBAGENT_READ_ONLY.to_owned())
+    }
+
+    fn send_keys(&self, _: &[String]) -> Result<(), String> {
+        Err(SUBAGENT_READ_ONLY.to_owned())
+    }
+
+    fn read_file(&self, path: &str, limit: usize) -> Result<Option<Vec<u8>>, String> {
+        self.parent.read_file(path, limit)
     }
 }
 
@@ -680,6 +934,8 @@ struct Worker {
     /// Question tool call id -> when it first appeared (ms since the session began).
     arrived: HashMap<String, u64>,
     last_state: Option<PaneState>,
+    /// A subagent's transcript: nothing in it can be stopped from here.
+    read_only: bool,
 }
 
 /// A wider read of the log, mapped from scratch beside what is shown.
@@ -925,6 +1181,9 @@ impl Worker {
                 (!folder.is_empty()).then_some(folder)
             })
             .or_else(|| Some(self.kind.label.to_owned()));
+        let subagents = self.mapper.subagents();
+        let tasks = self.mapper.background_tasks();
+        let ms = |t: Option<i64>| t.and_then(|t| u64::try_from(t).ok());
         let info = ObservedInfo {
             pane_id: self.pane.clone(),
             kind: self.kind.id.to_owned(),
@@ -932,23 +1191,30 @@ impl Worker {
             log_path: self.shared.log_path.lock().clone(),
             link,
             turn_ended: self.mapper.turn_ended(),
-            subagents: self
-                .mapper
-                .subagents()
-                .into_iter()
-                .map(|s| SubagentView {
-                    name: s.name,
-                    agent: s.agent,
-                    status: s.status,
-                    assignment: s.assignment,
-                    tool_count: s.tool_count,
-                    recent_tools: s.recent_tools,
+            subagents: subagents
+                .iter()
+                .map(|s| {
+                    // A subagent started in the background is also a task: its times and its stop are the task's.
+                    let task = tasks.iter().find(|t| {
+                        t.kind == super::model::BackgroundKind::Agent
+                            && t.tool_call_id.is_some()
+                            && t.tool_call_id == s.call_id
+                    });
+                    SubagentView {
+                        name: s.name.clone(),
+                        agent: s.agent.clone(),
+                        status: s.status.clone(),
+                        assignment: s.assignment.clone(),
+                        tool_count: s.tool_count,
+                        recent_tools: s.recent_tools.clone(),
+                        started_ms: ms(s.started_ms.or(task.and_then(|t| t.started_ms))),
+                        ended_ms: ms(s.ended_ms.or(task.and_then(|t| t.ended_ms))),
+                        task: task.map(BackgroundTask::key),
+                    }
                 })
                 .collect(),
-            background: self
-                .mapper
-                .background_tasks()
-                .into_iter()
+            background: tasks
+                .iter()
                 .map(|t| BackgroundView {
                     key: t.key(),
                     id: t.id.clone(),
@@ -957,6 +1223,11 @@ impl Worker {
                     title: t.title.clone(),
                     detail: t.detail.clone(),
                     active: t.status.is_active(),
+                    started_ms: ms(t.started_ms),
+                    ended_ms: ms(t.ended_ms),
+                    stoppable: t.status.is_active()
+                        && !self.read_only
+                        && stop_text(self.kind.id, t).is_some(),
                 })
                 .collect(),
             proposed_plan: self.mapper.proposed_plan().map(|p| ProposedPlanView {
@@ -967,6 +1238,8 @@ impl Worker {
             problem: self.problem.as_ref().map(|(text, _)| text.clone()),
             answers_questions: self.kind.ask.is_some(),
         };
+        *self.shared.subagents.lock() = subagents;
+        *self.shared.tasks.lock() = tasks;
         self.transcript.snapshot(ObservedMeta {
             phase,
             agent: self.kind.id.to_owned(),

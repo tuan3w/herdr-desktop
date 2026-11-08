@@ -9,8 +9,38 @@ import { copyMenu, FOCUS_RING, Icon, IconButton, notify } from "#kit";
 import { touched } from "#lib/code-blocks";
 import { CODE_COLLAPSED_LINES, CODE_MAX_HEIGHT, codeLabel, lineCount } from "#lib/highlight";
 import { hoverTransition } from "#lib/motion";
+import { tally } from "#lib/perf-counts";
+import { CODE_ENTRIES, Lru } from "#lib/render-cache";
 import { codeLineNumbers, codeWhitespace, codeWrap } from "#lib/settings";
 import { restartable } from "#lib/timer";
+
+/** What a block of code is (its language) and how many lines it has. */
+interface Described {
+  language: string;
+  lines: number;
+}
+
+/**
+ * What blocks read lately are, by their text, language and path: a recycled chat cell shown a block again does not ask
+ * the highlighter to detect its language again. A file in the viewer is larger than this and is not kept (`CODE_KEPT`).
+ */
+const DESCRIBED = new Lru<string, { language: string | null; path: string | null; described: Described }>(CODE_ENTRIES);
+/** Characters past which a block is not kept: chat blocks are far smaller, a whole file need not stay in memory. */
+const CODE_KEPT = 64 * 1024;
+
+function describe(code: string, language: string | null, path: string | null): Described {
+  const make = () => {
+    tally("code.describe");
+    return { language: Code.describe(code, language, path).language, lines: lineCount(code) };
+  };
+  if (code.length > CODE_KEPT) return make();
+  const hit = DESCRIBED.get(code, () => ({ language, path, described: make() }));
+  if (hit.language === language && hit.path === path) return hit.described;
+  hit.language = language;
+  hit.path = path;
+  hit.described = make();
+  return hit.described;
+}
 
 /**
  * The one renderer of code in the chat: a markdown fence, a command's output, a file. A quiet surface one shade off
@@ -51,8 +81,12 @@ export function CodeBlock(props: {
   /** Changes with every request for the same `goTo` (a "next hit" on the line the reader scrolled away from): the block scrolls again. */
   goToNonce?: number;
 }) {
-  const info = computed(() => Code.describe(props.code, props.language ?? null, props.path ?? null));
-  const lines = computed(() => lineCount(props.code));
+  const info = computed(() =>
+    props.streaming
+      ? { language: Code.describe(props.code, props.language ?? null, props.path ?? null).language, lines: 0 }
+      : describe(props.code, props.language ?? null, props.path ?? null),
+  );
+  const lines = computed(() => (props.streaming ? lineCount(props.code) : info().lines));
   const fold = () => (props.streaming ? 0 : (props.collapsedLines ?? CODE_COLLAPSED_LINES));
   const local = signal(props.open ?? false);
   const open = () => (props.onOpenChange ? (props.open ?? false) : local());

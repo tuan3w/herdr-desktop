@@ -34,6 +34,15 @@ fn text(e: KeeperError) -> String {
 /// function that takes a session id takes either kind.
 const PANE_ID: &str = "pane:";
 
+/// The ids of a subagent's transcript read from a terminal agent's log: `sub:<paneId>#<name>`. A pane id never
+/// holds `#`; the name is the subagent's as the parent's log gives it.
+const SUB_ID: &str = "sub:";
+
+/// The pane and subagent name of a subagent chat's id.
+fn sub_id(id: &str) -> Option<(&str, &str)> {
+    id.strip_prefix(SUB_ID)?.split_once('#')
+}
+
 /// A session of either kind: a keeper's, or an agent in a terminal pane read from its log.
 enum Chat {
     Keeper(SessionHandle),
@@ -43,6 +52,13 @@ enum Chat {
 impl Chat {
     fn find(machine: &str, id: &str) -> Result<Option<Chat>, String> {
         let engine = engine()?;
+        if let Some((pane, name)) = sub_id(id) {
+            return Ok(engine
+                .sessions()
+                .observed(machine, pane)
+                .and_then(|parent| parent.subagent(name))
+                .map(Chat::Observed));
+        }
         Ok(match id.strip_prefix(PANE_ID) {
             Some(pane) => engine
                 .sessions()
@@ -190,6 +206,12 @@ impl Sessions {
     /// chat read from a terminal (`pane:...`) it stops reading the log, as `stopObserving`.
     pub fn detach(machine: String, id: String) -> Result<(), String> {
         let engine = engine()?;
+        if let Some((pane, name)) = sub_id(&id) {
+            if let Some(parent) = engine.sessions().observed(&machine, pane) {
+                parent.close_subagent(name);
+            }
+            return Ok(());
+        }
         match id.strip_prefix(PANE_ID) {
             Some(pane) => engine.sessions().stop_observing(&machine, pane),
             None => engine.sessions().detach(&machine, &id),
@@ -228,6 +250,53 @@ impl Sessions {
         .await
     }
 
+    /// Starts reading the transcript of subagent `name` (`observed.subagents[].name`) of the chat read from
+    /// `pane` (which must be open: `observe`) as a read-only chat of its own; the id is `sub:<paneId>#<name>` and
+    /// `view`, `items` and `itemIds` take it. Nothing in it can be sent, stopped or answered: a subagent is
+    /// steered through its parent. A transcript not written yet is an empty chat (`observed.link` is `locating`).
+    /// At most two are open per chat (the oldest closes); `detach` closes one, and all close with the chat.
+    pub async fn open_subagent(
+        machine: String,
+        pane: String,
+        name: String,
+    ) -> Result<SessionRef, String> {
+        run(move |engine| {
+            let parent = engine
+                .sessions()
+                .observed(&machine, &pane)
+                .ok_or("The agent’s chat is not open.")?;
+            parent.open_subagent(&name)?;
+            Ok(SessionRef {
+                id: format!("{SUB_ID}{pane}#{name}"),
+                machine,
+            })
+        })
+        .await
+    }
+
+    /// Asks the agent of a chat read from a terminal to stop its background task `key` (`observed.background[]`
+    /// with `stoppable`): a message in the agent's own words for it (its stop tool) is typed into the pane, as
+    /// the person would, and shows in the chat. Refused like a message (`blocked`) while a question waits or the
+    /// terminal needs the person. Confirm a task that ran a while with the person first (press, then press again).
+    pub async fn stop_background(
+        machine: String,
+        id: String,
+        key: String,
+    ) -> Result<ActionResult, String> {
+        act(
+            machine,
+            id,
+            move |chat| match chat {
+                Chat::Observed(h) => h.stop_background(&key),
+                Chat::Keeper(_) => Err(Refusal::Blocked(
+                    "This session has no background tasks to stop.".into(),
+                )),
+            },
+            |()| ActionResult::done(),
+        )
+        .await
+    }
+
     /// Stops reading a pane's log (`Show terminal`). The agent is not touched.
     pub fn stop_observing(machine: String, pane: String) -> Result<(), String> {
         engine()?.sessions().stop_observing(&machine, &pane);
@@ -248,7 +317,7 @@ impl Sessions {
 
     /// The bytes of a picture of a chat read from a terminal, as base64 (`ImageView.source` names it): fetched
     /// when the person asks, because the log does not carry them. Throws with words for the person when the
-    /// picture is gone, too large (over 20 MB) or the link fails.
+    /// picture is gone, too large (over 16 MiB) or the link fails.
     pub async fn log_picture(
         machine: String,
         id: String,
