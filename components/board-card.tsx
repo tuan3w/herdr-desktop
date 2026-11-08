@@ -1,5 +1,5 @@
 import { Herdr } from "herdr-desktop/native";
-import { computed, Text, View } from "nsh";
+import { computed, signal, Text, View } from "nsh";
 
 import type { BoardRow, MachineStatus } from "herdr-desktop/native";
 
@@ -13,8 +13,7 @@ import { CHIPS } from "#lib/board-table";
 import { projectOf, revision, reviewWithUndo, started } from "#lib/herdr";
 import { ROW } from "#lib/layout";
 import { ofKind } from "#lib/list-item";
-import { hoverTransition } from "#lib/motion";
-import { openProject } from "#lib/nav";
+import { hoverTransition, moveTransition } from "#lib/motion";
 import { ageText, projectFolder, projectLabel, rowLabel, toggleMore, toggleProject } from "#lib/sidebar";
 
 /**
@@ -29,6 +28,10 @@ export const machineStatuses = computed<MachineStatus[]>(() => {
   revision();
   return Herdr.machineStatuses();
 });
+
+/** What a cut name fades into on the page, and into a hovered line's `hover:bg-accent` (`Clipped` `fade`). */
+const PAGE = "from-background/0 to-background";
+const ROW_HOVER = "from-accent/0 to-accent opacity-0 group-hover/row:opacity-100";
 
 type Item<K extends TableItem["kind"]> = Extract<TableItem, { kind: K }>;
 
@@ -75,53 +78,80 @@ export function TableHeader() {
 }
 
 /**
- * A project: fold button, name, its machine (muted, amber when stale, none for this computer) and, while folded, how many
- * agents it holds with the signal dot when one waits. On hover or focus a pin and a new session in its folder. The same
- * header as the sidebar's, wider; it reads its item and holds no state, because the list recycles cells.
+ * A project: one line, the name with a small chevron right after it, its machine (muted, amber when stale, none for this
+ * computer) and, while folded, how many agents it holds with the signal dot when one waits. The line is one button that
+ * folds it (the sidebar's header, wider); on a project's own page (`fold` false) it is a plain heading. On hover or focus
+ * a pin and a new session in its folder appear in a slot held back at the right edge, sized by what it really holds, so
+ * nothing moves. It reads its item and holds no state, because the list recycles cells.
  */
 export function ProjectHeader(props: { item: () => Item<"project">; fold?: boolean }) {
   const p = () => props.item().project;
+  const reserved = signal(0);
+  const line = () => (
+    <>
+      <Clipped fade={[PAGE]} boxClass="min-w-0 shrink-[1]" class="text-sm font-medium text-foreground">
+        {p().name}
+      </Clipped>
+      <If when={props.fold !== false}>
+        <View
+          style={moveTransition()}
+          class={props.item().folded ? "" : "rotate-90"}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          <Icon name="chevron-right" size={12} tone="muted-foreground" />
+        </View>
+      </If>
+      <If when={p().pinned}>
+        <Text class="text-xs text-muted-foreground">Pinned</Text>
+      </If>
+      <If when={props.item().machine !== null}>
+        <Clipped
+          fade={[PAGE]}
+          boxClass="min-w-0 shrink-[100]"
+          class={`text-xs ${props.item().stale ? "text-warning" : "text-muted-foreground"}`}
+        >
+          {props.item().machine ?? ""}
+        </Clipped>
+      </If>
+      <If when={props.item().folded}>
+        <View class="ml-auto flex-row items-center gap-2 pl-2">
+          <Text style={NUM} class="text-xs text-muted-foreground">
+            {`${props.item().count} ${props.item().count === 1 ? "agent" : "agents"}`}
+          </Text>
+          <ProjectMark project={p()} compact decorative />
+        </View>
+      </If>
+    </>
+  );
   return (
-    <View class={`group mt-3 ${p().offline ? "opacity-60" : ""}`}>
-      <View class="flex-row items-center">
-        <If when={props.fold !== false}>
+    <View role="group" accessibilityLabel={projectLabel(p())} class={`group mt-3 ${p().offline ? "opacity-60" : ""}`}>
+      <If
+        when={props.fold !== false}
+        else={
           <View
-            role="button"
-            onPress={() => toggleProject(p().key)}
-            accessibilityLabel={`${props.item().folded ? "Unfold" : "Fold"} ${p().name}`}
-            accessibilityState={{ expanded: !props.item().folded }}
-            style={hoverTransition()}
-            class={`size-8 items-center justify-center rounded-md hover:bg-accent ${FOCUS_RING}`}
+            style={{ paddingRight: reserved() }}
+            class={`flex-row items-center gap-1.5 rounded-md ${ROW.project.class}`}
           >
-            <Icon name={props.item().folded ? "chevron-right" : "chevron-down"} size={14} tone="muted-foreground" />
+            {line()}
           </View>
-        </If>
+        }
+      >
         <View
           role="button"
-          onPress={() => openProject(p().key)}
-          accessibilityLabel={projectLabel(p())}
-          style={hoverTransition()}
-          class={`min-w-0 flex-row items-center gap-2 rounded-md hover:bg-accent ${ROW.project.class} ${FOCUS_RING}`}
+          onPress={() => toggleProject(p().key)}
+          accessibilityLabel={`${props.item().folded ? "Unfold" : "Fold"} ${p().name}`}
+          accessibilityState={{ expanded: !props.item().folded }}
+          style={{ paddingRight: reserved() }}
+          class={`flex-row items-center gap-1.5 rounded-md ${ROW.project.class} ${FOCUS_RING}`}
         >
-          <Clipped class="min-w-0 shrink text-sm font-medium text-foreground">{p().name}</Clipped>
-          <If when={p().pinned}>
-            <Text class="text-xs text-muted-foreground">Pinned</Text>
-          </If>
-          <If when={props.item().machine !== null}>
-            <Clipped class={`shrink text-xs ${props.item().stale ? "text-warning" : "text-muted-foreground"}`}>
-              {props.item().machine ?? ""}
-            </Clipped>
-          </If>
-          <If when={props.item().folded}>
-            <Text style={NUM} class="text-xs text-muted-foreground">
-              {`${props.item().count} ${props.item().count === 1 ? "agent" : "agents"}`}
-            </Text>
-            <ProjectMark project={p()} compact decorative />
-          </If>
+          {line()}
         </View>
-        <View class="flex-1" />
-      </View>
-      <View class="absolute bottom-0 right-0 top-0 flex-row items-center gap-1 bg-background pl-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+      </If>
+      <View
+        onLayout={({ bounds }) => reserved.set(bounds.size.width)}
+        class="absolute bottom-0 right-0 top-0 flex-row items-center gap-1 pl-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+      >
         <Btn
           small
           variant="ghost"
@@ -171,8 +201,12 @@ export function AgentLine(props: {
         <View class={COL.glyph}>
           <StatusGlyph status={dim() ? "unknown" : row().status} id={row().key} />
         </View>
-        <Clipped class={`${COL.title} text-sm text-foreground`}>{row().name}</Clipped>
-        <Clipped class={`${COL.last} text-sm text-muted-foreground`}>{props.item().last}</Clipped>
+        <Clipped fade={[PAGE, ROW_HOVER]} boxClass={COL.title} class="text-sm text-foreground">
+          {row().name}
+        </Clipped>
+        <Clipped fade={[PAGE, ROW_HOVER]} boxClass={COL.last} class="text-sm text-muted-foreground">
+          {props.item().last}
+        </Clipped>
         <Text style={NUM} class={`${COL.age} text-right text-xs text-muted-foreground`}>
           {ageText(row().sinceSecs)}
         </Text>

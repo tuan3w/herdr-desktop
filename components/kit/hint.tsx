@@ -20,6 +20,15 @@ export function Clipped(props: {
   lines?: number;
   label?: string;
   /** `false` where a preview card already shows the whole text (a row of the inbox). */ tip?: boolean;
+  /**
+   * Ends a cut text by fading its last 24 pt into the fill behind it instead of an ellipsis, drawn only while the text is
+   * cut. nsh 0.4.0 masks only on web and iOS, so the fade is the fill laid over the text: one gradient layer per fill the
+   * row can have (`from-sidebar/0 to-sidebar`, then a hover tint with `opacity-0 group-hover/row:opacity-100`, then the
+   * selected fill), each the same colour as the row's own, stacked in order, so no seam is possible. The layout classes
+   * (`min-w-0 flex-1`) then go in `boxClass`; `class` styles the text.
+   */
+  fade?: readonly string[];
+  boxClass?: string;
   class?: string;
   style?: TextStyle;
   children?: JSX.Element;
@@ -29,17 +38,35 @@ export function Clipped(props: {
   const tip = useTooltip(() => <TipText>{full()}</TipText>, {
     disabled: () => !cut() || props.tip === false,
   });
-  return (
+  const text = () => (
     <Text
       ref={tip.ref}
       onMouseEnter={tip.onMouseEnter}
       onMouseLeave={tip.onMouseLeave}
       class={props.class}
-      style={[{ numberOfLines: props.lines ?? 1 }, props.style]}
+      style={[{ numberOfLines: props.lines ?? 1, textOverflow: props.fade ? "clip" : undefined }, props.style]}
       onTextLayout={(e) => cut.set(letters(e.lines.map((l) => l.text).join("")) < letters(full()))}
     >
       {props.children}
     </Text>
+  );
+  return props.fade ? (
+    <View class={props.boxClass}>
+      {text()}
+      <If when={cut()}>
+        <Each of={props.fade} key="index">
+          {(layer) => (
+            <View
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              class={`pointer-events-none absolute inset-y-0 right-0 w-6 bg-linear-to-r ${layer()}`}
+            />
+          )}
+        </Each>
+      </If>
+    </View>
+  ) : (
+    text()
   );
 }
 
@@ -57,6 +84,9 @@ export function Tipped(props: {
   closeDelay?: number;
   disabled?: boolean;
   closeOnClick?: boolean;
+  /** Where the bubble opens: above a control that sits on text or a row it would cover. Default below. */
+  side?: "top" | "bottom";
+  align?: "start" | "center" | "end";
   class?: string;
   children?: JSX.Element;
 }) {
@@ -65,6 +95,8 @@ export function Tipped(props: {
     delay: props.delay,
     closeDelay: props.closeDelay,
     closeOnClick: props.closeOnClick,
+    side: props.side,
+    align: props.align,
   });
   return (
     <View ref={tip.ref} onMouseEnter={tip.onMouseEnter} onMouseLeave={tip.onMouseLeave} class={props.class}>

@@ -205,7 +205,7 @@ test("a right click on an agent or a project copies its name or folder", async (
   await app.rightClick(row("payments review"));
   await app.chooseMenuItem("Copy folder");
   await app.waitUntil(() => (app.clipboard() ?? "").startsWith("/"));
-  await app.rightClick(PAYMENTS);
+  await app.rightClick(FOLD_PAYMENTS);
   await app.chooseMenuItem("Copy name");
   await app.waitUntil(() => app.clipboard() === "payments");
 });

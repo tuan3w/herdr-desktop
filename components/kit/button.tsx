@@ -124,9 +124,15 @@ export function IconButton(props: {
   shortcut?: string;
   /** Not available now (a plus for an offline project): still named and shown, muted, no press, not a stop of Tab. The tooltip stays, so the name says what is missing. */
   disabled?: boolean;
+  /** A 32-pt box with a 16-pt icon (44 under Large hit targets), for a sidebar line's actions that sit apart. */
+  roomy?: boolean;
+  /** What the bubble says when it is shorter than `label` (the accessible name keeps the whole). */
+  tip?: string;
+  /** Where the bubble opens (above for a control on text). */
+  tipSide?: "top" | "bottom";
 }) {
   return (
-    <Tipped label={props.label} shortcut={props.shortcut}>
+    <Tipped label={props.tip ?? props.label} shortcut={props.shortcut} side={props.tipSide}>
       <IconFace
         icon={props.icon}
         label={props.label}
@@ -134,6 +140,7 @@ export function IconButton(props: {
         onSidebar={props.onSidebar}
         selected={props.selected}
         disabled={props.disabled}
+        roomy={props.roomy}
       />
     </Tipped>
   );
@@ -147,6 +154,7 @@ function IconFace(props: {
   onSidebar?: boolean;
   selected?: boolean;
   disabled?: boolean;
+  roomy?: boolean;
 }) {
   const focus = useTriggerFocus();
   const hover = () =>
@@ -160,7 +168,7 @@ function IconFace(props: {
       focusable={props.disabled ? false : undefined}
       {...(props.disabled ? {} : focus)}
       style={hoverTransition()}
-      class={`${largeTargets() ? "size-11" : "size-7"} items-center justify-center rounded-md ${
+      class={`${largeTargets() ? "size-11" : props.roomy ? "size-8" : "size-7"} items-center justify-center rounded-md ${
         props.disabled
           ? "opacity-50"
           : `selected:bg-accent ${hover()} ${props.onSidebar ? FOCUS_RING_SIDEBAR : FOCUS_RING}`

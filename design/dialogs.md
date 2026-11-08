@@ -96,3 +96,4 @@ The system alert, as AlertDialog: `Cancel` first, the action by its verb (destru
 ## Tests
 
 `toast-rules.test.ts` (timers, pause, limit, priority, de-duplication, undo reach), `dialog-stack.test.ts` (nesting), `feedback.test.tsx` (end to end on the test clock).
+- **Where a toast is drawn**: top right under the header, never at the bottom: the composer and the answer dock live there and a toast must not cover what a question waiting for the person needs. It enters from above.

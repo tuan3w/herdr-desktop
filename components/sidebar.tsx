@@ -35,14 +35,15 @@ import {
 import { newSession, openSettings, settingsPage, sidebarSearch } from "#lib/actions";
 import { checkoutsOf, openChanges } from "#lib/changes";
 import { BOARD, context, focused, rowKeyOf, showBoard } from "#lib/dock";
+import { actionSlot, headerBudget } from "#lib/header-fit";
 import { board, projectOf, revision, rowOf, started } from "#lib/herdr";
 import { ROW } from "#lib/layout";
 import { ofKind } from "#lib/list-item";
 import { linkGlyph, linkText } from "#lib/machine-state";
-import { hoverTransition } from "#lib/motion";
+import { hoverTransition, moveTransition } from "#lib/motion";
 import { openProject } from "#lib/nav";
 import { openAgent } from "#lib/open-agent";
-import { setSidebarCollapsed } from "#lib/settings";
+import { largeTargets, setSidebarCollapsed } from "#lib/settings";
 import { keyLabel } from "#lib/shortcuts";
 import {
   ageText,
@@ -62,7 +63,18 @@ import {
 import { stateWord } from "#lib/status";
 
 /** Hover and the open tab are a quiet fill, nothing else. The focus ring is inset: see `FOCUS_RING_SIDEBAR`. */
-const FILL = `rounded-md hover:bg-sidebar-accent/60 selected:bg-sidebar-accent ${FOCUS_RING_SIDEBAR}`;
+const FILL = `rounded-md hover:bg-sidebar-accent/40 selected:bg-sidebar-accent ${FOCUS_RING_SIDEBAR}`;
+
+/**
+ * What a cut title fades into (`Clipped` `fade`): each fill its row can have, laid in order: the sidebar, the row's hover
+ * tint and, for the open one, its selected fill. Same tokens as `ROW_FILL`, so the fade and the fill are one colour.
+ */
+const FADE = "from-sidebar/0 to-sidebar";
+const FADE_HOVER = "from-sidebar-accent/0 to-sidebar-accent/40 opacity-0 group-hover/row:opacity-100";
+const FADE_OPEN = "from-sidebar-accent/0 to-sidebar-accent";
+
+/** An agent's fill follows its row (`group/row`), which holds the line and the `...` over its edge. */
+const ROW_FILL = `rounded-md group-hover/row:bg-sidebar-accent/40 selected:bg-sidebar-accent ${FOCUS_RING_SIDEBAR}`;
 
 const query = signal("");
 
@@ -161,17 +173,25 @@ function changesEntries(project: BoardProject) {
 /** `Copy name` and, when the folder is known, `Copy folder`: the explicit copies of a row's context menu and a project's options. */
 function copyEntries(nameWhat: string, name: string, pathWhat: string, path: string | null | undefined) {
   return [
-    { label: "Copy name", onSelect: () => void copyText(name, nameWhat) },
-    ...(path ? [{ label: "Copy folder", onSelect: () => void copyText(path, pathWhat) }] : []),
+    { label: "Copy name", accelerator: "C", onSelect: () => void copyText(name, nameWhat) },
+    ...(path ? [{ label: "Copy folder", accelerator: "F", onSelect: () => void copyText(path, pathWhat) }] : []),
   ];
 }
+
+/** `Open project`: the project's page; the header's press folds, so this is where the page is reached. */
+const openEntry = (project: BoardProject) => ({
+  label: "Open project",
+  accelerator: "O",
+  onSelect: () => openProject(project.key),
+});
 
 /** What a project's menu offers: show its tabs, pin it, start a chat in it, review what its agents changed. */
 function projectEntries(project: BoardProject) {
   return [
-    { label: "Switch to this project", onSelect: () => openProject(project.key) },
+    openEntry(project),
     {
       label: "Open here",
+      accelerator: "H",
       // The project's first agent (those that need you come first) as a tab of the workspace shown, not of its project.
       onSelect: () => {
         const row = project.rows[0];
@@ -181,10 +201,12 @@ function projectEntries(project: BoardProject) {
     },
     {
       label: project.pinned ? "Unpin" : "Pin to the top",
+      accelerator: "P",
       onSelect: () => Herdr.pinProject(project.key, !project.pinned),
     },
     {
       label: "New agent session here…",
+      accelerator: "N",
       onSelect: () => newSession({ machine: project.machine, folder: projectFolder(project) }),
       disabled: project.offline,
     },
@@ -193,37 +215,62 @@ function projectEntries(project: BoardProject) {
   ];
 }
 
+/** The header button's left padding (`pl-3`), which `headerBudget` takes off the line. */
+const HEADER_PAD = 12;
+
 /**
- * A project: fold button, name, its machine (muted, amber when stale; none for this computer), while folded how many of
- * its agents wait (the signal dot and the number) and, on hover or focus over it, a plus (a new session in its folder) and
- * its menu.
- * The row reads its item and holds no state, because the list recycles cells.
+ * A project: one quiet line, the name with a small chevron right after it, its machine (muted, amber when stale; none for
+ * this computer), while folded how many of its agents wait (the signal dot and the number) and, on hover or focus over it,
+ * a plus (a new session in its folder) and its menu at the free right edge. The whole line is one button that folds it: no
+ * fill on hover, because the name and the chevron are one thing; `Open project` is the menu's first entry.
+ * Its text starts at the left edge of the agents' glyphs. The row reads its item and holds no state, because the list recycles cells.
  */
 function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> }) {
   const p = () => props.item().project;
+  // The line's width, so the name and the machine are given explicit room (`headerBudget`); the slot at the right edge is
+  // held back whether or not the actions show, so nothing reflows on hover.
+  const width = signal(0);
+  const menuOpen = signal(false);
+  const slot = () => actionSlot({ plus: true, large: largeTargets() });
+  const fit = () => {
+    if (width() === 0) return undefined;
+    const extra = (props.item().folded ? 40 : 0) + (p().pinned ? 12 : 0);
+    return headerBudget({
+      name: p().name.length,
+      machine: (props.item().machine ?? "").length,
+      width: width() - HEADER_PAD - slot() - extra,
+      extra,
+    });
+  };
   return (
-    <View class={`group mt-3 ${p().offline ? "opacity-60" : ""}`}>
-      <View class="flex-row items-center">
+    <View role="group" accessibilityLabel={projectLabel(p())} class={`group mt-3 ${p().offline ? "opacity-60" : ""}`}>
+      <Tipped label={[p().name, props.item().machine].filter(Boolean).join(" · ")}>
         <View
           role="button"
           onPress={() => toggleProject(p().key)}
+          onContextMenu={copyMenu(() => [
+            openEntry(p()),
+            ...copyEntries("Project name", p().name, "Folder", projectFolder(p())),
+          ])}
+          onLayout={({ bounds }) => width.set(bounds.size.width)}
           accessibilityLabel={`${props.item().folded ? "Unfold" : "Fold"} ${p().name}`}
           accessibilityState={{ expanded: !props.item().folded }}
-          style={hoverTransition()}
-          class={`size-8 items-center justify-center ${FILL}`}
+          style={{ paddingRight: slot() }}
+          class={`flex-row items-center gap-1.5 min-h-7 pl-3 rounded-md ${FOCUS_RING_SIDEBAR}`}
         >
-          <Icon name={props.item().folded ? "chevron-right" : "chevron-down"} size={14} tone="muted-foreground" />
-        </View>
-        <View
-          role="button"
-          onPress={() => openProject(p().key)}
-          onContextMenu={copyMenu(() => copyEntries("Project name", p().name, "Folder", projectFolder(p())))}
-          accessibilityLabel={projectLabel(p())}
-          accessibilityState={{ selected: context() === p().key }}
-          style={hoverTransition()}
-          class={`min-w-0 flex-1 flex-row items-center gap-2 group-hover:mr-16 group-focus-within:mr-16 ${ROW.project.class} ${FILL}`}
-        >
-          <Clipped class="min-w-0 flex-1 text-sm font-medium text-sidebar-foreground">{p().name}</Clipped>
+          <View class="min-w-0 shrink-[1]" style={{ maxWidth: fit()?.name }}>
+            <Clipped fade={[FADE]} boxClass="min-w-0" class="text-sm font-medium text-muted-foreground">
+              {p().name}
+            </Clipped>
+          </View>
+          <View
+            style={moveTransition()}
+            class={props.item().folded ? "" : "rotate-90"}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
+            <Icon name="chevron-right" size={12} tone="muted-foreground" />
+          </View>
           <If when={p().pinned}>
             <View
               accessibilityElementsHidden
@@ -231,25 +278,43 @@ function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> 
               class="size-1.5 rounded-full bg-sidebar-foreground"
             />
           </If>
-          <If when={props.item().machine !== null}>
-            <Clipped class={`shrink text-xs ${props.item().stale ? "text-warning" : "text-muted-foreground"}`}>
-              {props.item().machine ?? ""}
-            </Clipped>
+          <If when={props.item().machine !== null && (fit()?.machine ?? 1) > 0}>
+            <View class="min-w-0 shrink-[100]" style={{ maxWidth: fit()?.machine }}>
+              <Clipped
+                fade={[FADE]}
+                boxClass="min-w-0"
+                class={`text-xs ${props.item().stale ? "text-warning" : "text-muted-foreground"}`}
+              >
+                {props.item().machine ?? ""}
+              </Clipped>
+            </View>
           </If>
           <If when={props.item().folded}>
-            <ProjectMark project={p()} compact onSidebar />
+            <View class="ml-auto pl-2">
+              <ProjectMark project={p()} compact onSidebar />
+            </View>
           </If>
         </View>
-      </View>
-      <View class="absolute bottom-0 right-0 top-0 flex-row items-center pl-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+      </Tipped>
+      <View
+        class={`absolute bottom-0 right-0 top-0 flex-row items-center gap-0.5 pr-1 ${
+          menuOpen() ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+        }`}
+      >
         <IconButton
           onSidebar
+          roomy
           icon="plus"
           label={`New agent session in ${p().name}`}
+          tip="New session"
           disabled={p().offline}
           onPress={() => newSession({ machine: p().machine, folder: projectFolder(p()) })}
         />
-        <ActionMenu label={`Options for ${p().name}`} entries={projectEntries(p())} />
+        <ActionMenu
+          label={`Options for ${p().name}`}
+          entries={projectEntries(p())}
+          onOpenChange={(open) => menuOpen.set(open)}
+        />
       </View>
     </View>
   );
@@ -286,17 +351,33 @@ const rowDetail = (row: BoardRow) =>
  */
 function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
   const row = () => props.item().row;
+  const menuOpen = signal(false);
   return (
     <View class={`group/row relative ${props.item().nested ? "pl-3" : ""}`}>
       <Tipped label={rowDetail(row())}>
         <AgentButton item={props.item} />
       </Tipped>
       <PickSlot rowKey={row().key} name={row().name} order={rowKeys} surface="sidebar" nested={props.item().nested} />
+      <View
+        class={`absolute inset-y-0 right-1 items-center justify-center ${
+          menuOpen() ? "opacity-100" : "opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100"
+        }`}
+      >
+        <ActionMenu
+          label={`Options for ${row().name}`}
+          entries={copyEntries("Name", row().name, "Folder", row().cwd)}
+          onOpenChange={(open) => menuOpen.set(open)}
+        />
+      </View>
     </View>
   );
 }
 
-/** The pressable line, apart from `Agent` so `useTriggerFocus` is called inside the bubble's trigger. */
+/**
+ * The pressable line, apart from `Agent` so `useTriggerFocus` is called inside the bubble's trigger. Its fill is the row's
+ * (`group/row`), not its own, so it stays lit while the pointer is on the `...` that sits over its right edge; the title
+ * ends before that slot, held back at rest as on hover.
+ */
 function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
   const row = () => props.item().row;
   const keys = useRowKeys(row, rowKeys);
@@ -316,11 +397,17 @@ function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> 
         keys.onBlur();
         tip.onBlur?.();
       }}
-      style={hoverTransition()}
-      class={`min-w-0 flex-row items-center gap-3 ${ROW.agentCompact.class} ${FILL} ${row().offline ? "opacity-60" : ""}`}
+      style={[hoverTransition(), { paddingRight: actionSlot({ plus: false, large: largeTargets() }) }]}
+      class={`min-w-0 flex-row items-center gap-3 ${ROW.agentCompact.class} ${ROW_FILL} ${row().offline ? "opacity-60" : ""}`}
     >
       <StatusGlyph status={row().offline ? "unknown" : row().status} id={row().key} />
-      <Clipped class="min-w-0 flex-1 text-sm text-sidebar-foreground">{row().name}</Clipped>
+      <Clipped
+        fade={isOpen(row()) ? [FADE, FADE_OPEN] : [FADE, FADE_HOVER]}
+        boxClass="min-w-0 flex-1"
+        class="text-sm text-sidebar-foreground"
+      >
+        {row().name}
+      </Clipped>
     </View>
   );
 }
@@ -424,7 +511,9 @@ function RailAgent(props: { row: BoardRow; project: BoardProject }) {
       class={`flex-row items-center gap-3 rounded-md ${ROW.agentCompact.class} hover:bg-accent ${FOCUS_RING_SIDEBAR} ${props.row.offline ? "opacity-60" : ""}`}
     >
       <StatusGlyph status={props.row.status} />
-      <Clipped class="min-w-0 flex-1 text-sm text-foreground">{props.row.name}</Clipped>
+      <Clipped fade={["from-popover/0 to-popover"]} boxClass="min-w-0 flex-1" class="text-sm text-foreground">
+        {props.row.name}
+      </Clipped>
       <Text style={NUM} class="text-xs text-muted-foreground">
         {ageText(props.row.sinceSecs)}
       </Text>

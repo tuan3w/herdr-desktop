@@ -36,6 +36,7 @@ const flagged = new Set([
   "keys",
   "settle",
   "js",
+  "fixture",
 ]);
 const positional = args.filter(
   (a, i) => !a.startsWith("--") && !(i > 0 && flagged.has(args[i - 1].slice(2)) && args[i - 1].startsWith("--")),
@@ -77,7 +78,7 @@ const pngFor = (t) => `.scratch/shots-mac/${name}-${w}-${t}.png`;
 writeFileSync(
   testFile,
   `import { open, test } from "nsh/test";
-${scenario ? `import { SCENARIOS } from "../../.shots/scenarios";\nconst sc = SCENARIOS[${JSON.stringify(scenario)}];\nif (!sc) throw new Error("no scenario ${scenario}");` : `const sc = { fixture: "mixed", entry: ${JSON.stringify("../../" + entry)}, params: {}, steps: async (app: any) => { for (const p of ${JSON.stringify(presses)}) { await app.press(p); await app.wait(${settle}); } } };`}
+${scenario ? `import { SCENARIOS } from "../../.shots/scenarios";\nconst sc = SCENARIOS[${JSON.stringify(scenario)}];\nif (!sc) throw new Error("no scenario ${scenario}");` : `const sc = { fixture: ${JSON.stringify(opt("fixture", "mixed"))}, entry: ${JSON.stringify("../../" + entry)}, params: {}, steps: async (app: any) => { for (const p of ${JSON.stringify(presses)}) { await app.press(p); await app.wait(${settle}); } } };`}
 for (const scheme of ${JSON.stringify(themes)} as const) {
   test("shot " + scheme, async () => {
     const app = await open(${scenario ? `sc.entry ? sc.entry.replace("../", "../../") : "../../App.tsx"` : "sc.entry"}, {

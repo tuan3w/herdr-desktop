@@ -1,10 +1,10 @@
-import { cleanup, context, effect, type JSX, Text, View } from "nsh";
+import { cleanup, context, effect, type JSX, signal, Text, View, windowSize } from "nsh";
 
 import type { ViewRef } from "nsh/types";
 
 import { NUM } from "./core";
 import { createHover, type Hover, type HoverTrigger } from "./hover";
-import { createOpenState, type OpenChange } from "./popup";
+import { type BubblePlace, createOpenState, type OpenChange, placeBubble } from "./popup";
 import { Positioner } from "./positioner";
 
 /**
@@ -36,6 +36,11 @@ export const REST_MS = 500;
 /** While a bubble is open, or the pointer left one less than this long ago, the next one opens at once. */
 export const GROUP_MS = 400;
 const GAP = 6;
+/** The room a bubble keeps from every edge of the window. */
+const WINDOW_MARGIN = 8;
+/** `max-w-60`: what a bubble is estimated at before it is measured (the widest it can be), so a trigger near an edge lines up with it. */
+const BUBBLE_MAX = 240;
+const BUBBLE_HEIGHT = 24;
 
 /**
  * The shell of every bubble: a small inverted pill (the ink colour as the fill, the page colour as the text), so it reads
@@ -87,6 +92,10 @@ export interface TooltipOptions {
   closeDelay?: number;
   /** A press on the trigger ends its bubble (default true). False keeps it, and a pending one. */
   closeOnClick?: boolean;
+  /** Which side of the trigger the bubble prefers (default bottom). It goes to the other when this one lacks room: put it `top` where below is the next row. */
+  side?: "top" | "bottom";
+  /** How the bubble lines up with the trigger (default center); `start` or `end` when centred it would leave the window. */
+  align?: "start" | "center" | "end";
 }
 
 /** The root's timing (Base UI's `Tooltip.Provider`). */
@@ -101,6 +110,8 @@ export interface TooltipTiming {
 /** A trigger: the `say` it shows. */
 export interface TipTrigger extends HoverTrigger {
   say: () => JSX.Element;
+  side?: "top" | "bottom";
+  align?: "start" | "center" | "end";
 }
 
 /** The state of one root view's tooltips. */
@@ -136,21 +147,51 @@ export function useTriggerFocus(): TriggerFocus {
 export function TooltipLayer(props: { hover: Hover<TipTrigger> }) {
   const { hover } = props;
   effect(() => hover.sync());
+  // Where the shown trigger's bubble goes: worked out from the trigger's frame once it is measured (`undefined` meanwhile).
+  const place = signal<BubblePlace | undefined>(undefined);
+  effect(() => {
+    const t = hover.open() ? hover.active() : null;
+    place.set(undefined);
+    const node = t?.node;
+    if (!t || !node) return;
+    void node.measure().then((m) => {
+      if (!m || hover.active() !== t) return;
+      const win = windowSize();
+      place.set(
+        placeBubble({
+          anchor: { x: m.pagePosition.x, y: m.pagePosition.y, ...m.bounds.size },
+          bubble: { width: BUBBLE_MAX, height: BUBBLE_HEIGHT },
+          window: win,
+          side: t.side,
+          align: t.align,
+          gap: GAP,
+          margin: WINDOW_MARGIN,
+        }),
+      );
+    });
+  });
   return (
     <If when={hover.open() ? hover.active() : null}>
       {(t) => (
-        <Positioner
-          anchor={t().node}
-          side="bottom"
-          offset={GAP}
-          noPointer
-          onCancel={hover.escape}
-          onPosition={hover.placed}
-          onAnchorMoved={hover.moved}
-          class={BUBBLE}
-        >
-          {t().say()}
-        </Positioner>
+        <If when={place()}>
+          {(at) => (
+            <Positioner
+              anchor={t().node}
+              side={at().side}
+              align={at().align}
+              offset={GAP}
+              margin={WINDOW_MARGIN}
+              noPointer
+              onCancel={hover.escape}
+              onPosition={hover.placed}
+              onAnchorMoved={hover.moved}
+              style={{ maxWidth: at().width }}
+              class={BUBBLE}
+            >
+              {t().say()}
+            </Positioner>
+          )}
+        </If>
       )}
     </If>
   );
@@ -179,6 +220,8 @@ export function useTooltip(say: () => JSX.Element, options: TooltipOptions = {})
     delay: options.delay,
     closeDelay: options.closeDelay,
     closeOnClick: options.closeOnClick,
+    side: options.side,
+    align: options.align,
   };
   const events = hover.register(trigger);
   cleanup(events.gone);

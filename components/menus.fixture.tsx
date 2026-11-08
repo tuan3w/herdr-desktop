@@ -13,6 +13,7 @@ const AGENTS = Array.from({ length: 80 }, (_, i) => ({
 }));
 
 const runs = signal(0);
+const acted = signal("none");
 const finished = signal(false);
 const sort = signal("date");
 const agent = signal("a1");
@@ -56,6 +57,17 @@ const entries = (): MenuEntry[] => [
   { label: "Delete…", icon: "trash", danger: true, onSelect: () => runs.set(runs() + 10000) },
 ];
 
+const act = (what: string) => () => acted.set(what);
+const accelerated = (): MenuEntry[] => [
+  { label: "Pin", accelerator: "p", onSelect: act("pin") },
+  { label: "Rename", accelerator: "r", onSelect: act("rename") },
+  { label: "Locked", accelerator: "l", disabled: true, onSelect: act("locked") },
+  "separator",
+  { label: "Share", onSelect: act("share") },
+  { label: "Archive", accelerator: "a", onSelect: act("archive") },
+  { label: "Delete", accelerator: "d", danger: true, onSelect: act("delete") },
+];
+
 const agentMenu = (): MenuEntry[] => [
   { type: "radio", value: agent(), onValueChange: (value) => agent.set(value), items: AGENTS },
 ];
@@ -67,10 +79,12 @@ function Lab() {
         <View class="flex-row items-center gap-3">
           <ActionMenu label="Display options" entries={entries()} />
           <ActionMenu label="Choose agent" entries={agentMenu()} icon="list" />
+          <ActionMenu label="Accelerated" entries={accelerated()} />
           <ActionMenu label="No loop" entries={entries()} loop={false} />
           <ActionMenu label="Open on hover" entries={entries()} openOnHover closeDelay={100} />
         </View>
         <Text class="text-sm text-foreground">{`Runs: ${runs()}`}</Text>
+        <Text class="text-sm text-foreground">{`Acted: ${acted()}`}</Text>
         <Text class="text-sm text-foreground">{`Finished: ${finished() ? "on" : "off"}`}</Text>
         <Text class="text-sm text-foreground">{`Sort: ${sort()}`}</Text>
         <Text class="text-sm text-foreground">{`Agent: ${agent()}`}</Text>

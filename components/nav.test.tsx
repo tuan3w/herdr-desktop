@@ -270,14 +270,16 @@ test("Shift+Enter in the Switcher opens the agent here: its tab joins the worksp
   expect(payments).toBeUndefined();
 });
 
-test("a project's name in the sidebar shows its workspace, and its chevron alone folds it", async () => {
+test("a project's header folds it, and Open project in its menu shows its workspace", async () => {
   const app = await ready();
   await expandSidebar(app);
   await app.press("label:Fold payments >> nth=0");
   expect(app.shows("label:Unfold payments")).toBe(true);
   // Folding changed nothing about what is shown.
   expect(app.count("role:tab")).toBe(0);
-  await app.press("label:/^payments, This computer/ >> nth=0");
+  await app.press("label:Options for payments");
+  await app.clock!.runFor(150);
+  await app.press("Open project");
   await settle(app);
   // The project has no tab open: its own card, without a fold control.
   expect(app.shows("label:payments, no tabs open")).toBe(true);

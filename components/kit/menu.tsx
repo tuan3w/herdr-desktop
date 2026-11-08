@@ -20,7 +20,7 @@ import type { Bounds, ListRef, MouseEvent, OverlayPosition, Point, ScrollRef, Vi
 import { hoverTransition } from "#lib/motion";
 import { fold } from "#lib/text";
 
-import { EDGE, FOCUS_RING } from "./core";
+import { EDGE, FOCUS_RING, NUM } from "./core";
 import { dialogDepth } from "./dialog-stack";
 import { Kbd, Tipped } from "./hint";
 import { Icon, type IconName } from "./icon";
@@ -48,6 +48,11 @@ interface Choosable {
   icon?: IconName;
   /** Shown as a keycap: the shortcut that does the same without the menu. */
   shortcut?: string;
+  /**
+   * One letter that runs this item while THIS menu is open, shown as a quiet hint in the shortcut's slot (an item has
+   * either, not both: with both the keycap is dropped). Bound only while the menu is open, never global. See `routeLetter`.
+   */
+  accelerator?: string;
   /** Highlighted by the keys and the pointer like any row, but choosing it does nothing (Base UI keeps it focusable). */
   disabled?: boolean;
 }
@@ -108,6 +113,8 @@ export interface ItemRow {
   label: string;
   icon?: IconName;
   shortcut?: string;
+  /** Lower case, one of `TYPING_KEYS`; see `Choosable`. */
+  accelerator?: string;
   danger: boolean;
   disabled: boolean;
   checked: boolean;
@@ -148,6 +155,7 @@ export function menuRows(entries: readonly MenuEntry[]): MenuRow[] {
             label: entry.label,
             icon: entry.icon,
             shortcut: entry.shortcut,
+            accelerator: letterOf(entry),
             danger: false,
             disabled: !!entry.disabled,
             checked: entry.checked,
@@ -162,6 +170,7 @@ export function menuRows(entries: readonly MenuEntry[]): MenuRow[] {
               label: item.label,
               icon: item.icon,
               shortcut: item.shortcut,
+              accelerator: letterOf(item),
               danger: false,
               disabled: !!(entry.disabled || item.disabled),
               checked: entry.value === item.value,
@@ -187,6 +196,7 @@ export function menuRows(entries: readonly MenuEntry[]): MenuRow[] {
           label: entry.label,
           icon: entry.icon,
           shortcut: entry.shortcut,
+          accelerator: letterOf(entry),
           danger: !!entry.danger,
           disabled: !!entry.disabled,
           checked: false,
@@ -198,7 +208,50 @@ export function menuRows(entries: readonly MenuEntry[]): MenuRow[] {
   };
   add(entries);
   if (rows.length > 0 && rows[rows.length - 1].kind === "separator") rows.pop();
+  const taken = new Set<string>();
+  for (const row of rows) {
+    if (!isItem(row) || !row.accelerator) continue;
+    if (taken.has(row.accelerator)) {
+      row.accelerator = undefined;
+      warnOnce(`menu: "${row.label}" repeats an accelerator: the first item that has it wins`);
+    } else taken.add(row.accelerator);
+  }
   return rows;
+}
+
+const warned = new Set<string>();
+function warnOnce(message: string) {
+  if (warned.has(message)) return;
+  warned.add(message);
+  console.warn(message);
+}
+
+/** The accelerator of an entry as stored on its row: one plain letter or digit, folded; anything else is dropped with a warning. */
+function letterOf(entry: Choosable): string | undefined {
+  const key = entry.accelerator?.toLowerCase();
+  if (key === undefined) return undefined;
+  if (!TYPING_KEYS.includes(key)) {
+    warnOnce(`menu: the accelerator "${entry.accelerator}" of "${entry.label}" must be one letter or digit`);
+    return undefined;
+  }
+  if (entry.shortcut)
+    warnOnce(`menu: "${entry.label}" has a shortcut and an accelerator: only the accelerator is shown`);
+  return key;
+}
+
+/**
+ * What a plain letter does in the open menu's innermost panel. An accelerator wins over type-to-find, but only in a menu
+ * that declares one, and only while no word is being typed: "re" must still find "Rename" when `r` is an accelerator, so
+ * a letter that continues a live word stays typing. A disabled item's letter does nothing special (it types). Pure.
+ */
+export function routeLetter(
+  rows: readonly MenuRow[],
+  key: string,
+  typingLive: boolean,
+): { kind: "accelerator"; index: number } | { kind: "type" } {
+  if (typingLive) return { kind: "type" };
+  const index = rows.findIndex((r) => isItem(r) && r.accelerator === key && !r.disabled);
+  return index >= 0 ? { kind: "accelerator", index } : { kind: "type" };
 }
 
 const POPUP = `min-w-52 max-w-80 rounded-lg bg-popover p-1 text-popover-foreground ${EDGE.md}`;
@@ -224,7 +277,8 @@ export function menuWidth(rows: readonly MenuRow[]): number {
     if (row.kind !== "label") {
       if (icons) w += 16 + 12;
       if (row.kind === "submenu" || row.kind === "check" || row.kind === "radio") w += 14 + 12;
-      if (row.kind !== "submenu" && row.shortcut) w += 12 + glyphs(row.shortcut) * KEY_GLYPH + 14;
+      if (row.kind !== "submenu" && row.accelerator) w += 12 + KEY_GLYPH;
+      else if (row.kind !== "submenu" && row.shortcut) w += 12 + glyphs(row.shortcut) * KEY_GLYPH + 14;
     }
     widest = Math.max(widest, w);
   }
@@ -426,7 +480,9 @@ interface Level {
 
 /** The inside of a row: a column for icons when the panel has any, the label, the tick, the shortcut, the chevron of a submenu. */
 function RowContent(props: { row: () => ItemRow | SubmenuRow; icons: boolean }) {
-  const shortcut = () => (props.row().kind === "submenu" ? undefined : (props.row() as ItemRow).shortcut);
+  const accelerator = () => (props.row().kind === "submenu" ? undefined : (props.row() as ItemRow).accelerator);
+  const shortcut = () =>
+    props.row().kind === "submenu" || accelerator() ? undefined : (props.row() as ItemRow).shortcut;
   const tone = () => rowTone(props.row());
   return (
     <>
@@ -440,6 +496,20 @@ function RowContent(props: { row: () => ItemRow | SubmenuRow; icons: boolean }) 
       <View class="min-w-0 flex-1" />
       <If when={isChecked(props.row())}>
         <Icon name="check" size={14} tone="primary" />
+      </If>
+      <If when={accelerator()}>
+        {(letter) => (
+          // Decorative like the keycap: the row's name is its label.
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            class="min-w-4 shrink-0 items-center"
+          >
+            <Text style={NUM} class="text-xs text-muted-foreground">
+              {letter().toUpperCase()}
+            </Text>
+          </View>
+        )}
       </If>
       <If when={shortcut()}>{(keys) => <Kbd keys={keys()} />}</If>
       <If when={props.row().kind === "submenu"}>
@@ -891,7 +961,16 @@ export function Surface(props: {
   );
   // A space after letters is part of the word; alone it chooses, like Return.
   keymap.bind("space", () => (isTyping(typing, Date.now()) ? type(" ") : choose()));
-  keymap.bind(Object.fromEntries(TYPING_KEYS.map((l) => [l, () => type(l)])));
+  const letter = (l: string) => {
+    const level = top();
+    const hit = level ? routeLetter(level.rows(), l, isTyping(typing, Date.now())) : undefined;
+    if (!level || hit?.kind !== "accelerator") return type(l);
+    typing = undefined;
+    session.keyboard = true;
+    level.go(hit.index, true);
+    level.activate();
+  };
+  keymap.bind(Object.fromEntries(TYPING_KEYS.map((l) => [l, () => letter(l)])));
 
   // A dialog opened from a menu item must not leave the menu floating under its scrim.
   const depth = dialogDepth();

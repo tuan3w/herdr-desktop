@@ -320,7 +320,7 @@ export function paletteEnter(open: () => boolean) {
 }
 
 /**
- * What nsh's `Toast` takes to enter and leave: it has no look of its own. It enters from 12 pt below with a fade
+ * What nsh's `Toast` takes to enter and leave: it has no look of its own. It enters from 12 pt above with a fade
  * (`DURATION.toast`, ease-out) and leaves with a fade and a small shrink (`DURATION.toastExit`, ease-in; the store keeps
  * it built that long, `exitMs`). `swipingClass` stops the transition while a pointer drags it: it follows 1:1. Nothing
  * under reduced motion (nsh applies only the system setting itself).
@@ -329,7 +329,7 @@ export function toastLook(): { class?: string; startingClass?: string; endingCla
   if (reducedMotion()) return {};
   return {
     class: `transition-[opacity,transform] duration-[${DURATION.toast}ms] ease-[${bezier(OUT_CURVE)}]`,
-    startingClass: "opacity-0 translate-y-3",
+    startingClass: "opacity-0 -translate-y-3",
     endingClass: `opacity-0 scale-[0.97] duration-[${DURATION.toastExit}ms] ease-[${bezier(IN_CURVE)}]`,
     swipingClass: "transition-none",
   };

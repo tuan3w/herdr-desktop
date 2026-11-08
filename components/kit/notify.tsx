@@ -409,7 +409,7 @@ function ToastItem(props: { toast: () => ToastRecord<Data> }) {
 }
 
 /**
- * Draws the toasts bottom center, in the root view that is on top: the app's, or the newest open dialog's (a dialog is a
+ * Draws the toasts at the top right under the header (never over the composer or the answer dock), in the root view that is on top: the app's, or the newest open dialog's (a dialog is a
  * root view of its own and covers the app, so a toast drawn in the app would sit under its scrim). `Modal` mounts one for
  * its dialog; `App.tsx` mounts the app's. Only one of them shows, so a toast is never drawn or read twice.
  */
@@ -431,11 +431,19 @@ export function ToastHost(props: { dialog?: string }) {
   return (
     <If when={here() && shown().length > 0}>
       <Overlay
-        style={{ position: "absolute", bottom: 20, left: 0, right: 0, alignItems: "center", pointerEvents: "box-none" }}
+        style={{
+          position: "absolute",
+          top: 52,
+          left: 0,
+          right: 0,
+          paddingRight: 16,
+          alignItems: "flex-end",
+          pointerEvents: "box-none",
+        }}
       >
         <ToastStack
           class="w-[400px]"
-          placement="bottomCenter"
+          placement="topRight"
           closeOnEscape={false}
           onExpandedChange={({ expanded }) => (expanded ? pauseFor("hover") : resumeFor("hover"))}
         >

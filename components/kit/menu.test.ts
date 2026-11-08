@@ -8,6 +8,7 @@ import {
   menuRows,
   menuWidth,
   roomAround,
+  routeLetter,
   rowTone,
   snapScroll,
 } from "./menu";
@@ -160,4 +161,26 @@ test("a disabled row is plain muted, a danger one included; an enabled danger ro
   ]) as ItemRow[];
   expect(rowTone(off)).toEqual({ text: "text-muted-foreground", icon: "muted-foreground" });
   expect(rowTone(on)).toEqual({ text: "text-destructive", icon: "destructive" });
+});
+
+test("an accelerator is lower case on its row, the first item with a letter keeps it, a bad one is dropped", () => {
+  const rows = menuRows([
+    { label: "Pin", accelerator: "P", onSelect: () => {} },
+    { label: "Plan", accelerator: "p", onSelect: () => {} },
+    { label: "Odd", accelerator: "pp", onSelect: () => {} },
+    { label: "Open", shortcut: "⌘O", accelerator: "o", onSelect: () => {} },
+  ]);
+  expect(rows.map((r) => (r as ItemRow).accelerator)).toEqual(["p", undefined, undefined, "o"]);
+});
+
+test("a letter runs an enabled accelerator, but only when no word is being typed", () => {
+  const rows = menuRows([
+    { label: "Pin", accelerator: "p", onSelect: () => {} },
+    { label: "Locked", accelerator: "l", disabled: true, onSelect: () => {} },
+    { label: "Share", onSelect: () => {} },
+  ]);
+  expect(routeLetter(rows, "p", false)).toEqual({ kind: "accelerator", index: 0 });
+  expect(routeLetter(rows, "p", true)).toEqual({ kind: "type" });
+  expect(routeLetter(rows, "l", false)).toEqual({ kind: "type" });
+  expect(routeLetter(rows, "s", false)).toEqual({ kind: "type" });
 });

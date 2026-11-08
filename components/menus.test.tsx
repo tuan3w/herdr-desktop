@@ -193,3 +193,39 @@ test("a context menu opens where the row is pressed and its checkbox keeps it op
   await app.keyboard.press("escape");
   expect(app.shows("label:Show finished sessions, checked")).toBe(false);
 });
+
+test("an accelerator runs its item and closes the menu only while that menu is open", async () => {
+  const app = await lab();
+  await app.keyboard.press("p");
+  expect(app.texts()).toContain("Acted: none");
+  await app.press("label:Accelerated");
+  await app.keyboard.press("r");
+  expect(app.texts()).toContain("Acted: rename");
+  expect(app.shows("label:Pin")).toBe(false);
+  // Closed again: the letter is nobody's.
+  await app.keyboard.press("d");
+  expect(app.texts()).toContain("Acted: rename");
+});
+
+test("a disabled item ignores its accelerator and the menu stays open", async () => {
+  const app = await lab();
+  await app.press("label:Accelerated");
+  await app.keyboard.press("l");
+  expect(app.texts()).toContain("Acted: none");
+  expect(app.shows("label:Pin")).toBe(true);
+});
+
+test("in a menu with accelerators a letter without one still finds a row, and a live word is not hijacked", async () => {
+  const app = await lab();
+  await app.press("label:Accelerated");
+  await app.keyboard.press("s");
+  await app.keyboard.press("enter");
+  expect(app.texts()).toContain("Acted: share");
+
+  await app.press("label:Accelerated");
+  await app.keyboard.press("s");
+  // "sa" is still a word being typed: it finds nothing and does not archive.
+  await app.keyboard.press("a");
+  expect(app.texts()).toContain("Acted: share");
+  expect(app.shows("label:Pin")).toBe(true);
+});

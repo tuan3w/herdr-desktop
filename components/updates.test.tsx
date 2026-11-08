@@ -19,7 +19,11 @@ async function inSettings(
   storage?: Record<string, string>,
 ): Promise<App> {
   const a = await open("./machines-lab.tsx", { ...DESKTOP, network, storage });
-  await a.press("Open settings");
+  // A press that lands while the lab is still drawing is lost; opening Settings twice is the same as once.
+  for (let attempt = 0; attempt < 5 && !a.shows("label:About"); attempt++) {
+    await a.press("Open settings");
+    await a.waitUntil(() => a.shows("label:About"), { timeout: 2000 }).catch(() => undefined);
+  }
   // The check is made when About is shown: nothing leaves the computer unless the person looks at it.
   await a.press("label:About");
   return a;
