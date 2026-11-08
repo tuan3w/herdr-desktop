@@ -1,6 +1,8 @@
 # A real terminal in herdr-desktop: decision, numbers, prototype
 
-Status: **decided, phase 1 built (mouse, selection, copy and paste, fonts, option-as-meta), built in by default, not reachable from the UI yet** (phase 2: the tab, `Show terminal`, hint line, palette, remote machines). The pane tab is a read-only view (`design/pane.md`); this is what replaces the phone's key row and typing mode when the owner wants it.
+Status: **decided; phase 1 (the widget: mouse, selection, copy and paste, fonts, option-as-meta) and phase 2 (the terminal tab, the Chat and Terminal switch `mod+shift+m`, the hint line, the palette chord `mod+shift+l`, remote machines through `herdr --remote` or `ssh -t`) are built.** The tab is `design/pane.md`; the command it runs is `lib/terminal-command.ts`. The read-only pane view is gone.
+
+Status now: **off by default** (`terminalEnabled`, Settings: `Terminal tab (experimental)`): the tab can send nsh's reactive runtime into a loop; see `docs/STATUS.md`.
 
 ## The model
 
@@ -74,7 +76,7 @@ nsh 0.4.0 has no raw key event, only keymap bindings, and `Keymap::find` takes *
 The rule (`keys::app_owns`, `keys::bound`), on Windows and Linux where `mod` is Ctrl:
 
 - **The program gets every key a terminal can encode:** all named keys and F1-F24 with Shift, Ctrl and Alt (not Ctrl+Shift), `Ctrl+<letter>` and `Ctrl+[ ] \ / space`, `Alt+<printable>` and `Alt+Shift+<letter>`. So Ctrl+K, E, J, N, W, P, F, B, Z and Ctrl+/ are the shell's and the editor's, F1 is the program's help.
-- **The app keeps** every chord with Ctrl *and* Shift (a terminal cannot tell it from the plain chord), `Ctrl+Tab`, `Ctrl+,`, `Ctrl+<digit>`, every Command chord on a Mac. `Ctrl+Shift+<digit>` (tabs) is therefore always the way out. **Open conflict (2026-11-08):** the palette is now `Ctrl+P`, which a terminal program owns (shell: previous command), and `Ctrl+Shift+P` is the file search, so inside a terminal tab the palette has no key. It needs a Ctrl+Shift chord of its own for a focused terminal (to choose with the owner).
+- **The app keeps** every chord with Ctrl *and* Shift (a terminal cannot tell it from the plain chord), `Ctrl+Tab`, `Ctrl+,`, `Ctrl+<digit>`, every Command chord on a Mac. `Ctrl+Shift+<digit>` (tabs) is therefore always the way out. **Open conflict (2026-11-08):** the palette is now `Ctrl+P`, which a terminal program owns (shell: previous command), and `Ctrl+Shift+P` is the file search, so inside a terminal tab the palette had no key. Resolved in phase 2: the palette also answers `mod+shift+l` (`mod+shift+o` was taken by attach files), and the hint line names it.
 - Not bound at all: `Ctrl+Alt+<char>` (AltGr types characters on many layouts), plain and Shift text, anything the host reserves (Ctrl+Q, F11: skipped at bind time).
 - Copy and paste: `Ctrl+C` copies only while text is selected, else it is the interrupt; `Ctrl+Shift+C` and `Ctrl+Shift+V`, `Shift+Insert` (Command+C and V on a Mac) always. `Shift+PageUp/PageDown/Home/End` scroll the history.
 - A focus ring (2 px `ring` token) is drawn while the program has the keyboard; unfocused, the cursor is an outline. The embedding screen must show a persistent line, for example `Keys go to the program. <the chosen Ctrl+Shift chord>: palette`, announced once on entry. **Not built yet**: the hint line and any dock integration.
@@ -112,7 +114,7 @@ Measured on macOS 26 arm64 with a build from `cargo test --features terminal`: l
 - **No render was made** and no idle fps or CPU measured: the disk fell under 1 GiB (see the task report) and a macOS host build was not safe. `components/terminal-lab.tsx` and the scenarios `terminal-tui`, `terminal-vim`, `terminal-ls` (`.shots/scenarios.ts`, programs under `.scratch/term/`) exist and type-check; run them with `make shots-mac` or `scripts/nsh-test-mac.sh`, and the idle figure with `--fps`. The last idle check is only the pty one: no frame is published while nothing changes. A cursor blink or bell flash holds frames only for 160 ms (`flash`) and blink is off by default.
 - Autoscroll outside the view and the pointer look: unverified in a window.
 - IME composition is not drawn; screen readers are not told of new output; selection by keyboard is absent; OSC 52 writes need `allowClipboardWrite`; kitty graphics are decoded and ignored.
-- Not reachable from the UI: no tab, palette entry, hint line or `Show terminal` (phase 2), and no remote machine.
+- Phase 2 is reachable from the UI (see Status). Unverified: a real herdr client attached to a real session, several clients on one session, a remote machine, and key delivery on GTK.
 - zig 0.15.2 on macOS 26 needs the `xcrun` wrapper (`docs/DEVELOPMENT.md` "Building the terminal"); CI workflows got a zig step that has not run.
 
 ## How to try it

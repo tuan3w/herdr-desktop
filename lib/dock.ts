@@ -7,6 +7,7 @@ import type { DockAreaLayout, DockAreaRef, DockNode, Placement } from "nsh/base"
 import { board, projectOf, rowOf } from "#lib/herdr";
 import { focusComposer, paneInFront } from "#lib/pane-input";
 import { save } from "#lib/save";
+import { terminalEnabled } from "#lib/settings";
 import { forgetView } from "#lib/view-state";
 
 /**
@@ -23,7 +24,7 @@ import { forgetView } from "#lib/view-state";
  * the context the person is in (which moves it: a tab is in one context only). A project context may be empty (the
  * workspace then shows the project's own card); the board is never closable, so `HOME` never is.
  *
- * Panel keys: `board` (the home tab, never closable), `pane:<machine>/<paneId>` (a terminal pane mirrored) and
+ * Panel keys: `board` (the home tab, never closable), `terminal:<machine>/<paneId>` (the real terminal of a pane: the herdr client attached to it) and
  * `session:<machine>/<id>` (a chat: an agent session of a keeper, or, with the id `pane:<paneId>`, the chat read from
  * the log of the agent in that terminal pane). A tab is a view: closing it never closes the pane or the session.
  */
@@ -39,14 +40,20 @@ export const CONTEXT_CAP = 60;
 export const GONE_AFTER_MS = 30 * 24 * 3600 * 1000;
 /** Quiet time before the layout is written: it is reported on every edit, a tab selection and a resize included. */
 export const SAVE_DELAY_MS = 500;
+/** The prefix of a chat's id when it is read from a terminal agent's log (`session:<machine>/pane:<paneId>`). */
 const PANE = "pane:";
+const TERMINAL = "terminal:";
 const SESSION = "session:";
 const CHANGES = "changes:";
+const FILES = "files:";
 
-export const paneKey = (machine: string, pane: string): string => `${PANE}${machine}/${pane}`;
+export const terminalKey = (machine: string, pane: string): string => `${TERMINAL}${machine}/${pane}`;
 export const sessionKey = (machine: string, id: string): string => `${SESSION}${machine}/${id}`;
 /** A checkout's Changes tab: `cwd` is an absolute folder on the machine (so the key holds `//` after the machine). */
 export const changesKey = (machine: string, cwd: string): string => `${CHANGES}${machine}/${cwd}`;
+
+/** A Files tab: `dir` is the folder it was opened on, an absolute folder on the machine or `~` (the key holds `//` after the machine). */
+export const filesKey = (machine: string, dir: string): string => `${FILES}${machine}/${dir}`;
 
 /** Splits `<prefix><machine>/<rest>`; pane and session ids hold `:` (and `pane:`) but a machine id never holds `/`. */
 function split(prefix: string, key: string): { machine: string; rest: string } | null {
@@ -57,8 +64,8 @@ function split(prefix: string, key: string): { machine: string; rest: string } |
 }
 
 /** The machine and pane a panel key names, `null` for the board and for anything else. */
-export function parsePaneKey(key: string): { machine: string; pane: string } | null {
-  const at = split(PANE, key);
+export function parseTerminalKey(key: string): { machine: string; pane: string } | null {
+  const at = split(TERMINAL, key);
   return at && { machine: at.machine, pane: at.rest };
 }
 
@@ -74,9 +81,15 @@ export function parseChangesKey(key: string): { machine: string; cwd: string } |
   return at && at.rest.startsWith("/") ? { machine: at.machine, cwd: at.rest } : null;
 }
 
+/** The machine and folder a Files tab's key names, `null` for anything else. */
+export function parseFilesKey(key: string): { machine: string; dir: string } | null {
+  const at = split(FILES, key);
+  return at && (at.rest.startsWith("/") || at.rest.startsWith("~")) ? { machine: at.machine, dir: at.rest } : null;
+}
+
 /** The key of the board row a tab is about (`BoardRow.key`), `null` for the board: a pane, a terminal agent's chat and a keeper session each map to their one row. */
 export function rowKeyOf(panel: string): string | null {
-  const pane = parsePaneKey(panel);
+  const pane = parseTerminalKey(panel);
   if (pane) return `${pane.machine}/${pane.pane}`;
   const chat = parseSessionKey(panel);
   if (!chat) return null;
@@ -87,7 +100,11 @@ export function rowKeyOf(panel: string): string | null {
 
 const validKey = (key: unknown): key is string =>
   typeof key === "string" &&
-  (key === BOARD || parsePaneKey(key) !== null || parseSessionKey(key) !== null || parseChangesKey(key) !== null);
+  (key === BOARD ||
+    parseTerminalKey(key) !== null ||
+    parseSessionKey(key) !== null ||
+    parseChangesKey(key) !== null ||
+    parseFilesKey(key) !== null);
 
 export function defaultLayout(): DockAreaLayout {
   return { center: { type: "split", axis: "horizontal", children: [{ type: "tabs", panels: [BOARD] }] } };
@@ -147,8 +164,8 @@ export interface CompanionFacts {
 
 /**
  * The view that goes beside `key` when a person splits it alone: an agent's chat gets its Changes (a git folder) or else
- * the terminal of its pane; Changes and a terminal get the agent's own view. Never the key itself, so a split never
- * shows one view twice. `why` says what to do when there is none (the board, a keeper's chat outside a repository).
+ * the terminal of its pane (only while the terminal tab is on, `terminalEnabled`); Changes and a terminal get the agent's
+ * own view. Never the key itself, so a split never shows one view twice. `why` says what to do when there is none (the board, a keeper's chat outside a repository).
  */
 export function companionOf(key: string, facts: CompanionFacts): { key: string } | { why: string } {
   if (key === BOARD) return { why: "The board has no split: open an agent, then split it" };
@@ -158,15 +175,18 @@ export function companionOf(key: string, facts: CompanionFacts): { key: string }
       ? { key: facts.view }
       : { why: "No agent works in this folder: start one to show beside the changes" };
   }
-  const folder = facts.cwd ? changesKey(parsePaneKeyMachine(key), facts.cwd) : null;
+  const folder = facts.cwd ? changesKey(parseTerminalKeyMachine(key), facts.cwd) : null;
   if (folder && facts.repo) return { key: folder };
   const chat = parseSessionKey(key);
-  if (chat?.id.startsWith(PANE)) return { key: paneKey(chat.machine, chat.id.slice(PANE.length)) };
+  const pane = chat?.id.startsWith(PANE) === true;
+  if (chat && pane && terminalEnabled()) return { key: terminalKey(chat.machine, chat.id.slice(PANE.length)) };
   if (facts.view && facts.view !== key) return { key: facts.view };
-  return { why: "Nothing to show beside this: its folder is not a git repository and it has no terminal" };
+  return {
+    why: `Nothing to show beside this: its folder is not a git repository and ${pane ? "the terminal tab is off" : "it has no terminal"}`,
+  };
 }
 
-const parsePaneKeyMachine = (key: string): string => (parseSessionKey(key) ?? parsePaneKey(key))?.machine ?? "";
+const parseTerminalKeyMachine = (key: string): string => (parseSessionKey(key) ?? parseTerminalKey(key))?.machine ?? "";
 
 /** A node cleaned of what a stale or edited file could hold; `null` when nothing of it is left. */
 function clean(node: unknown, seen: Set<string>): DockNode | null {
@@ -174,7 +194,9 @@ function clean(node: unknown, seen: Set<string>): DockNode | null {
   const n = node as Record<string, unknown>;
   if (n.type === "tabs" && Array.isArray(n.panels)) {
     const panels: string[] = [];
-    for (const p of n.panels) {
+    for (const saved of n.panels) {
+      // A layout saved before the terminal tab named a pane's tab `pane:<machine>/<id>`.
+      const p = typeof saved === "string" && split(PANE, saved) ? `${TERMINAL}${saved.slice(PANE.length)}` : saved;
       if (!validKey(p) || seen.has(p)) continue;
       seen.add(p);
       panels.push(p);
@@ -576,7 +598,7 @@ export function focusedPane(): { machine: string; pane: string } | null {
   const key = focused();
   const chat = parseSessionKey(key);
   if (chat) return chat.id.startsWith(PANE) ? { machine: chat.machine, pane: chat.id.slice(PANE.length) } : null;
-  return parsePaneKey(key);
+  return parseTerminalKey(key);
 }
 
 // ---- contexts ----
@@ -623,6 +645,8 @@ export function homeOf(key: string): string | null {
   if (key === BOARD) return HOME;
   const changes = parseChangesKey(key);
   if (changes) return folderProject(changes.machine, changes.cwd);
+  const files = parseFilesKey(key);
+  if (files) return folderProject(files.machine, files.dir);
   const row = rowKeyOf(key);
   return (row !== null ? rowOf(row)?.project : undefined) ?? null;
 }
@@ -743,6 +767,8 @@ export interface OpenOptions {
  */
 export async function openPanel(key: string, options: OpenOptions = {}): Promise<void> {
   if (!area) return;
+  // The person asked for this view, so a terminal may start its program (a restored layout never comes through here).
+  if (parseTerminalKey(key)) armIfOn(key);
   const holder = holderOf(key);
   if (holder === context()) {
     area.selectPanel(key);
@@ -773,13 +799,43 @@ export async function openPanel(key: string, options: OpenOptions = {}): Promise
 export const openSession = (machine: string, id: string, options?: OpenOptions): Promise<void> =>
   openPanel(sessionKey(machine, id), options);
 
-/** Opens a pane's tab; `reply` (the board's `Reply…`) also puts the keyboard in its message box. */
-export async function openPane(
+/**
+ * Terminal tabs the person opened in this run (tab key, and whether herdr still has to be pointed at the pane). A tab
+ * restored from the saved layout is not in it: it shows `Press Return to reconnect` instead of attaching to a live agent
+ * session on its own.
+ */
+const armed = new Map<string, boolean>();
+
+/**
+ * Arms a tab the person opened, only while the terminal tab is on (`terminalEnabled`): a tab opened while it is off shows
+ * how to open the agent elsewhere, and turning the setting on later must not attach it by itself (it then reads `Press
+ * Return to reconnect`).
+ */
+function armIfOn(key: string): void {
+  if (terminalEnabled()) arm(key);
+}
+
+/** Whether a terminal tab may start its program: the person opened it (or pressed Return in it) in this run. */
+export const isArmed = (key: string): boolean => armed.has(key);
+export const arm = (key: string): void => void armed.set(key, true);
+
+/** True once after each `arm`: the tab then points herdr at the pane (`pane.focus`) before it attaches the client. */
+export function takePointing(key: string): boolean {
+  if (armed.get(key) !== true) return false;
+  armed.set(key, false);
+  return true;
+}
+
+/**
+ * Opens a pane's terminal tab (the person asked for it, so it may start its program); `reply` also puts the keyboard in it.
+ * The tab itself points herdr at the pane before it attaches the client (`takePointing`), so opening never waits for herdr.
+ */
+export async function openTerminal(
   machine: string,
   pane: string,
   options?: OpenOptions & { reply?: boolean },
 ): Promise<void> {
-  await openPanel(paneKey(machine, pane), options);
+  await openPanel(terminalKey(machine, pane), options);
   if (options?.reply) await focusComposerSoon();
 }
 
@@ -891,6 +947,7 @@ export async function moveFocused(where: Placement | "other"): Promise<boolean> 
  */
 export async function openBeside(key: string, where: "right" | "bottom" = "right"): Promise<boolean> {
   if (!area || key === "") return false;
+  if (parseTerminalKey(key)) armIfOn(key);
   const anchor = focused();
   const at = groupOf(layout(), key);
   const together = at !== undefined && at.panels.includes(anchor);

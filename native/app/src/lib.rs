@@ -6,9 +6,9 @@
 //! * [`api`] is the `Herdr` module TSX calls: it pulls state after a tick and acts on it.
 //! * [`compose`] is the `Compose` module: what a chat's message box needs (pictures, the file dialog, `@`).
 //! * [`diagrams`] serves the bundled mermaid script to the web views that draw diagrams.
-//! * [`feed`] is the seam between the engine and `PaneScreen`.
+//! * [`feed`] is the seam between the engine and the pane screens it reads (the board's previews, the prompts).
 //! * [`highlight`] reads code into coloured spans (tree-sitter, TextMate) and draws it: `CodeView`, `CodeDiff`, the `Code` module.
-//! * [`pane_screen`] draws a pane's rows; [`keys`] maps keystrokes to herdr key names.
+//! * [`pane_screen`] no longer draws anything in the app (the `PaneScreen` component is not registered: the terminal tab replaced it); its colour, segment and layout helpers are the `Terminal`'s. [`keys`] maps keystrokes to herdr key names.
 //! * [`metrics`] is what the dev panel shows about the live pane path.
 //! * [`files`] is the `Files` and `Pages` modules: the file browser, viewers, `Send a file` and tunnels to a machine's pages.
 //! * [`media`] is the `Media` and `Lines` modules: the player's copies of other machines' files, codecs, hex peeks, archive lists and big text read by lines.
@@ -58,6 +58,5 @@ fn native(registry: &mut Registry) {
         .module::<search::Search>()
         .register::<highlight::view::CodeDiff>()
         .register::<highlight::view::CodeView>()
-        .register::<pane_screen::PaneScreen>()
         .register::<terminal::Terminal>();
 }

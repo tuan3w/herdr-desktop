@@ -1,44 +1,24 @@
-# The pane tab
+# The terminal tab
 
-`components/pane-tab.tsx` (`PaneTab`) and its parts: `pane-header.tsx`, `pane-find.tsx`, `composer.tsx`, `links-dialog.tsx`. The rules live in `lib/pane-input.ts` (pure, with tests). `pane-tab.test.tsx` drives it through `pane-lab.tsx` against the scripted herdr. The chat's slash commands are `lib/slash.ts` and `lib/pane-memory.ts` (`design/chat.md`).
+`components/terminal-tab.tsx` (`TerminalTab`) with `terminal-header.tsx`. The program it runs is composed in `lib/terminal-command.ts` (pure, a table of shapes and refusals in its test); the rules for which view opens an agent are `lib/open-agent.ts`. What the widget is and how its keys work is `docs/specs/terminal.md`. The chat's own tab is `design/chat.md`.
 
-## Decided, not built yet
-
-Owner decision 2026-11-07, from a prototype (unverified in the app):
-
-- **One header line.** It names the agent and carries its actions; it shows no state word and no glyph, because the agent's state is the mark on its sidebar row and, while it works, one muted live line in the conversation saying what it is doing now (`design/attention.md`). Why: a working agent was drawn eight times (tab, header glyph, header word, sidebar glyph, meta line, group count, status bar, turn footer).
-- **The answer dock replaces the composer** while the agent asks something, in the same place, so the question and the reply box are never both open (`design/board.md`).
-- **Facts about the agent move to the inspector** (where it runs, branch, context used, changes, files, subagents, terminal), not text buttons that open dialogs. Subagents and background jobs are inspector content: a sticky panel over the conversation took about 40% of the height with the tab strip and header.
-- **One left edge.** Header, conversation and composer share a gutter; the conversation keeps a readable measure (about 720 pt) and extra width goes to the inspector.
-- **The composer is one line tall until the text needs more**, shows an attachment once (a thumbnail, with no `[Image #n]` text beside it), and keeps its help line inside the box.
-
-A chat's header ends with `Open beside` (the columns icon, `mod+\`): a second view of the agent, its Changes or terminal, next to the conversation (`design/tabs.md`, Splits).
-
-Today's code is the layout below.
+**Off by default for now** (owner decision, 2026-11-08): with a terminal tab open, switching to the Board could send nsh's reactive runtime into a loop (`docs/STATUS.md`). The setting `terminalEnabled` (Settings, Look, `Terminal tab (experimental)`) turns it on; the terminal's own rows there are disabled with `Turn on the terminal tab first` while it is off. Off: no header has `Terminal`, `mod+shift+m` only says the tab is off (the shortcuts sheet leaves it out, `listedShortcuts`), the palette has no `Show terminal`, a split never picks a terminal as companion, and an agent that can be read as a chat always opens it. An agent that cannot still opens its terminal tab, which mounts no `Terminal` and none of its effects (`TerminalOff`, `components/terminal-off.tsx`): the agent's name, one line `This agent has no chat here. Open it in your terminal:`, the exact command (`herdr`, `herdr --session …`) as selectable mono text with `Copy`, and `Turn on the terminal tab`; a tab of an agent that has a chat (restored from a layout) also offers `Show chat`. A tab opened or restored while off is never armed, so turning the setting on shows `Press Return to reconnect`. Everything below is the tab while on.
 
 ## What it is
 
-A **read-only view**: herdr gives the app the rows of the pane and takes text and key names back; there is no cursor and no mouse, so it cannot be a terminal and does not pretend to be one. The tab says so: its title is `<agent> (view)` and the header says `Read-only view`. Top to bottom (today): `PaneHeader`, a notice when the machine is not connected (the text is the last it showed, sending is off), `PaneFind` while open, the `PaneScreen`, `AnswerDock` while the agent asks something, `Composer`. A pane herdr no longer has shows `This agent is gone` and nothing to send to.
+A real terminal: a pty running herdr's own client, drawn by `Terminal`, with the whole keyboard and mouse. It is the way to **work in** an agent; the chat is the way to **supervise** it. An agent that omp, Claude Code or Codex runs opens as its chat, with the terminal one press away; a shell, or an agent whose log cannot be found, opens as the terminal. The tab's title is `<agent> (terminal)`.
 
-The pane's columns fill the width (`PaneScreen` scales the font from `paneFontSize` down to 9 pt, then the view scrolls sideways); the person has no layout choice. There are no key buttons, no typing mode and no command list in this tab: a keyboard belongs in a real terminal, which this app does not have yet (`docs/specs/terminal.md` decides what it will be: libghostty-vt, built in, with mouse and selection, but no tab shows it yet).
+Top to bottom: the header (`TerminalHeader`), a notice when the machine is not connected, the terminal, one muted hint line. The header names the agent and its machine and folder, and carries `Chat` (only when the agent has a chat; `mod+shift+m`), `Browse files` and `Pane options` (`Duplicate`, `Copy title`, `Copy pane id`). No `Stop`, no `Send`, no message box and no answer dock: typing goes to the program, Ctrl+C is the person's, and the app sends nothing the person did not type. A pane herdr no longer has shows `This agent is gone`.
 
-## What a person does here
+## Rules
 
-- **Answer** a question the agent asks with the `AnswerDock` chips (`design/board.md` for the safety rules).
-- **Stop** the agent (header, only while it works): `Herdr.sendKeys` of Escape.
-- **Say something** in the `Composer`, the one way to steer a terminal agent in a view with no keyboard of its own. Enter sends `Herdr.sendInput(text, ["enter"])` as one request; Shift+Enter is a new line; Enter on an empty box does nothing. While the dock shows, an *empty* Enter does nothing (Enter would pick whatever the agent has highlighted); typed text still goes, because a free-text reply is an answer. Text survives a failed send: it comes back in front of anything typed since, with the reason. A `/command` is plain text here. `focusComposer()` is the `Reply…` hand-off. A shell pane's box says `Send a line to <name>`.
-- **Look**: scroll, select, follow the end; `New output` pill when scrolled away.
-
-## Links, find, options
-
-- A link pressed in the view, or chosen in `LinksDialog` (palette entry `Links in this pane…`, Enter on a row), goes through `openLink` and `routeLink`: a file path opens in the file viewer (a folder in the browser), found in the pane's folder and the two above it on the pane's machine; a web address opens in the browser (`http` and `https` only); a page on a remote machine's own `localhost` opens in `WebPage` through a tunnel; anything else is copied. `design/files.md` has the rest. Files dropped on the tab are offered to the machine's folder (`SendFiles`), and `Browse files` in the header opens the pane's folder.
-- `PaneFind` (`mod+f`) reads the view's rows (`PaneScreenRef.rows`) at every query and step, so output that arrived meanwhile is found. Enter next, Shift+Enter previous, Escape closes; it starts at the last match and says `2 of 5` politely. `matchRows` ignores case, diacritics and invisible characters.
-- `Pane options`: find, links, `Duplicate` (an agent starts again in the same folder in a new tab of the workspace, a shell gets a new tab in its folder; the host's `onOpenPane` shows it), `Copy title`, `Copy pane id`.
-
-## Gone on purpose
-
-The key row (Esc, arrows, Ctrl+C), capture mode with its hint bar and `mod+shift+k`, the slash palette and quick phrases of the pane's box, `Wrap lines` and `Fit width`/`Actual size`. They were the phone's answer to having no keyboard; with a full keyboard they were clutter and a trap (capture mode took Escape and Ctrl+K from the person). Old settings (`paneFit`, `quickPhrases`) are ignored when read and absent from the next save.
+- **Chat and Terminal are one switch.** `Terminal` in a chat and `Chat` here swap the tab for the other view of the same pane (`showTerminal`, `showChat`), keep the choice for this run only, and say it once politely. A restart opens the chat again.
+- **Starting is the person's act.** The tab starts its program only when the person opened it in this run (`isArmed`). A tab restored from the saved layout says `Press Return to reconnect` and attaches on Return or `Reconnect`: a restart must never put a client into a live agent unasked. Return counts only while no text field is being edited.
+- **Pointing, then attaching.** The client opens on the session, not on one pane, so the tab first focuses the pane and zooms it through the public API (so the client shows that pane alone), then attaches. Closing the tab puts back a zoom the tab made, and hangs the program up.
+- **The way out of a terminal.** `mod+p` is a program's key on Windows and Linux, so the palette also answers `mod+shift+l`; the hint line names the chord that works. It is said once on entry and in the hint line, nowhere else.
+- **A program that ends** says so with its status and offers `Restart`.
+- Links the program prints open through `openLink`. Files dropped on the tab are offered to the machine's folder (`SendFiles`) and sent only after the person confirms.
 
 ## Not verifiable without a display
 
-Key delivery and focus on real GTK (Shift+Enter as a new line: the headless keyboard sends Shift+Enter as Enter), the look of the header and box, and the announcements (`announce` cannot be read by a test).
+Key delivery and focus on real GTK or AppKit, the look of the header and the hint, and the announcements (`announce` cannot be read by a test).

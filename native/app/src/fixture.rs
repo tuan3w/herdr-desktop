@@ -382,6 +382,11 @@ fn script(state: &Arc<State>, events: Vec<Value>, answers: Map<String, Value>) -
         script = script.on(method, json!({"type": "ok"}));
     }
     script = create_methods(script);
+    // A zoom the app asked for really changed herdr's zoom: a tab undoes only what it did (`terminal-tab.tsx`).
+    script = script.on(
+        "pane.zoom",
+        json!({"type": "pane_zoom", "changed": true, "zoom_changed": true, "focus_changed": false, "zoomed": true}),
+    );
     for (method, result) in answers {
         script = script.on(&method, result);
     }

@@ -31,6 +31,9 @@ pub use worktrees::*;
 
 static ENGINE: RwLock<Option<Arc<Engine>>> = RwLock::new(None);
 
+/// The program a terminal tab runs instead of the herdr client while the test seam is open (`Herdr.testSetProgram`).
+static TEST_PROGRAM: parking_lot::Mutex<Option<String>> = parking_lot::Mutex::new(None);
+
 /// The running engine, or why there is none.
 pub(crate) fn engine() -> Result<Arc<Engine>, String> {
     ENGINE
@@ -455,6 +458,11 @@ impl Herdr {
         run(move |engine| engine.focus_pane(&machine, &pane)).await
     }
 
+    /// Zooms a pane or puts it back (`pane.zoom`); true when herdr changed the zoom (see `Engine::zoom_pane`).
+    pub async fn zoom_pane(machine: String, pane: String, on: bool) -> Result<bool, String> {
+        run(move |engine| engine.zoom_pane(&machine, &pane, on)).await
+    }
+
     /// Starts an agent in a folder: herdr starts agents in an existing pane at a shell prompt, so a new
     /// tab (or workspace) is made first. When the agent does not start the new shell stays, and the error
     /// says so.
@@ -504,6 +512,32 @@ impl Herdr {
                 params: r.params,
             })
             .collect())
+    }
+
+    /// Test seam: the synthetic program every terminal tab runs in place of the herdr client (a `/bin/sh -c` line), or
+    /// `null` for none. Throws unless `HERDR_DESKTOP_TEST=1`: a stray call can never swap the owner's client for a script.
+    pub fn test_set_program(command: Option<String>) -> Result<(), String> {
+        if !crate::fixture::test_seam_open() {
+            return Err(format!("The test seam is closed: set {TEST_FLAG}=1"));
+        }
+        *TEST_PROGRAM.lock() = command;
+        Ok(())
+    }
+
+    /// The synthetic program set by `testSetProgram`, `null` outside a test run (the seam is closed there). With the seam
+    /// open and none set it is an idle `cat`: a test that opens a terminal tab without choosing a program must never start
+    /// the owner's real herdr client (it did once: a screen of the owner's herdr, and keys that could reach it).
+    pub fn test_program() -> Option<String> {
+        if crate::fixture::test_seam_open() {
+            Some(
+                TEST_PROGRAM
+                    .lock()
+                    .clone()
+                    .unwrap_or_else(|| "printf 'terminal (test)\\n'; exec cat".to_owned()),
+            )
+        } else {
+            None
+        }
     }
 
     /// Test seam: sends an event (`{ event, data }`) to the app as the scripted herdr's subscribers.

@@ -19,8 +19,8 @@ import {
   layoutOf,
   otherGroup,
   panelsOf,
-  paneKey,
-  parsePaneKey,
+  terminalKey,
+  parseTerminalKey,
   projectOfFolder,
   parseSessionKey,
   readDock,
@@ -33,20 +33,21 @@ import {
   withSplit,
   writeDock,
 } from "#lib/dock";
+import { terminalEnabled } from "#lib/settings";
 
-const A = paneKey("local", "w1:p1");
-const B = paneKey("m1", "w2:p3");
+const A = terminalKey("local", "w1:p1");
+const B = terminalKey("m1", "w2:p3");
 
 const split = (...cols: string[][]): DockAreaLayout => ({
   center: { type: "split", axis: "horizontal", children: cols.map((panels) => ({ type: "tabs", panels })) },
 });
 
 test("a pane key reads back to its machine and pane, ids with colons included, and nothing else is a pane", () => {
-  expect(parsePaneKey(A)).toEqual({ machine: "local", pane: "w1:p1" });
-  expect(parsePaneKey(B)).toEqual({ machine: "m1", pane: "w2:p3" });
-  expect(parsePaneKey(BOARD)).toBeNull();
-  expect(parsePaneKey("pane:local/")).toBeNull();
-  expect(parsePaneKey("pane:/w1:p1")).toBeNull();
+  expect(parseTerminalKey(A)).toEqual({ machine: "local", pane: "w1:p1" });
+  expect(parseTerminalKey(B)).toEqual({ machine: "m1", pane: "w2:p3" });
+  expect(parseTerminalKey(BOARD)).toBeNull();
+  expect(parseTerminalKey("pane:local/")).toBeNull();
+  expect(parseTerminalKey("pane:/w1:p1")).toBeNull();
 });
 
 test("a saved layout is reopened as it was, split sizes and the displayed tab included", () => {
@@ -137,7 +138,7 @@ test("a chat tab reads back to its machine and session, and every kind of tab na
   expect(parseSessionKey(keeper)).toEqual({ machine: "local", id: "abc234" });
   expect(parseSessionKey(observed)).toEqual({ machine: "local", id: "pane:w1:p1" });
   expect(parseSessionKey(A)).toBeNull();
-  expect(parsePaneKey(keeper)).toBeNull();
+  expect(parseTerminalKey(keeper)).toBeNull();
   expect(rowKeyOf(A)).toBe("local/w1:p1");
   // The terminal and the chat read from it are two views of one agent: one row.
   expect(rowKeyOf(observed)).toBe("local/w1:p1");
@@ -153,7 +154,7 @@ test("saved chat tabs reopen with the layout, next to the terminals", () => {
 
 // ---- contexts ----
 
-const C = paneKey("local", "w1:p3");
+const C = terminalKey("local", "w1:p3");
 const doc = (extra: Partial<Contexts> = {}): Contexts => ({
   current: HOME,
   contexts: { [HOME]: { layout: defaultLayout(), focused: BOARD, savedAt: 1 } },
@@ -291,11 +292,19 @@ const CHANGES = changesKey("local", "/src/pay");
 const why = (c: { key: string } | { why: string }): string => ("why" in c ? c.why : "");
 
 test("a chat in a git folder has its Changes as companion, else the terminal of its pane, else nothing to show and why", () => {
+  terminalEnabled.set(true);
   expect(companionOf(CHAT, { cwd: "/src/pay", repo: true })).toEqual({ key: CHANGES });
-  expect(companionOf(CHAT, { cwd: "/src/pay", repo: false })).toEqual({ key: paneKey("local", "w1:p1") });
-  expect(companionOf(CHAT, { repo: false })).toEqual({ key: paneKey("local", "w1:p1") });
+  expect(companionOf(CHAT, { cwd: "/src/pay", repo: false })).toEqual({ key: terminalKey("local", "w1:p1") });
+  expect(companionOf(CHAT, { repo: false })).toEqual({ key: terminalKey("local", "w1:p1") });
   // A keeper's session has no pane: outside a repository there is nothing to put beside it.
   expect(why(companionOf(KEEPER, { cwd: "/tmp/x", repo: false }))).toContain("git");
+  terminalEnabled.set(false);
+});
+
+test("with the terminal tab off a split never opens a terminal: a chat outside a repository says why instead", () => {
+  terminalEnabled.set(false);
+  expect(companionOf(CHAT, { cwd: "/src/pay", repo: true })).toEqual({ key: CHANGES });
+  expect(why(companionOf(CHAT, { cwd: "/src/pay", repo: false }))).toContain("the terminal tab is off");
 });
 
 test("a Changes tab has its folder's agent as companion; a terminal has Changes or its chat; the board has none", () => {
