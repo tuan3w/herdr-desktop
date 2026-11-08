@@ -1,10 +1,12 @@
 import { List, Text, View } from "nsh";
 
 import type { ChangeView } from "herdr-desktop/native";
+import type { InputRef } from "nsh/types";
 
-import { Clipped, FOCUS_RING_INSET, Icon, NUM, SearchField } from "#kit";
-import { fileLabel, type Item, KIND_MARK, splitPath, statsText } from "#lib/changes";
+import { Clipped, FOCUS_RING_INSET, GroupHeading, Icon, IconButton, NUM, SearchField } from "#kit";
+import { fileLabel, type Item, KIND_MARK, statsText } from "#lib/changes";
 import type { ChangesModel } from "#lib/changes-model";
+import { CONFLICTS, nameOf } from "#lib/changes-tree";
 import { ROW } from "#lib/layout";
 import { ofKind } from "#lib/list-item";
 import { hoverTransition } from "#lib/motion";
@@ -13,33 +15,27 @@ import { hoverTransition } from "#lib/motion";
 const ROW_HEIGHT = ROW.agentCompact.height;
 
 /**
- * What a cut name or folder fades into (`Clipped` `fade`): the fills a row can have, laid in order (the page, the hover
- * tint, the selected fill), the same tokens as the row's own classes so the fade and the fill are one colour.
+ * A folder heading: the folder's whole path once (`native/app/src`), which the files under it do not repeat, and how many
+ * files it holds (`GroupHeading` of the kit). A path too long for the column ends in an ellipsis and the tip has all of it.
  */
-const FADE = "from-background/0 to-background";
-const FADE_HOVER = "from-accent/0 to-accent/50 opacity-0 group-hover/row:opacity-100";
-const FADE_OPEN = "from-accent/0 to-accent";
-
 function Head(props: { item: () => Extract<Item, { kind: "head" }>; model: ChangesModel }) {
   const it = props.item;
-  const label = () => `${it().title}, ${it().count} ${it().count === 1 ? "file" : "files"}`;
   return (
-    <View
-      role="button"
-      onPress={() => props.model.toggleSection(it().section)}
-      accessibilityLabel={label()}
-      accessibilityState={{ expanded: it().open }}
-      style={hoverTransition()}
-      class={`w-full flex-row items-center gap-2 rounded-md bg-background ${ROW.project.class} hover:bg-accent ${FOCUS_RING_INSET}`}
-    >
-      <Icon name={it().open ? "chevron-down" : "chevron-right"} size={12} tone="muted-foreground" />
-      <Text class="text-xs font-medium text-muted-foreground">{it().title}</Text>
-      <Text style={NUM} class="text-xs text-muted-foreground">
-        {String(it().count)}
-      </Text>
-    </View>
+    <GroupHeading
+      title={it().title}
+      count={it().count}
+      noun={["file", "files"]}
+      open={it().open}
+      onToggle={() => props.model.toggleSection(it().group)}
+      tone={it().group === CONFLICTS ? "warning" : it().section ? "strong" : "muted"}
+      indent={it().nested}
+    />
   );
 }
+
+/** The tone of a state's letter: a conflict warns, the rest are quiet. */
+const markTone = (kind: ChangeView["kind"]): string =>
+  kind === "conflicted" ? "text-warning" : "text-muted-foreground";
 
 /** How much changed in a file: `+12` green and `\u221218` red, or the word when git counted no lines (`binary`, a size). */
 function Stats(props: { change: ChangeView }) {
@@ -62,9 +58,11 @@ function Stats(props: { change: ChangeView }) {
 }
 
 /**
- * One changed file: a one-letter state in a fixed column, the name whole, the folder in grey after it (it fades first
- * when the row is short), how much changed at the end, and a check once it was reviewed. The selected row is one fill. A
- * press selects it; the row reads its item by the accessor the list gives, because rows are recycled.
+ * One changed file under its folder: a quiet mark only for what is not an ordinary edit (A, D, R, U, `!`), the name
+ * whole in the room that is left, how much changed in a column of its own at the end, and a check once reviewed. The
+ * name is the one thing that is never cut for another part; only a name longer than the whole row ends in an ellipsis,
+ * with the full path in the tip. The selected row is one fill. A press selects it; the row reads its item by the accessor
+ * the list gives, because rows are recycled.
  */
 function File(props: {
   item: () => Extract<Item, { kind: "file" }>;
@@ -75,7 +73,7 @@ function File(props: {
   const it = props.item;
   const change = () => it().change;
   const open = () => props.model.selected()?.path === change().path;
-  const at = () => splitPath(change().path);
+  const mark = () => (change().kind === "modified" ? "" : KIND_MARK[change().kind]);
   return (
     <View
       role="button"
@@ -85,36 +83,21 @@ function File(props: {
       onBlur={() => props.onFocusChange(false)}
       accessibilityLabel={fileLabel(change(), it().reviewed)}
       style={hoverTransition()}
-      class={`group/row w-full flex-row items-center gap-2 rounded-md ${ROW.agentCompact.class} hover:bg-accent/50 selected:bg-accent ${FOCUS_RING_INSET}`}
+      class={`w-full flex-row items-center gap-2 rounded-md ${ROW.agentCompact.class} ${it().nested ? "pl-12" : "pl-6"} hover:bg-accent/50 selected:bg-accent ${FOCUS_RING_INSET}`}
     >
       <Text
         style={NUM}
-        class={`w-4 shrink-0 text-center text-xs font-medium ${change().kind === "conflicted" ? "text-warning" : "text-muted-foreground"}`}
+        class={`w-3 shrink-0 text-center text-xs font-medium ${markTone(change().kind)}`}
         accessibilityElementsHidden
       >
-        {KIND_MARK[change().kind]}
+        {mark()}
       </Text>
-      <View class="min-w-0 flex-1 flex-row items-center gap-2" accessibilityElementsHidden>
-        {/* The tip is the whole path whenever the name or the folder shows less of it. */}
-        <Clipped
-          label={change().path}
-          fade={open() ? [FADE_OPEN] : [FADE, FADE_HOVER]}
-          boxClass="min-w-0 shrink"
-          class="pr-1 text-sm text-foreground"
-        >
-          {at().name}
-        </Clipped>
-        <Clipped
-          label={change().path}
-          tip={false}
-          fade={open() ? [FADE_OPEN] : [FADE, FADE_HOVER]}
-          boxClass="min-w-0 shrink-[8]"
-          class="pr-1 text-xs text-muted-foreground"
-        >
-          {at().dir}
+      <View class="min-w-0 flex-1" accessibilityElementsHidden>
+        <Clipped label={change().path} class={`text-sm ${it().reviewed ? "text-muted-foreground" : "text-foreground"}`}>
+          {nameOf(change().path)}
         </Clipped>
       </View>
-      <View class="shrink-0" accessibilityElementsHidden>
+      <View class="min-w-16 shrink-0 items-end" accessibilityElementsHidden>
         <Stats change={change()} />
       </View>
       <View class="w-4 shrink-0 items-center" accessibilityElementsHidden>
@@ -130,19 +113,36 @@ function File(props: {
 export const headings = (items: readonly Item[]): number[] => items.flatMap((it, i) => (it.kind === "head" ? [i] : []));
 
 /**
- * The left half of the tab: a filter and the changed files in groups (`Modified`, `Added`, ...), a heading folding its
- * group. It is a virtual list: 500 files draw a screenful. Up and Down walk the files while the list has the keyboard.
+ * The left half of the tab: a filter and the changed files grouped by folder (conflicts first), a heading folding its
+ * folder. It is a virtual list: 500 files draw a screenful. Up and Down walk the files while the list has the keyboard.
  */
 export function ChangesList(props: {
   model: ChangesModel;
   onOpen: (c: ChangeView) => void;
   onFocusChange: (inside: boolean) => void;
+  /** Hands out the filter field, so the sheet that holds the list can put the keyboard in it. */
+  filterRef?: (ref: InputRef) => void;
 }) {
   const model = props.model;
+  const bySize = () => model.sort() === "size";
   return (
     <View class="min-h-0 flex-1 gap-2">
-      <View class="px-2 pt-2">
-        <SearchField dense value={model.query()} onChange={model.setQuery} placeholder="Filter changed files" />
+      <View class="flex-row items-center gap-1 px-2 pt-2">
+        <View class="min-w-0 flex-1">
+          <SearchField
+            dense
+            inputRef={props.filterRef}
+            value={model.query()}
+            onChange={model.setQuery}
+            placeholder="Filter changed files"
+          />
+        </View>
+        <IconButton
+          icon="sliders"
+          label="Biggest change first"
+          selected={bySize()}
+          onPress={() => model.setSort(bySize() ? "path" : "size")}
+        />
       </View>
       <List
         each={model.items()}

@@ -1,17 +1,19 @@
-import { announce, cleanup, effect, keymap, signal, Text, View } from "nsh";
+import { announce, cleanup, computed, effect, keymap, signal, Text, View } from "nsh";
 
 import type { ChangeView, StatusView } from "herdr-desktop/native";
+import type { InputRef } from "nsh/types";
 
 import { ChangesDiff } from "#components/changes-diff";
 import { ChangesList } from "#components/changes-list";
 import { SendNotes } from "#components/changes-notes";
-import { Btn, Clipped, dialogDepth, Empty, IconButton, narrow, NUM, Skeleton, snug, Tipped } from "#kit";
+import { Btn, Clipped, dialogDepth, Empty, IconButton, NUM, Segmented, Skeleton, Tipped } from "#kit";
 import { agentPart, filesText, identityFit, totalsOf } from "#lib/changes";
+import { LIST_COLUMN, layoutFor } from "#lib/changes-layout";
 import { createChanges } from "#lib/changes-model";
 
-/** The width of the file list beside the diff, and its narrower form in a snug window. */
-const LIST_WIDTH = 304;
-const LIST_WIDTH_SNUG = 256;
+/** The most the sheet of files is high, and the room it leaves around itself in the pane. */
+const SHEET_MAX = 480;
+const SHEET_GAP = 8;
 
 /** What the header's cut project or branch fades into: the page. */
 const FADE = "from-background/0 to-background";
@@ -66,18 +68,34 @@ export function Changes(props: { machine: string; cwd: string; active: boolean }
   const model = createChanges(props.machine, props.cwd, () => props.active);
   const sending = signal(false);
   const listFocus = signal(0);
-  // Narrow window: the list or the diff, one at a time; wide: both.
-  const diffFirst = signal(false);
-  const one = () => narrow();
-  const showList = () => !one() || !diffFirst();
-  const showDiff = () => !one() || diffFirst();
+  // The pane's own width, not the window's: Changes opens beside a chat, so the pane is often half of the window. Wide: the
+  // files stand beside the diff. Narrower: one bar above the diff and the files in a sheet behind its `Files` button.
+  const width = signal(0);
+  const area = signal(0);
+  const lay = computed(() => layoutFor(width()));
+  const sheet = signal(false);
+  let filter: InputRef | undefined;
   const status = () => model.status();
   const ready = () => status() !== null && !status()!.problem;
 
   const open = (c: ChangeView) => {
     model.select(c.path);
-    diffFirst.set(true);
+    sheet.set(false);
   };
+  // The sheet takes the keyboard into its filter when it opens; Escape closes it; a wide pane has no sheet.
+  effect(() => {
+    if (!sheet()) return;
+    if (lay().list === "column") {
+      sheet.set(false);
+      return;
+    }
+    const soon = setTimeout(() => filter?.focus(), 0);
+    const off = keymap.bind("escape", () => sheet.set(false), { when: "always" });
+    return () => {
+      clearTimeout(soon);
+      off();
+    };
+  });
 
   const openSend = () => {
     if (model.notes().length === 0) {
@@ -103,6 +121,10 @@ export function Changes(props: { machine: string; cwd: string; active: boolean }
           if (c) model.toggleReviewed(c);
         },
         r: () => void model.refresh(true),
+        // The list of a narrow pane is a sheet; a wide pane has it beside the diff already.
+        f: () => {
+          if (lay().list === "bar") sheet.set(true);
+        },
         enter: () => {
           if (listFocus() === 0 && model.selected()) model.cycleContext();
         },
@@ -129,7 +151,9 @@ export function Changes(props: { machine: string; cwd: string; active: boolean }
     const width = Math.ceil(e.lines.reduce((sum, l) => sum + l.bounds.size.width, 0));
     if (natural()[key] !== width) natural.set({ ...natural(), [key]: width });
   };
-  const branchPart = () => (model.branch() ? `\u00b7 ${model.branch()}` : "");
+  // A lean header drops what is secondary: `main · 4 ahead` is `main`.
+  const branchText = () => (lay().lean ? model.branch().split(" \u00b7 ")[0] : model.branch());
+  const branchPart = () => (branchText() ? `\u00b7 ${branchText()}` : "");
   const machinePart = () => (model.machineName() ? `\u00b7 ${model.machineName()}` : "");
   const agent = () => agentPart(model.agents());
   const agentWords = () => (agent().text ? `\u00b7 by ${agent().text}` : "");
@@ -146,91 +170,120 @@ export function Changes(props: { machine: string; cwd: string; active: boolean }
         });
   };
   const totals = () => totalsOf(model.files());
-  const reviewedText = () => `${model.reviewedCount()} of ${model.files().length} reviewed`;
+  const allDone = () => model.files().length > 0 && model.reviewedCount() === model.files().length;
+  const reviewedText = () =>
+    allDone() ? "All reviewed" : `${model.reviewedCount()} of ${model.files().length} reviewed`;
   const reading = () => status() === null && !model.failure();
+
+  const scopeChoice = () => (
+    <Segmented
+      label="Which files"
+      value={model.scope()}
+      onChange={(v) => model.setScope(v)}
+      options={[
+        { value: "session", label: `This session \u00b7 ${model.counts().session}` },
+        { value: "all", label: `Everything \u00b7 ${model.counts().all}` },
+      ]}
+    />
+  );
+  // The counts of the chosen scope. With a session the chips carry the number of files; without one this line does.
+  const countsLine = () => (
+    <View class="shrink-0 flex-row items-baseline gap-3">
+      <If when={!model.hasSession()}>
+        <Text style={NUM} class="text-xs text-muted-foreground">
+          {filesText(totals().files)}
+        </Text>
+      </If>
+      <If when={totals().added + totals().removed > 0}>
+        <View class="flex-row items-baseline gap-1.5">
+          <Text style={NUM} class="text-xs text-success">{`+${totals().added}`}</Text>
+          <Text style={NUM} class="text-xs text-destructive">{`\u2212${totals().removed}`}</Text>
+        </View>
+      </If>
+      <Text style={NUM} class={`text-xs ${model.reviewedCount() > 0 ? "text-foreground" : "text-muted-foreground"}`}>
+        {reviewedText()}
+      </Text>
+    </View>
+  );
+  const scopeAndCounts = () => (
+    <>
+      <If when={model.hasSession()}>{scopeChoice()}</If>
+      {countsLine()}
+    </>
+  );
 
   return (
     <View
       role="group"
       accessibilityLabel={`Changes in ${model.repoName()}`}
-      class="min-h-0 min-w-0 flex-1 bg-background"
+      class="relative min-h-0 min-w-0 flex-1 bg-background"
+      onLayout={({ bounds }) => width.set(Math.round(bounds.size.width))}
     >
-      <View class="min-h-10 flex-row items-center gap-3 border-b border-border px-4 py-1">
-        <View
-          class="min-w-0 flex-1 flex-row items-baseline gap-1.5"
-          onLayout={({ bounds }) => room.set(bounds.size.width)}
-        >
+      <View class="border-b border-border">
+        <View class="min-h-10 flex-row items-center gap-3 px-4 py-1">
           <View
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            class="pointer-events-none absolute left-0 top-0 opacity-0"
+            class="min-w-0 flex-1 flex-row items-baseline gap-1.5"
+            onLayout={({ bounds }) => room.set(bounds.size.width)}
           >
-            <Text class="text-sm font-medium" onTextLayout={measure("project")}>
-              {model.repoName()}
-            </Text>
-            <Text class="text-xs" onTextLayout={measure("branch")}>
-              {branchPart()}
-            </Text>
-            <Text class="text-xs" onTextLayout={measure("machine")}>
-              {machinePart()}
-            </Text>
-            <Text class="text-xs" onTextLayout={measure("agent")}>
-              {agentWords()}
-            </Text>
-          </View>
-          <Clipped fade={[FADE]} boxClass="min-w-0 shrink" class="text-sm font-medium text-foreground">
-            {model.repoName()}
-          </Clipped>
-          <If when={branchPart()}>
-            <Clipped fade={[FADE]} boxClass="min-w-0 shrink" class="text-xs text-muted-foreground">
-              {branchPart()}
-            </Clipped>
-          </If>
-          <If when={fit().machine}>
-            <Text style={{ numberOfLines: 1 }} class="shrink-0 text-xs text-muted-foreground">
-              {machinePart()}
-            </Text>
-          </If>
-          <If when={fit().agent}>
-            <Tipped label={agent().tip}>
-              <Text style={{ numberOfLines: 1 }} class="shrink-0 text-xs text-muted-foreground">
+            <View
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              class="pointer-events-none absolute left-0 top-0 opacity-0"
+            >
+              <Text class="text-sm font-medium" onTextLayout={measure("project")}>
+                {model.repoName()}
+              </Text>
+              <Text class="text-xs" onTextLayout={measure("branch")}>
+                {branchPart()}
+              </Text>
+              <Text class="text-xs" onTextLayout={measure("machine")}>
+                {machinePart()}
+              </Text>
+              <Text class="text-xs" onTextLayout={measure("agent")}>
                 {agentWords()}
               </Text>
-            </Tipped>
-          </If>
-        </View>
-        <If when={reading()}>
-          <Text class="shrink-0 text-xs text-muted-foreground">Reading changes{"\u2026"}</Text>
-        </If>
-        <If when={ready() && model.files().length > 0}>
-          <View class="shrink-0 flex-row items-baseline gap-3">
-            <Text style={NUM} class="text-xs text-muted-foreground">
-              {filesText(totals().files)}
-            </Text>
-            <If when={totals().added + totals().removed > 0}>
-              <View class="flex-row items-baseline gap-1.5">
-                <Text style={NUM} class="text-xs text-success">{`+${totals().added}`}</Text>
-                <Text style={NUM} class="text-xs text-destructive">{`\u2212${totals().removed}`}</Text>
-              </View>
+            </View>
+            <Clipped fade={[FADE]} boxClass="min-w-0 shrink" class="text-sm font-medium text-foreground">
+              {model.repoName()}
+            </Clipped>
+            <If when={branchPart()}>
+              <Clipped fade={[FADE]} boxClass="min-w-0 shrink" class="text-xs text-muted-foreground">
+                {branchPart()}
+              </Clipped>
             </If>
-            <Text
-              style={NUM}
-              class={`text-xs ${model.reviewedCount() > 0 ? "text-foreground" : "text-muted-foreground"}`}
-            >
-              {reviewedText()}
-            </Text>
+            <If when={fit().machine}>
+              <Text style={{ numberOfLines: 1 }} class="shrink-0 text-xs text-muted-foreground">
+                {machinePart()}
+              </Text>
+            </If>
+            <If when={fit().agent}>
+              <Tipped label={agent().tip}>
+                <Text style={{ numberOfLines: 1 }} class="shrink-0 text-xs text-muted-foreground">
+                  {agentWords()}
+                </Text>
+              </Tipped>
+            </If>
           </View>
+          <If when={reading()}>
+            <Text class="shrink-0 text-xs text-muted-foreground">Reading changes{"\u2026"}</Text>
+          </If>
+          <If when={ready() && model.status()!.files.length > 0 && lay().header === "one"}>
+            <View class="shrink-0 flex-row items-center gap-3">{scopeAndCounts()}</View>
+          </If>
+          <If when={model.notes().length > 0}>
+            <Btn
+              variant="primary"
+              small
+              label={`Send ${model.notes().length} ${model.notes().length === 1 ? "note" : "notes"}`}
+              hint={keymap.label("mod+enter")}
+              onPress={openSend}
+            />
+          </If>
+          <IconButton icon="refresh" label="Reload changes" shortcut="r" onPress={() => void model.refresh(true)} />
+        </View>
+        <If when={ready() && model.status()!.files.length > 0 && lay().header === "two"}>
+          <View class="min-h-8 flex-row flex-wrap items-center gap-x-3 gap-y-1 px-4 pb-2">{scopeAndCounts()}</View>
         </If>
-        <If when={model.notes().length > 0}>
-          <Btn
-            variant="primary"
-            small
-            label={`Send ${model.notes().length} ${model.notes().length === 1 ? "note" : "notes"}`}
-            hint={keymap.label("mod+enter")}
-            onPress={openSend}
-          />
-        </If>
-        <IconButton icon="refresh" label="Reload changes" shortcut="r" onPress={() => void model.refresh(true)} />
       </View>
       <If
         when={status()}
@@ -266,27 +319,49 @@ export function Changes(props: { machine: string; cwd: string; active: boolean }
                 />
               }
             >
-              <View class="min-h-0 flex-1 flex-row">
-                <If when={showList()}>
+              <View class="relative min-h-0 flex-1" onLayout={({ bounds }) => area.set(bounds.size.height)}>
+                <View class="min-h-0 flex-1 flex-row">
+                  <If when={lay().list === "column"}>
+                    <View class="min-h-0 border-r border-border" style={{ width: LIST_COLUMN }}>
+                      <ChangesList
+                        model={model}
+                        onOpen={open}
+                        onFocusChange={(inside) => listFocus.update((n) => Math.max(0, n + (inside ? 1 : -1)))}
+                      />
+                      <If when={s().truncated}>
+                        <Text class="px-4 pb-3 text-xs text-muted-foreground">
+                          More files changed than are listed here. Commit or revert some to see the rest.
+                        </Text>
+                      </If>
+                    </View>
+                  </If>
+                  <View class="min-h-0 min-w-0 flex-1">
+                    <ChangesDiff
+                      model={model}
+                      width={lay().diffWidth}
+                      bar={lay().list === "bar" ? { onFiles: () => sheet.set(true) } : undefined}
+                    />
+                  </View>
+                </View>
+                <If when={sheet()}>
                   <View
-                    class={`min-h-0 border-border ${one() ? "flex-1" : "border-r"}`}
-                    style={one() ? undefined : { width: snug() ? LIST_WIDTH_SNUG : LIST_WIDTH }}
+                    role="button"
+                    accessibilityLabel="Close the list of files"
+                    onPress={() => sheet.set(false)}
+                    class="absolute left-0 top-0 h-full w-full"
+                  />
+                  <View
+                    role="group"
+                    accessibilityLabel="Changed files"
+                    class="absolute left-2 right-2 top-2 rounded-lg border border-border bg-popover"
+                    style={{ height: Math.max(160, Math.min(SHEET_MAX, area() - 2 * SHEET_GAP)) }}
                   >
                     <ChangesList
                       model={model}
                       onOpen={open}
+                      filterRef={(ref) => (filter = ref)}
                       onFocusChange={(inside) => listFocus.update((n) => Math.max(0, n + (inside ? 1 : -1)))}
                     />
-                    <If when={s().truncated}>
-                      <Text class="px-4 pb-3 text-xs text-muted-foreground">
-                        More files changed than are listed here. Commit or revert some to see the rest.
-                      </Text>
-                    </If>
-                  </View>
-                </If>
-                <If when={showDiff()}>
-                  <View class="min-h-0 min-w-0 flex-1">
-                    <ChangesDiff model={model} onBack={one() ? () => diffFirst.set(false) : undefined} />
                   </View>
                 </If>
               </View>

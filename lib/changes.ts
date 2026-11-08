@@ -4,6 +4,8 @@ import { announce } from "nsh";
 import type { BoardProject, BoardRow, ChangeView, DiffView, GroupView, StatusView } from "herdr-desktop/native";
 
 import { narrow } from "#kit";
+import { setSessionPaths } from "#lib/changes-scope";
+import { groupFiles, NEW_ROOT, startsClosed, type TreeOptions } from "#lib/changes-tree";
 import {
   changesKey,
   context,
@@ -33,18 +35,6 @@ import { fold } from "#lib/text";
  */
 
 export type Kind = ChangeView["kind"];
-
-/** The groups of the list, in the order they read: what needs a decision first, then by what happened. */
-export const SECTIONS: readonly Kind[] = ["conflicted", "modified", "added", "deleted", "renamed", "untracked"];
-
-const TITLE: Record<Kind, string> = {
-  conflicted: "Merge conflicts",
-  modified: "Modified",
-  added: "Added",
-  deleted: "Deleted",
-  renamed: "Renamed",
-  untracked: "Untracked",
-};
 
 /** The word for one file's state, in a label and under a heading. */
 export const KIND_WORD: Record<Kind, string> = {
@@ -133,10 +123,62 @@ export function withCheckout(all: Record<string, Marks>, key: string, marks: Mar
 
 // ---- the list ----
 
-/** One line of the list: a heading with its count, or a file. */
+/** One line of the list: a folder heading with its count, or a file. */
 export type Item =
-  | { kind: "head"; key: string; section: Kind; title: string; count: number; open: boolean }
-  | { kind: "file"; key: string; change: ChangeView; reviewed: boolean };
+  | {
+      kind: "head";
+      key: string;
+      group: string;
+      title: string;
+      count: number;
+      open: boolean;
+      /** A folder inside the section of unknown files (drawn one step in). */
+      nested: boolean;
+      /** The head of the section of unknown files itself. */
+      section: boolean;
+    }
+  | { kind: "file"; key: string; change: ChangeView; reviewed: boolean; nested: boolean };
+
+/** Whether a group is open given the keys the person turned (`toggled`): groups start open but the section of unknown files. */
+export const groupOpen = (toggled: ReadonlySet<string>, key: string): boolean => startsClosed(key) === toggled.has(key);
+
+/** From this size (bytes), or this many lines, a new file is output to be opened on purpose, not a change to read. */
+export const BULKY_BYTES = 256 * 1024;
+export const BULKY_LINES = 4000;
+/** Data a run writes: a smaller file of these is already not code. */
+export const DATA_BYTES = 32 * 1024;
+const DATA_EXTENSIONS = new Set([
+  "json",
+  "jsonl",
+  "ndjson",
+  "csv",
+  "tsv",
+  "log",
+  "parquet",
+  "npy",
+  "npz",
+  "pkl",
+  "ckpt",
+  "db",
+]);
+
+/** Whether a new file is too big or too much like output to draw as a diff before the person asks (`Open anyway`). */
+export function isBulky(c: Pick<ChangeView, "kind" | "path" | "size" | "added" | "binary">): boolean {
+  if ((c.kind !== "untracked" && c.kind !== "added") || c.binary) return false;
+  const ext = c.path.includes(".") ? c.path.slice(c.path.lastIndexOf(".") + 1).toLowerCase() : "";
+  const size = c.size ?? 0;
+  return size >= BULKY_BYTES || (c.added ?? 0) >= BULKY_LINES || (DATA_EXTENSIONS.has(ext) && size >= DATA_BYTES);
+}
+
+/** `12,000`: a count with thousands apart, so a long number reads at a glance. */
+export const groupDigits = (n: number): string => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+/** What the summary of a held file says: `New file · 40 KB · 12,000 lines`. */
+export function bulkyText(c: Pick<ChangeView, "size" | "added">): string {
+  return ["New file", c.size == null ? "" : sizeText(c.size), c.added == null ? "" : `${groupDigits(c.added)} lines`]
+    .filter(Boolean)
+    .join(" \u00b7 ");
+}
 
 /** Whether `c` matches what was typed: every word is in its path (any case, accents ignored). */
 export function matches(c: ChangeView, query: string): boolean {
@@ -146,31 +188,77 @@ export function matches(c: ChangeView, query: string): boolean {
   return words.every((w) => hay.includes(w));
 }
 
+/** What the list does with the files besides grouping them. */
+export interface ListOptions extends TreeOptions {
+  /** Paths found by the filter are all shown, whatever the person closed. */
+  searching?: boolean;
+}
+
 /**
- * The list as rows: each non-empty group under its heading (folded groups show the heading only), files by path (git's own byte order, the same on every platform) inside it.
- * `marks` says which are reviewed; `folded` is the sections the person closed.
+ * The list as rows: each non-empty group under its heading (`groupFiles`: conflicts, then folders, then the closed section
+ * of files git does not know when there are many; a folded group shows the heading only). `marks` says which are reviewed;
+ * `toggled` is the group keys the person turned from how they start (open, except the section of unknown files). A filter
+ * opens every group that has a match.
  */
 export function listItems(
   files: readonly ChangeView[],
   query: string,
   marks: Marks | undefined,
-  folded: ReadonlySet<Kind>,
+  toggled: ReadonlySet<string>,
+  o: ListOptions = {},
 ): Item[] {
-  const shown = files.filter((f) => matches(f, query));
   const items: Item[] = [];
-  for (const section of SECTIONS) {
-    const inSection = shown
-      .filter((f) => f.kind === section)
-      .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-    if (inSection.length === 0) continue;
-    const open = !folded.has(section);
-    items.push({ kind: "head", key: `h:${section}`, section, title: TITLE[section], count: inSection.length, open });
+  const searching = query.trim() !== "";
+  const isOpen = (key: string) => searching || startsClosed(key) === toggled.has(key);
+  const groups = groupFiles(
+    files.filter((f) => matches(f, query)),
+    o,
+  );
+  const quiet = groups.filter((g) => g.quiet);
+  let sectionDone = false;
+  for (const g of groups) {
+    if (g.quiet && !sectionDone) {
+      sectionDone = true;
+      const open = isOpen(NEW_ROOT);
+      items.push({
+        kind: "head",
+        key: `h:${NEW_ROOT}`,
+        group: NEW_ROOT,
+        title: "Not in git",
+        count: quiet.reduce((n, q) => n + q.files.length, 0),
+        open,
+        nested: false,
+        section: true,
+      });
+      if (!open) break;
+    }
+    const open = isOpen(g.key);
+    items.push({
+      kind: "head",
+      key: `h:${g.key}`,
+      group: g.key,
+      title: g.title,
+      count: g.files.length,
+      open,
+      nested: g.quiet === true,
+      section: false,
+    });
     if (open)
-      for (const change of inSection)
-        items.push({ kind: "file", key: `f:${change.path}`, change, reviewed: isReviewed(marks, change) });
+      for (const change of g.files)
+        items.push({
+          kind: "file",
+          key: `f:${change.path}`,
+          change,
+          reviewed: isReviewed(marks, change),
+          nested: g.quiet === true,
+        });
   }
   return items;
 }
+
+/** Every file in the order the list shows them, folded groups included (the bar above a diff steps through these). */
+export const orderOf = (files: readonly ChangeView[], o: TreeOptions = {}): ChangeView[] =>
+  groupFiles(files, o).flatMap((g) => g.files);
 
 /** The file `by` places after `current` in `order` (wrapping not: the ends stay). */
 export function stepFile(order: readonly ChangeView[], current: string | null, by: 1 | -1): string | null {
@@ -194,7 +282,7 @@ export function totalsOf(files: readonly ChangeView[]): { files: number; added: 
   return { files: files.length, added, removed };
 }
 
-/** One letter for a file's state in the list's fixed column (the row's accessible name says the word, `KIND_WORD`). */
+/** One letter for a file's state (the row's accessible name says the word, `KIND_WORD`). The list shows it for every state but `modified`, the common one. */
 export const KIND_MARK: Record<Kind, string> = {
   conflicted: "!",
   modified: "M",
@@ -363,8 +451,12 @@ export function currentCheckout(): { machine: string; cwd: string } | null {
  * for (not `narrow()`), it opens beside the chat (when the folder belongs to the project shown), which stays in view with its question; in a narrow window, or from
  * anything but a chat, it is a tab of the group as before.
  */
-export function openChanges(machine: string, cwd: string): Promise<void> {
+export function openChanges(machine: string, cwd: string, options?: { edited?: readonly string[] }): Promise<void> {
   const key = changesKey(machine, cwd);
+  // From a chat's `Edited 7 files` the tab opens on those files; from anywhere else a new tab opens on everything and one
+  // that is open keeps the choice it has.
+  if (options?.edited) setSessionPaths(machine, cwd, options.edited);
+  else if (!panelsOf(layout()).includes(key)) setSessionPaths(machine, cwd, null);
   const front = focused();
   const group = groupOf(layout(), front);
   const beside =

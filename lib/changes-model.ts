@@ -9,17 +9,20 @@ import {
   agentsIn,
   branchText,
   checkoutName,
+  isBulky,
   isReviewed,
   type Item,
-  type Kind,
   KIND_WORD,
   LOCAL,
+  groupOpen,
   listItems,
   type Marks,
   type Note,
   noteOn,
+  matches,
   noteWhere,
   notesMessage,
+  orderOf,
   plusMinus,
   pruned,
   readMarks,
@@ -29,6 +32,8 @@ import {
   withMark,
 } from "#lib/changes";
 import { noteCount } from "#lib/changes-count";
+import { scopeFiles, sessionPaths } from "#lib/changes-scope";
+import { groupFiles, NEW_ROOT } from "#lib/changes-tree";
 import { changesKey } from "#lib/dock";
 import { allRows, board, revision } from "#lib/herdr";
 import { remembered } from "#lib/pane-memory";
@@ -52,7 +57,7 @@ export const CONTEXTS = [3, 12, 10000] as const;
 interface Kept {
   notes: Note[];
   selected: string | null;
-  folded: Kind[];
+  folded: string[];
   context: number;
   next: number;
 }
@@ -97,14 +102,31 @@ export interface ChangesModel {
   root: Accessor<string>;
   /** Changed files in the list's order, after the filter. */
   items: Accessor<Item[]>;
+  /** The files of the chosen scope. */
   files: Accessor<ChangeView[]>;
+  /** The files of the chosen scope in the list's order, folded groups and the filter included: what `j` and `k` step through. */
+  order: Accessor<ChangeView[]>;
+  /** Where the selected file stands in `order`: `3` of `7`; 0 when none is. */
+  position: Accessor<{ at: number; of: number }>;
+  /** The tab was opened by a chat: the files its agent edited are a scope of their own. */
+  hasSession: Accessor<boolean>;
+  /** `session`: the files the agent edited. `all`: everything git reports. Always `all` without a session. */
+  scope: Accessor<"session" | "all">;
+  setScope: (scope: "session" | "all") => void;
+  /** How many files each scope holds (the session's: those among them that git reports a change for). */
+  counts: Accessor<{ session: number; all: number }>;
+  sort: Accessor<"path" | "size">;
+  setSort: (sort: "path" | "size") => void;
+  /** The selected file is a big new file (data, output): its change is not read until `openAnyway`. */
+  held: Accessor<boolean>;
+  openAnyway: () => void;
   query: Accessor<string>;
   setQuery: (q: string) => void;
   selected: Accessor<ChangeView | undefined>;
   select: (path: string) => void;
-  /** The name of a section is closed in the list. */
-  folded: Accessor<ReadonlySet<Kind>>;
-  toggleSection: (kind: Kind) => void;
+  /** The keys of the groups (`groupFiles`) the person turned from how they start: open, except the section of unknown files. */
+  folded: Accessor<ReadonlySet<string>>;
+  toggleSection: (group: string) => void;
   marks: Accessor<Marks | undefined>;
   reviewed: (c: ChangeView) => boolean;
   reviewedCount: Accessor<number>;
@@ -162,7 +184,9 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
   const failure = signal<string | null>(null);
   const query = signal("");
   const selectedPath = signal<string | null>(saved.selected);
-  const folded = signal<ReadonlySet<Kind>>(new Set(saved.folded));
+  const folded = signal<ReadonlySet<string>>(new Set(saved.folded));
+  const sort = signal<"path" | "size">("path");
+  const forced = signal<ReadonlySet<string>>(new Set());
   const diff = signal<DiffView | null>(null);
   const diffLoading = signal(false);
   const diffFailure = signal<string | null>(null);
@@ -179,10 +203,47 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
   });
 
   const root = computed(() => status()?.root || cwd);
-  const files = computed(() => status()?.files ?? []);
+  const everything = computed(() => status()?.files ?? []);
+  const session = sessionPaths(machine, cwd);
+  const hasSession = computed(() => session() !== null);
+  const scope = signal<"session" | "all">(untracked(session) ? "session" : "all");
+  // A chat that opens the tab (again) brings the tab to its files; anything else leaves the choice as it is.
+  effect(() => {
+    scope.set(session() ? "session" : "all");
+  });
+  const bases = () => {
+    let real = cwd;
+    try {
+      real = Git.canonicalPath(machine, cwd);
+    } catch {
+      // A machine that cannot answer: the folder as given still matches paths written as given.
+    }
+    return [root(), cwd, real];
+  };
+  const mine = computed(() => {
+    const paths = session();
+    return paths ? scopeFiles(everything(), paths, { root: root(), bases: bases() }) : [];
+  });
+  const files = computed(() => (hasSession() && scope() === "session" ? mine() : everything()));
+  const counts = computed(() => ({ session: mine().length, all: everything().length }));
+  const treeOptions = () => ({ sort: sort(), keep: new Set(mine().map((f) => f.path)) });
+  const order = computed(() =>
+    orderOf(
+      files().filter((f) => matches(f, query())),
+      treeOptions(),
+    ),
+  );
   const checkout = computed(() => `${machine}\n${root()}`);
   const marks = computed(() => reviewedStore.get()[checkout()]);
-  const items = computed(() => listItems(files(), query(), marks(), folded()));
+  const items = computed(() => listItems(files(), query(), marks(), folded(), treeOptions()));
+  const position = computed(() => {
+    const at = order().findIndex((f) => f.path === selectedPath());
+    return { at: at + 1, of: order().length };
+  });
+  const held = computed(() => {
+    const c = files().find((f) => f.path === selectedPath());
+    return c !== undefined && isBulky(c) && !forced().has(c.path);
+  });
   const selected = computed(() => files().find((f) => f.path === selectedPath()));
   const reviewedCount = computed(() => files().filter((f) => isReviewed(marks(), f)).length);
   const agents = computed(() => (revision(), agentsIn(allRows(board()), machine, root(), Git.canonicalPath)));
@@ -196,6 +257,7 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
   // ---- reading git ----
 
   let inflight = false;
+  let settled = false;
   let again = false;
   let lastMs = 0;
 
@@ -220,10 +282,16 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
       const have = marks();
       const trimmed = pruned(have, next.files);
       if (trimmed !== have) reviewedStore.set(withCheckout(reviewedStore.get(), `${machine}\n${next.root}`, trimmed));
+      // A session that touched nothing git still reports (it was committed since) opens on everything instead of nothing.
+      if (!settled) {
+        settled = true;
+        if (untracked(hasSession) && untracked(mine).length === 0) scope.set("all");
+      }
       const current = selectedPath();
-      if (current === null || !next.files.some((f) => f.path === current)) {
-        const first = untracked(items).find((i) => i.kind === "file");
-        selectedPath.set(first?.kind === "file" ? first.change.path : null);
+      if (current === null || !untracked(files).some((f) => f.path === current)) {
+        const first = untracked(order)[0];
+        if (first) reveal(first.path);
+        selectedPath.set(first?.path ?? null);
       }
       if (announceResult)
         announce(
@@ -309,11 +377,12 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
   // meanwhile, so an agent's edit refreshes the view in place and does not blank it.
   effect(() => {
     const c = selected();
-    const wanted = c ? `${c.path}|${c.fingerprint}|${context()}|${all().has(c.path)}` : "";
+    const holding = held();
+    const wanted = c ? `${c.path}|${c.fingerprint}|${context()}|${all().has(c.path)}|${holding}` : "";
     if (wanted === shownKey) return;
     const sameFile = untracked(() => diff()?.path === c?.path);
     shownKey = wanted;
-    if (!c) {
+    if (!c || holding) {
       diffSeq++;
       diff.set(null);
       diffFailure.set(null);
@@ -327,10 +396,25 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
     void untracked(() => readDiff(c));
   });
 
+  /** Opens the groups that hide `path` (the closed section of unknown files, its folder), so a selected row is one you can see. */
+  function reveal(path: string): void {
+    if (untracked(items).some((i) => i.kind === "file" && i.change.path === path)) return;
+    const g = groupFiles(untracked(files), untracked(treeOptions)).find((x) => x.files.some((f) => f.path === path));
+    if (!g) return;
+    const next = new Set(untracked(folded));
+    for (const key of g.quiet ? [NEW_ROOT, g.key] : [g.key]) {
+      if (groupOpen(next, key)) continue;
+      if (!next.delete(key)) next.add(key);
+    }
+    folded.set(next);
+    saved.folded = [...next];
+    remember();
+  }
+
   // ---- notes ----
 
   const staleNotes = computed(() => {
-    const changed = new Map(files().map((f) => [f.path, f.fingerprint]));
+    const changed = new Map(everything().map((f) => [f.path, f.fingerprint]));
     return new Set(
       notes()
         .filter((n) => changed.get(n.path) !== n.fingerprint)
@@ -472,11 +556,36 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
     root,
     items,
     files,
+    order,
+    position,
+    hasSession,
+    scope,
+    setScope(next) {
+      if (next === scope()) return;
+      scope.set(next);
+      announce(
+        next === "session"
+          ? `This session: ${counts().session} of ${counts().all} changed files`
+          : `Everything: ${counts().all} changed files`,
+      );
+    },
+    counts,
+    sort,
+    setSort(next) {
+      sort.set(next);
+      announce(next === "size" ? "Biggest change first" : "By name");
+    },
+    held,
+    openAnyway() {
+      const path = selectedPath();
+      if (path !== null) forced.set(new Set(forced()).add(path));
+    },
     query,
     setQuery: (q) => query.set(q),
     selected,
     select(path) {
       if (selectedPath() === path) return;
+      reveal(path);
       selectedPath.set(path);
       saved.selected = path;
       remember();
@@ -485,9 +594,9 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
       if (c) announce(`${c.path}, ${KIND_WORD[c.kind]}, ${statsText(c)}`.replace(/, $/, ""));
     },
     folded,
-    toggleSection(kind) {
+    toggleSection(group) {
       const next = new Set(folded());
-      if (!next.delete(kind)) next.add(kind);
+      if (!next.delete(group)) next.add(group);
       folded.set(next);
       saved.folded = [...next];
       remember();
@@ -497,8 +606,20 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
     reviewedCount,
     toggleReviewed(c) {
       const on = !isReviewed(marks(), c);
-      reviewedStore.set(withCheckout(reviewedStore.get(), checkout(), withMark(marks(), c, on)));
-      announce(on ? `${c.path} marked reviewed` : `${c.path} marked not reviewed`);
+      const next = withMark(marks(), c, on);
+      reviewedStore.set(withCheckout(reviewedStore.get(), checkout(), next));
+      if (!on) {
+        announce(`${c.path} marked not reviewed`);
+        return;
+      }
+      // Marking is how a review moves: on to the next file nobody has reviewed, below this one in the list. It never turns back.
+      const list = untracked(order);
+      const after = list.slice(list.findIndex((f) => f.path === c.path) + 1).find((f) => !isReviewed(next, f));
+      if (after) {
+        this.select(after.path);
+        announce(`${c.path} marked reviewed. Next: ${after.path}`);
+      } else if (list.every((f) => isReviewed(next, f))) announce("All reviewed");
+      else announce(`${c.path} marked reviewed. No unreviewed file below it`);
     },
     diff,
     diffLoading,
@@ -530,8 +651,7 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
       else nav?.previous();
     },
     stepFile(by) {
-      const order = untracked(items).flatMap((i) => (i.kind === "file" ? [i.change] : []));
-      const next = stepFile(order, selectedPath(), by);
+      const next = stepFile(untracked(order), selectedPath(), by);
       if (next !== null) this.select(next);
     },
     refresh,

@@ -664,6 +664,96 @@ fn big(dir: &Path) -> Result<(), String> {
     )
 }
 
+/// A review: what an agent changed in a checkout whose folder also holds a lot of its output. Three edited source
+/// files, two moved and edited, one deleted, one new, 60 generated files in four folders that git does not know and one
+/// 40,000-line JSON dump. The Changes tab scopes to the session's files and keeps the output folded.
+fn review(dir: &Path) -> Result<(), String> {
+    let service = |name: &str, tag: &str, n: usize| {
+        let mut out = format!("// {name}\nimport {{ log }} from \"../log\";\n\n");
+        for i in 0..n {
+            out.push_str(&format!(
+                "export function {tag}{i}(input: string): string {{\n  return log(input) + \"-{i}\";\n}}\n\n"
+            ));
+        }
+        out
+    };
+    for (path, tag, n) in [
+        ("src/api/handler.ts", "handle", 12),
+        ("src/api/router.ts", "route", 10),
+        ("src/lib/cache.ts", "cache", 14),
+        ("src/lib/retry-policy.ts", "retry", 8),
+        ("src/util/clock.ts", "clock", 6),
+        ("src/legacy/compat.ts", "compat", 9),
+    ] {
+        put(dir, path, service(path, tag, n))?;
+    }
+    put(dir, "README.md", "# Gateway\n\nRequests in, answers out.\n")?;
+    sh(dir, &["add", "-A"])?;
+    sh(dir, &["commit", "-q", "-m", "Gateway"])?;
+
+    // Three edited: one line changed in the middle of each, one of them also grows at the end.
+    for (path, tag, n) in [
+        ("src/api/handler.ts", "handle", 12),
+        ("src/api/router.ts", "route", 10),
+        ("src/lib/cache.ts", "cache", 14),
+    ] {
+        let mut text = service(path, tag, n).replace(
+            "return log(input) + \"-3\";",
+            "return log(input).trim() + \"-3\"; // trimmed: the log adds a newline",
+        );
+        if tag == "cache" {
+            text.push_str(
+                "export function evict(key: string): boolean {\n  return store.delete(key);\n}\n",
+            );
+        }
+        put(dir, path, text)?;
+    }
+    // Two moved, one of them edited as well.
+    sh(dir, &["mv", "src/lib/retry-policy.ts", "src/lib/retry.ts"])?;
+    sh(dir, &["mv", "src/util/clock.ts", "src/lib/clock.ts"])?;
+    put(
+        dir,
+        "src/lib/retry.ts",
+        service("src/lib/retry-policy.ts", "retry", 8).replace("retry0", "retryOnce"),
+    )?;
+    std::fs::remove_file(dir.join("src/legacy/compat.ts")).map_err(|e| e.to_string())?;
+    // One new source file the agent wrote, among the output git does not know either.
+    put(
+        dir,
+        "src/api/schema.ts",
+        "export interface Request {\n  id: string;\n  path: string;\n  body?: string;\n}\n\nexport interface Reply {\n  status: number;\n  body: string;\n}\n",
+    )?;
+
+    // Generated output: 60 files in four folders, and one very long dump.
+    for (folder, count) in [
+        ("outputs/run-a", 18),
+        ("outputs/run-b", 18),
+        ("logs", 14),
+        ("data/cache", 10),
+    ] {
+        for i in 0..count {
+            let ext = if folder == "logs" { "log" } else { "json" };
+            put(
+                dir,
+                &format!("{folder}/step-{i:04}.{ext}"),
+                format!(
+                    "{{\"step\": {i}, \"loss\": {}, \"folder\": \"{folder}\"}}\n",
+                    2.0 - i as f64 * 0.01
+                ),
+            )?;
+        }
+    }
+    let dump: String = (0..40_000)
+        .map(|i| {
+            format!(
+                "{{\"event\": {i}, \"kind\": \"tick\", \"at\": {}}}\n",
+                1_700_000_000 + i
+            )
+        })
+        .collect();
+    put(dir, "data/dump/events.json", dump)
+}
+
 fn conflict(dir: &Path) -> Result<(), String> {
     put(dir, "src/a.ts", "export const limit = 5;\n")?;
     put(dir, "src/b.ts", "export const name = \"b\";\n")?;
@@ -692,6 +782,7 @@ fn build_repo(dir: &Path, kind: &str) -> Result<(), String> {
         "project" => project(dir),
         "many" => many(dir),
         "big" => big(dir),
+        "review" => review(dir),
         "conflict" => conflict(dir),
         "clean" => {
             put(dir, "README.md", "# Clean\n")?;

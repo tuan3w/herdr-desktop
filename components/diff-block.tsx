@@ -39,6 +39,8 @@ export function DiffBlock(props: {
   maxHeight?: number;
   /** Force a layout; by default the person's choice (`diffSplit`). */
   split?: boolean;
+  /** Force wrapping on or off; by default the person's choice (`codeWrap`). A narrow pane turns it off so the code scrolls sideways. */
+  wrap?: boolean;
   /** The file is new: the header says so once, and its lines are drawn as plain code (no tint, bar or sign on every row). */
   created?: boolean;
   /** Draw the file's path in the header (default). A screen that already names the file elsewhere turns it off. */
@@ -159,7 +161,7 @@ export function DiffBlock(props: {
         language={props.language}
         layout={props.created ? "code" : split() ? "split" : "unified"}
         context={props.context ?? 3}
-        wrap={codeWrap()}
+        wrap={props.wrap ?? codeWrap()}
         whitespace={codeWhitespace()}
         maxHeight={props.maxHeight ?? CODE_MAX_HEIGHT}
         label={label()}

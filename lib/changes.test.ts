@@ -29,6 +29,7 @@ import {
   withCheckout,
   withMark,
 } from "#lib/changes";
+import { dirKey, dirOf, groupFiles, nameOf } from "#lib/changes-tree";
 
 const change = (path: string, over: Partial<ChangeView> = {}): ChangeView => ({
   path,
@@ -50,30 +51,30 @@ const FILES: ChangeView[] = [
   change("src/clash.ts", { kind: "conflicted" }),
 ];
 
-test("the list groups files by what happened, conflicts first, and each group by path", () => {
+test("the list groups files by folder, conflicts first, the root next, each group by name", () => {
   const items = listItems(FILES, "", undefined, new Set());
   const shape = items.map((i) => (i.kind === "head" ? `# ${i.title} ${i.count}` : i.change.path));
   expect(shape).toEqual([
     "# Merge conflicts 1",
     "src/clash.ts",
-    "# Modified 2",
+    "# Top level 1",
+    "gone.ts",
+    "# docs 1",
+    "docs/new.md",
+    "# src 2",
     "src/a.ts",
     "src/b.ts",
-    "# Deleted 1",
-    "gone.ts",
-    "# Untracked 1",
-    "docs/new.md",
   ]);
 });
 
 test("a folded group shows its heading and count only, and a filter drops the groups it empties", () => {
-  const folded = listItems(FILES, "", undefined, new Set(["modified"] as const));
+  const folded = listItems(FILES, "", undefined, new Set([dirKey("src")]));
   expect(folded.filter((i) => i.kind === "file").map((i) => i.kind === "file" && i.change.path)).not.toContain(
     "src/a.ts",
   );
-  expect(folded.some((i) => i.kind === "head" && i.section === "modified" && i.count === 2 && !i.open)).toBe(true);
+  expect(folded.some((i) => i.kind === "head" && i.group === "dir:src" && i.count === 2 && !i.open)).toBe(true);
   const narrowed = listItems(FILES, "NEW", undefined, new Set());
-  expect(narrowed.map((i) => (i.kind === "head" ? i.title : i.change.path))).toEqual(["Untracked", "docs/new.md"]);
+  expect(narrowed.map((i) => (i.kind === "head" ? i.title : i.change.path))).toEqual(["docs", "docs/new.md"]);
 });
 
 test("a filter takes every word, any case, accents ignored, in the path or where it came from", () => {
@@ -98,7 +99,6 @@ test("a row says where it is, what happened and how much, as words a reader can 
 test("paths split into folder and name", () => {
   expect(splitPath("src/lib/a.ts")).toEqual({ dir: "src/lib/", name: "a.ts" });
   expect(splitPath("a.ts")).toEqual({ dir: "", name: "a.ts" });
-  expect(splitPath("vendor/repo/")).toEqual({ dir: "vendor/", name: "repo" });
 });
 
 test("a reviewed mark holds for the change that was reviewed and no other", () => {
@@ -312,4 +312,50 @@ test("a checkout behind a link is named by its project and worktree", () => {
   expect(checkoutNameOf(projects, "local", "/var/x-fix/", real)).toBe("app \u00b7 x-fix");
   expect(checkoutNameOf(projects, "local", "/var/x", real)).toBe("app");
   expect(checkoutNameOf(projects, "local", "/elsewhere/tool", real)).toBe("tool");
+});
+
+const shapeOf = (paths: string[], over: Partial<ChangeView> = {}) =>
+  groupFiles(paths.map((p) => change(p, over))).map((g) => [g.title, g.files.map((f) => nameOf(f.path))]);
+
+test("two files of one name in two folders sit under their own folder, so the folder tells them apart", () => {
+  expect(shapeOf(["native/core/src/board.rs", "native/app/src/engine.rs", "native/app/tests/engine.rs"])).toEqual([
+    ["native/app/src", ["engine.rs"]],
+    ["native/app/tests", ["engine.rs"]],
+    ["native/core/src", ["board.rs"]],
+  ]);
+});
+
+test("a chain of folders with no file of its own costs no heading; the deep folder is named whole once", () => {
+  expect(
+    shapeOf([".agents/skills/herdr-design/SKILL.md", ".agents/skills/herdr-design/refs/a.md", "native/app/src/x.rs"]),
+  ).toEqual([
+    [".agents/skills/herdr-design", ["SKILL.md"]],
+    [".agents/skills/herdr-design/refs", ["a.md"]],
+    ["native/app/src", ["x.rs"]],
+  ]);
+});
+
+test("a folder reads before its subfolders, and a root file before every folder", () => {
+  expect(shapeOf(["a/b/z.ts", "a/y.ts", "a-b/x.ts", "r.ts", "A/w.ts"]).map((g) => g[0])).toEqual([
+    "Top level",
+    "A",
+    "a",
+    "a/b",
+    "a-b",
+  ]);
+});
+
+test("long names, spaces and unicode stay whole and in order; no file gives no group", () => {
+  const long = `${"very-long-component-name-".repeat(5)}test.tsx`;
+  expect(shapeOf([`docs/My Notes/${long}`, "docs/My Notes/caf\u00e9 \u65e5\u672c.md", "docs/My Notes/b.md"])).toEqual([
+    ["docs/My Notes", ["b.md", "caf\u00e9 \u65e5\u672c.md", long]],
+  ]);
+  expect(groupFiles([])).toEqual([]);
+  expect(listItems([], "", undefined, new Set())).toEqual([]);
+});
+
+test("a trailing slash (a nested repository) names the folder as its parent and the repository as the file", () => {
+  expect(dirOf("vendor/repo/")).toBe("vendor");
+  expect(nameOf("vendor/repo/")).toBe("repo");
+  expect(dirOf("a.ts")).toBe("");
 });

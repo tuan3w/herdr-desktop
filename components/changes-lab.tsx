@@ -3,6 +3,7 @@ import { host, keymap, mount, Text, View } from "nsh";
 
 import { Changes } from "#components/changes";
 import { PopupRoot, ThemeRoot, ToastHost, undoLast } from "#kit";
+import { setSessionPaths } from "#lib/changes-scope";
 import { startHerdr } from "#lib/herdr";
 
 import mixed from "../fixtures/herdr/mixed.json";
@@ -10,7 +11,9 @@ import mixed from "../fixtures/herdr/mixed.json";
 /**
  * The entry of the Changes tests and screenshots: the scripted herdr, a synthetic repository the test seam built in the
  * data directory (`Git.testRepo`, `host.params.kind`: `project` by default, `clean`, `many`, `big`, `conflict` or
- * `plain`), and the tab on it. The agents of the fixture that work in `/home/dev/auth` are moved into that repository, so
+ * `plain`, or `review`: seven files an agent edited among 60 of its output files and a 40,000-line dump), and the tab
+ * on it. `edited` (a list of the repository's paths) opens it as a chat's `Edited N files` does, on that session's
+ * files; `width` puts it in a pane of that many points, as it is beside a chat. The agents of the fixture that work in `/home/dev/auth` are moved into that repository, so
  * the notes have agents to go to: one waits for an answer, one is done (`both`: neither waits; `alone`: none works there).
  * `hidden` shows the tab as one that is not in front. Not part of the app.
  */
@@ -28,13 +31,16 @@ if (host.params.alone === undefined) {
   Herdr.testPush({ event: "pane_agent_status_changed", data: { pane_id: "w1:p3", agent_status: "done" } });
 }
 
+if (Array.isArray(host.params.edited)) setSessionPaths("local", repo, host.params.edited as string[]);
+const width = typeof host.params.width === "number" ? host.params.width : undefined;
+
 function Lab() {
   // The app binds this key in `App.tsx`; the lab has no `Workspace`, so it binds it itself.
   keymap.bind({ "mod+z": () => undoLast() }, { when: "always" });
   return (
     <ThemeRoot>
       <PopupRoot class="flex-1 bg-background">
-        <View class="flex-1">
+        <View class="flex-1" style={width === undefined ? undefined : { width }}>
           <Changes machine="local" cwd={repo} active={host.params.hidden === undefined} />
           <Text accessibilityElementsHidden class="h-0 opacity-0">{`repo ${repo}`}</Text>
         </View>
