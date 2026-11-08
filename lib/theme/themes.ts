@@ -1,4 +1,5 @@
 import type { ThemeSpec } from "#lib/theme/build";
+import { CANDIDATES } from "#lib/theme/candidates";
 
 /**
  * Themes, in picker order. To add one: add a spec here (hues and chromas only), run `bun scripts/gen-theme.mjs` if
@@ -45,6 +46,8 @@ export const THEMES: ThemeSpec[] = [
     signal: { hue: 125, chroma: 0.17, lightness: 0.8 },
     radius: 0.375,
   },
+  // Prototype candidates, next to the four for the owner to choose from (`candidates.ts`).
+  ...CANDIDATES,
 ];
 
 export const DEFAULT_THEME_ID = THEMES[0].id;

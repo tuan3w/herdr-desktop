@@ -25,6 +25,8 @@ export interface ThemeSpec {
   radius: number;
   /** Hue overrides for status colors that would collide with the primary. */
   status?: Partial<Record<"destructive" | "success" | "warning" | "info", number>>;
+  /** Candidate themes only (`candidates.ts`): rewrites the built tokens of one appearance, keeping the same keys. */
+  adjust?: (tokens: Tokens, appearance: "light" | "dark") => Tokens;
 }
 
 export type Tokens = Record<string, string>;
@@ -124,8 +126,8 @@ export function buildTheme(spec: ThemeSpec): BuiltTheme {
   };
 
   return {
-    light,
-    dark,
+    light: spec.adjust ? spec.adjust(light, "light") : light,
+    dark: spec.adjust ? spec.adjust(dark, "dark") : dark,
     shared: { radius: `${spec.radius}rem`, "font-sans": FONT_SANS, "font-mono": FONT_MONO },
   };
 }

@@ -128,7 +128,7 @@ test("switching the theme at runtime restyles the app: token() follows every the
   const hex = (css: string) => oklchToHex(css).slice(1);
   const close = (a: string, b: string) =>
     [0, 2, 4].every((i) => Math.abs(parseInt(a.slice(i, i + 2), 16) - parseInt(b.slice(i, i + 2), 16)) <= 2);
-  const app = await open("./probe.tsx", { width: 320, height: 400 });
+  const app = await open("./probe.tsx", { width: 320, height: 640 });
   for (const appearance of ["light", "dark"] as const) {
     await app.setColorScheme(appearance);
     for (const spec of THEMES) {
