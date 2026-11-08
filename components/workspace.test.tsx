@@ -11,6 +11,7 @@ import {
   nameOf,
   onBoard,
   openAgents,
+  quiet,
   openTerminals,
   ready,
   saved,
@@ -79,21 +80,82 @@ test("an unreadable saved layout opens the board alone", async () => {
   expect(onBoard(app)).toBe(true);
 });
 
-test("a tab that is alone in its group cannot split away; with a second tab it moves into a new group beside it", async () => {
+test("split on the board says there is none; on a tab that shares its group the tab moves into a new group beside it", async () => {
   const app = await ready();
   await app.keyboard.press("mod+\\");
   await app.clock!.runFor(700);
   expect(app.storage()["herdr.dock.v2"]).toBeUndefined();
 
-  await openAgents(app, FIRST);
-  await app.keyboard.press("mod+\\");
-  await app.clock!.runFor(700);
-  expect((await saved(app)).map((g) => g.panels)).toHaveLength(1);
-
-  await openAgents(app, SECOND);
+  await openAgents(app, FIRST, SECOND);
   await app.keyboard.press("mod+\\");
   const groups = await saved(app);
   expect(groups.map((g) => g.panels.map(nameOf))).toEqual([[FIRST], [SECOND]]);
+});
+
+test("split on a chat alone in its group opens its companion beside it, and never the same view twice", async () => {
+  const app = await ready();
+  await openAgents(app, FIRST);
+  expect((await saved(app)).map((g) => g.panels.length)).toEqual([1]);
+  await app.keyboard.press("mod+\\");
+  await settle(app);
+  const [chat, other] = await saved(app);
+  // The fixture's folder is no git repository, so the companion is the terminal of the same pane.
+  expect(chat.panels[0]).toMatch(/^session:/);
+  expect(other.panels[0]).toMatch(/^pane:/);
+  expect(nameOf(chat.panels[0])).toBe(FIRST);
+  expect(nameOf(other.panels[0])).toBe(FIRST);
+
+  // From the terminal the companion is the chat, which is open: it is shown, no third group appears.
+  await app.keyboard.press("mod+\\");
+  await settle(app);
+  expect((await saved(app)).map((g) => g.panels.length)).toEqual([1, 1]);
+});
+
+test("Review changes opens beside the chat in front, and shows the same Changes tab again instead of opening another", async () => {
+  const app = await ready();
+  await openAgents(app, FIRST);
+  await app.keyboard.press("mod+shift+g");
+  await settle(app);
+  const [chat, changes] = await saved(app);
+  expect(chat.panels.map(nameOf)).toEqual([FIRST]);
+  expect(changes.panels[0]).toMatch(/^changes:/);
+
+  await app.keyboard.press("mod+shift+g");
+  await settle(app);
+  expect((await saved(app)).map((g) => g.panels.length)).toEqual([1, 1]);
+});
+
+test("the chat's Open beside button, a row's Open to the side and the palette's Merge splits make and close splits without a key", async () => {
+  const app = await ready();
+  await openAgents(app, FIRST);
+  await app.press("label:Open beside");
+  await settle(app);
+  expect((await saved(app)).map((g) => g.panels.length)).toEqual([1, 1]);
+
+  await app.keyboard.press("mod+p");
+  await app.type("label:Search agents, projects and commands", "Merge splits");
+  await app.press("label:Merge splits");
+  await settle(app);
+  expect((await saved(app)).map((g) => g.panels.length)).toEqual([2]);
+
+  await app.rightClick(sidebarRow(DONE));
+  await app.chooseMenuItem("Open to the side");
+  await settle(app);
+  const groups = await saved(app);
+  expect(groups).toHaveLength(2);
+  expect(groups.flatMap((g) => g.panels.map(nameOf))).toContain(DONE);
+});
+
+test("in a narrow window Review changes stays a tab of the chat's group: one view at a time", async () => {
+  const app = await seeded("mixed", { width: 800 });
+  await app.waitFor("label:Board, 2 need you");
+  await quiet(app);
+  await openAgents(app, FIRST);
+  await app.keyboard.press("mod+shift+g");
+  await settle(app);
+  const groups = await saved(app);
+  expect(groups).toHaveLength(1);
+  expect(groups[0].panels).toHaveLength(2);
 });
 
 test("every drag has a command: move the tab to another group, down, and back, from the palette", async () => {

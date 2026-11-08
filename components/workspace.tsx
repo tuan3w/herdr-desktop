@@ -6,8 +6,8 @@ import { Changes } from "#components/changes";
 import { PaneTab } from "#components/pane-tab";
 import { ProjectEmpty } from "#components/project-empty";
 import { SessionTab } from "#components/session-tab";
-import { TabFace } from "#components/tab-face";
-import { Btn, EDGE, Empty, FOCUS_RING_INSET } from "#kit";
+import { TabFace, tabsCompact } from "#components/tab-face";
+import { Btn, EDGE, Empty } from "#kit";
 import { openSettings } from "#lib/actions";
 import {
   attach,
@@ -122,8 +122,8 @@ export function Workspace() {
         )}
         renderDropIndicator={() => <View class="size-full" />}
         groupClass="bg-background"
-        tabBarClass={stripsShown(layout()) ? "flex-row flex-wrap border-b border-border bg-sidebar" : "hidden"}
-        tabClass={`${ROW.tab.class} overflow-hidden border-r border-t border-border hover:bg-sidebar-accent selected:bg-background ${FOCUS_RING_INSET}`}
+        tabBarClass={stripsShown(layout()) ? "flex-row flex-wrap gap-1 bg-background p-1" : "hidden"}
+        tabClass={`${tabsCompact() ? ROW.tabTile.class : ROW.tab.class} overflow-hidden rounded-md border border-transparent bg-sidebar-accent/40 hover:bg-sidebar-accent/70 selected:bg-card selected:hover:bg-card selected:shadow-sm dark:selected:border-border dark:selected:shadow-none`}
         tabStyle={hoverTransition()}
         contentClass="min-h-0 flex-1"
         dropIndicatorClass="rounded-md border-2 border-primary bg-primary/10"

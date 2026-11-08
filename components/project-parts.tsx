@@ -53,7 +53,7 @@ const TINT = [
 ];
 const INK = ["text-info", "text-success", "text-primary", "text-muted-foreground"];
 
-/** A project's tile: its first letters on a tint chosen from its name. Decorative: the name is said next to it. */
+/** A project's tile: its first letters on a tint chosen from its name (a 20-pt tile in a tab has a smaller radius and 10-pt letters). Decorative: the name is said next to it. */
 export function Monogram(props: { name: string; size?: number }) {
   const mark = () => monogram(props.name);
   const size = () => props.size ?? 32;
@@ -62,9 +62,14 @@ export function Monogram(props: { name: string; size?: number }) {
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       style={{ width: size(), height: size() }}
-      class={`shrink-0 items-center justify-center rounded-lg ${TINT[mark().tone]}`}
+      class={`shrink-0 items-center justify-center ${size() <= 20 ? "rounded-sm" : "rounded-lg"} ${TINT[mark().tone]}`}
     >
-      <Text class={`text-xs font-semibold ${INK[mark().tone]}`}>{mark().letters}</Text>
+      <Text
+        style={{ numberOfLines: 1 }}
+        class={`${size() <= 16 ? "text-[9px]" : size() <= 20 ? "text-[10px]" : "text-xs"} font-medium ${INK[mark().tone]}`}
+      >
+        {mark().letters}
+      </Text>
     </View>
   );
 }
