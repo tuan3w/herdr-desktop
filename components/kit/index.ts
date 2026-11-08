@@ -7,8 +7,9 @@ export { type CopyEntry, copyMenu, copyText } from "./copy";
 export { createCheckGroup, type ValueChange } from "./check-group";
 export { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "./collapsible";
 export { Autocomplete, Combobox, type ComboOption, type Suggestion } from "./combo";
-export { dialogDepth } from "./dialog-stack";
+export { dialogDepth, newDialogId, topDialog, trackDialog } from "./dialog-stack";
 export { EDGE, FOCUS_RING, FOCUS_RING_BORDERED, FOCUS_RING_INSET, FOCUS_RING_SIDEBAR, NUM, releaseFocus } from "./core";
+export { GroupHeading } from "./group-heading";
 export { FieldRow, INPUT_CLASS, Field, Labeled, type Option, SearchField } from "./fields";
 export { SelectField } from "./select";
 export { Clipped, Tipped } from "./hint";
@@ -20,7 +21,7 @@ export { offsetsOf, revealOffset } from "./navigation";
 export { Progress } from "./progress";
 export { tickerRunning } from "./ticker";
 export { RadioGroup, RadioItem } from "./radio-group";
-export { ActionMenu, type MenuAction, type MenuEntry, type MenuGroup, RowMenu } from "./menu";
+export { ActionMenu, type MenuAction, type MenuEntry, type MenuGroup, MenuPreview, RowMenu } from "./menu";
 export { Icon, type IconName, type IconTone } from "./icon";
 export { confirmDestructive, Modal } from "./modal";
 export { PaletteDialog } from "./palette-dialog";
@@ -32,6 +33,7 @@ export {
   notifyPromise,
   type NotifyOptions,
   ToastHost,
+  ToastPreview,
   undoLast,
   updateToast,
 } from "./notify";
@@ -45,15 +47,17 @@ export { type Column, Table } from "./table";
 export { TabBar, TabItem, TabPanel } from "./tabs";
 export { ThemeRoot } from "./theme-root";
 export { PopupRoot } from "./popup-root";
+export { placeBubble } from "./popup";
 export {
   Popover,
   PopoverClose,
   PopoverDescription,
   type PopoverHandle,
+  PopoverPreview,
   PopoverTitle,
   type PopoverTrigger,
   usePopover,
 } from "./popover";
 export { type AnchorPolicy, Positioner } from "./positioner";
-export { PreviewCard } from "./preview-card";
-export { useTriggerFocus } from "./tooltip";
+export { CardPreview, PreviewCard } from "./preview-card";
+export { TipContent, TipPreview, TipText, useTriggerFocus } from "./tooltip";

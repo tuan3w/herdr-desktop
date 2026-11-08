@@ -178,6 +178,15 @@ export const HIDDEN_H = 28;
 export const listRoom = (available: number, hidden: boolean): number =>
   Math.max(ROW_H, available - LIST_CHROME - (hidden ? HIDDEN_H : 0));
 
+/**
+ * How tall a list's rows are drawn: all of them when they fit in `rows` rows, else `rows` and a half, so a half row peeks
+ * at the bottom and says the list goes on (the guideline's "seven and a half rows"; a cut on a row's edge read as the end
+ * of the list, and a group heading on the last line looked like a heading with nothing under it). Never more than the room
+ * on the field's side (`listRoom`).
+ */
+export const listHeight = (content: number, rows: number, room: number): number =>
+  Math.min(content <= rows * ROW_H ? content : (rows + 0.5) * ROW_H, room);
+
 /** The group of each option (index into `names`); `names[g]` is empty for options without one. */
 export interface Groups {
   of: readonly number[];

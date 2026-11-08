@@ -40,9 +40,19 @@ A scrolling list leaves 12 pt at its end for the bar (`changes-list.tsx` pads it
 
 - The transcript has two thresholds (`lib/transcript-scroll.ts`). `FOLLOW_PT` (12 pt) is how far from the end the list still pulls the view down as rows grow: one wheel notch up is about 50 pt and means "stay here", and a streaming row must not take the reader back. `AT_END_PT` (64 pt) is when the tab counts as at the end (`atEnd`, the `Jump to latest` pill, the unseen count): the pill does not flicker on a few points of scroll. Between 12 and 64 pt the view stays where the reader put it and the pill stays quiet.
 - PageUp, PageDown, Home and End write the offset they scroll to right away. The list reports its scroll at most every 50 ms and a held key repeats every 30, so a key that read the reported offset would lose a page.
+- A page key glides: nsh's eased scroll (`animated: true`, 300 ms ease-out on macOS, run by the platform, not by JS); under reduced motion it jumps. While a glide runs the list reports the offsets it passes, so a press within `PAGE_AIM_MS` (400 ms) pages on from where the last one aimed, and a held key still moves a page a press. Home and End jump; following new content never animates.
+
+## A long chat
+
+What keeps a chat of hundreds of turns smooth to scroll (measured in `docs/PERFORMANCE.md`, "Scrolling a long chat"; guarded by `components/long-chat.test.tsx`):
+
+- **The estimate is the conversation's.** The list has one size for every row it has not measured. `estimateRowPt` (`lib/transcript-scroll.ts`) takes it once, when the rows arrive, as the mean of `rowPt` over the last 240 rows (an answer's lines wrapped at the column, each fence folded to 16 lines; the other kinds their measured heights); `DEFAULT_ROW_PT` before that. It is never changed later: a new estimate moves every unmeasured row under the reader. At the old 72 pt the content grew by a third under a reader paging down and the thumb shrank as it went.
+- **A recycled cell builds the row it is given.** Keeping each kind's view in a cell, hidden while the cell shows another, cut the views built on a scroll back from 51 to 4 but made frames slower in a Mac window (frame p95 39 to 48 ms against 26 to 35 without it, `drain` per second about twice as long): hidden native views still cost the main thread. Measured and dropped (`docs/PERFORMANCE.md`).
+- **A message is read once.** `MarkdownText` keeps its parts and `CodeBlock` a block's language and line count by text, in a bounded cache (`lib/render-cache.ts`, 512 each; a block over 64 K characters and a message being written are not kept).
+- **Scrolling is not arriving.** A row rises in only when it is one of the last `ARRIVAL_TAIL` (4) rows: a row further up shown for the first time was always there (it rose, three a second, while the reader scrolled up).
 - A picker list (`ComposerPicker`) scrolls to the highlighted row only when it is out of view, to the nearest edge (`revealOffset` of `#kit`, over equal row heights from `offsetsOf`), and tracks the offset from `onScroll`, so a wheel scroll the person made is not undone by the next arrow key.
 - `CodeBlock` asks its view to go to a line once the view exists and on the next two frames, not after a guessed delay; a new `goToNonce` asks again for the same line (the file viewer counts every request of the find bar, so "next hit" on the line already shown scrolls back to it). One view serves a block while it is written and after: it reads `follow` when it is made, so a reader at the end stays at the end (two views started again at the top).
-- Group headings in the changes list stay at the top while their files scroll under them (`stickyHeaderIndices`, `headings`), with the page background so rows do not show through.
+- Group headings in the changes list stay at the top while their files scroll under them (`stickyHeaderIndices`, `headings`); a `GroupHeading` carries the page background so rows do not show through (seen stuck over a list scrolled 200 pt in `kit-containers-disclosure`, macOS).
 
 ## Decided, not built yet
 

@@ -86,6 +86,11 @@ export function CardLayer(props: { hover: Hover<CardTrigger> }) {
   );
 }
 
+/** A preview card drawn in place, with the surface of the real one: for a lab or a spec page (the host's screenshot draws no overlay). */
+export function CardPreview(props: { children?: JSX.Element }) {
+  return <View class={`self-start ${CARD}`}>{props.children}</View>;
+}
+
 /**
  * Wraps the thing the card is about (a reference, a name) in its trigger; `card` builds what the card holds, each time it
  * opens. `disabled` stops it; `side` and `align` place it (below, aligned to the start, by default). Layout classes for the

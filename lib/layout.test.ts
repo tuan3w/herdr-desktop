@@ -37,7 +37,7 @@ test("the type scale grows with every step and keeps readable line heights", () 
 });
 
 const strictlyAscending = (values: number[]) => values.every((v, i) => i === 0 || v > values[i - 1]);
-const points = (cls: string) => Number(cls.replace(/^h-/, "")) * 4;
+const points = (cls: string) => Number(cls.replace(/^(min-)?h-/, "")) * 4;
 
 test("the ladders are strictly ordered and sit on the grid they name", () => {
   expect(strictlyAscending(Object.values(CONTROL))).toBe(true);

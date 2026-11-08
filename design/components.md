@@ -53,6 +53,7 @@ A long list (hundreds of rows or more: a transcript, a long board) is nsh's `Lis
 
 - `PageHeader`: `title` (`text-3xl font-bold`), optional `subtitle` (tabular), optional `right` (the screen's one action). Used at the top of a screen; its content column is `max-w-3xl`, centered.
 - `SectionTitle`: the heading of a section of a page (`text-sm font-medium`, in the text color), optional `right` slot; `quiet` is the small grey label of a group inside a section (the groups of a list). Sentence case, never uppercase.
+- `GroupHeading`: the heading of a group of rows in a list (a folder of Changes; sticky in a list with `stickyHeaderIndices`): a 12 pt chevron that turns, the title on one line (`text-xs` medium, an ellipsis and a tip when cut), the count at the right edge in tabular figures grouped by thousands (`10,000`, never `99+`: a count of rows is a fact, `countText`), 28 pt at least, the page fill. It folds only with rows under it and an `onToggle`; else no chevron and it is a `header` (its slot stays, so titles line up). The name is `src, 1 file` (`noun`). Why: three lists drew three headings (chevron swapped or turned, 12 or 14 pt, `10000` raw).
 - Overlays are not cards: `Dialog`, `Menu` and `Popover` popups add a shadow because they float.
 
 ## Empty
@@ -63,7 +64,7 @@ Title, optional one-line hint, optional `icon` (a muted 40pt disc), children. `f
 
 The workspace's strip of open views is not this: it is `design/tabs.md`.
 
-For views of the same record (an agent's transcript, files and details), and for the filter chips of one list (one active, each with its count, six or fewer short words). Built on `Tabs`/`Tab`. Selected is a soft `accent` fill with full-strength text; weight and width never change. `count` is a plain grey `Badge`, shown above 0; screen readers do not hear a `Badge`, so the tab's name is `label, count` (or `label, spoken`, e.g. `Needs you, 1 agent waiting`). Tabs never switch screens (that is the sidebar).
+For views of the same record (an agent's transcript, files and details), and for the filter chips of one list (one active, each with its count, six or fewer short words). Built on `Tabs`/`Tab`. Selected is a soft `accent` fill with full-strength text; weight and width never change. A tab is 32 pt at least (`min-h-8`: it grows with large text); tabs that do not fit one row wrap (six long tabs ran out of a 440 pt frame), and a `vertical` list puts the counts in a column at its right edge. Arrows, Home, End and the first letters of a tab (typeahead, `roving.ts`) move the highlight. `count` is a plain grey `Badge`, shown above 0; screen readers do not hear a `Badge`, so the tab's name is `label, count` (or `label, spoken`, e.g. `Needs you, 1 agent waiting`). Tabs never switch screens (that is the sidebar).
 
 ## CheckRow, Switch, Segmented
 
@@ -73,7 +74,7 @@ For views of the same record (an agent's transcript, files and details), and for
 
 ## SettingsSection and SettingRow
 
-`SettingsSection` is a heading one step above the body (`text-base font-medium`), then rows: no card. `SettingRow` is a label at body size and regular weight, an optional `description` one step smaller and muted (the hierarchy is size and tone, not weight), at least 56 tall, a hairline above each row (so none closes the last), and a `control` in a column aligned right that never shrinks; a select in that column is given one fixed width by the screen so the selects line up. `stacked` puts a wide control (the theme picker) under the text. Settings is a page of the main region, not a modal over the sidebar, so a waiting question stays visible. A row with a `control` that is a button carries its own name. Add an option as a signal in `lib/settings.ts` and a `SettingRow` in its section (`design/patterns.md`).
+`SettingsSection` is a heading one step above the body (`text-base font-medium`), then rows: no card. `SettingRow` is a label at body size and regular weight, an optional `description` one step smaller and muted (the hierarchy is size and tone, not weight), at least 56 tall, a hairline above each row (so none closes the last), and a `control` aligned right that never shrinks; a select in that column is given one fixed width by the screen so the selects line up. The text keeps 192 pt at least: a control too wide for that wraps under the text (a four-option `Segmented` in the dialog at 760 squeezed `Density` to a letter per line). `stacked` always puts a wide control (the theme picker) under the text, across the row. `disabled` fades the text with the control and `reason` says why, unfaded (`Turn on notifications first.`). Settings is a large dialog (`patterns.md`). A row with a `control` that is a button carries its own name. Add an option as a signal in `lib/settings.ts` and a `SettingRow` in its section (`design/patterns.md`).
 
 ## ActionMenu and RowMenu
 

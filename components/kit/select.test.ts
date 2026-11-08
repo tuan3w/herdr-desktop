@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
 
-import { listWidth, selectRows, toggled } from "./select";
+import { chosenTitle, listWidth, selectRows, toggled } from "./select";
 
 import type { ItemRow } from "./menu";
 
@@ -87,4 +87,19 @@ test("a choice list is as wide as its trigger at least, and grows to its longest
   expect(listWidth(["x".repeat(200)], 120, 300)).toBe(284);
   // a wide character counts twice
   expect(listWidth(["日本語日本語日本語日本語"], 100, 1280)).toBeGreaterThan(listWidth(["abcdefghijkl"], 100, 1280));
+});
+
+test("a chosen value the options no longer have is shown as itself, never as the placeholder", () => {
+  const options = [
+    { value: "claude", title: "Claude Code" },
+    { value: "codex", title: "Codex" },
+  ];
+  const cases: [string[], string][] = [
+    [[], ""],
+    [["codex"], "Codex"],
+    [["ghost-agent"], "ghost-agent"],
+    // Titles in the order of the options, then what no option has.
+    [["ghost-agent", "codex", "claude"], "Claude Code, Codex, ghost-agent"],
+  ];
+  for (const [chosen, shown] of cases) expect(chosenTitle(options, chosen, same)).toBe(shown);
 });

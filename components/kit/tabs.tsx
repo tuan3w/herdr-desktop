@@ -6,7 +6,7 @@ import { Badge } from "./badge";
 import { RING_INSET } from "./core";
 import { createRoving, type Roving } from "./roving";
 
-const Strip = context<Roving | undefined>(undefined);
+const Strip = context<{ roving: Roving; vertical: boolean } | undefined>(undefined);
 
 /**
  * Tab list for views of the same record (transcript, files, details). One stop of Tab; screen readers hear one
@@ -14,7 +14,9 @@ const Strip = context<Roving | undefined>(undefined);
  * highlight, Home and End jump, past the ends it wraps unless `loop` is false; Space or Return chooses the highlighted
  * tab. With `activateOnFocus` the arrows choose as they go: only where showing a view is cheap, since each step builds
  * it. Disabled tabs can be reached (a screen reader finds them) but never chosen. The focus stays on the list and the
- * ring moves (this host cannot move it to a tab: `roving.ts`).
+ * ring moves (this host cannot move it to a tab: `roving.ts`). Typing a tab's first letters highlights it, as in a menu.
+ * Tabs that do not fit one row wrap to the next, so every tab stays in sight and the frame never overflows (six long
+ * tabs in 440 pt ran out of the frame, rendered); a vertical list puts the counts in a column at its right edge.
  */
 export function TabBar(props: {
   activateOnFocus?: boolean;
@@ -30,14 +32,15 @@ export function TabBar(props: {
     skipDisabled: false,
     activateOnMove: () => props.activateOnFocus === true,
     activateKeys: ["space", "enter"],
+    typeahead: true,
   });
   return (
-    <Strip.Provider value={roving}>
+    <Strip.Provider value={{ roving, vertical: props.vertical === true }}>
       <View
         role="tablist"
         accessibilityLabel={props.label}
         {...roving.focus}
-        class={`gap-1 ${props.vertical ? "" : "flex-row"}`}
+        class={`gap-1 ${props.vertical ? "" : "flex-row flex-wrap"}`}
       >
         {props.children}
       </View>
@@ -46,7 +49,7 @@ export function TabBar(props: {
 }
 
 /**
- * One tab. Selected is a soft fill and full-strength text: weight and width never change. `count` is a plain grey number;
+ * One tab, 32 pt at least (it grows with large text). Selected is a soft fill and full-strength text: weight and width never change. `count` is a plain grey number;
  * it is hidden from screen readers like every `Badge`, so the tab's name carries it (`spoken` says what it counts).
  */
 export function TabItem(props: {
@@ -57,8 +60,9 @@ export function TabItem(props: {
   spoken?: string;
   disabled?: boolean;
 }) {
-  const roving = Strip();
-  if (!roving) throw new Error("TabItem must be inside a TabBar");
+  const strip = Strip();
+  if (!strip) throw new Error("TabItem must be inside a TabBar");
+  const roving = strip.roving;
   const name = () => (props.count ? `${props.label}, ${props.spoken ?? props.count}` : props.label);
   const mark = roving.add({
     label: name,
@@ -75,9 +79,11 @@ export function TabItem(props: {
       disabled={props.disabled}
       onPress={props.onSelect}
       style={hoverTransition()}
-      class={`h-8 flex-row items-center gap-2 rounded-md px-3 hover:bg-accent/60 selected:bg-accent disabled:opacity-50 ${mark.lit() ? "bg-accent/60" : ""} ${mark.ring() ? RING_INSET : ""}`}
+      class={`min-h-8 flex-row items-center gap-2 rounded-md px-3 hover:bg-accent/60 selected:bg-accent disabled:opacity-50 ${mark.lit() ? "bg-accent/60" : ""} ${mark.ring() ? RING_INSET : ""}`}
     >
-      <Text class={`text-sm font-medium ${props.selected ? "text-foreground" : "text-muted-foreground"}`}>
+      <Text
+        class={`text-sm font-medium ${strip.vertical ? "min-w-0 flex-1" : ""} ${props.selected ? "text-foreground" : "text-muted-foreground"}`}
+      >
         {props.label}
       </Text>
       <Badge count={props.count} />

@@ -25,14 +25,14 @@ test("a rename starts from the current name, cannot be confirmed unchanged, and 
   await app.waitFor("Rename", { state: "gone" });
 });
 
-test("a new name cannot be empty: the button waits, and Enter on an empty field says why instead of submitting", async () => {
+test("a new name cannot be empty: the button stays pressable and says why under the field instead of submitting", async () => {
   const app = await open("./machines-lab.tsx", DESKTOP);
   await app.press("New workspace");
-  expect(app.enabled("Create")).toBe(false);
+  // A dead button cannot say what is wrong (design/dialogs.md): it is pressable, and the press explains.
+  expect(app.enabled("Create")).toBe(true);
   await app.type(NAME, "   ");
-  expect(app.enabled("Create")).toBe(false);
   const before = app.texts();
-  await app.submit(NAME);
+  await app.press("Create");
   expect(app.texts()).toContain("no name");
   expect(app.shows("Create")).toBe(true);
   // a message under the field says why nothing happened

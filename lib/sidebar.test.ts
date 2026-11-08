@@ -190,6 +190,8 @@ test("a project's monogram is its first letters and keeps its tint whatever else
   expect(monogram("payments-api").letters).toBe("PA");
   expect(monogram("web").letters).toBe("W");
   expect(monogram("Écoute").letters).toBe("É");
+  // a letter outside the basic plane is one letter, never half of one
+  expect(monogram("𝔸lpha beta").letters).toBe("𝔸B");
   expect(monogram("payments-api")).toEqual(monogram("Payments-API"));
   const tones = new Set(
     ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta"].map((n) => monogram(n).tone),

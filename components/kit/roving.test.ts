@@ -49,3 +49,12 @@ test("a group listens only to the keys of its axis, so the others still scroll t
   expect(names("both", false)).toEqual(["left", "right", "up", "down"]);
   expect(names("horizontal", true)).toEqual(["left", "right", "home", "end"]);
 });
+
+test("over 500 items Home and End jump to the ends and the arrows wrap across them", () => {
+  const many = Array.from({ length: 500 }, () => false);
+  expect(stepIndex(many, 250, "first", true)).toBe(0);
+  expect(stepIndex(many, 250, "last", true)).toBe(499);
+  expect(stepIndex(many, 499, "next", true)).toBe(0);
+  expect(stepIndex(many, 0, "previous", true)).toBe(499);
+  expect(stepIndex(many, 499, "next", false)).toBe(499);
+});

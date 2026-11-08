@@ -102,14 +102,26 @@ export function FieldLabel(props: { children: string; errorInLabel?: boolean; cl
         </Text>
       }
     >
-      <View class="flex-row items-center gap-1">
-        <Icon name="alert" size={12} tone="destructive" />
+      <View class="flex-row items-start gap-1">
+        <AlertMark />
         <Text
           class="line-clamp-1 flex-1 text-xs font-medium text-destructive"
           style={{ userSelect: "text" }}
         >{`${props.children}: ${shown()}`}</Text>
       </View>
     </If>
+  );
+}
+
+/**
+ * The alert icon of an error, in a box one `text-xs` line tall: it sits on the first line of a message that wraps, not
+ * halfway down a paragraph (a three-line error drew it beside the second line).
+ */
+function AlertMark() {
+  return (
+    <View class="h-4 shrink-0 justify-center">
+      <Icon name="alert" size={12} tone="destructive" />
+    </View>
   );
 }
 
@@ -149,8 +161,8 @@ export function FieldError(props: { match?: boolean | ValidityKey; children?: st
       <View class="gap-1">
         <Each of={lines()} key="index">
           {(line) => (
-            <View class="flex-row items-center gap-1">
-              <Icon name="alert" size={12} tone="destructive" />
+            <View class="flex-row items-start gap-1">
+              <AlertMark />
               <Text class={props.class ?? "flex-1 text-xs text-destructive"} style={{ userSelect: "text" }}>
                 {line()}
               </Text>
@@ -246,6 +258,8 @@ export function OneLine(props: {
   focused: boolean;
   padRight: string;
   mono?: boolean;
+  /** The field is disabled: the drawn value fades with the box. */
+  faded?: boolean;
   children?: JSX.Element;
 }) {
   const cut = signal(false);
@@ -257,7 +271,7 @@ export function OneLine(props: {
         <View class={`pointer-events-none absolute inset-0 justify-center pl-[13px] ${props.padRight}`}>
           <Text
             style={{ numberOfLines: 1 }}
-            class={`min-w-0 text-sm text-foreground ${props.mono ? "font-mono" : ""}`}
+            class={`min-w-0 text-sm text-foreground ${props.mono ? "font-mono" : ""} ${props.faded ? "opacity-50" : ""}`}
             onTextLayout={(e) =>
               cut.set(
                 isCutOff(

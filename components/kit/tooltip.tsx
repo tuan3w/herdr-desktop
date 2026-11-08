@@ -69,6 +69,14 @@ export function TipContent(props: { label: string; shortcut?: string }) {
   );
 }
 
+/**
+ * One bubble drawn in place, with the surface of the real one: for a lab or a spec page, because the host's window
+ * screenshot does not draw the bubble's overlay. Not for screens: they wrap a control in `Tipped`.
+ */
+export function TipPreview(props: { children?: JSX.Element }) {
+  return <View class={`self-start ${BUBBLE}`}>{props.children}</View>;
+}
+
 /** What one tooltip trigger asks for; every value is read when it is needed, so it may be a signal's. */
 export interface TooltipOptions {
   /** No bubble while this is true: a bubble that shows is closed when it turns true. */

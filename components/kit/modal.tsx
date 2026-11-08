@@ -10,8 +10,10 @@ import { coverToasts, escapeIsToasts, ToastHost } from "./notify";
 import { createOpenState, type OpenChange, type OpenReason } from "./popup";
 import { PopupRoot } from "./popup-root";
 
-/** Vertical padding of the scrolling body, which `Modal` adds to the content height to tell whether it overflows. */
-const BODY_PAD = 32;
+/** Vertical padding of the scrolling body, which `Modal` adds to the content height to tell whether it overflows: 16 above, 16 over the footer or 24 when there is none (the dialog's own edge padding). */
+const BODY_PAD = { footer: 32, none: 40 } as const;
+/** Widths by kind (`design/dialogs.md`): a short question, a form, text the user writes, a picture. */
+const WIDTH = { small: "w-[400px]", default: "w-[560px]", wide: "w-[760px]", huge: "w-[1000px]" } as const;
 
 /**
  * A modal form or detail, as Base UI's Dialog behaves: scrim, popup that scales in from 0.97 and back out as the dialog closes, title, optional
@@ -19,7 +21,9 @@ const BODY_PAD = 32;
  * (760pt, not 560) is for text the user writes, such as a prompt; `huge` (1000pt) is for a file browser or a viewer, where
  * the content is the point. `size="settings"` is the one large dialog (`DIALOG_LARGE`, 880 x 640, the window less a 24-pt
  * margin when it is smaller): its content fills the popup and brings its own layout (a list at the left, a scroll at the
- * right), under a header of the title and the `actions` at the top right, with no footer.
+ * right), under a header of the title and the `actions` at the top right, with no footer. `size="small"` (400 pt) is for
+ * a short question (Confirm, Alert, Info), so two lines and two buttons are not a wide empty card. A dialog with no
+ * `actions` has no footer band: its body ends at the dialog's edge padding.
  *
  * `open` is the owner's. Escape and a press on the scrim only ask: `onClose(change)` hears the `reason`
  * (`escape-key`, `outside-press`) and the owner closes by setting `open` false, or refuses by leaving it true (the
@@ -41,7 +45,7 @@ export function Modal(props: {
   actions?: JSX.Element;
   wide?: boolean;
   huge?: boolean;
-  size?: "settings";
+  size?: "settings" | "small";
   disablePointerDismissal?: boolean;
   onOpenChangeComplete?: (open: boolean) => void;
 }) {
@@ -64,7 +68,14 @@ export function Modal(props: {
   const pop = enterScale(() => props.open);
   const viewport = signal(0);
   const content = signal(0);
-  const overflowing = () => content() + BODY_PAD > viewport() + 1;
+  // Whether a body and a footer were given, without reading them: `props.children` and `props.actions` are getters that
+  // build their elements on every read, so a test of their value made the whole body twice (the copy no one saw kept its
+  // effects and key bindings: a folder field's Down went to the hidden copy's list).
+  const hasBody = "children" in props;
+  const hasActions = "actions" in props;
+  // No body (a question that is all title): nothing scrolls, and no hairline is drawn.
+  const overflowing = () =>
+    viewport() > 0 && content() + (hasActions ? BODY_PAD.footer : BODY_PAD.none) > viewport() + 1;
   const edge = () => (overflowing() ? "border-border" : "border-transparent");
   // A dialog has no name of its own: a screen reader hears that one opened, and which. Once per opening: a title that
   // changes while it is open (a counter, a name being typed) must not be read again at every change.
@@ -78,7 +89,7 @@ export function Modal(props: {
   // Built once, by `size`, so the ordinary dialog keeps exactly the tree it always had.
   const body = () =>
     props.size === "settings" ? (
-      <View style={[pop, large()]} class={`rounded-lg bg-card ${EDGE.lg}`}>
+      <View style={[pop, large()]} class={`rounded-xl bg-card ${EDGE.lg}`}>
         <View class="shrink-0 flex-row items-center gap-3 border-b border-border py-3 pl-6 pr-3">
           <View class="min-w-0 flex-1">
             <Text role="header" class="text-lg font-semibold text-card-foreground">
@@ -87,12 +98,12 @@ export function Modal(props: {
           </View>
           {props.actions}
         </View>
-        <View class="min-h-0 flex-1 overflow-hidden rounded-b-lg">{props.children}</View>
+        <View class="min-h-0 flex-1 overflow-hidden rounded-b-xl">{props.children}</View>
       </View>
     ) : (
       <View
         style={pop}
-        class={`max-h-[94%] max-w-[94%] rounded-lg bg-card ${EDGE.lg} ${props.huge ? "w-[1000px]" : props.wide ? "w-[760px]" : "w-[560px]"}`}
+        class={`max-h-[94%] max-w-[94%] rounded-xl bg-card ${EDGE.lg} ${WIDTH[props.huge ? "huge" : props.wide ? "wide" : props.size === "small" ? "small" : "default"]}`}
       >
         <View class="min-h-0 shrink">
           <View class={`shrink-0 gap-1 border-b px-6 pb-4 pt-6 ${edge()}`}>
@@ -105,16 +116,21 @@ export function Modal(props: {
               </Text>
             </If>
           </View>
-          <Scroll
-            class="min-h-0 shrink"
-            contentClass="px-6 py-4"
-            onLayout={({ bounds }) => viewport.set(bounds.size.height)}
-          >
-            <View onLayout={({ bounds }) => content.set(bounds.size.height)}>{props.children}</View>
-          </Scroll>
-          <View class={`shrink-0 flex-row items-center justify-end gap-2 border-t px-6 pb-6 pt-4 ${edge()}`}>
-            {props.actions}
-          </View>
+          {/* A dialog that is all title and buttons has no body: an empty one was a 32 pt blank band above the buttons. */}
+          <If when={hasBody}>
+            <Scroll
+              class="min-h-0 shrink"
+              contentClass={`px-6 pt-4 ${hasActions ? "pb-4" : "pb-6"}`}
+              onLayout={({ bounds }) => viewport.set(bounds.size.height)}
+            >
+              <View onLayout={({ bounds }) => content.set(bounds.size.height)}>{props.children}</View>
+            </Scroll>
+          </If>
+          <If when={hasActions}>
+            <View class={`shrink-0 flex-row items-center justify-end gap-2 border-t px-6 pb-6 pt-4 ${edge()}`}>
+              {props.actions}
+            </View>
+          </If>
         </View>
       </View>
     );

@@ -1,6 +1,6 @@
 import { mount, signal, Text, View } from "nsh";
 
-import { ActionMenu, Btn, type MenuEntry, Modal, RowMenu, SelectField, ThemeRoot, PopupRoot } from "#kit";
+import { ActionMenu, Btn, Field, type MenuEntry, Modal, RowMenu, SelectField, ThemeRoot, PopupRoot } from "#kit";
 
 /** Test entry only: every menu and select feature on one page, so `menus.test.tsx` can drive them without the app's data. */
 const MACHINES = Array.from({ length: 500 }, (_, i) => ({
@@ -14,6 +14,7 @@ const AGENTS = Array.from({ length: 80 }, (_, i) => ({
 
 const runs = signal(0);
 const acted = signal("none");
+const note = signal("");
 const finished = signal(false);
 const sort = signal("date");
 const agent = signal("a1");
@@ -91,6 +92,8 @@ function Lab() {
         <Text class="text-sm text-foreground">{`Machine: ${machine()}`}</Text>
         <Text class="text-sm text-foreground">{`Machines: ${machines().join(",")}`}</Text>
         <View class="w-72 gap-3">
+          <Field label="Typed note" value={note()} onChange={(v) => note.set(v)} />
+          <Text class="text-sm text-foreground">{`Note: ${note()}`}</Text>
           <SelectField
             label="Target machine"
             items={MACHINES}

@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
 
-import { type Column, fittingColumns, sortedRows } from "./table";
+import { type Column, fittingColumns, nextSort, shownSort, sortedRows, titleLabel } from "./table";
 
 interface Row {
   name: string;
@@ -85,4 +85,24 @@ test("a narrow table drops its optional columns lowest first, only as many as ne
 test("a column without a drop order never leaves, and an unmeasured table shows everything", () => {
   expect(keys(fittingColumns(WIDE, 40))).toEqual(["name"]);
   expect(keys(fittingColumns(WIDE, 0))).toEqual(["name", "started", "open"]);
+});
+
+test("a title press sorts ascending, then descending, then back to the caller's order", () => {
+  expect(nextSort(null, "size")).toEqual({ key: "size", direction: "ascending" });
+  expect(nextSort({ key: "size", direction: "ascending" }, "size")).toEqual({ key: "size", direction: "descending" });
+  expect(nextSort({ key: "size", direction: "descending" }, "size")).toBeNull();
+  expect(nextSort({ key: "name", direction: "descending" }, "size")).toEqual({ key: "size", direction: "ascending" });
+});
+
+test("a sort by a column the narrow table dropped is not shown on any title", () => {
+  const shown = fittingColumns(WIDE, 150);
+  expect(shownSort({ key: "open", direction: "ascending" }, shown)).toBeNull();
+  expect(shownSort({ key: "name", direction: "descending" }, shown)).toEqual({ key: "name", direction: "descending" });
+  expect(shownSort({ key: "name" }, shown)).toBeNull();
+});
+
+test("a title tells a screen reader its order, or what pressing it does", () => {
+  expect(titleLabel("Size", true, null)).toBe("Sort by Size");
+  expect(titleLabel("Size", true, "descending")).toBe("Size, sorted descending");
+  expect(titleLabel("", false, null)).toBe("");
 });

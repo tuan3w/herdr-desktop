@@ -1,9 +1,10 @@
-import { effect, signal, Storage } from "nsh";
+import { effect, host, signal, Storage } from "nsh";
 
 import type { BoardCheckout, BoardData, BoardProject, BoardRow, MachineStatus } from "herdr-desktop/native";
 
 import { SIDEBAR_WIDTH } from "#lib/layout";
 import { save } from "#lib/save";
+import { clampSidebar } from "#lib/sidebar-width";
 import { statusText } from "#lib/status";
 import { fold } from "#lib/text";
 
@@ -66,19 +67,16 @@ export async function loadSidebar(): Promise<void> {
         if ("foldedProjects" in saved && Array.isArray(saved.foldedProjects)) {
           foldedProjects.set(saved.foldedProjects.filter((k): k is string => typeof k === "string"));
         }
-        if (
-          "width" in saved &&
-          typeof saved.width === "number" &&
-          saved.width >= SIDEBAR_WIDTH.min &&
-          saved.width <= SIDEBAR_WIDTH.max
-        ) {
-          sidebarWidth.set(saved.width);
-        }
+        // A width saved under an older, narrower range is brought into today's, not thrown away.
+        if ("width" in saved && typeof saved.width === "number") sidebarWidth.set(clampSidebar(saved.width));
       }
     }
   } catch (e) {
     console.error("herdr-desktop: cannot read the sidebar state", e);
   }
+  // A render or test sets the width to look at it (`host.params.sidebarWidth`; in the real app `host.params` is empty).
+  const asked = host.params.sidebarWidth;
+  if (typeof asked === "number") sidebarWidth.set(clampSidebar(asked));
   sidebarReady.set(true);
 }
 
@@ -175,7 +173,9 @@ export const MONOGRAM_TONES = 4;
  */
 export function monogram(name: string): { letters: string; tone: number } {
   const words = name.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  const letters = (words.length > 1 ? words[0][0] + words[1][0] : (words[0] ?? "?").slice(0, 1)).toUpperCase();
+  // By code point, not UTF-16 unit: a letter outside the basic plane is one letter, never half of one.
+  const first = (word: string) => [...word][0] ?? "";
+  const letters = (words.length > 1 ? first(words[0]) + first(words[1]) : first(words[0] ?? "?")).toUpperCase();
   let hash = 0;
   for (const ch of name.toLowerCase()) hash = (hash * 31 + ch.codePointAt(0)!) >>> 0;
   return { letters, tone: hash % MONOGRAM_TONES };

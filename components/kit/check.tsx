@@ -1,4 +1,4 @@
-import { announce, cleanup, createMotion, effect, type JSX, keymap, untracked, View, type ViewRef } from "nsh";
+import { announce, cleanup, createMotion, effect, type JSX, keymap, Text, untracked, View, type ViewRef } from "nsh";
 
 import { DURATION, EASE_OUT, hoverTransition } from "#lib/motion";
 import { largeTargets } from "#lib/settings";
@@ -119,6 +119,8 @@ export function CheckRow(props: {
     (v) => v !== true,
     "Tick this box to continue.",
   );
+  // Above and below the label's line: the row is 28 (44 under Large hit targets) with one line of 13 pt text.
+  const pad = () => (largeTargets() ? "py-3" : "py-1");
   const name = () =>
     props.label ?? (typeof props.children === "string" ? props.children : undefined) ?? control.label() ?? undefined;
   return (
@@ -145,23 +147,35 @@ export function CheckRow(props: {
         holdReturn = undefined;
       }}
       style={hoverTransition()}
-      class={`group flex-row items-center gap-2 rounded-md ${largeTargets() ? "min-h-11" : "min-h-7"} active:opacity-80 disabled:opacity-50 ${FOCUS_RING} ${props.class ?? ""}`}
+      class={`group min-w-0 shrink flex-row items-start gap-2 rounded-md ${largeTargets() ? "min-h-11" : "min-h-7"} active:opacity-80 disabled:opacity-50 ${FOCUS_RING} ${props.class ?? ""}`}
     >
-      <View
-        class={`size-4 items-center justify-center rounded-sm border bg-card group-checked:border-primary group-checked:bg-primary group-indeterminate:border-primary group-indeterminate:bg-primary ${control.wrong() ? "border-destructive" : "border-input"}`}
-      >
-        <If
-          when={props.indeterminate}
-          else={
-            <If when={props.checked}>
-              <CheckMark />
+      {/* The box sits on the label's first line, not halfway down a label that wraps: its column is one line of the
+          label's text tall (an invisible line of the same size sets it, so large text moves both together). */}
+      <View class={`min-w-4 justify-center ${pad()}`}>
+        <Text accessibilityElementsHidden importantForAccessibility="no-hide-descendants" class="text-sm opacity-0">
+          M
+        </Text>
+        <View class="absolute inset-0 items-center justify-center">
+          <View
+            class={`size-4 items-center justify-center rounded-sm border bg-card group-checked:border-primary group-checked:bg-primary group-indeterminate:border-primary group-indeterminate:bg-primary ${control.wrong() ? "border-destructive" : "border-input"}`}
+          >
+            <If
+              when={props.indeterminate}
+              else={
+                <If when={props.checked}>
+                  <CheckMark />
+                </If>
+              }
+            >
+              <View class="h-0.5 w-2 rounded-full bg-primary-foreground" />
             </If>
-          }
-        >
-          <View class="h-0.5 w-2 rounded-full bg-primary-foreground" />
-        </If>
+          </View>
+        </View>
       </View>
-      {props.children}
+      {/* The label shrinks to the row and wraps inside it: it ran past its container (a 240 pt column). */}
+      <If when={props.children}>
+        <View class={`min-w-0 shrink ${pad()}`}>{props.children}</View>
+      </If>
     </View>
   );
 }

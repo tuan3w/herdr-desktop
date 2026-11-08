@@ -8,22 +8,46 @@ import { largeTargets } from "#lib/settings";
 
 import { IconButton } from "./button";
 import { spoken } from "./check";
+import { drawsOwnValue } from "./combo-rules";
 import { FieldScope, useFieldControl, type Violation } from "./field";
-import { FieldDescription, FieldError, FieldLabel, type FieldRules, FieldRoot } from "./field-parts";
+import { FieldDescription, FieldError, FieldLabel, type FieldRules, FieldRoot, OneLine } from "./field-parts";
 import { Icon } from "./icon";
 
-/** Text input look: hover darkens the edge; focus turns the border `ring` and adds a 0.5 pt outline at offset 0 (the one ring, `RING_BORDERED`). Errors add `border-destructive` and the line stays `destructive`. */
-export const INPUT_BOX =
-  "rounded-md border border-input bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground hover:border-muted-foreground/50 focus:border-ring focus:outline-[0.5px] focus:outline-offset-0 focus:outline-ring";
-/** The input's height: 32, and 44 under Large hit targets like `Btn` and `SelectField`, so no input is the small target. */
-export const inputHeight = () => (largeTargets() ? "h-11" : "h-8");
-/** The look with a fixed 32 height, for inputs placed by other screens; `Field`, `NumberField` and `SearchField` use the box and `inputHeight`. */
-export const INPUT_CLASS = `h-8 ${INPUT_BOX}`;
+/** What a text input is doing, for its look. */
+export interface InputState {
+  invalid?: boolean;
+  disabled?: boolean;
+  readOnly?: boolean;
+  /** The dense 28 pt tier (`CONTROL.small`); 44 under Large hit targets like every control. */
+  small?: boolean;
+  /** Replaces the one-line height: a multiline box's own. */
+  height?: string;
+}
+
+/** The input's height: 32, and 44 under Large hit targets like `Btn` and `SelectField`, so no input is the small target. A `min-h`, so large text grows the box instead of cutting it. */
+export const inputHeight = (small?: boolean) => (largeTargets() ? "min-h-11" : small ? "min-h-7" : "min-h-8");
+
+/**
+ * THE look of a one-line text input (`Field`, `NumberField`, `Combobox`, `Autocomplete`): hover darkens the edge; focus
+ * turns the border `ring` and adds a 0.5 pt outline at offset 0 (the one ring, `RING_BORDERED`). Invalid keeps the
+ * `destructive` edge, focused or not. Disabled fades to 50% (as `Btn`, `Switch`, `CheckRow` and `SelectField`: the label
+ * alone fading read as an enabled box); read-only drops the hover and sits on a recessed fill, so a box that cannot be
+ * typed into does not look like one that can. Classes never conflict (one fill, one edge, one height), so no state
+ * depends on the class engine's order.
+ */
+export function inputLook(state: InputState = {}): string {
+  const fill = state.readOnly ? "bg-muted/50" : "bg-card";
+  const edge = state.invalid
+    ? "border-destructive focus:outline-destructive"
+    : `border-input focus:border-ring focus:outline-ring ${state.readOnly || state.disabled ? "" : "hover:border-muted-foreground/50"}`;
+  return `${state.height ?? inputHeight(state.small)} rounded-md border px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-[0.5px] focus:outline-offset-0 ${fill} ${edge} ${state.disabled ? "opacity-50" : ""}`;
+}
+
+/** The look with a fixed 32 height, for bare inputs placed by other screens (an add-row, a find bar). */
+export const INPUT_CLASS = inputLook({ height: "h-8" });
 /** A filter inside a list: a recessed fill with no edge until it is hovered or focused (28, 44 under Large hit targets). */
 const INPUT_QUIET =
   "rounded-md border border-transparent bg-muted/60 px-3 text-sm text-foreground placeholder:text-muted-foreground hover:bg-muted focus:border-ring focus:outline-[0.5px] focus:outline-offset-0 focus:outline-ring";
-export const INPUT_ERROR =
-  "border-destructive hover:border-destructive focus:border-destructive focus:outline-destructive";
 
 /** The line under a control: the field's error, or the hint while there is none. `reserve` keeps the room of one line. */
 function Footer(props: { hint?: string; reserve?: boolean; errorInLabel?: boolean }) {
@@ -139,6 +163,10 @@ interface TextProps extends FieldRules {
 function TextControl(props: { p: TextProps }) {
   const p = props.p;
   let input: InputRef | undefined;
+  const focused = signal(false);
+  // A one-line value rests as one line ending in an ellipsis (`OneLine`), as in `SelectField`, `Combobox` and
+  // `Autocomplete`: the host's editor cut a 300-character path mid-glyph. Not a secret (its dots are the point) or a box of lines.
+  const oneLine = () => !p.multiline && !p.masked;
   const control = useFieldControl({
     value: () => p.value,
     required: () => p.required,
@@ -147,7 +175,7 @@ function TextControl(props: { p: TextProps }) {
     focus: () => input?.focus(),
     disabled: () => p.disabled,
   });
-  return (
+  const box = (
     <Input
       ref={(node: InputRef) => {
         input = node;
@@ -173,14 +201,30 @@ function TextControl(props: { p: TextProps }) {
         p.onSubmit?.();
         control.submit();
       }}
-      onFocus={control.focused}
+      onFocus={() => {
+        focused.set(true);
+        control.focused();
+      }}
       onBlur={() => {
+        focused.set(false);
         control.blurred();
         p.onBlur?.();
       }}
       style={hoverTransition()}
-      class={`${INPUT_BOX} ${p.multiline ? "" : inputHeight()} ${p.mono ? "font-mono" : ""} ${p.multiline ? (p.tall ? "h-72 py-2" : "h-24 py-2") : ""} ${control.invalid() ? INPUT_ERROR : ""}`}
+      class={`${inputLook({
+        invalid: control.invalid(),
+        disabled: control.disabled(),
+        readOnly: p.readOnly,
+        height: p.multiline ? (p.tall ? "h-72 py-2" : "h-24 py-2") : undefined,
+      })} ${p.mono ? "font-mono" : ""} ${oneLine() && drawsOwnValue({ text: p.value, focused: focused() }) ? "text-transparent" : ""}`}
     />
+  );
+  return (
+    <If when={oneLine()} else={box}>
+      <OneLine text={p.value} focused={focused()} padRight="pr-3" mono={p.mono} faded={control.disabled()}>
+        {box}
+      </OneLine>
+    </If>
   );
 }
 
@@ -255,7 +299,7 @@ export function SearchField(props: {
         onFocus={() => focused.set(true)}
         onBlur={() => focused.set(false)}
         style={hoverTransition()}
-        class={`${props.dense ? INPUT_QUIET : INPUT_BOX} ${props.dense && !largeTargets() ? "h-7" : inputHeight()} pl-8 pr-8`}
+        class={`${props.dense ? `${INPUT_QUIET} ${inputHeight(true)}` : inputLook()} pl-8 pr-8`}
       />
       <View class="pointer-events-none absolute bottom-0 left-2.5 top-0 justify-center">
         <Icon name="search" size={14} tone="muted-foreground" />

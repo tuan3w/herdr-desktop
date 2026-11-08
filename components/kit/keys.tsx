@@ -5,11 +5,12 @@ import { keycaps } from "#lib/keycaps";
 import { NUM } from "./core";
 
 /** `muted` beside a label, `quiet` in a list of rows (hairline, no fill: a column of them is not a wall of boxes), the rest sit on a coloured surface. */
-export type KeysTone = "muted" | "quiet" | "onPrimary" | "sidebar" | "tip";
+export type KeysTone = "muted" | "quiet" | "bare" | "onPrimary" | "sidebar" | "tip";
 
 const CAP: Record<KeysTone, string> = {
   muted: "border-border bg-muted",
   quiet: "border-border",
+  bare: "",
   onPrimary: "border-primary-foreground/30",
   sidebar: "border-sidebar-border",
   tip: "border-background/20 bg-background/15",
@@ -17,6 +18,7 @@ const CAP: Record<KeysTone, string> = {
 const TEXT: Record<KeysTone, string> = {
   muted: "text-muted-foreground",
   quiet: "text-muted-foreground",
+  bare: "text-muted-foreground",
   onPrimary: "text-primary-foreground opacity-80",
   sidebar: "text-sidebar-accent-foreground opacity-70",
   tip: "text-background opacity-80",
@@ -29,6 +31,18 @@ const TEXT: Record<KeysTone, string> = {
  */
 export function Keys(props: { keys: string; tone?: KeysTone }) {
   const tone = () => props.tone ?? "muted";
+  // `bare`: plain muted text with no cap (a menu, where a column of boxes is a wall); the group still ends on one edge.
+  if (tone() === "bare")
+    return (
+      <Text
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        style={NUM}
+        class="shrink-0 text-xs text-muted-foreground"
+      >
+        {keycaps(props.keys).join(" ")}
+      </Text>
+    );
   return (
     <View
       accessibilityElementsHidden

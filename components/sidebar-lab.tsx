@@ -4,7 +4,7 @@ import { host, mount, Text, View } from "nsh";
 import { Sidebar } from "#components/sidebar";
 import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
 import { newSessionOpen, newSessionProject, settingsPage } from "#lib/actions";
-import { focused, paneKey } from "#lib/dock";
+import { focused, terminalKey } from "#lib/dock";
 import { allRows, board, revision, startHerdr } from "#lib/herdr";
 import { selected } from "#lib/selection";
 import { loadSidebar, treeOffset } from "#lib/sidebar";
@@ -38,7 +38,7 @@ function goTo(end: "first" | "last") {
   // An agent that is doing something is always listed (idle ones can sit behind `N more idle`).
   const rows = allRows(board()).filter((r) => r.status === "working" || r.status === "blocked");
   const row = end === "first" ? rows[0] : rows[rows.length - 1];
-  focused.set(paneKey(row.machine, row.paneId));
+  focused.set(terminalKey(row.machine, row.paneId));
 }
 
 /** The entry of `sidebar.test.tsx`: the sidebar beside lines that say what its buttons did. Not part of the app. */

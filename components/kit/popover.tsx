@@ -238,6 +238,14 @@ export function Popover(props: {
   );
 }
 
+/**
+ * A popover's panel drawn in place, with the surface of the real one: for a lab or a spec page, because the host's window
+ * screenshot does not draw an overlay. `PopoverTitle` and `PopoverDescription` work inside it; `PopoverClose` does not.
+ */
+export function PopoverPreview(props: { children?: JSX.Element; class?: string }) {
+  return <View class={`self-start ${POPUP} ${props.class ?? ""}`}>{props.children}</View>;
+}
+
 /** The popup's heading: names the popup for screen readers (Base UI's `Popover.Title`). */
 export function PopoverTitle(props: { children: string; class?: string }) {
   const scope = PopoverScope();

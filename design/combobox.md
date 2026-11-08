@@ -5,7 +5,7 @@ Ported from Base UI's Combobox and Autocomplete (`components/kit/combo.tsx`; the
 ## Shape
 
 - The input keeps the keyboard focus the whole time and the list is never focused (a view cannot take the focus from code). The highlight is a position that Up and Down move; Enter picks it; `announce` tells a screen reader the row, and the count after typing settles (`SAY_MS`).
-- The list is `ListPopup`: a `Positioner` under the field (an `inline` one is a box in the page), holding one `List` of recycled rows (`Row` reads its position as an accessor and keeps no state). The list is never taller than the room the overlay reports for its side (`OverlayPosition.available`, less the border and padding and the "more results" line: `listRoom`), so a list near the bottom of the window scrolls instead of being clamped over its field. Group headings are rows of their own. Rows are `ROW_H` (32, the `nav` tier of `lib/layout.ts`) and headings `HEAD_H` (28, the `more` tier) in `combo-rules.ts`: a row's place is arithmetic, so keeping the highlight in view is `revealOffset` and `scrollToOffset`, nothing is measured.
+- The list is `ListPopup`: a `Positioner` under the field (an `inline` one is a box in the page), holding one `List` of recycled rows (`Row` reads its position as an accessor and keeps no state). The list is never taller than the room the overlay reports for its side (`OverlayPosition.available`, less the border and padding and the "more results" line: `listRoom`), so a list near the bottom of the window scrolls instead of being clamped over its field. Group headings are rows of their own. A list longer than its `rows` shows a half row more (`listHeight`), so the cut says it scrolls: cut on a row's edge it read as the end of the list, and a heading alone on the last line as a heading with nothing under it. Rows are `ROW_H` (32, the `nav` tier of `lib/layout.ts`) and headings `HEAD_H` (28, the `more` tier) in `combo-rules.ts`: a row's place is arithmetic, so keeping the highlight in view is `revealOffset` and `scrollToOffset`, nothing is measured.
 - Nothing is built while closed: the scan, the list, the key bindings (`navigable`) and the count announcement exist only while `visible()`. The owner's `items` is read once, through a `computed`, so an inline `.map` is not re-run per read.
 - A dialog is its own root view: the `Positioner` is placed in the root of its anchor, so a list in a dialog needs nothing. A list in the app root closes when a dialog opens above it (`dialogDepth`), and when a scroll carries its field away (`anchor-moved`; a field that grows because chips wrapped is not a scroll).
 
@@ -15,7 +15,7 @@ Ported from Base UI's Combobox and Autocomplete (`components/kit/combo.tsx`; the
 
 `autoFocus` focuses the input when the field appears (the first field of a dialog). `onInputChange(text, "type")` is also called when a composition ends with what it ended with, since the owner is not told while one is running.
 
-`Autocomplete` takes the same where it applies, plus `mode` (`list` default, `both`, `inline`, `none`). `suggestions` are strings or `Suggestion`; `onPick` runs after `onChange`. Defaults differ on purpose: `Combobox` has `autoHighlight="always"` (the chosen row, else the first, is highlighted, so Enter picks), `Autocomplete` has none (Enter submits what was typed) and `openOnInputClick` false.
+`Autocomplete` takes the same where it applies, plus `mode` (`list` default, `both`, `inline`, `none`). `suggestions` are strings or `Suggestion` (`title` is what the row shows when `text`, what goes in the field, is longer: a folder's name for its path); `rows` is how many rows show before it scrolls (default 8); `onPick` runs after `onChange`. Defaults differ on purpose: `Combobox` has `autoHighlight="always"` (the chosen row, else the first, is highlighted, so Enter picks), `Autocomplete` has none (Enter submits what was typed) and `openOnInputClick` false.
 
 ## Keys
 
@@ -57,6 +57,8 @@ Measured once on the host with the dev panel (open, type a query, scroll, 60 Dow
 The scan itself (`combobox.list`): p95 3.4 ms over a run of both sizes. Memory grows by the folded text of the options that were scanned (about 20 MB at 50,000).
 
 ## One line, whatever the value
+
+A chip is as wide as its text and never past the field: a long title is cut inside it (a chip measured its whole text and painted its fill past the field's edge), and the field clips what is left (`overflow-hidden`).
 
 A one-line field never shows two lines. A value wider than the box (`build-box-eu-west-2 (staging cluster, shared)` in a 320pt field) rests as one `Text` of one line ending in an ellipsis: `OneLine` draws it over the input while the input has no focus (`drawsOwnValue`), the input's own text transparent, so the host's editor never decides how a long value looks. While the person edits, the input is the editor and scrolls as any field does. The whole value is the input's accessible name and value, and a bubble shows it when the pointer rests on a cut value (`isCutOff`). Popup rows keep their fixed height: title and hint are a `Clipped`, the row's name has both whole. `SelectField`'s trigger is a `Clipped` in a `min-w-0` box. A bubble on keyboard focus is not built: the focused input shows and scrolls its text.
 

@@ -13,6 +13,7 @@ import {
   isCutOff,
   initialHighlight,
   layout,
+  listHeight,
   listRoom,
   nextHighlight,
   pageHighlight,
@@ -302,4 +303,16 @@ test("a value is cut off when its lines hold fewer letters than it, spaces a bre
   expect(isCutOff(["build-box-eu-west-2 (staging cluster, shared)"], full)).toBe(false);
   expect(isCutOff(["build-box-eu-west-2 (staging", "cluster, shared)"], full)).toBe(false);
   expect(isCutOff(["build-box-eu-west-2 (stag…"], full)).toBe(true);
+});
+
+test("a list longer than its rows shows a half row more, so the cut says it scrolls; never more than the room", () => {
+  const cases: [content: number, rows: number, room: number, height: number][] = [
+    [96, 7, 600, 96], // 3 rows: all of them
+    [224, 7, 600, 224], // exactly 7: all, no peek
+    [256, 7, 600, 240], // 8 rows: 7 and a half
+    [252, 7, 600, 240], // 7 rows and a heading: the heading peeks, not a heading alone on the last line
+    [5000, 10, 600, 336], // a long folder listing: 10 and a half
+    [5000, 7, 100, 100], // near the window's edge: the room wins
+  ];
+  for (const [content, rows, room, height] of cases) expect(listHeight(content, rows, room)).toBe(height);
 });

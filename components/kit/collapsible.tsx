@@ -61,6 +61,8 @@ export function Collapsible(props: {
 /**
  * The control that opens and closes: a button that says `expanded` to screen readers. `label` is its accessible name
  * (the text it draws when omitted). `chevron` draws the turning arrow before `children`; without it `class` is the whole look.
+ * With the chevron the trigger is 32 pt at least (the control ladder; it grows with large text) and its text starts 24 pt
+ * in (a 16 pt slot and 8 of gap), so a panel with `pl-6` lines its body up under the text.
  */
 export function CollapsibleTrigger(props: {
   label?: string;
@@ -77,12 +79,12 @@ export function CollapsibleTrigger(props: {
       disabled={scope.disabled()}
       onPress={scope.toggle}
       style={hoverTransition()}
-      class={`${props.chevron ? "h-9 flex-row items-center gap-2 rounded-md" : ""} disabled:opacity-50 ${FOCUS_RING} ${props.class ?? ""}`}
+      class={`${props.chevron ? "min-h-8 flex-row items-center gap-2 rounded-md" : ""} disabled:opacity-50 ${FOCUS_RING} ${props.class ?? ""}`}
     >
       <If when={props.chevron}>
         <View
           style={moveTransition()}
-          class={scope.open() ? "rotate-90" : ""}
+          class={`size-4 shrink-0 items-center justify-center ${scope.open() ? "rotate-90" : ""}`}
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         >

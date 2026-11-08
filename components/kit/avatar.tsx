@@ -11,6 +11,26 @@ export function fallbackShown(status: AvatarStatus, delayPassed: boolean): boole
 }
 
 /**
+ * What the fallback draws: at most two letters (grapheme clusters, so an emoji or an accented letter is one), upper
+ * case; `?` when there is nothing to draw. A longer fallback (`WWW`) wrapped onto a second line inside a 24-pt circle.
+ */
+export function initials(fallback: string): string {
+  // nsh's engine has no `Intl.Segmenter`: a mark, a variation selector, a skin tone, a joiner and what it joins stay
+  // with the letter before them, which covers accents and emoji sequences.
+  const letters: string[] = [];
+  let join = false;
+  for (const ch of fallback.trim()) {
+    const code = ch.codePointAt(0) ?? 0;
+    const attach =
+      join || /\p{M}/u.test(ch) || code === 0x200d || code === 0xfe0f || (code >= 0x1f3fb && code <= 0x1f3ff);
+    if (attach && letters.length > 0) letters[letters.length - 1] += ch;
+    else if (/\S/u.test(ch)) letters.push(ch);
+    join = ch === "\u200d";
+  }
+  return letters.length === 0 ? "?" : letters.slice(0, 2).join("").toUpperCase();
+}
+
+/**
  * A person: a picture when `src` loads, else the `fallback` text (initials). `delay` (ms) holds the fallback back while
  * the picture loads. Decorative unless `label` is given: next to a name it adds nothing for a screen reader. `class`
  * sets the size and defaults to `size-9`.
@@ -37,7 +57,9 @@ export function Avatar(props: { fallback: string; src?: string; delay?: number; 
       class={`shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent ${props.class ?? "size-9"}`}
     >
       <If when={fallbackShown(status(), waited() || !props.src)}>
-        <Text class="text-xs font-medium text-accent-foreground">{props.fallback}</Text>
+        <Text style={{ numberOfLines: 1 }} class="text-xs font-medium text-accent-foreground">
+          {initials(props.fallback)}
+        </Text>
       </If>
       <If when={props.src && status() !== "error" ? props.src : undefined}>
         {(src) => (

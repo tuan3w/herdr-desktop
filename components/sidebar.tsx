@@ -37,7 +37,7 @@ import { checkoutsOf, openChanges } from "#lib/changes";
 import { BOARD, context, focused, rowKeyOf, showBoard } from "#lib/dock";
 import { actionSlot, estimate, machineFits } from "#lib/header-fit";
 import { board, projectOf, revision, rowOf, started } from "#lib/herdr";
-import { ROW } from "#lib/layout";
+import { ROW, SIDEBAR_WIDTH } from "#lib/layout";
 import { ofKind } from "#lib/list-item";
 import { linkGlyph, linkText } from "#lib/machine-state";
 import { hoverTransition, moveTransition } from "#lib/motion";
@@ -56,6 +56,7 @@ import {
   keepItems,
   type SidebarItem,
   sidebarItems,
+  sidebarWidth,
   toggleMore,
   toggleProject,
   treeOffset,
@@ -479,7 +480,8 @@ function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> 
       style={hoverTransition()}
       class={`min-w-0 flex-row items-center gap-3 ${ROW.agentCompact.class} ${ROW_FILL} ${row().offline ? "opacity-60" : ""}`}
     >
-      <StatusGlyph status={row().offline ? "unknown" : row().status} id={row().key} />
+      {/* The one signal mark of an agent that waits, in this view (`design/attention.md`, rule 4). */}
+      <StatusGlyph status={row().offline ? "unknown" : row().status} id={row().key} loud />
       <Clipped
         fade={isOpen(row()) ? [FADE, FADE_OPEN] : [FADE, FADE_HOVER]}
         boxClass="min-w-0 flex-1"
@@ -727,7 +729,7 @@ export function Sidebar() {
   const needs = () => board().counts.needsYou;
   const empty = () => items().length === 0;
   return (
-    <View class="size-full gap-4 bg-sidebar px-3 py-4">
+    <View class="size-full min-w-0 gap-4 overflow-hidden bg-sidebar px-3 py-4">
       <View class={`h-10 flex-row items-center ${rail() ? "justify-center" : "justify-between pl-3"}`}>
         <If when={!rail() || compact()}>
           <View class="flex-row items-center gap-2">
@@ -746,7 +748,8 @@ export function Sidebar() {
       <View class="gap-1">
         <View class="pb-2">
           <NavRow icon="plus" label="New agent session" shortcut={keyLabel("newAgent")} onPress={() => newSession()}>
-            <If when={!snug()}>
+            {/* The keycaps need the room of the default width: under it the label would touch them. */}
+            <If when={!snug() && sidebarWidth() >= SIDEBAR_WIDTH.default}>
               <Keys keys={keyLabel("newAgent")} tone="sidebar" />
             </If>
           </NavRow>

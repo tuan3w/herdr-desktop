@@ -350,7 +350,8 @@ function ToastButton(props: {
         </Text>
       </If>
       <If when={props.hint}>
-        <Keys keys={props.hint!} tone="muted" />
+        {/* Plain text, as in a menu: boxed caps beside "Undo" read as a third control on a one-line surface. */}
+        <Keys keys={props.hint!} tone="bare" />
       </If>
     </View>
   );
@@ -376,35 +377,87 @@ function ToastItem(props: { toast: () => ToastRecord<Data> }) {
       startingClass={look.startingClass}
       endingClass={look.endingClass}
       swipingClass={look.swipingClass}
-      class={`group flex-row items-center gap-3 rounded-lg bg-popover py-2 pl-4 pr-2 ${EDGE.md} ${look.class ?? ""}`}
+      class={`${TOAST} ${look.class ?? ""}`}
     >
-      <ToastIcon type={props.toast().type} />
+      <ToastFace
+        type={props.toast().type}
+        text={props.toast().text}
+        undo={props.toast().data.undo ? () => undoToast(id) : undefined}
+        ending={ending()}
+        stays={stays()}
+        onClose={() => closeToast(id)}
+        onFocus={() => focusIn(id)}
+        onBlur={() => focusOut(id)}
+      />
+    </Toast>
+  );
+}
+
+/** The surface of one toast: radius `lg` 12 with 8 pt of padding around its 4-pt buttons (12 - 8 = 4, nested radii). */
+const TOAST = `group flex-row items-center gap-3 rounded-lg bg-popover py-2 pl-4 pr-2 ${EDGE.md}`;
+
+/** What a toast holds: its icon, its text (never cut), Undo, and the close button that shows on hover or focus unless the toast stays. */
+function ToastFace(props: {
+  type: ToastType;
+  text: string;
+  undo?: () => void;
+  ending: boolean;
+  stays: boolean;
+  onClose: () => void;
+  onFocus: () => void;
+  onBlur: () => void;
+}) {
+  return (
+    <>
+      <ToastIcon type={props.type} />
       {/* Never cut: a toast is read once, and what it says is what the user acts on. */}
       <Text class="flex-1 text-sm text-popover-foreground" style={{ userSelect: "text" }}>
-        {props.toast().text}
+        {props.text}
       </Text>
-      <If when={props.toast().data.undo}>
+      <If when={props.undo}>
         <ToastButton
           label="Undo"
           text="Undo"
           icon="undo"
           hint={keyLabel("undo")}
-          disabled={ending()}
-          onPress={() => undoToast(id)}
-          onFocus={() => focusIn(id)}
-          onBlur={() => focusOut(id)}
+          disabled={props.ending}
+          onPress={() => props.undo?.()}
+          onFocus={props.onFocus}
+          onBlur={props.onBlur}
         />
       </If>
-      <View class={stays() ? "" : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"}>
+      <View class={props.stays ? "" : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"}>
         <ToastButton
           label="Close notification"
           icon="x"
-          onPress={() => closeToast(id)}
-          onFocus={() => focusIn(id)}
-          onBlur={() => focusOut(id)}
+          onPress={props.onClose}
+          onFocus={props.onFocus}
+          onBlur={props.onBlur}
         />
       </View>
-    </Toast>
+    </>
+  );
+}
+
+/**
+ * One toast drawn in place, with the face and surface of a real one and nothing behind it (no timer, no store): for a lab or
+ * a spec page, because the host's window screenshot does not draw the toast overlay. Not for screens: they call `notify`.
+ */
+export function ToastPreview(props: { text: string; type?: ToastType; undo?: boolean; stays?: boolean }) {
+  const none = () => {};
+  return (
+    <View class={`w-[400px] max-w-full ${TOAST}`}>
+      <ToastFace
+        type={props.type ?? "success"}
+        text={props.text}
+        undo={props.undo ? none : undefined}
+        ending={false}
+        stays={props.stays ?? props.type === "loading"}
+        onClose={none}
+        onFocus={none}
+        onBlur={none}
+      />
+    </View>
   );
 }
 

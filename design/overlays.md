@@ -67,6 +67,10 @@ Opens after `CARD_DELAY_MS` (600), closes `CARD_CLOSE_MS` (300) after the pointe
 - Motion: it is occasional and pointer-opened, so it animates both ways (`popupPresence`, `POPOVER_LOOK`): fade and scale from 0.96 in 160 ms, out in 120 ms. The scale grows from the edge at the trigger (`popupOrigin`) on the side it was placed (`onPosition`'s `placement`), not the side asked for, so a flipped popover is right. nsh's own popups keep a closing popup built with starting and ending classes (nsh-base `popup.rs`), but this popover is an `Overlay` of ours, so it keeps itself built for the exit instead (`createPresence`): the closing popup takes no presses and a reopen cancels the unbuild. Limit: for those 120 ms the overlay is still the top one for Escape. None, and no wait, under reduced motion.
 - Not taken: `modal` (use `Modal`), focus trap, return focus (the focus never left the trigger), backdrop, arrow.
 
+## Labs
+
+The window screenshot draws no overlay, so `TipPreview`, `PopoverPreview`, `CardPreview`, `ToastPreview` and `MenuPreview` draw each surface in place for `components/kit-lab-overlays.tsx` (`kit-overlays-*` scenarios), captioned as not the real popup; `edges` places tooltips with `placeBubble` near every edge. Real placement, hover, motion and the shadow ring stay unverified in pictures.
+
 ## Tests
 
 `hover.test.ts` (timing, group, nesting, focus, press, safe zone, reasons, dialogs), `positioner.test.ts` (`anchorMoved`, `inSafeZone` on all four sides), `tooltip.test.ts`, `preview-card.test.ts`; `popups.test.tsx` drives `popups.fixture.tsx` headless (press, Escape, nesting, title, keyboard tooltip, inside a dialog). Hover, the safe zone and scroll under a still pointer cannot be driven headless: check them with a screenshot.

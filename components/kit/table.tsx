@@ -1,9 +1,11 @@
-import { computed, type JSX, signal, View } from "nsh";
-import { DataTable, type DataTableSort } from "nsh/base";
+import { computed, type JSX, signal, Text, View } from "nsh";
+import { DataTable, type DataTableRef, type DataTableSort } from "nsh/base";
 
 import { fold } from "#lib/text";
 
+import { FOCUS_RING_INSET } from "./core";
 import { Clipped } from "./hint";
+import { Icon } from "./icon";
 
 export interface Column<T> {
   /** Unique among the columns. */
@@ -60,6 +62,27 @@ const CLASSES = {
   empty: "items-center justify-center p-8",
 } as const;
 
+/** The sort a press on `key`'s title asks for: ascending first, then descending, then none (the caller's own order). */
+export function nextSort(current: DataTableSort | null, key: string): DataTableSort | null {
+  if (current?.key !== key || !current.direction) return { key, direction: "ascending" };
+  return current.direction === "ascending" ? { key, direction: "descending" } : null;
+}
+
+/**
+ * The sort the table's titles show: none when it names a column that is not shown (a narrow table dropped it), so no
+ * title claims an order the person cannot see the reason for.
+ */
+export function shownSort<T>(sort: DataTableSort | null, shown: readonly Column<T>[]): DataTableSort | null {
+  return sort && sort.direction && shown.some((c) => c.key === sort.key && c.sortable !== false) ? sort : null;
+}
+
+/** What a screen reader hears on a title: its name, and the order it holds or that pressing it sorts. */
+export function titleLabel(title: string, sortable: boolean, direction: DataTableSort["direction"] | null): string {
+  if (!sortable) return title;
+  if (direction) return `${title}, sorted ${direction}`;
+  return `Sort by ${title}`;
+}
+
 /** Rows in the order `sort` asks. Empty values go last whichever way it runs, so a missing date never leads the column. */
 export function sortedRows<T>(rows: T[], columns: Column<T>[], sort: DataTableSort | null): T[] {
   const column = sort && columns.find((c) => c.key === sort.key);
@@ -97,23 +120,43 @@ export function Table<T>(props: {
   onSort: (sort: DataTableSort | null) => void;
   onOpen: (row: T) => void;
   selected?: string;
+  /** The rows already come in the order of `sort`, which the caller applied (folders first, say): the table only shows it on the title. */
+  arranged?: boolean;
+  /** The keys moved the selection to this row (a press selects too, and opens through `onOpen`). */
+  onSelect?: (row: T) => void;
+  /** The table's handle, for a screen that takes the keyboard to it (`focus`) or moves its selection (`select`). */
+  onRef?: (ref: DataTableRef) => void;
   empty?: JSX.Element;
 }) {
   const width = signal(0);
   // Computed once per change, not per call: every drawn cell asks for them.
-  const ordered = computed(() => sortedRows(props.rows, props.columns, props.sort));
+  const ordered = computed(() => (props.arranged ? props.rows : sortedRows(props.rows, props.columns, props.sort)));
   const shown = computed(() => fittingColumns(props.columns, width() - 2));
-  const data = computed(() => ordered().map((row) => Object.fromEntries(shown().map((c) => [c.key, c.text(row)]))));
+  const visible = computed(() => new Set(shown().map((c) => c.key)));
+  // nsh's DataTable builds a title once per column index and keeps that build's sort button and alignment (`title` in
+  // nsh-base `data_table/view.rs`, keyed by index): when a narrow table removed a column, the next one slid into its
+  // index under the dropped one's chevron (seen at 760 pt: a chevron over the row's `…`). So the native table always has
+  // every column, at the same index: one that leaves is 0 wide and draws nothing (its title is still read by a screen
+  // reader: unverified with one). Rebuilding the table instead lost the
+  // keyboard focus whenever a preview narrowed the list (`viewers.test.tsx`).
+  const data = computed(() =>
+    ordered().map((row) =>
+      Object.fromEntries(props.columns.map((c) => [c.key, visible().has(c.key) ? c.text(row) : ""])),
+    ),
+  );
   const columns = computed(() => {
     const base = shown().reduce((sum, c) => sum + c.width, 0);
     const spare = Math.max(0, width() - base - 2);
     const shares = shown().reduce((sum, c) => sum + (c.grow ?? 0), 0);
-    return shown().map((c) => ({
+    return props.columns.map((c) => ({
       key: c.key,
       title: c.title,
-      width: c.width + (shares && c.grow ? Math.floor((spare * c.grow) / shares) : 0),
+      width: visible().has(c.key) ? c.width + (shares && c.grow ? Math.floor((spare * c.grow) / shares) : 0) : 0,
+      minWidth: 0,
       align: c.align,
-      sortable: c.sortable !== false,
+      // The kit draws the titles (`renderHeaderCell`) with the chevron beside the name and the whole title pressable;
+      // nsh's own button sits at the far edge of the column and is the only part of its title that sorts.
+      sortable: false,
       resizable: false,
       movable: false,
       cellClass: c.mono ? "font-mono text-xs" : undefined,
@@ -121,33 +164,79 @@ export function Table<T>(props: {
   });
   const drawn = () => shown().some((c) => c.cell);
   const selectedRow = () => ordered().findIndex((r) => props.rowKey(r) === props.selected);
+  const sort = computed(() => shownSort(props.sort, shown()));
+  const at = (index: number) => {
+    const column = props.columns[index];
+    return column && visible().has(column.key) ? column : undefined;
+  };
+  const title = (head: { column: number; title: string; sort?: DataTableSort["direction"] | null }) => {
+    // Not `at`: nsh renders a title again only when its own sort or selection changes, so a title must not depend on
+    // which columns fit (one that came back stayed blank). A dropped column's title is clipped to its 0 width.
+    const column = props.columns[head.column];
+    if (!column) return <View />;
+    const sortable = column.sortable !== false && column.title !== "";
+    const end = column.align === "end";
+    const direction = head.sort ?? null;
+    // Beside the title, as Linear and Finder draw it, on the side away from the column's edge: the title never moves
+    // when the chevron appears, and an end-aligned title keeps its right edge over the digits.
+    const chevron = (
+      <View class={`size-3 items-center justify-center ${direction === "ascending" ? "rotate-180" : ""}`}>
+        <If when={direction}>
+          <Icon name="chevron-down" size={12} tone="foreground" />
+        </If>
+      </View>
+    );
+    return (
+      <View
+        role={sortable ? "button" : undefined}
+        accessibilityLabel={titleLabel(head.title, sortable, direction)}
+        onPress={sortable ? () => props.onSort(nextSort(props.sort, column.key)) : undefined}
+        class={`h-full min-w-0 flex-1 flex-row items-center gap-1 rounded-md ${end ? "justify-end" : ""} ${sortable ? FOCUS_RING_INSET : ""}`}
+      >
+        <If when={end && sortable}>{chevron}</If>
+        <Text
+          class={`min-w-0 shrink text-xs font-medium ${direction ? "text-foreground" : "text-muted-foreground"}`}
+          style={{ numberOfLines: 1 }}
+        >
+          {head.title}
+        </Text>
+        <If when={!end && sortable}>{chevron}</If>
+      </View>
+    );
+  };
   return (
     <View class="flex-1" onLayout={({ bounds }) => width.set(bounds.size.width)}>
       <DataTable
         class="flex-1"
+        ref={(ref: DataTableRef) => props.onRef?.(ref)}
         accessibilityLabel={props.label}
         columns={columns()}
         data={data()}
         rowHeight={ROW_HEIGHT}
         headerHeight={ROW_HEIGHT}
-        sort={props.sort}
-        onSortChange={({ sort }) => props.onSort(sort)}
+        sort={sort()}
         selection={selectedRow() >= 0 ? { row: selectedRow() } : null}
+        onSelectionChange={({ selection }) => {
+          const row = selection?.row == null ? undefined : ordered()[selection.row];
+          if (row) props.onSelect?.(row);
+        }}
         onRowPress={(e) => {
           const row = ordered()[e.row];
           if (row) props.onOpen(row);
         }}
         columnSelectable={false}
         classes={CLASSES}
+        renderHeaderCell={title}
         renderCell={
           drawn()
             ? (cell) => {
-                const column = shown()[cell.column];
+                const column = at(cell.column);
                 const row = ordered()[cell.row];
-                return column?.cell && row ? (
+                if (!column) return <View />;
+                return column.cell && row ? (
                   column.cell(row)
                 ) : (
-                  <Clipped class={`text-sm text-foreground ${column?.mono ? "font-mono text-xs" : ""}`}>
+                  <Clipped class={`text-sm text-foreground ${column.mono ? "font-mono text-xs" : ""}`}>
                     {cell.text}
                   </Clipped>
                 );

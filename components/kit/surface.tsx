@@ -41,7 +41,7 @@ export function PageHeader(props: { title: string; subtitle?: string; right?: JS
           {props.title}
         </Text>
         <If when={props.subtitle}>
-          <Text style={NUM} class="text-sm text-muted-foreground">
+          <Text style={[NUM, { textAlign: "left" }]} class="text-sm text-muted-foreground">
             {props.subtitle}
           </Text>
         </If>
@@ -57,10 +57,12 @@ export function PageHeader(props: { title: string; subtitle?: string; right?: JS
  */
 export function SectionTitle(props: { text: string; quiet?: boolean; right?: JSX.Element }) {
   return (
-    <View class="flex-row items-center justify-between">
+    <View class="flex-row items-center justify-between gap-3">
+      {/* A heading is read, not scanned: a long one wraps inside its column and leaves the right slot its room. */}
       <Text
         role="header"
-        class={props.quiet ? "text-xs font-medium text-muted-foreground" : "text-sm font-medium text-foreground"}
+        style={{ textAlign: "left" }}
+        class={`min-w-0 flex-1 ${props.quiet ? "text-xs font-medium text-muted-foreground" : "text-sm font-medium text-foreground"}`}
       >
         {props.text}
       </Text>
@@ -89,7 +91,7 @@ export function Empty(props: {
           </View>
         )}
       </If>
-      <Text class="text-base font-medium text-foreground" style={{ userSelect: "text" }}>
+      <Text class="max-w-sm text-center text-base font-medium text-foreground" style={{ userSelect: "text" }}>
         {props.title}
       </Text>
       <If when={props.hint}>

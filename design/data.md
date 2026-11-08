@@ -26,7 +26,7 @@ A screen may offer both for the same filtered records. The choice is a setting (
 - Sorting lives in the caller (`sort`, `onSort`) so it survives leaving the screen. Order: ascending, descending, none. Empty values (an agent with no recorded activity) sort last in both directions, so a blank never leads a column; text sorts without regard to accents (`sortedRows`, unit-tested).
 - Pressing a row opens it (`onOpen`); a row has no other action.
 - The cells take no pointer: `DataTable` draws them in a body that receives no pointer events, over the layer that hears presses and hover, so a button, a `Tipped` or a `Clipped` hover inside a cell cannot fire (only the row's hover fill and its press work). Whatever must be pressable per row lives in the list view; a cell says what it can in text, on a second line (a pane name over `Idle 4m`).
-- Headers are `text-xs font-medium` in `muted-foreground`, never uppercase; the sorted column is `foreground`. Rows and the header are `ROW.table` of `lib/layout.ts` (32, a default control); the hover and selected fills are `accent` (configured, not seen: a press opens the record, so nothing stays selected). Identifiers use `mono`; counts use `Badge`; states use `Pill`.
+- Headers are `text-xs font-medium` in `muted-foreground`, never uppercase; the sorted column is `foreground` with one chevron beside its title (after it, or before it in an end-aligned column so the title keeps its edge over the digits), and no chevron at rest elsewhere. The whole title presses to sort (`nextSort`: ascending, descending, none), and says so to a screen reader (`Sort by Size`, `Size, sorted descending`). A sort by a column the narrow table dropped shows on no title (`shownSort`). Rows and the header are `ROW.table` of `lib/layout.ts` (32, a default control); the hover and selected fills are `accent` (configured, not seen: a press opens the record, so nothing stays selected). Identifiers use `mono`; counts use `Badge`; states use `Pill`.
 - The empty state is a slot (`empty`, the same one the list uses): first run offers to create, a filter only explains.
 
 ## What nsh's `DataTable` needs (found while building it)
@@ -35,6 +35,7 @@ A screen may offer both for the same filtered records. The choice is a setting (
 - Passing `renderCell` draws every cell through it, so the wrapper renders the plain text cells itself.
 - Columns have fixed point widths, not flex: the wrapper measures its own width (`onLayout`) and distributes the spare.
 - Resizing and moving columns are off (`resizable`, `movable` false): saved widths would be one more setting to explain.
+- It builds a title once per column index and keeps that build's sort button and alignment (`title` in nsh-base `data_table/view.rs`): when a narrow table dropped a column, the next column slid into its index under the dropped one's chevron (seen at 760 pt: a chevron over the row's `…`). So the kit keeps every column in the native table at the same index and a dropped one is 0 wide (rebuilding the table instead lost the keyboard focus when a preview narrowed the list), and it draws the titles itself (`renderHeaderCell`): nsh's own sort button sits at the column's far edge and is the only part of a title that sorts. nsh renders a title again only when its sort changes, so a title never depends on which columns fit.
 
 ## Many rows
 

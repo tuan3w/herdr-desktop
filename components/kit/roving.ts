@@ -1,5 +1,9 @@
 import { announce, cleanup, effect, keymap, signal } from "nsh";
 
+import { fold } from "#lib/text";
+
+import { type Typing, typeahead, TYPING_KEYS } from "./navigation";
+
 /**
  * Keyboard model of a group of items that is one stop of Tab (a tab list, a radio group): the arrow keys move
  * between the items, as Base UI's composite does. This host cannot move the keyboard focus from code (`focus()` is for
@@ -62,6 +66,8 @@ export interface RovingOptions {
   activateOnMove: () => boolean;
   /** Keys that activate the highlighted item. A radio is chosen with Space only; a tab with either. */
   activateKeys: readonly ("space" | "enter")[];
+  /** Letters and digits typed while the group has the focus reach the item whose label starts with them (a menu's typeahead). */
+  typeahead?: boolean;
 }
 
 const SAYS_DISABLED = "unavailable";
@@ -97,6 +103,17 @@ export function createRoving(options: RovingOptions): Roving {
   const landing = (): RovingItem | undefined =>
     lit() ?? items.find((i) => i.current() && !(skip && i.disabled())) ?? items.find((i) => !(skip && i.disabled()));
 
+  /** Puts the highlight on item `to` (or chooses it, when reaching chooses), and says where it is. */
+  const reach = (to: number) => {
+    const target = items[to];
+    const refused = target.disabled();
+    if (options.activateOnMove() && !refused) target.activate();
+    else lit.set(target);
+    announce(
+      [target.label(), refused ? SAYS_DISABLED : "", target.current() ? SAYS_CURRENT : ""].filter(Boolean).join(", "),
+    );
+  };
+
   const go = (move: Move) => {
     const from = landing();
     const at = from ? items.indexOf(from) : -1;
@@ -107,13 +124,22 @@ export function createRoving(options: RovingOptions): Roving {
       loop,
     );
     if (to < 0 || to === at) return;
-    const target = items[to];
-    const refused = target.disabled();
-    if (options.activateOnMove() && !refused) target.activate();
-    else lit.set(target);
-    announce(
-      [target.label(), refused ? SAYS_DISABLED : "", target.current() ? SAYS_CURRENT : ""].filter(Boolean).join(", "),
+    reach(to);
+  };
+
+  let typing: Typing | undefined;
+  const type = (key: string) => {
+    const from = landing();
+    const found = typeahead(
+      typing,
+      key,
+      items.map((i) => fold(i.label())),
+      items.map((i) => skip && i.disabled()),
+      from ? items.indexOf(from) : -1,
+      Date.now(),
     );
+    typing = found.typing;
+    if (found.index >= 0 && items[found.index] !== from) reach(found.index);
   };
 
   const activate = () => {
@@ -125,9 +151,14 @@ export function createRoving(options: RovingOptions): Roving {
     if (!focused()) return;
     const offKeys = keymap.bind(Object.fromEntries(keys.map(([key, move]) => [key, () => go(move)])), { repeat: true });
     const offActivate = keymap.bind(Object.fromEntries(options.activateKeys.map((key) => [key, activate])));
+    const offType = options.typeahead
+      ? keymap.bind(Object.fromEntries(TYPING_KEYS.map((key) => [key, () => type(key)])))
+      : () => {};
     return () => {
       offKeys();
       offActivate();
+      offType();
+      typing = undefined;
     };
   });
 

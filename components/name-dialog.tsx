@@ -4,8 +4,8 @@ import { Btn, Field, FieldRow, Modal } from "#kit";
 
 /**
  * One name to type: a new workspace, or a rename of a workspace, tab or pane. Enter or the confirm button submits the
- * trimmed text, and the button stays off while the text is empty or is what it already was (a rename to the same name
- * is nothing to confirm). `onSubmit` runs first, then `onClose`, so a caller that only reacts to the name never has to
+ * trimmed text. The button is off only while the text is what it already was (a rename to the same name is nothing to
+ * confirm); pressed on an empty name it shows why under the field, as Enter does. `onSubmit` runs first, then `onClose`, so a caller that only reacts to the name never has to
  * close the dialog itself; Escape and Cancel call `onClose` alone. The text starts from `initial` each time it opens.
  */
 export function NameDialog(props: {
@@ -41,11 +41,18 @@ export function NameDialog(props: {
       open={props.open}
       onClose={() => props.onClose()}
       title={props.title}
-      disablePointerDismissal
+      disablePointerDismissal={trimmed() !== (props.initial ?? "").trim()}
       actions={
         <>
           <Btn variant="ghost" label="Cancel" onPress={() => props.onClose()} />
-          <Btn variant="primary" label={props.confirm} hint="↵" disabled={!canSubmit()} onPress={submit} />
+          {/* Never off for an empty name (`design/dialogs.md`): pressed, it says why under the field. Off only for an unchanged rename, where nothing can be done. */}
+          <Btn
+            variant="primary"
+            label={props.confirm}
+            hint="↵"
+            disabled={trimmed() !== "" && !canSubmit()}
+            onPress={submit}
+          />
         </>
       }
     >

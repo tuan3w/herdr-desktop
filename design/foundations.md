@@ -68,7 +68,7 @@ Five layers, from the page up. Colour comes from the tokens of `design/colors.md
 
 | What | Value | Why |
 |---|---|---|
-| sidebar | 264 default, 220 to 420 draggable (`SIDEBAR_WIDTH`) | 264 holds a 13-pt title of about 30 characters beside a glyph and a count; 420 is where more width only takes room from the conversation |
+| sidebar | 264 default, 240 to 420 draggable (`SIDEBAR_WIDTH`; `clampSidebar`, a drag ending 48 under 240 folds to the rail: `settleDrag`) | 264 holds a 13-pt title of about 30 characters beside a glyph and a count; 420 is where more width only takes room from the conversation |
 | snug sidebar | 240, fixed (`SIDEBAR_WIDTH.narrow`) at 900 to 1100 | the conversation keeps its measure |
 | rail | 64 (`RAIL_WIDTH`), 44-pt tiles | under 900, or collapsed |
 | home | grows with the window to 1440 (`COLUMN.home`); the Board is one table, never columns of cards | the title is the one elastic column, so it is uncapped on every laptop; past 1440 the eye travels too far from a title to its state |

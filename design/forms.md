@@ -13,12 +13,14 @@ Fields live in `components/kit/fields.tsx` (`NumberField` in `number-field.tsx`)
 | a number (a port, a count, a size) | `NumberField` (`design/inputs.md`) |
 | one of a short fixed set (under about 8) | `SelectField` (`small` = the dense size, as on `Btn`) |
 | one of a long or growing set, found by typing | `Combobox` (machine, workspace) |
-| text that has likely values: names, paths | `Autocomplete` (host names, working directories) |
+| text that has likely values: names, paths | `Autocomplete` (host names; a folder on a machine is `FolderField`, an `Autocomplete` over the machine's own listing, `design/file-picker.md`) |
 | search a list | `SearchField` (icon, clear button) |
 
 `SelectField` is the kit menu's surface (`select.tsx`) with the value ticked: the trigger keeps the keyboard focus, so its ring stays after a keyboard choice (a pointer press withholds it); Return, Space or Down open it on the value, letters find an option. A `Combobox` is one input: it keeps the focus too, so the ring stays on the field after a pick. A view cannot be focused from code, so a design that moves focus into a popup would lose the ring when it closes.
 
 Use `SelectField` for a short fixed set, `Combobox` once scrolling a menu is slower than typing, `Autocomplete` when the value may be new, `Field` for free text. Do not offer free text for a value with five known options.
+
+**One look.** Every one-line text input (`Field`, `NumberField`, `Combobox`, `Autocomplete`) draws with `inputLook` (`fields.tsx`): one fill, one edge and one height per state, so no state depends on the class engine's order. Heights are `min-h` (`inputHeight`), so large text grows a box instead of cutting it. A `Field`'s one-line value rests as one line ending in an ellipsis (`OneLine`), as in the select and the combobox: the host's editor cut a 300-character path mid-glyph. A chosen value that no option has any more shows as itself in a `SelectField` and a `Combobox` (`chosenTitle`), never as the placeholder of an empty field. `SelectField` takes `error`, `hint` and `reserve` like a `Field`, and a select or combobox without a visible label still shows them.
 
 **One row, one height.** Controls that share a row share a height: all the default tier, or all `small` (`CONTROL.small` in `lib/layout.ts`) in a dense row (a prompt box, a dense row, a state select beside an `ActionMenu`). A `small` select beside a default search box is a bug. Large hit targets raises every control to the second target (`Btn`, `SelectField`, `Segmented`, `Switch`, `CheckRow`, `Field`, `NumberField`). The label of a select is body size at both tiers. The prop is `small` everywhere (`Btn`, `SelectField`, `Combobox`); `compact` is only a window width.
 

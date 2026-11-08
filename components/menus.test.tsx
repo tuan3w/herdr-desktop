@@ -229,3 +229,13 @@ test("in a menu with accelerators a letter without one still finds a row, and a 
   expect(app.texts()).toContain("Acted: share");
   expect(app.shows("label:Pin")).toBe(true);
 });
+
+test("an accelerator pressed while a text field has the keyboard runs the item and types nothing", async () => {
+  const app = await lab();
+  await app.type("label:Typed note", "ab");
+  expect(app.texts()).toContain("Note: ab");
+  await app.press("label:Accelerated");
+  await app.keyboard.press("r");
+  expect(app.texts()).toContain("Acted: rename");
+  expect(app.texts()).toContain("Note: ab");
+});

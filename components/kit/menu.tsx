@@ -17,8 +17,9 @@ import {
 
 import type { Bounds, ListRef, MouseEvent, OverlayPosition, Point, ScrollRef, ViewRef } from "nsh/types";
 
-import { capsWidth, keycaps } from "#lib/keycaps";
+import { keycaps } from "#lib/keycaps";
 import { hoverTransition } from "#lib/motion";
+import { apple } from "#lib/shortcuts";
 import { fold } from "#lib/text";
 
 import { EDGE, FOCUS_RING } from "./core";
@@ -57,6 +58,11 @@ interface Choosable {
   accelerator?: string;
   /** Highlighted by the keys and the pointer like any row, but choosing it does nothing (Base UI keeps it focusable). */
   disabled?: boolean;
+  /**
+   * Why a `disabled` row cannot be chosen ("No editor set"), a few words: drawn quietly at the row's end in place of its
+   * keys, and spoken with its name. Ignored while the row is enabled.
+   */
+  reason?: string;
 }
 
 /** An action: chosen, it runs `onSelect` and closes the menu unless `closeOnClick` is false. */
@@ -103,6 +109,8 @@ export interface MenuGroup {
   label: string;
   icon?: IconName;
   disabled?: boolean;
+  /** Why a `disabled` submenu cannot open; see `Choosable`. */
+  reason?: string;
   items: MenuEntry[];
 }
 
@@ -119,6 +127,8 @@ export interface ItemRow {
   accelerator?: string;
   danger: boolean;
   disabled: boolean;
+  /** Why it is disabled; only set while it is. */
+  reason?: string;
   checked: boolean;
   closeOnClick: boolean;
   select: () => void;
@@ -128,6 +138,7 @@ export interface SubmenuRow {
   label: string;
   icon?: IconName;
   disabled: boolean;
+  reason?: string;
   items: MenuEntry[];
 }
 /** What a menu is drawn from, one per row. */
@@ -160,6 +171,7 @@ export function menuRows(entries: readonly MenuEntry[]): MenuRow[] {
             accelerator: letterOf(entry),
             danger: false,
             disabled: !!entry.disabled,
+            reason: entry.disabled ? entry.reason : undefined,
             checked: entry.checked,
             closeOnClick: entry.closeOnClick ?? false,
             select: () => entry.onCheckedChange(!entry.checked),
@@ -175,6 +187,7 @@ export function menuRows(entries: readonly MenuEntry[]): MenuRow[] {
               accelerator: letterOf(item),
               danger: false,
               disabled: !!(entry.disabled || item.disabled),
+              reason: entry.disabled || item.disabled ? item.reason : undefined,
               checked: entry.value === item.value,
               closeOnClick: entry.closeOnClick ?? false,
               select: () => entry.onValueChange(item.value),
@@ -190,6 +203,7 @@ export function menuRows(entries: readonly MenuEntry[]): MenuRow[] {
           label: entry.label,
           icon: entry.icon,
           disabled: !!entry.disabled,
+          reason: entry.disabled ? entry.reason : undefined,
           items: entry.items,
         });
       } else {
@@ -201,6 +215,7 @@ export function menuRows(entries: readonly MenuEntry[]): MenuRow[] {
           accelerator: letterOf(entry),
           danger: !!entry.danger,
           disabled: !!entry.disabled,
+          reason: entry.disabled ? entry.reason : undefined,
           checked: false,
           closeOnClick: entry.closeOnClick ?? true,
           select: entry.onSelect,
@@ -256,30 +271,52 @@ export function routeLetter(
   return index >= 0 ? { kind: "accelerator", index } : { kind: "type" };
 }
 
-const POPUP = `min-w-52 max-w-80 rounded-lg bg-popover p-1 text-popover-foreground ${EDGE.md}`;
-/** `POPUP`'s least and greatest width (`min-w-52`, `max-w-80`): a label is cut with an ellipsis only past the greatest. */
-const MENU_MIN = 208;
+const POPUP = `min-w-44 max-w-80 rounded-lg bg-popover p-1 text-popover-foreground ${EDGE.md}`;
+/** `POPUP`'s least and greatest width (`min-w-44`, `max-w-80`): a label is cut with an ellipsis only past the greatest. */
+const MENU_MIN = 176;
 const MENU_MAX = 320;
 /** An average glyph of the 14pt body face (a wide character counts twice) and the text is estimated, not measured, because the popup is sized before it is built. */
 const GLYPH = 7.5;
 const glyphs = (text: string) => [...text].reduce((n, c) => n + ((c.codePointAt(0) ?? 0) >= 0x2e80 ? 2 : 1), 0);
 
+/** The 12-pt text at a row's end (keys, a reason): a key symbol (`⌘`, `⇧`, `↩`, `↑`) is about square, a space narrow, a letter about 7. */
+const smallWidth = (text: string) =>
+  [...text].reduce((n, c) => {
+    const code = c.codePointAt(0) ?? 0;
+    if ((code >= 0x2190 && code <= 0x21ff) || (code >= 0x2300 && code <= 0x23ff)) return n + 12;
+    return n + (c === " " ? 3.5 : code >= 0x2e80 ? 13 : 7);
+  }, 0);
+
 /**
- * How wide a menu is: as its longest row needs (the icon column, the label, a tick or chevron, the keycap and the gaps and
- * paddings between), at least `MENU_MIN` and at most `MENU_MAX`. Without it the popup took its width from the layout
- * pass and cut "Add a note on this change" with an ellipsis although there was room.
+ * What a row shows at its end, as drawn: the reason of a disabled row, else its keys (accelerator or shortcut) written for
+ * the platform, `undefined` when nothing. `menuWidth` sizes it and `RowContent` draws it, so the two cannot disagree.
  */
-export function menuWidth(rows: readonly MenuRow[]): number {
+export function rowTrail(row: ItemRow | SubmenuRow, onApple: boolean = apple()): string | undefined {
+  if (row.disabled && row.reason) return row.reason;
+  const keys = row.kind === "submenu" ? undefined : rowKeys(row);
+  return keys ? keycaps(keys, onApple).join(" ") : undefined;
+}
+
+/**
+ * How wide a menu is: as its longest row needs (the icon column, the label, a tick or chevron, the keys or the reason at
+ * the end, and the gaps and paddings between), at least `MENU_MIN` and at most `MENU_MAX`. Without it the popup took its
+ * width from the layout pass and cut "Add a note on this change" with an ellipsis although there was room. The keys are
+ * sized as they are written on this platform: `Ctrl Shift N` is more than twice as wide as `⌘ ⇧ N`, and counting caps
+ * cut Linux labels.
+ */
+export function menuWidth(rows: readonly MenuRow[], onApple: boolean = apple()): number {
   const icons = rows.some((r) => r.kind !== "label" && r.kind !== "separator" && !!r.icon);
   let widest = 0;
   for (const row of rows) {
     if (row.kind === "separator") continue;
     let w = glyphs(row.label) * GLYPH;
     if (row.kind !== "label") {
+      // The spacer after the label is a flex child of its own: the row's gap comes before it too.
+      w += 12;
       if (icons) w += 16 + 12;
       if (row.kind === "submenu" || row.kind === "check" || row.kind === "radio") w += 14 + 12;
-      const keys = row.kind === "submenu" ? undefined : rowKeys(row);
-      if (keys) w += 12 + capsWidth(keycaps(keys));
+      const trail = rowTrail(row, onApple);
+      if (trail) w += 12 + smallWidth(trail);
     }
     widest = Math.max(widest, w);
   }
@@ -306,8 +343,8 @@ const HEADING_HEIGHT = 28;
 /** A divider's line (1) and its margins (4 and 4). */
 const DIVIDER_HEIGHT = 9;
 const MARGIN = 8;
-/** The tallest a list of rows grows before it scrolls. */
-const MAX_ROWS_HEIGHT = 384;
+/** The tallest a list of rows grows before it scrolls: 11.5 rows, so the last one shows half and says the list goes on (at 384, 12 whole rows ended flush and a 40-row menu looked complete). */
+const MAX_ROWS_HEIGHT = 368;
 /** Above this many rows a scrolling menu is a `List`: only the rows in view exist. */
 const VIRTUAL_ROWS = 30;
 const ITEM = "h-8 flex-row items-center gap-3 rounded-md px-3";
@@ -320,6 +357,16 @@ const PATIENT_CLICK_MS = 500;
 
 function heightOf(row: MenuRow): number {
   return row.kind === "separator" ? DIVIDER_HEIGHT : row.kind === "label" ? HEADING_HEIGHT : ITEM_HEIGHT;
+}
+
+/**
+ * Whether a popup of `popup` points surely fits on one side of any trigger up to `anchorHeight` tall, wherever the trigger
+ * is: the larger side always has at least half of what the window leaves. Such a menu is shown at once; a taller one waits
+ * one measure of its trigger, so it is built once at its final height instead of appearing whole and then being cut
+ * (a visible jump of the whole panel).
+ */
+export function surelyFits(popup: number, windowHeight: number, gap: number, anchorHeight = 44): boolean {
+  return popup <= (windowHeight - anchorHeight - 2 * gap - 2 * MARGIN) / 2;
 }
 
 /** Where a trigger is, in the window: the top and bottom of its frame. */
@@ -382,7 +429,13 @@ export function snapScroll(offsets: readonly number[], scroll: number, height: n
 function nameOf(row: MenuRow, within?: string): string {
   const mark =
     row.kind === "radio" && row.checked ? ", selected" : row.kind === "check" && row.checked ? ", checked" : "";
-  return `${within ? `${within}: ` : ""}${row.label ?? ""}${mark}`;
+  const why =
+    (row.kind === "item" || row.kind === "check" || row.kind === "radio" || row.kind === "submenu") &&
+    row.disabled &&
+    row.reason
+      ? `, ${row.reason}`
+      : "";
+  return `${within ? `${within}: ` : ""}${row.label ?? ""}${mark}${why}`;
 }
 
 /** The open/close half of an `OpenState` that a trigger needs. */
@@ -485,6 +538,7 @@ const rowKeys = (row: ItemRow): string | undefined => row.accelerator ?? row.sho
 /** The inside of a row: a column for icons when the panel has any, the label, the tick, the shortcut, the chevron of a submenu. */
 function RowContent(props: { row: () => ItemRow | SubmenuRow; icons: boolean }) {
   const keys = () => (props.row().kind === "submenu" ? undefined : rowKeys(props.row() as ItemRow));
+  const reason = () => (props.row().disabled ? props.row().reason : undefined);
   const tone = () => rowTone(props.row());
   return (
     <>
@@ -499,7 +553,8 @@ function RowContent(props: { row: () => ItemRow | SubmenuRow; icons: boolean }) 
       <If when={isChecked(props.row())}>
         <Icon name="check" size={14} tone="primary" />
       </If>
-      <If when={keys()}>{(text) => <Keys keys={text()} tone="quiet" />}</If>
+      <If when={reason()}>{(text) => <Text class="shrink-0 text-xs text-muted-foreground">{text()}</Text>}</If>
+      <If when={reason() ? undefined : keys()}>{(text) => <Keys keys={text()} tone="bare" />}</If>
       <If when={props.row().kind === "submenu"}>
         <Icon name="chevron-right" size={14} tone="muted-foreground" />
       </If>
@@ -531,6 +586,8 @@ function Panel(props: {
   max: number;
   within?: string;
   start?: "first" | "selected";
+  /** The row drawn highlighted at first, over `start` (`MenuPreview`). */
+  highlight?: number;
   viewport?: { height: number; scroll: number };
   onLeave?: () => void;
 }) {
@@ -560,7 +617,13 @@ function Panel(props: {
       ? snapScroll(offsets(), centerOffset(offsets(), selected, height), height, selected)
       : 0);
   const active = signal(
-    props.start === "first" ? stepIndex(skip(), -1, 1, true) : props.start === "selected" ? selected : -1,
+    props.highlight !== undefined
+      ? props.highlight
+      : props.start === "first"
+        ? stepIndex(skip(), -1, 1, true)
+        : props.start === "selected"
+          ? selected
+          : -1,
   );
   const open = signal(-1);
   const triggers: ViewRef[] = [];
@@ -834,9 +897,13 @@ export function Surface(props: {
   // A choice that closes the menu can remove what the rows were drawn from (a deleted record): from then on they stay as they were.
   let kept: MenuRow[] = [];
   const rowsOf = computed(() => (session.justClosed ? kept : (kept = props.rows())));
+  const content0 = offsetsOf(rowsOf().map(heightOf)).at(-1) ?? 0;
+  // A menu that cannot overflow either side is shown at once; a taller one (or a select laid over its trigger) waits for
+  // the trigger's measure, so it is built once at its final height and never jumps.
+  const waits = !!props.over || !surelyFits(Math.min(content0, max) + CHROME, windowHeight, props.offset ?? 0);
   // `undefined` while the trigger is measured, `null` when the list goes under it.
   const plan = signal<{ viewport: { height: number; scroll: number }; offset: number } | null | undefined>(
-    props.over ? undefined : null,
+    waits ? undefined : null,
   );
   // The rows' height when the popup would not fit beside its trigger: a popup of this size was cut to the room it has.
   const capped = signal<number | undefined>(undefined);
@@ -851,6 +918,7 @@ export function Surface(props: {
     // Measured after the first frame: a menu that fits (nearly all do) is never rebuilt.
     void props.anchor.measure().then((m) => {
       if (m) fit(m, props.offset ?? 0);
+      if (plan() === undefined) plan.set(null);
     });
   }
   if (over) {
@@ -948,7 +1016,9 @@ export function Surface(props: {
     { when: "always" },
   );
   // A space after letters is part of the word; alone it chooses, like Return.
-  keymap.bind("space", () => (isTyping(typing, Date.now()) ? type(" ") : choose()));
+  // `when: "always"`: a menu opens over whatever has the keyboard (the message box), and while it is open its letters are its
+  // own: an accelerator pressed there must run, not type into the field behind the menu.
+  keymap.bind("space", () => (isTyping(typing, Date.now()) ? type(" ") : choose()), { when: "always" });
   const letter = (l: string) => {
     const level = top();
     const hit = level ? routeLetter(level.rows(), l, isTyping(typing, Date.now())) : undefined;
@@ -958,7 +1028,7 @@ export function Surface(props: {
     level.go(hit.index, true);
     level.activate();
   };
-  keymap.bind(Object.fromEntries(TYPING_KEYS.map((l) => [l, () => letter(l)])));
+  keymap.bind(Object.fromEntries(TYPING_KEYS.map((l) => [l, () => letter(l)])), { when: "always" });
 
   // A dialog opened from a menu item must not leave the menu floating under its scrim.
   const depth = dialogDepth();
@@ -1020,6 +1090,28 @@ export function Surface(props: {
         </If>
       </Overlay>
     </If>
+  );
+}
+
+/**
+ * A menu's panel drawn in place instead of in a popup, with the rows, width, surface and row look of the open menu: for a
+ * lab or a spec page, because the host's window screenshot does not draw an overlay. `highlight` is the row drawn
+ * highlighted, `maxHeight` the height past which it scrolls (384 by default, as the popup). Not for screens: a screen opens a
+ * menu from its trigger (`ActionMenu`, `RowMenu`).
+ */
+export function MenuPreview(props: { entries: MenuEntry[]; highlight?: number; maxHeight?: number }) {
+  const session = createSession(createOpenState({ defaultOpen: true }));
+  const rows = () => menuRows(props.entries);
+  return (
+    <View style={{ width: menuWidth(rows()) }} class={`self-start ${POPUP}`}>
+      <Panel
+        rows={rows}
+        session={session}
+        config={{ loop: true, hover: true, choice: false }}
+        max={props.maxHeight ?? MAX_ROWS_HEIGHT}
+        highlight={props.highlight}
+      />
+    </View>
   );
 }
 

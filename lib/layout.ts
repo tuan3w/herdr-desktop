@@ -60,10 +60,10 @@ export const TAILWIND = { fontSize: TYPE, radius: RADIUS, shadow: SHADOW } as co
 
 /**
  * The sidebar in points: the width the person drags, its bounds, and the fixed width of a snug window (1100 and under).
- * 264 holds a 13-pt title of about 30 characters beside a 16-pt glyph and a count; 220 is the least that still shows 20;
+ * 264 holds a 13-pt title of about 30 characters beside a 16-pt glyph and a count; 240 is the least: at 220 `New agent session` touched its keycaps and a worktree name lost its tail without a fade;
  * 420 is where a wider sidebar only takes room from the conversation.
  */
-export const SIDEBAR_WIDTH = { default: 264, min: 220, max: 420, narrow: 240 } as const;
+export const SIDEBAR_WIDTH = { default: 264, min: 240, max: 420, narrow: 240 } as const;
 /** The rail of project tiles (a window under 900 or a collapsed sidebar): a 44-pt tile and 10 pt of padding either side. */
 export const RAIL_WIDTH = 64;
 

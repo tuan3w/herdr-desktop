@@ -5,7 +5,6 @@ import type { Bounds, InputRef, ListRef, OverlayPosition, ViewRef } from "nsh/ty
 
 import { hoverTransition } from "#lib/motion";
 import { timing } from "#lib/perf";
-import { largeTargets } from "#lib/settings";
 
 import {
   type AutoHighlight,
@@ -29,6 +28,7 @@ import {
   inlineText,
   type Layout,
   layout,
+  listHeight,
   listRoom,
   nextHighlight,
   pageHighlight,
@@ -47,7 +47,7 @@ import {
 import { EDGE, openOnDown, RING_BORDERED, RING_INSET, RING_INVALID } from "./core";
 import { dialogDepth } from "./dialog-stack";
 import { OneLine } from "./field-parts";
-import { INPUT_CLASS, INPUT_ERROR, Labeled, type Option } from "./fields";
+import { inputHeight, inputLook, Labeled, type Option } from "./fields";
 import { Clipped } from "./hint";
 import { Icon } from "./icon";
 import { Spinner } from "./loading";
@@ -74,7 +74,6 @@ const SLICE_MS = 3;
 const BLUR_MS = 120;
 /** How long the count of results waits for typing to settle before a screen reader is told. */
 const SAY_MS = 300;
-const INVALID = INPUT_ERROR;
 const CHIPS_SHOWN = 24;
 /** What a list that is closing reads while its last frame is still drawn. */
 const NONE: Layout = layout([], undefined, -1);
@@ -588,8 +587,7 @@ function Rows(props: {
 }) {
   const { core } = props;
   const l = () => core.model.layout() ?? NONE;
-  const height = () =>
-    Math.min(contentHeight(l()), core.rows * ROW_H, listRoom(core.room(), !!core.model.layout()?.hidden));
+  const height = () => listHeight(contentHeight(l()), core.rows, listRoom(core.room(), !!core.model.layout()?.hidden));
   effect(() => core.viewport.set(height()));
   const message = () => (props.loading ? "Loading…" : props.empty);
   const start = untracked(() => core.nav.initialOffset(height()));
@@ -798,7 +796,8 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
   const chosenIndices = computed(() => indicesOf(items(), values()));
   const chosenSet = computed(() => new Set(values()));
   const textOf = (c: Choice) => (props.itemToString ? props.itemToString(c as ComboOption<T>) : c.title);
-  const title = () => (multiple() ? "" : (chosenIndices().map((i) => textOf(items()[i]))[0] ?? ""));
+  // A value no item has any more is shown as itself, not as an empty field (it is still the value, and it is submitted).
+  const title = () => (multiple() ? "" : (chosenIndices().map((i) => textOf(items()[i]))[0] ?? values()[0] ?? ""));
   const hasHint = computed(() => items().some((c) => c.hint));
 
   /** What the user typed since focusing; `undefined` while the input shows the chosen title. */
@@ -947,7 +946,6 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
   const hasValue = () => values().length > 0;
   const clearable = () =>
     editable() && hasValue() && (props.multiple === true ? props.clear === true : !!props.onClear);
-  const small = () => (largeTargets() ? "h-11" : props.small ? "h-7" : "");
 
   const input = (
     <View
@@ -956,7 +954,7 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
       }}
       class={multiple() ? "min-w-16 flex-1" : undefined}
     >
-      <OneLine text={multiple() ? "" : shown()} focused={core.focused()} padRight={clearable() ? "pr-14" : "pr-8"}>
+      <OneLine text={multiple() ? "" : shown()} focused={core.focused()} padRight={clearable() ? "pr-16" : "pr-8"}>
         <Input
           ref={(node: InputRef) => {
             field = node;
@@ -1019,7 +1017,7 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
           class={
             multiple()
               ? "h-6 border-0 bg-transparent px-1 text-sm text-foreground placeholder:text-muted-foreground"
-              : `${INPUT_CLASS} ${clearable() ? "pr-14" : "pr-8"} ${small()} ${invalid() ? INVALID : ""} ${drawsOwnValue({ text: shown(), focused: core.focused() }) ? "text-transparent" : ""}`
+              : `${inputLook({ invalid: invalid(), readOnly: props.readOnly, small: props.small })} ${clearable() ? "pr-16" : "pr-8"} ${drawsOwnValue({ text: shown(), focused: core.focused() }) ? "text-transparent" : ""}`
           }
         />
       </OneLine>
@@ -1083,14 +1081,18 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
       onMouseLeave={() => {
         pointerOver = false;
       }}
-      class={`relative min-h-8 flex-row flex-wrap items-center gap-1 rounded-md border bg-card py-1 pl-2 pr-8 ${core.focused() ? (invalid() ? RING_INVALID : RING_BORDERED) : invalid() ? "border-destructive" : "border-input hover:border-muted-foreground/50"}`}
+      class={`relative ${inputHeight(props.small)} flex-row flex-wrap items-center gap-1 overflow-hidden rounded-md border py-1 pl-2 ${clearable() ? "pr-16" : "pr-8"} ${props.readOnly ? "bg-muted/50" : "bg-card"} ${props.disabled ? "opacity-50" : ""} ${core.focused() ? (invalid() ? RING_INVALID : RING_BORDERED) : invalid() ? "border-destructive" : `border-input ${editable() ? "hover:border-muted-foreground/50" : ""}`}`}
     >
       <Each of={chips()} key={(c: { value: string; text: string }) => c.value}>
         {(chip, index) => (
           <View
-            class={`h-6 flex-row items-center gap-1 rounded-sm bg-muted pl-2 pr-1 ${chipCursor() === index() ? RING_INSET : ""}`}
+            class={`h-6 min-w-0 max-w-full shrink flex-row items-center gap-1 rounded-sm bg-muted pl-2 pr-1 ${chipCursor() === index() ? RING_INSET : ""}`}
           >
-            <Text class="max-w-48 line-clamp-1 text-xs text-foreground">{chip().text}</Text>
+            {/* The chip is as wide as its text, never past the box: a long title is cut inside it (it measured its
+                whole text and painted its fill past the field's edge). */}
+            <View class="min-w-0 max-w-48 shrink">
+              <Clipped class="text-xs text-foreground">{chip().text}</Clipped>
+            </View>
             <View
               role="button"
               focusable={false}
@@ -1115,7 +1117,7 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
   ) : (
     <View
       ref={(node: ViewRef) => core.setAnchor(node)}
-      class="relative"
+      class={`relative ${props.disabled ? "opacity-50" : ""}`}
       onLayout={core.laid}
       onMouseEnter={() => {
         pointerOver = true;
@@ -1148,8 +1150,9 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
     </View>
   );
 
-  return props.label ? (
-    <Labeled label={props.label} error={props.error} hint={props.hint} reserve={props.reserve}>
+  // Without a visible label the error and the hint still show: they were dropped with the label.
+  return props.label || props.error || props.hint || props.reserve ? (
+    <Labeled label={props.label ?? ""} error={props.error} hint={props.hint} reserve={props.reserve}>
       {box}
     </Labeled>
   ) : (
@@ -1158,7 +1161,10 @@ export function Combobox<T extends string>(props: ComboboxProps<T>) {
 }
 
 export interface Suggestion {
+  /** What goes in the field when picked (and what is searched). */
   text: string;
+  /** What the row shows instead of `text`: a folder's name where `text` is its whole path. */
+  title?: string;
   /** Secondary text after the suggestion, also searched. */
   hint?: string;
   group?: string;
@@ -1196,6 +1202,8 @@ export function Autocomplete(props: {
   openOnInputClick?: boolean;
   inline?: boolean;
   limit?: number;
+  /** Most rows the list shows before it scrolls (default 8). */
+  rows?: number;
   filter?: ComboFilter<Suggestion>;
   loading?: boolean;
   /** What the list says when nothing matches (default: no list at all). */
@@ -1219,7 +1227,14 @@ export function Autocomplete(props: {
     suggestions().map((s) =>
       typeof s === "string"
         ? { value: s, title: s }
-        : { value: s.text, title: s.text, hint: s.hint, group: s.group, disabled: s.disabled, keywords: s.keywords },
+        : {
+            value: s.text,
+            title: s.title ?? s.text,
+            hint: s.hint,
+            group: s.group,
+            disabled: s.disabled,
+            keywords: s.keywords,
+          },
     ),
   );
   const hasHint = computed(() => items().some((c) => c.hint));
@@ -1252,7 +1267,7 @@ export function Autocomplete(props: {
       loop: () => props.loopFocus ?? true,
       inline: () => props.inline === true,
       disabled: () => props.disabled === true,
-      rows: AUTOCOMPLETE_ROWS,
+      rows: props.rows ?? AUTOCOMPLETE_ROWS,
       open: () => props.open,
       defaultOpen: props.defaultOpen,
       onOpenChange: (open, change) => props.onOpenChange?.(open, change),
@@ -1302,7 +1317,7 @@ export function Autocomplete(props: {
   const field_ = (
     <View
       ref={(node: ViewRef) => core.setAnchor(node)}
-      class="relative"
+      class={`relative ${props.disabled ? "opacity-50" : ""}`}
       onLayout={core.laid}
       onMouseEnter={() => {
         pointerOver = true;
@@ -1375,7 +1390,7 @@ export function Autocomplete(props: {
               }
             }}
             style={hoverTransition()}
-            class={`${INPUT_CLASS} ${props.clear && props.value ? "pr-8" : ""} ${props.mono ? "font-mono" : ""} ${invalid() ? INVALID : ""} ${drawsOwnValue({ text: shown(), focused: core.focused() }) ? "text-transparent" : ""}`}
+            class={`${inputLook({ invalid: invalid(), readOnly: props.readOnly })} ${props.clear && props.value ? "pr-8" : ""} ${props.mono ? "font-mono" : ""} ${drawsOwnValue({ text: shown(), focused: core.focused() }) ? "text-transparent" : ""}`}
           />
         </OneLine>
       </View>

@@ -6,7 +6,7 @@
 
 | Entry | Is | Closes the menu |
 |---|---|---|
-| `MenuAction` | `label`, `icon`, `shortcut`, `danger`, `disabled`, `onSelect` | yes (`closeOnClick: false` keeps it open) |
+| `MenuAction` | `label`, `icon`, `shortcut`, `danger`, `disabled` (with `reason`), `onSelect` | yes (`closeOnClick: false` keeps it open) |
 | `MenuCheckbox` (`type: "checkbox"`) | on/off, `checked` and `onCheckedChange`: the owner holds the state | no |
 | `MenuRadioGroup` (`type: "radio"`) | one `value` of `items`, optional `label` heading | no (`closeOnClick: true` for "pick the stage") |
 | `MenuSection` (`type: "group"`) | a heading above `items` | n/a |
@@ -15,13 +15,13 @@
 
 - Never use an action with a tick for a current value: a choice among values is a `MenuRadioGroup`. A tick follows the owner's state, so a menu left open updates when the owner does (the rows are recomputed from `entries`).
 - Names for screen readers: the label, `, selected` for a checked radio, `, checked` for a checked checkbox, the parent's label and `: ` before the label inside a submenu. nsh has no menuitemradio role, so the state is in the name and in `accessibilityState.checked`.
-- A `disabled` row is plain muted text and icon (`rowTone`), never tinted: a disabled danger row does not turn pink. It takes the highlight from keys and pointer (Base UI keeps it focusable) and does nothing when chosen.
+- A `disabled` row is plain muted text and icon (`rowTone`), never tinted: a disabled danger row does not turn pink. It takes the highlight from keys and pointer (Base UI keeps it focusable) and does nothing when chosen. Its `reason` (a few words: "No editor set", "Offline") is drawn quietly at the row's end in place of its keys and added to its name, so a dead row says why (`rowTrail`).
 
 ## Width
 
 The menu and select popups take their edge from `EDGE.md`: no border beside the shadow ring in light, the hairline alone in dark.
 
-A menu is as wide as its longest row needs, 208 to 320 pt (`menuWidth`, an estimate like `listWidth`: the text is not measured because the popup is sized first); a label is cut with an ellipsis only past 320. The label is sized by its text (`shrink`, not `flex-1`) and an empty spacer pushes the tick and the keycaps right. A `shortcut` or an `accelerator` is one `Keys` group in the `quiet` tone (hairline, no fill: a column of filled caps read as a wall of boxes in renders), always the last thing before a submenu chevron, so every row's caps end on the same edge. Unverified: the headless harness cannot show a popup's measured width; `w-max` was not used because nsh lays an overlay out in a box the size of its host and the estimate does not depend on that.
+A menu is as wide as its longest row needs, 176 to 320 pt (`menuWidth`, an estimate like `listWidth`: the text is not measured because the popup is sized first); a label is cut with an ellipsis only past 320. The estimate counts every gap of the row, the one before the spacer included (without it `Editor` beside its reason was drawn `Edit…`), and sizes the end of the row as `rowTrail` writes it on this platform: `Ctrl Shift N` is more than twice as wide as `⇧ ⌘ N`, and counting caps cut Linux labels. The label is sized by its text (`shrink`, not `flex-1`) and an empty spacer pushes the tick and the keycaps right. A `shortcut` or an `accelerator` is one `Keys` group in the `bare` tone (plain muted text, no caps: a column of boxes, even hairline ones, read as a wall in renders and the Claude desktop app shows none), always the last thing before a submenu chevron, so every row's caps end on the same edge. Unverified: the headless harness cannot show a popup's measured width; `w-max` was not used because nsh lays an overlay out in a box the size of its host and the estimate does not depend on that.
 
 `ActionMenu` has a `small` trigger (28 pt) for a toolbar of small buttons.
 
@@ -54,7 +54,7 @@ The focus stays on the trigger (nsh cannot focus a view from code); the highligh
 
 ## Long lists
 
-A panel taller than 384pt scrolls, and so does one taller than the room beside its trigger: `Surface` measures the trigger after the first frame and, when the popup fits neither above nor below (`fitRows`, `roomAround`), rebuilds the rows no taller than the larger side (shadcn's `max-h-(--available-height)`). Without that nsh puts a popup that fits neither side on the larger one and clamps it into the window, over its own trigger. A menu that fits is never rebuilt. A scrolling panel gives its rows 8pt on the right so the scroll bar never covers the highlight or the tick. With more than 30 rows and no submenu it is a `List` (only the rows in view exist, cells are recycled, rows read their data as accessors); otherwise a `Scroll`. Opening a select of 500 machines builds about twenty rows. The keys keep the highlighted row in view (`revealOffset`), and a list opens centered on its value (`centerOffset`) moved to a row boundary (`snapScroll`), so the first visible row is whole and never cut mid-glyph; the chosen row stays in view, and in the pop-up button look the popup moves with the offset so that row stays on the trigger. Heights are fixed constants of `menu.tsx` (an item, a heading, a divider) so offsets are a prefix sum (`offsetsOf`); they are still the standard tier and move to the compact tier of `lib/layout.ts` with the type re-cut (owed). A menu with submenus is `Scroll`: its rows exist, keep it to tens.
+A panel taller than 368 pt (11.5 rows, so the last row shows half and says the list goes on; at 384 twelve whole rows ended flush and a 40-row menu looked complete) scrolls, and so does one taller than the room beside its trigger: `Surface` measures the trigger after the first frame and, when the popup fits neither above nor below (`fitRows`, `roomAround`), builds the rows no taller than the larger side (shadcn's `max-h-(--available-height)`). Without that nsh puts a popup that fits neither side on the larger one and clamps it into the window, over its own trigger. A menu that surely fits beside any trigger (`surelyFits`: half of what the window leaves) shows at once; a taller one waits for that one measure before it is built, so it never appears whole and then jumps to its cut height. A scrolling panel gives its rows 8pt on the right so the scroll bar never covers the highlight or the tick. With more than 30 rows and no submenu it is a `List` (only the rows in view exist, cells are recycled, rows read their data as accessors); otherwise a `Scroll`. Opening a select of 500 machines builds about twenty rows. The keys keep the highlighted row in view (`revealOffset`), and a list opens centered on its value (`centerOffset`) moved to a row boundary (`snapScroll`), so the first visible row is whole and never cut mid-glyph; the chosen row stays in view, and in the pop-up button look the popup moves with the offset so that row stays on the trigger. Heights are fixed constants of `menu.tsx` (an item, a heading, a divider) so offsets are a prefix sum (`offsetsOf`); they are still the standard tier and move to the compact tier of `lib/layout.ts` with the type re-cut (owed). A menu with submenus is `Scroll`: its rows exist, keep it to tens.
 
 ## SelectField
 
@@ -65,6 +65,10 @@ A panel taller than 384pt scrolls, and so does one taller than the room beside i
 ## Not ported, and why
 
 Scroll arrows (native scrolling and a `List` instead), modal scroll lock and backdrop (an overlay and an outside press instead), hidden form input and autofill (no web form), the close-parent-on-Escape option and the item-highlighted callback (no caller), menubar and filterable menus (a desktop screen has no use yet).
+
+## Labs
+
+`MenuPreview` draws a menu's panel in place (same rows, width and surface) for `components/kit-lab-overlays.tsx` and the `kit-overlays-menus*` scenarios: the window screenshot draws no overlay, so the real popup's placement near the window's edges stays unverified in pictures.
 
 ## Tests
 

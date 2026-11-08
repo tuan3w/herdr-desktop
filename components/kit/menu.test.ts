@@ -10,7 +10,9 @@ import {
   roomAround,
   routeLetter,
   rowTone,
+  rowTrail,
   snapScroll,
+  surelyFits,
 } from "./menu";
 
 const item = (rows: MenuRow[], i: number) => rows[i] as ItemRow;
@@ -145,9 +147,9 @@ test("headings and dividers of other heights snap to the rows' own tops", () => 
   expect(snapScroll(offsets, 66, 40)).toBe(60);
 });
 
-test("a menu is as wide as its longest row needs, between 208 and 320, so a label is cut only past the greatest", () => {
+test("a menu is as wide as its longest row needs, between 176 and 320, so a label is cut only past the greatest", () => {
   const rows = (...labels: string[]) => menuRows(labels.map((label) => ({ label, onSelect: () => {} })));
-  expect(menuWidth(rows("Open"))).toBe(208);
+  expect(menuWidth(rows("Open"))).toBe(176);
   const note = menuRows([{ label: "Add a note on this change", icon: "pencil", shortcut: "c", onSelect: () => {} }]);
   // The label (25 characters), the icon column, the keycap and the paddings: more than the least width.
   expect(menuWidth(note)).toBeGreaterThan(260);
@@ -183,4 +185,47 @@ test("a letter runs an enabled accelerator, but only when no word is being typed
   expect(routeLetter(rows, "p", true)).toEqual({ kind: "type" });
   expect(routeLetter(rows, "l", false)).toEqual({ kind: "type" });
   expect(routeLetter(rows, "s", false)).toEqual({ kind: "type" });
+});
+
+test("a menu leaves room for the keys as this platform writes them: Ctrl Shift N is wider than the Mac glyphs", () => {
+  const rows = menuRows([{ label: "Start a new agent session", shortcut: "mod+shift+n", onSelect: () => {} }]);
+  expect(rowTrail(rows[0] as ItemRow, false)).toBe("Ctrl Shift N");
+  expect(rowTrail(rows[0] as ItemRow, true)).toBe("⇧ ⌘ N");
+  // Counting caps sized both the same, and Linux cut the label by the difference.
+  expect(menuWidth(rows, false) - menuWidth(rows, true)).toBeGreaterThan(30);
+});
+
+test("every row's width counts the gap before the spacer, so a short label beside a reason is never cut", () => {
+  // Laid out: padding 12 | icon 16 | gap 12 | label | gap 12 | spacer | gap 12 | reason | padding 12, inside the popup's
+  // 5 + 5, with the estimate's own glyphs (7.5 a body glyph, 7 a small one, 3.5 a space). Without the gap before the spacer
+  // the row came 12 short and "Editor" was drawn "Edit…" (kit-overlays-menus render, 2026-11-08).
+  const label = "Editor".length * 7.5;
+  const reason = 11 * 7 + 2 * 3.5;
+  const rows = menuRows([
+    { label: "Editor", icon: "pencil", disabled: true, reason: "No editor set", onSelect: () => {} },
+  ]);
+  expect(menuWidth(rows, true)).toBeGreaterThanOrEqual(10 + 24 + 16 + 12 + label + 12 + 12 + reason);
+});
+
+test("a disabled row shows and says why; the reason of an enabled row is ignored", () => {
+  const [off, on] = menuRows([
+    { label: "Open in editor", disabled: true, reason: "No editor set", shortcut: "mod+e", onSelect: () => {} },
+    { label: "Mark reviewed", reason: "unused", shortcut: "r", onSelect: () => {} },
+  ]);
+  expect(rowTrail(off as ItemRow, true)).toBe("No editor set");
+  expect(rowTrail(on as ItemRow, true)).toBe("R");
+  expect((on as ItemRow).reason).toBe(undefined);
+});
+
+test("a menu is shown at once only when it fits beside any trigger; a taller one waits for the trigger's measure", () => {
+  const cases: [number, number, boolean][] = [
+    // [popup height, window height, shown at once]
+    [180, 800, true],
+    [360, 800, true],
+    [394, 800, false],
+    [280, 640, true],
+    [300, 640, false],
+    [394, 640, false],
+  ];
+  for (const [popup, win, now] of cases) expect([popup, win, surelyFits(popup, win, 4)]).toEqual([popup, win, now]);
 });

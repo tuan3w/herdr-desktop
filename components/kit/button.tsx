@@ -1,4 +1,4 @@
-import { announce, effect, Text, View } from "nsh";
+import { announce, effect, View } from "nsh";
 import { Button } from "nsh/base";
 
 import type { ViewRef } from "nsh";
@@ -7,7 +7,7 @@ import { hoverTransition, pressFeedback, pressTransition } from "#lib/motion";
 import { largeTargets } from "#lib/settings";
 
 import { FOCUS_RING, FOCUS_RING_BORDERED, FOCUS_RING_SIDEBAR, releaseFocus, touchedJustNow } from "./core";
-import { Tipped } from "./hint";
+import { Clipped, Tipped } from "./hint";
 import { Icon, type IconName, type IconTone } from "./icon";
 import { Keys } from "./keys";
 import { Spinner } from "./loading";
@@ -21,6 +21,13 @@ const BTN: Record<Variant, string> = {
   ghost: "hover:bg-accent active:bg-accent",
   danger: "border border-input hover:bg-destructive/10 active:bg-destructive/20",
 };
+/** The same fills and edges without hover or press: what a disabled button keeps. */
+const BTN_REST: Record<Variant, string> = {
+  primary: "bg-primary",
+  outline: "border border-input bg-card",
+  ghost: "",
+  danger: "border border-input",
+};
 const BTN_TEXT: Record<Variant, string> = {
   primary: "text-primary-foreground",
   outline: "text-foreground",
@@ -33,6 +40,18 @@ const BTN_ICON: Record<Variant, IconTone> = {
   ghost: "foreground",
   danger: "destructive",
 };
+
+/**
+ * The pressable's classes. Disabled is the variant itself at 50% (the guideline's "Disabled is 50% and keeps its name"):
+ * the old muted fill turned a disabled ghost `Cancel` and a disabled `danger` into one grey filled button, so the
+ * disabled state changed the button's kind. It shrinks in a narrow row (`max-w-full`), its label clipped, never past
+ * its container.
+ */
+export function btnClass(variant: Variant, o: { small?: boolean; disabled?: boolean }): string {
+  const height = largeTargets() ? "min-h-11" : o.small ? "min-h-7" : "min-h-8";
+  const ring = variant === "outline" || variant === "danger" ? FOCUS_RING_BORDERED : FOCUS_RING;
+  return `max-w-full shrink flex-row items-center justify-center gap-2 rounded-md ${ring} ${height} ${o.small ? "px-3" : "px-4"} ${o.disabled ? `${BTN_REST[variant]} opacity-50` : BTN[variant]}`;
+}
 
 /**
  * A button with a text label. Default 32pt (a dialog or form action; 36 was a phone size); `small` is the dense-row size (28pt, the
@@ -83,29 +102,24 @@ export function Btn(props: {
       onPressUp={press?.up}
       disabled={props.disabled}
       accessibilityLabel={busy() ? `${props.name ?? props.label}, busy` : props.name}
-      style={[pressTransition(), press?.style]}
-      class={`flex-row items-center justify-center gap-2 rounded-md ${variant() === "outline" || variant() === "danger" ? FOCUS_RING_BORDERED : FOCUS_RING} ${largeTargets() ? "min-h-11" : props.small ? "min-h-7" : "min-h-8"} ${props.small ? "px-3" : "px-4"} ${
-        props.disabled ? "border-transparent bg-muted" : BTN[variant()]
-      }`}
+      // The press motion owns the view's opacity (its style sets 1), so the disabled fade must come after it, not in a class.
+      style={[pressTransition(), press?.style, props.disabled ? { opacity: 0.5 } : undefined]}
+      class={btnClass(variant(), { small: props.small, disabled: props.disabled })}
     >
       <If when={props.loading}>
         <Spinner size={props.small ? 14 : 16} tone={BTN_ICON[variant()]} />
       </If>
       <If when={props.loading ? undefined : props.icon}>
-        {(name) => (
-          <Icon
-            name={name()}
-            size={props.small ? 14 : 16}
-            tone={props.disabled ? "muted-foreground" : BTN_ICON[variant()]}
-          />
-        )}
+        {(name) => <Icon name={name()} size={props.small ? 14 : 16} tone={BTN_ICON[variant()]} />}
       </If>
-      <Text
-        class={`font-medium ${props.small ? "text-xs" : "text-sm"} ${props.disabled ? "text-muted-foreground" : BTN_TEXT[variant()]}`}
-      >
-        {props.label}
-      </Text>
-      <If when={props.hint && !props.disabled}>
+      {/* One line: a label wider than its container ends in an ellipsis with the whole label in a bubble, never a
+          second line in a 32 pt button (a long label overflowed a 240 pt column). The accessible name is the button's. */}
+      <View class="min-w-0 shrink">
+        <Clipped class={`font-medium ${props.small ? "text-xs" : "text-sm"} ${BTN_TEXT[variant()]}`}>
+          {props.label}
+        </Clipped>
+      </View>
+      <If when={props.hint}>
         <Keys keys={props.hint!} tone={variant() === "primary" ? "onPrimary" : "muted"} />
       </If>
     </Button>

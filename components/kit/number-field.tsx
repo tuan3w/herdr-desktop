@@ -9,7 +9,7 @@ import { largeTargets } from "#lib/settings";
 import { spoken } from "./check";
 import { NUM } from "./core";
 import { useFieldControl } from "./field";
-import { INPUT_BOX, INPUT_ERROR, inputHeight, Labeled } from "./fields";
+import { inputLook, Labeled } from "./fields";
 import {
   canBeNumber,
   commitText,
@@ -264,8 +264,10 @@ function NumberControl(props: { p: NumberFieldProps; value: () => number | null;
     if (Object.is(before, untracked(props.value))) control.field.valueChanged(before);
   };
 
+  // `flex-1` only beside a unit, where it shares a row: in the field's column it grew the box to nothing measured and
+  // pushed a NumberField 32 pt below its neighbours in a bottom-aligned row of fields.
   const field = (
-    <View class="group relative min-w-0 flex-1">
+    <View class={`group relative min-w-0 ${p.unit ? "flex-1" : ""}`}>
       <Input
         ref={(node: ViewRef) => {
           input = node;
@@ -328,7 +330,7 @@ function NumberControl(props: { p: NumberFieldProps; value: () => number | null;
           p.onBlur?.();
         }}
         style={{ ...hoverTransition(), ...NUM }}
-        class={`${INPUT_BOX} ${inputHeight()} ${p.steppers === false ? "" : "pr-14"} ${control.invalid() ? INPUT_ERROR : ""}`}
+        class={`${inputLook({ invalid: control.invalid(), disabled: control.disabled(), readOnly: locked() })} ${p.steppers === false ? "" : "pr-16"}`}
       />
       <If when={p.steppers !== false && !locked() && !control.disabled()}>
         <View class="absolute bottom-0 right-1 top-0 flex-row items-center opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">

@@ -199,7 +199,8 @@ export function AgentLine(props: {
         class={`flex-row items-center gap-3 rounded-md hover:bg-accent ${ROW.table.class} ${FOCUS_RING_INSET}`}
       >
         <View class={COL.glyph}>
-          <StatusGlyph status={dim() ? "unknown" : row().status} id={row().key} />
+          {/* With the Board in front the sidebar is a rail, so its row carries the one signal mark (`design/attention.md`). */}
+          <StatusGlyph status={dim() ? "unknown" : row().status} id={row().key} loud />
         </View>
         <Clipped fade={[PAGE, ROW_HOVER]} boxClass={COL.title} class="text-sm text-foreground">
           {row().name}

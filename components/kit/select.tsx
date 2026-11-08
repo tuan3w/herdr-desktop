@@ -73,6 +73,21 @@ export function selectRows<T extends string>(
   return rows;
 }
 
+/**
+ * What a select shows for what is chosen: each value's title in the order of the options, then any chosen value that no
+ * option has, as itself. A value the list no longer offers (a machine removed, an agent from an older version) used to show
+ * the placeholder, as if nothing were chosen, while the form still held and submitted it.
+ */
+export function chosenTitle<T extends string>(
+  options: readonly Option<T>[],
+  chosen: readonly T[],
+  equal: (a: T, b: T) => boolean,
+): string {
+  const found = options.filter((o) => chosen.some((c) => equal(o.value, c)));
+  const missing = chosen.filter((c) => !options.some((o) => equal(o.value, c)));
+  return [...found.map((o) => o.title), ...missing].join(", ");
+}
+
 /** The least a choice list is wide (a shorter trigger still gets a list that reads). */
 const LIST_MIN = 176;
 /** The most a choice list grows to fit its longest option; past it the option is cut with an ellipsis. */
@@ -108,6 +123,12 @@ interface SelectBase<T extends string> {
   readOnly?: boolean;
   required?: boolean;
   invalid?: boolean;
+  /** The message under the select (red edge, icon, words); the select is invalid while it is set. */
+  error?: string;
+  /** What the select is for, under it while there is no error. */
+  hint?: string;
+  /** Keep the room of the message line (see `Labeled`). */
+  reserve?: boolean;
   /** How a value of `items` is found in the chosen value: `===` unless the values need more. */
   isItemEqualToValue?: (item: T, value: T) => boolean;
   /** Lay the list over the trigger with the chosen option on it, as a macOS pop-up button; falls back to under the trigger when there is no room. Default true. */
@@ -133,8 +154,16 @@ export type SelectFieldProps<T extends string> = SelectBase<T> &
  * targets makes both 44): every control in one row has one height, and the label is body size at both. For a set that is searched by typing, use a `Combobox`.
  */
 export function SelectField<T extends string>(props: SelectFieldProps<T>) {
-  return props.label ? (
-    <Labeled label={props.label} disabled={props.disabled} invalid={props.invalid}>
+  // A select without a visible label still shows its error and hint: they were dropped with the label.
+  return props.label || props.error || props.hint || props.reserve ? (
+    <Labeled
+      label={props.label ?? ""}
+      disabled={props.disabled}
+      invalid={props.invalid}
+      error={props.error}
+      hint={props.hint}
+      reserve={props.reserve}
+    >
       <SelectControl p={props} />
     </Labeled>
   ) : (
@@ -162,12 +191,7 @@ function SelectControl<T extends string>(args: { p: SelectFieldProps<T> }) {
       item === "separator" ? [] : "items" in item ? item.items : [item],
     ),
   );
-  const title = computed(() =>
-    options()
-      .filter((o) => chosen().some((c) => equal(o.value, c)))
-      .map((o) => o.title)
-      .join(", "),
-  );
+  const title = computed(() => chosenTitle(options(), chosen(), equal));
   // A required select left empty stops a form's submit and its message is announced (a select cannot take the focus from
   // code, so `Form` announces instead). It has no form name: `name` is its accessible name, so its value is not in `values`.
   const control = useFieldControl({
@@ -175,7 +199,7 @@ function SelectControl<T extends string>(args: { p: SelectFieldProps<T> }) {
     required: () => props.required,
     disabled: () => props.disabled,
   });
-  const invalid = () => !!props.invalid || control.invalid();
+  const invalid = () => !!props.invalid || !!props.error || control.invalid();
   const name = () => control.label() ?? props.label ?? props.name ?? props.placeholder ?? "Select";
   const pick = (value: T) => {
     if (props.multiple) props.onChange(toggled(chosen(), value, equal));
@@ -237,7 +261,7 @@ function SelectControl<T extends string>(args: { p: SelectFieldProps<T> }) {
       }}
       onLayout={({ bounds }) => width.set(bounds.size.width)}
       style={hoverTransition()}
-      class={`flex-row items-center justify-between gap-2 rounded-md border bg-card px-3 ${focused() && !viaPointer() ? (invalid() ? RING_INVALID : RING_BORDERED) : invalid() ? "border-destructive" : "border-input"} ${props.disabled ? "opacity-50" : "hover:bg-accent"} ${largeTargets() ? "h-11" : props.small ? "h-7" : "h-8"}`}
+      class={`flex-row items-center justify-between gap-2 rounded-md border px-3 ${focused() && !viaPointer() ? (invalid() ? RING_INVALID : RING_BORDERED) : invalid() ? "border-destructive" : "border-input"} ${props.disabled ? "opacity-50" : props.readOnly ? "" : "hover:bg-accent"} ${props.readOnly ? "bg-muted/50" : "bg-card"} ${largeTargets() ? "min-h-11" : props.small ? "min-h-7" : "min-h-8"}`}
     >
       <View class="min-w-0 flex-1">
         <Clipped class={`text-sm ${title() ? "text-foreground" : "text-muted-foreground"}`}>

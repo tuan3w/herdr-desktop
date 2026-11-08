@@ -22,7 +22,8 @@ export function Clipped(props: {
    * cut. nsh 0.4.0 masks only on web and iOS, so the fade is the fill laid over the text: one gradient layer per fill the
    * row can have (`from-sidebar/0 to-sidebar`, then a hover tint with `opacity-0 group-hover/row:opacity-100`, then the
    * selected fill), each the same colour as the row's own, stacked in order, so no seam is possible. The layout classes
-   * (`min-w-0 flex-1`) then go in `boxClass`; `class` styles the text.
+   * (`min-w-0 flex-1`) then go in `boxClass`; `class` styles the text. Without a fade `boxClass` lays out the text itself,
+   * so a caller can pass the same classes either way.
    */
   fade?: readonly string[];
   boxClass?: string;
@@ -43,8 +44,13 @@ export function Clipped(props: {
       ref={tip.ref}
       onMouseEnter={tip.onMouseEnter}
       onMouseLeave={tip.onMouseLeave}
-      class={props.class}
-      style={[{ numberOfLines: props.lines ?? 1, textOverflow: props.fade ? "clip" : undefined }, props.style]}
+      class={props.fade ? props.class : `${props.boxClass ?? ""} ${props.class ?? ""}`}
+      // The window is laid out left to right: an Arabic or Hebrew name starts at the row's start like any other, not at
+      // its far end with a gap after the glyph (seen in the Files rows).
+      style={[
+        { numberOfLines: props.lines ?? 1, textOverflow: props.fade ? "clip" : undefined, textAlign: "left" },
+        props.style,
+      ]}
       onTextLayout={(e) => cut.set(isCut(e.lines, shown()))}
     >
       {props.children}

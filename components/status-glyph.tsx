@@ -11,8 +11,9 @@ import type { AgentStatus } from "#lib/status";
  * readers: the row or header that shows it says `statusText` in its own accessibility label.
  *
  * It is quiet by default: small, thin and in the muted ink, so a list of ten agents is ten shapes and not ten colours.
- * `loud` is the one signal-coloured form (the filled disc with its bar) and belongs to the `Needs you` inbox alone: that
- * is where an agent that waits is said once, loudly (`design/attention.md`).
+ * `loud` lets a waiting agent's disc take the signal colour (only the needs-you shape ever does): it belongs to the one
+ * row per view that says an agent waits, the sidebar row, or the Board's row while the Board is in front
+ * (`design/attention.md`, rule 4). Every other place (switcher, palette, headers) stays quiet.
  */
 export function StatusGlyph(props: { status: AgentStatus; size?: 12 | 14 | 16; loud?: boolean; id?: string }) {
   const size = props.size ?? 12;
