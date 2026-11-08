@@ -2,14 +2,7 @@ import { expect, test } from "nsh/test";
 
 import type { SessionItem, ToolItem, ToolStatusName } from "herdr-desktop/native";
 
-import {
-  buildRows,
-  type Row,
-  type RowInput,
-  spanSeconds,
-  type TurnCarry,
-  unitStart,
-} from "#lib/session-rows";
+import { buildRows, type Row, type RowInput, spanSeconds, type TurnCarry, unitStart } from "#lib/session-rows";
 
 let next = 1;
 const say = (role: "user" | "agent" | "thought", text: string): SessionItem => ({
@@ -233,7 +226,16 @@ test("each turn gets its own effects row, before the next question", () => {
     edit("b.ts", 1, 0),
     say("agent", "b"),
   ];
-  expect(kinds(buildRows(input(items)))).toEqual(["user", "work", "agent", "effects", "user", "work", "agent", "effects"]);
+  expect(kinds(buildRows(input(items)))).toEqual([
+    "user",
+    "work",
+    "agent",
+    "effects",
+    "user",
+    "work",
+    "agent",
+    "effects",
+  ]);
 });
 
 test("streaming rebuilds the last unit only: the part before it is read once and its effects ride along", () => {
@@ -253,7 +255,11 @@ test("streaming rebuilds the last unit only: the part before it is read once and
       return Reflect.get(target, key, receiver);
     },
   });
-  const tail = buildRows(input(watched), undefined, { from: at, to: items.length, carry: { groups: [...carry.groups] } });
+  const tail = buildRows(input(watched), undefined, {
+    from: at,
+    to: items.length,
+    carry: { groups: [...carry.groups] },
+  });
   expect(reads).toBe(0);
   expect(built.concat(tail).map((r) => r.sig)).toEqual(full(items).map((r) => r.sig));
   expect(kinds(built.concat(tail))).toEqual(kinds(full(items)));

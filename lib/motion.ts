@@ -389,9 +389,18 @@ export interface Arrivals {
 }
 
 export const SETTLE_MS = 500;
+/** More arrivals than this in `BURST_MS` are a burst (a stream, a replay): none of them rises, so one never overlaps the next. */
+export const BURST_ROWS = 3;
+export const BURST_MS = 1000;
 
-export function arrivals(): Arrivals {
+/**
+ * `live` says a turn is running: the lines of a live conversation just appear (a running animation holds the window at
+ * full frame rate, nsh issue 958, and a stream adds rows faster than a rise of `DURATION.rise` ends). Keys are remembered
+ * either way, so a line that came while live never rises later.
+ */
+export function arrivals(live: () => boolean = () => false): Arrivals {
   const seen = new Set<string>();
+  const recent: number[] = [];
   let settled = false;
   // One timer per list, once: it needs no owner, so the cell that happened to ask first may go without stopping it.
   motionClock.after(SETTLE_MS, () => (settled = true));
@@ -399,7 +408,11 @@ export function arrivals(): Arrivals {
     isNew(key: string): boolean {
       if (seen.has(key)) return false;
       seen.add(key);
-      return settled;
+      if (!settled) return false;
+      const now = motionClock.now();
+      while (recent.length > 0 && now - recent[0]! >= BURST_MS) recent.shift();
+      recent.push(now);
+      return recent.length <= BURST_ROWS && !live();
     },
   };
 }

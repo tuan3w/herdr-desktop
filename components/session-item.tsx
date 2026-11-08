@@ -1,11 +1,11 @@
-import { effect, Image, type JSX, Text, View } from "nsh";
+import { effect, Image, type JSX, Text, untracked, View } from "nsh";
 import { Button } from "nsh/base";
 
 import type { EffectKindName, ImageView } from "herdr-desktop/native";
 
 import { type Folds, MarkdownText } from "#components/markdown";
 import { DiffStat, Disclosure, PartChips, ToolDetails, ToolRow, ToolStatus } from "#components/session-tool";
-import { type CopyEntry, copyMenu, copyText, FOCUS_RING, Icon, type IconName, IconButton } from "#kit";
+import { ActionMenu, type CopyEntry, copyMenu, copyText, FOCUS_RING, Icon, type IconName, IconButton } from "#kit";
 import { openChanges } from "#lib/changes";
 import { CHAT_COLUMN } from "#lib/layout";
 import { ofKind } from "#lib/list-item";
@@ -145,9 +145,15 @@ function AgentRow(props: { row: Extract<Row, { kind: "agent" }>; ctx: RowContext
         <PartChips parts={props.row.item.parts} machine={props.ctx.machine} cwd={props.ctx.cwd} />
       </View>
       <If when={!props.row.live}>
-        <View class="absolute -top-3 right-4 flex-row gap-1 rounded-md border border-border bg-background opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
-          <IconButton icon="copy" label="Copy message" onPress={() => void copyText(plainText(source()), "Message")} />
-          <IconButton icon="file" label="Copy as Markdown" onPress={() => void copyText(source(), "Markdown")} />
+        {/* In the row's own flow and reserved at rest, so it never overlaps the row above or shifts the text on hover. */}
+        <View class="h-8 flex-row items-center gap-0.5 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
+          <IconButton
+            icon="copy"
+            label="Copy message"
+            tipSide="top"
+            onPress={() => void copyText(plainText(source()), "Message")}
+          />
+          <ActionMenu small label="Message options" entries={entries()} />
         </View>
       </If>
     </Line>
@@ -398,7 +404,7 @@ const ARRIVALS = new WeakMap<object, Arrivals>();
 function arrivedIn(model: SessionModel): Arrivals {
   let list = ARRIVALS.get(model);
   if (!list) {
-    list = arrivals();
+    list = arrivals(() => untracked(() => model.view()?.running ?? false));
     ARRIVALS.set(model, list);
   }
   return list;

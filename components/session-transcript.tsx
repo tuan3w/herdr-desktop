@@ -4,9 +4,11 @@ import { Button } from "nsh/base";
 import type { Signal } from "nsh";
 import type { ListRef } from "nsh/types";
 
+import { EarlierRow } from "#components/earlier-row";
 import type { RowContext } from "#components/session-item";
 import { SessionRow } from "#components/session-item";
 import { FOCUS_RING, Icon } from "#kit";
+import { createAutoLoad, type Earlier } from "#lib/earlier";
 import { CHAT_COLUMN } from "#lib/layout";
 import { leaving } from "#lib/motion";
 import type { Row } from "#lib/session-rows";
@@ -153,6 +155,14 @@ export function SessionTranscript(props: {
   };
   const shownPill = leaving(pill);
 
+  // Older turns of a terminal agent's log: a row above the first says so, and coming within a screen of the top reads them
+  // (once per arrival); the older rows land above the ones in view, which keep their place.
+  const earlier = (): Earlier => (props.ctx.model.view()?.observed?.earlier as Earlier | undefined) ?? "none";
+  const autoLoad = createAutoLoad();
+  effect(() => {
+    if (rows().length === 0 && autoLoad(0, 1, earlier())) props.ctx.model.loadEarlier();
+  });
+
   return (
     <View class="min-h-0 flex-1">
       <List
@@ -177,6 +187,7 @@ export function SessionTranscript(props: {
             list?.scrollToOffset({ offset: to, animated: false });
             return;
           }
+          if (autoLoad(e.offset.y, e.size.height, earlier())) props.ctx.model.loadEarlier();
           const end = isAtEnd(e.offset.y, e.size.height, e.contentSize.height);
           setAnchor(props.panel, {
             atEnd: end,
@@ -189,6 +200,7 @@ export function SessionTranscript(props: {
         accessibilityLabel="Conversation"
         class="min-h-0 flex-1"
         contentClass="gap-2 pb-6 pt-4"
+        header={() => <EarlierRow earlier={earlier()} onLoad={() => props.ctx.model.loadEarlier()} />}
         footer={() => <Footer ctx={props.ctx} />}
         empty={() => (
           <View class={`py-8 ${CHAT_COLUMN}`}>

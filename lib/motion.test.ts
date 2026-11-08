@@ -3,6 +3,8 @@ import { expect, test } from "nsh/test";
 import {
   appear,
   arrivals,
+  BURST_MS,
+  BURST_ROWS,
   arrived,
   contextEnter,
   createPresence,
@@ -109,6 +111,28 @@ test("the lines of a list move only when they are new after it settled", () => {
   expect(list.isNew("second")).toBe(false);
   // Seen before it settled: scrolling back to it never moves it.
   expect(list.isNew("first")).toBe(false);
+});
+
+test("lines that come while a turn runs, or faster than the rise ends, do not rise", () => {
+  const clock = setup();
+  let running = true;
+  const list = arrivals(() => running);
+  clock.advance(SETTLE_MS);
+  expect(list.isNew("streamed")).toBe(false);
+  running = false;
+  clock.advance(BURST_MS);
+  // The turn is over: a first line rises, and so do the next ones up to the burst limit, no more.
+  expect(Array.from({ length: BURST_ROWS + 2 }, (_, i) => list.isNew(`row-${i}`))).toEqual([
+    true,
+    true,
+    true,
+    false,
+    false,
+  ]);
+  // A burst that was not shown is never shown late, and a quiet second brings the rise back.
+  expect(list.isNew("row-4")).toBe(false);
+  clock.advance(BURST_MS);
+  expect(list.isNew("later")).toBe(true);
 });
 
 test("a project switch plays its fade once per gesture and never for a key", () => {

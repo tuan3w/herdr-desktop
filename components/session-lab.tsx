@@ -569,6 +569,10 @@ function scripted(initial: Scene) {
       });
       return { kind: "invalid", message: "The agent refused: this account has no seat." };
     },
+    loadEarlier: async () => {
+      told("loadEarlier");
+      return false;
+    },
     reopen: async () => {
       told("reopen");
       if (signedIn) change({ phase: "idle", acp: { ...view.acp, auth: [] } });

@@ -5,12 +5,22 @@ import { CodeBlock, inlineCodeClasses } from "#components/code-block";
 import { openLink } from "#components/links-dialog";
 import { MermaidBlock } from "#components/mermaid-block";
 import { type CopyEntry, copyMenu, copyText, Icon, notify } from "#kit";
-import { fenceLanguage, type FenceSegment, type ProseSegment, type Segment, splitFences } from "#lib/markdown-fences";
+import {
+  fenceLanguage,
+  type FenceSegment,
+  type ProseSegment,
+  type Segment,
+  splitFences,
+  streamTail,
+} from "#lib/markdown-fences";
 import { plainText } from "#lib/plain-text";
 import { safeCode } from "#lib/visible-text";
 
 /** A mermaid fence inside a list item or a quote is a custom node: the diagram, not a block of code. (Top-level ones are split out by `splitFences`.) */
 const EXTENSIONS = [{ name: "mermaid", language: "mermaid" }];
+
+/** Lines of a fence being written that are drawn (`streamTail`): under the code block's cap, so it is a plain column. */
+const WRITTEN_LINES = 12;
 
 /**
  * A table the way the kit draws one: a hairline under each row and nothing else. `TextView` gives every cell a right and
@@ -129,6 +139,11 @@ export function MarkdownText(props: {
             const f = fence();
             return f !== undefined && fenceLanguage(f.info) !== "mermaid" ? f : undefined;
           };
+          // A fence still being written shows its tail only; whole, it is the block as ever (`streamTail`).
+          const written = () => {
+            const f = code();
+            return f !== undefined && f.open && streaming() ? streamTail(f.code, WRITTEN_LINES) : undefined;
+          };
           const foldKey = () => `${props.foldKey ?? "fence"}:${part().key}`;
           return (
             <View>
@@ -152,10 +167,11 @@ export function MarkdownText(props: {
               <If when={code()}>
                 {(f) => (
                   <CodeBlock
-                    code={safeCode(f().code)}
+                    code={safeCode(written()?.code ?? f().code)}
+                    firstLine={1 + (written()?.skipped ?? 0)}
                     language={f().infoComplete && f().info !== "" ? f().info : undefined}
                     title={f().title}
-                    streaming={streaming() && f().open}
+                    collapsedLines={written() ? 0 : undefined}
                     open={props.folds?.get(foldKey())}
                     onOpenChange={props.folds ? (open) => props.folds!.set(foldKey(), open) : undefined}
                   />

@@ -53,6 +53,8 @@ export interface SessionPort {
   authenticate(methodId: string): Promise<ActionResult>;
   /** Opens the session the agent refused for want of a sign-in once more, after the person signed in in a terminal. */
   reopen(): Promise<ActionResult>;
+  /** Reads older turns of a terminal agent's log (`SessionView.observed.earlier` says whether there are any). */
+  loadEarlier(): Promise<boolean>;
 }
 
 /** The `Sessions` module as one session's port. */
@@ -71,6 +73,7 @@ export function sessionPort(machine: string, id: string): SessionPort {
     },
     authenticate: (methodId) => Sessions.authenticate(machine, id, methodId),
     reopen: () => Sessions.reopen(machine, id),
+    loadEarlier: () => Promise.resolve(Sessions.loadEarlier(machine, id)),
   };
 }
 
@@ -104,6 +107,8 @@ export interface SessionModel {
   choose(key: string, now: boolean): void;
   /** What the person chose for `key` (`true` open, `false` closed), `undefined` when they never did. Reactive. */
   chosen(key: string): boolean | undefined;
+  /** Asks for older turns of the log; they arrive above the rows in view, which keep their place. */
+  loadEarlier(): void;
 }
 
 /** Rows read again on every revision: enough to follow a stream and a handful of parallel calls, however long the chat. */
@@ -112,6 +117,31 @@ const TAIL = 24;
 const OPEN_CALLS = 8;
 /** Seconds without an event after which `Quiet for` appears. */
 const QUIET_AFTER = 60;
+
+/** Pulls of a running session are at least this far apart: a streamed word is seen within it, and a burst is one pull. */
+export const PULL_MS = 120;
+
+/**
+ * When to pull while chunks stream in: `ask(now)` answers `0` (pull now), a delay in ms (pull then: one timer, which
+ * reads what is newest, so the last chunk is never lost) or `null` (that timer is already waiting). `ran(now)` says the
+ * pull happened. Pure over the time it is given, so a test injects the clock.
+ */
+export function pacer(interval: number) {
+  let last = Number.NEGATIVE_INFINITY;
+  let waiting = false;
+  return {
+    ask(now: number): number | null {
+      if (waiting) return null;
+      const wait = Math.max(0, last + interval - now);
+      waiting = wait > 0;
+      return wait;
+    },
+    ran(now: number): void {
+      last = now;
+      waiting = false;
+    },
+  };
+}
 
 /** Builds the model for `port` in the calling component's scope (it listens and stops with it). */
 export function createSessionModel(port: SessionPort, hooks: SessionHooks): SessionModel {
@@ -128,6 +158,8 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
   /** Wall clock minus the session's own clock (`SessionItem.startedMs`): learned from what arrives live, `null` until then. */
   let offset: number | null = null;
   let streamedId = -1;
+  /** The newest row id before this pull: older turns arrive with smaller ids and are history, not news. */
+  let newest = -1;
   let streamedLength = 0;
   /** Agent messages `store` saw arrive since the hook last heard. */
   let arrived = 0;
@@ -142,7 +174,7 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
   const store = (item: SessionItem, index: number, now: number): void => {
     const old = entries.get(item.id);
     if (old && old.rev === item.rev) return;
-    if (!old && loaded) {
+    if (!old && loaded && item.id > newest) {
       // A row that arrives live was started a moment ago: that pairs the session's clock with ours.
       if (item.startedMs != null) offset = now - item.startedMs;
       if (item.kind === "message" && item.role === "agent") arrived += 1;
@@ -163,6 +195,7 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
   const pull = (v: SessionView): void => {
     const now = Date.now();
     let reshaped = false;
+    newest = ids.at(-1) ?? -1;
     if (v.itemCount !== ids.length || v.droppedItems !== dropped) {
       const fresh = port.itemIds();
       if (v.droppedItems !== dropped) {
@@ -243,10 +276,25 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
   };
 
   untracked(sync);
+  // A running turn pulls at most every `PULL_MS`: each pull rebuilds rows and lays out text, so a stream faster than that
+  // would cost frames for words nobody reads one by one. A session at rest pulls at once.
+  const pace = pacer(PULL_MS);
+  let pending: ReturnType<typeof setTimeout> | undefined;
+  const pulled = (): void => {
+    pending = undefined;
+    pace.ran(Date.now());
+    sync();
+  };
   effect(() => {
     port.revision();
-    untracked(sync);
+    untracked(() => {
+      const wait = lastView?.running ? pace.ask(Date.now()) : 0;
+      if (wait === null) return;
+      if (wait === 0) pulled();
+      else pending = setTimeout(pulled, wait);
+    });
   });
+  cleanup(() => clearTimeout(pending));
 
   // A clock only while a turn runs: an app at rest draws nothing.
   effect(() => {
@@ -333,5 +381,7 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
 
   const chosen = (key: string): boolean | undefined => choices().get(key);
 
-  return { view: viewSignal, rows, working, toggle, choose, chosen };
+  const loadEarlier = (): void => void port.loadEarlier();
+
+  return { view: viewSignal, rows, working, toggle, choose, chosen, loadEarlier };
 }

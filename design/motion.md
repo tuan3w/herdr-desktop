@@ -37,6 +37,7 @@ Ask how often it happens before how it moves. A keyboard action, or anything don
 |---|---|
 | Switching tabs inside a context, Home, tab content | keyboard-driven and repeated all day: a transition is a delay |
 | Anything a keyboard shortcut does, except opening a dialog | the person already knows what will happen |
+| Rows of a live conversation | while a turn runs, and for more than 3 arrivals in a second, a line just appears; a code fence being written shows its last 12 lines, because a followed nested list holds full-rate frames (measured: 59 fps against 7) |
 | `ActionMenu` and `RowMenu` popups, comboboxes, selects, tooltips, the preview card | opened and moved through many times a day: they open and close at once |
 | The live pane mirror (`PaneScreen`) | it is data, drawn as it comes |
 | The sidebar's own fold, its rows | a virtual list whose cells are recycled: animating them fights recycling |
@@ -72,7 +73,7 @@ nsh's style transitions take the curve as a `cubic-bezier(...)` string (read fro
 2. `transitionProperty` is always named (`"colors"`, `"transform"`), never `"all"`.
 3. Every new motion goes through a helper in `lib/motion.ts`, or `createMotion`, and does nothing under `reducedMotion()`. A screen never reads nsh's `reduceMotion()`. Limit: nsh applies only the system setting to `motion-reduce:` classes, its `Dialog` fade and a `createMotion` `enter`.
 4. A thing that arrives inside a virtual list (`List`) animates its content through `arrivals()`, per key, never per cell. A thing in an `Each` list uses `appear()`.
-5. A loop is created only while on screen, inside an `If`, and stopped with `cleanup`.
+5. **No endless native animation, anywhere** (no `iterations: "infinite"`, no keyframe loop, no `animate-spin` or `animate-pulse`). nsh issue 958: one keeps the frame clock at the screen's rate (60 to 120 fps) and, with the window hidden, keeps the main thread ticking for ever; measured here, one 16 pt spinner took a static window from 0 fps to 60 and added 3 to 4% CPU. A looping indicator steps from the one shared timer of `components/kit/ticker.ts` (`useTicker`, 8 steps a second, no easing): it exists only while an indicator is mounted and while the window is not in the background (`lifecycle()`). `Skeleton` is still. `tickerRunning` is what `components/ticker.test.tsx` checks.
 6. Enters use `EASE_OUT`, exits `EASE_IN`, things that move on screen `EASE_MOVE`. An exit of a popup is `presenceMotion` plus `createPresence`: the popup stays built for the exit, takes no presses, and a reopen cancels the unbuild.
 7. Time and timers in tests go through `motionClock`; no motion test reads the real clock.
 

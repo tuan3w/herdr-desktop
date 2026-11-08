@@ -279,3 +279,27 @@ test(
   },
   TEST_TIMEOUT,
 );
+
+// The rate a real agent writes at, about 8 pieces a second: frames should follow the pieces (about one each), not the
+// display, and the window should hold none once the fence is closed and has settled.
+test(
+  "chat streaming at 8 pieces a second",
+  async () => {
+    const app = await open("../perf-chat.tsx", {
+      ...DESKTOP,
+      host: { params: { mode: "scripted", scene: "code-stream", lines: 600, autostream: 120, quiet: true } },
+    });
+    await app.waitFor("label:Conversation", { timeout: 60_000 });
+
+    await mark(app, "chat streaming a fence at 8 pieces a second");
+    await app.wait(4200);
+
+    // The closing piece and the block's last layout settle first; the row after it is the one that must draw nothing.
+    await app.wait(1500);
+    await mark(app, "chat holds no frames after the stream ends");
+    await app.wait(3000);
+
+    await mark(app, "end");
+  },
+  TEST_TIMEOUT,
+);

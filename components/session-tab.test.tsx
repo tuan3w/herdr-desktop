@@ -447,6 +447,7 @@ test("a finished agent message copies as plain text, or as the Markdown it was w
   expect(app.clipboard()).toContain("unit tests\t42 passed");
   expect(app.clipboard()).toContain("export function login(user: User)");
   expect(app.clipboard()).not.toContain("`");
+  await app.press("label:Message options");
   await app.press("label:Copy as Markdown");
   await app.waitUntil(() => (app.clipboard() ?? "").startsWith("The loop came from `login`"));
   expect(app.clipboard()).toContain("| unit tests | 42 passed |");

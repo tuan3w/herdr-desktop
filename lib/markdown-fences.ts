@@ -122,3 +122,16 @@ export function fenceLanguage(info: string): string {
   const word = info.replace(/^\{\.?/, "").split(/[\s,{}]/)[0] ?? "";
   return word.replace(/^language-/i, "").toLowerCase();
 }
+
+/**
+ * The last `keep` lines of a fence still being written, and how many came before them. A block that follows its own end
+ * is a nested virtual list that keeps the window drawing every frame while it grows (measured: 60 fps at 3 commits a
+ * second), so a block being written shows only its tail, a plain column that fits its cap; the whole text replaces it
+ * when the fence closes.
+ */
+export function streamTail(code: string, keep: number): { code: string; skipped: number } {
+  const lines = code.split("\n");
+  if (lines.length <= keep) return { code, skipped: 0 };
+  const skipped = lines.length - keep;
+  return { code: lines.slice(skipped).join("\n"), skipped };
+}

@@ -1,6 +1,6 @@
 import { expect, test } from "nsh/test";
 
-import { fenceLanguage, splitFences } from "#lib/markdown-fences";
+import { fenceLanguage, splitFences, streamTail } from "#lib/markdown-fences";
 import type { FenceSegment } from "#lib/markdown-fences";
 
 const fences = (source: string) => splitFences(source).filter((s): s is FenceSegment => s.kind === "fence");
@@ -67,4 +67,11 @@ test("keys stay the same while a message grows, so each block keeps its view", (
 test("a text without a fence is one prose part, and an empty text has none", () => {
   expect(splitFences("Just **words**.\n\nTwo paragraphs.")).toHaveLength(1);
   expect(splitFences("")).toHaveLength(0);
+});
+
+test("a fence being written keeps its last lines, says how many came before, and a short one is whole", () => {
+  expect(streamTail("a\nb\nc\nd\ne", 2)).toEqual({ code: "d\ne", skipped: 3 });
+  expect(streamTail("a\nb", 2)).toEqual({ code: "a\nb", skipped: 0 });
+  expect(streamTail("a\nb\nc\n", 2)).toEqual({ code: "c\n", skipped: 2 });
+  expect(streamTail("", 3)).toEqual({ code: "", skipped: 0 });
 });
