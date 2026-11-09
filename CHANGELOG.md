@@ -4,6 +4,31 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+## [0.1.0-alpha.13] - 2026-11-09
+
+### A pane that could not start says so
+
+A pane herdr could not bring back after it restarted used to open as
+`Reading the agent's log` or an empty screen. It now says it is not
+running, and why.
+
+- The tab shows `Not running`, herdr's own reason and a `Close pane`
+  button, in the terminal tab and in the chat of an agent in that pane.
+  `Close pane` asks before it closes anything.
+- Nothing is read from such a pane until herdr runs it again, so the
+  machine is no longer asked for a pane that cannot answer. When herdr
+  runs it again the tab goes back to normal.
+- It shows with the terminal tab off too, because there is nothing to turn
+  on.
+
+**Not checked**
+
+- Not run against a real herdr: the case was drawn and tested against a
+  scripted one, where the pane is marked as not restored. Whether herdr
+  lists such a pane in its agent list is not known, so the sidebar and the
+  board do not say `Not running` yet; only the tab does.
+- Drawn on Linux, light and dark, at 1280 and 760 px; not on a Mac.
+
 ## [0.1.0-alpha.12] - 2026-11-09
 
 ### Errors the agent recovers from stay quiet
