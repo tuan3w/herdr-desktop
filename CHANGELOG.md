@@ -4,6 +4,20 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+## [0.1.0-alpha.9] - 2026-11-09
+
+### Links that open without closing the app
+
+> [!WARNING]
+> On some Linux desktops pressing a link closed the app at once
+> ("Could not create GBM EGL display"). Pages in the side panel now draw
+> without the GPU path that failed.
+
+- Pressing a link on a Linux desktop where WebKit cannot use the graphics card
+  no longer closes the app: pages are drawn in memory instead. Set
+  `WEBKIT_DISABLE_DMABUF_RENDERER=0` to go back to the GPU path.
+- Links in the chat show their whole address again, in the text colour, with
+  nothing shortened or highlighted.
 ## [0.1.0-alpha.8] - 2026-11-09
 
 ### Paths that open, skills that complete, a browser beside the chat
