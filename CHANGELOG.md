@@ -4,6 +4,40 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+## [0.1.0-alpha.7] - 2026-11-09
+
+### Pictures and links you can check without leaving the chat
+
+Pictures an agent mentions show in its answer, and any link opens in a panel
+beside the conversation, so you can check a page, a file or a screenshot and
+keep reading.
+
+> [!TIP]
+> Try it: press a link in an agent's answer. Hold `Ctrl` (`Cmd` on a Mac)
+> while pressing to open it in the browser as before.
+
+- A machine in the sidebar now reads as a machine: a computer icon, its name
+  in the text colour and a line above it, so it is never mistaken for a
+  project.
+- Pictures in an agent's answer now show as thumbnails with their name and
+  size, read from the agent's machine; a press shows them large beside the
+  chat. Pictures on the web are never loaded until you open them.
+- Links in the chat open in a panel beside the conversation: web pages, a
+  file at the line the agent named, a picture, and a remote machine's dev
+  server. Hold Ctrl (⌘ on a Mac) while pressing to open in the browser or a
+  tab as before. Bare web addresses read short: the site, then the path.
+- In the chat of a terminal agent the `/` list now offers the agent's own
+  built-in commands, such as Claude Code's `/clear`, `/compact`, `/context`
+  and `/model`, omp's `/new` and Codex's `/diff`, next to its skills. Commands
+  that only open a menu in the terminal are left out.
+- While an agent works, the line at the end of its chat says how long the
+  current step has run (`Running pnpm test · 12s`, `Thinking · 1m 04s`) and
+  its half ring turns slowly while the agent is being heard from. It stands
+  still once nothing has arrived for a minute, next to `Quiet for 1m`, and
+  under Reduce motion.
+- A subagent's assignment, the first message of its conversation in the
+  Activity panel, is shown formatted: lists, code, bold and links.
+
 ## [0.1.0-alpha.6] - 2026-11-09
 
 ### A sidebar by machine and a message box that works with terminal agents

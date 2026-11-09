@@ -1,7 +1,7 @@
 {
   "name": "Herdr Desktop",
   "id": "dev.herdrmobile.herdr_desktop",
-  "version": "0.1.0-alpha.6",
+  "version": "0.1.0-alpha.7",
   "build": 1,
   "icon": "icon.png",
   "appearance": "system",
@@ -47,7 +47,7 @@
       ]
     },
     "webview": {
-      "hosts": ["127.0.0.1"]
+      "hosts": ["*"]
     }
   }
 }
