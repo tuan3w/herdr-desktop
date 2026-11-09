@@ -4,7 +4,7 @@
 
 > Alpha software. Native (Rust and TSX on [nsh](https://github.com/longbridge/nsh), real AppKit widgets, no web view), built for macOS on Apple silicon. Expect rough edges; the [changelog](CHANGELOG.md) says what works.
 
-<p align="center"><a href="https://github.com/tuan3w/herdr-desktop/releases/download/v0.1.0-alpha.4/herdr-desktop-intro.mp4"><b>▶ Watch the 49-second intro</b></a></p>
+<p align="center"><a href="https://tuan3w.github.io/herdr-desktop/"><b>▶ Watch the 49-second intro</b></a></p>
 
 <p align="center">
   <img src="docs/screenshots/glance.webp" width="100%" alt="Herdr Desktop in light mode. The sidebar lists ten agents across four projects. The open agent, 'Add idempotency keys to refunds', is asking permission to run 'npm run migrate -- --to 0042'. Above the question, its reads, searches and commands are folded into one line and its four edited files into another. The answer dock shows the exact command, marks 'Yes' as one that changes a database, and says nothing is sent until you choose. The Activity panel on the right shows a subagent and a test watcher running, with two finished tasks folded.">
