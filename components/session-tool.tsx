@@ -213,7 +213,7 @@ function Locations(props: { locations: readonly LocationView[]; at: PathContext;
 
 /**
  * What a call printed, as plain mono lines, never boxed. Past `OUTPUT_LINES` it scrolls inside itself: it is cut a
- * half line past the eighth, so the part of a line at the edge says there is more, and it starts at the end for a
+ * half line past the last of them, so the part of a line at the edge says there is more, and it starts at the end for a
  * command (how it ended is at the bottom) and at the top for a read.
  */
 function Output(props: { text: string; lines: number; fromEnd: boolean }) {
@@ -301,7 +301,7 @@ export function ToolDetails(props: {
     return [cwd && cwd !== props.cwd ? `In ${cwd}` : "", how].filter(Boolean).join(" · ");
   };
   return (
-    <View class="gap-2">
+    <View class="gap-3">
       <If when={fullPath()}>
         <Text
           class="font-mono text-xs text-muted-foreground"

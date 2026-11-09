@@ -411,17 +411,7 @@ function StepBlock(props: { step: Step; ctx: RowContext; alone?: boolean }) {
           class="min-w-0 shrink text-base text-muted-foreground"
           style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
         >
-          <If
-            when={words().own}
-            else={
-              <>
-                <Text class="font-mono text-sm text-foreground">{words().words}</Text>
-                {`${more()}${retried() > 0 ? ` · ${retried()} retried` : ""}`}
-              </>
-            }
-          >
-            {said()}
-          </If>
+          {said()}
         </Text>
         <DiffStat added={edits().added} removed={edits().removed} />
         <Icon name={props.step.open ? "chevron-down" : "chevron-right"} size={14} tone="muted-foreground" />
@@ -458,15 +448,17 @@ function StepBlock(props: { step: Step; ctx: RowContext; alone?: boolean }) {
         </View>
       </If>
       <If when={props.step.open}>
-        <View class={props.alone ? "gap-3 rounded-xl border border-border px-4 py-3" : "gap-3 px-4 pb-3"}>
+        <View class={props.alone ? "mt-2 gap-5 rounded-xl border border-border px-4 py-4" : "gap-5 px-4 pb-4 pt-1"}>
           <Each of={props.step.thoughts} key={(t: Thought) => t.item.id}>
             {(thought) => <ThoughtLine thought={thought()} ctx={props.ctx} />}
           </Each>
           <Each of={props.step.calls} key={(c: Call) => c.item.id}>
             {(call) => (
-              <View class="gap-1">
+              <View class="gap-2">
                 <If when={tools().length > 1 && call().item.id !== props.step.calls[0]!.item.id}>
-                  <Text class="text-xs text-muted-foreground">{stepWords(call().item.tool!, props.ctx.cwd).words}</Text>
+                  <Text class="text-sm font-medium text-foreground">
+                    {stepWords(call().item.tool!, props.ctx.cwd).words}
+                  </Text>
                 </If>
                 <ToolDetails
                   tool={call().item.tool!}

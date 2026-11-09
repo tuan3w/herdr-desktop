@@ -4,6 +4,15 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+- The script inside a command (`python3 - <<'EOF' … EOF`, also `node`, `ruby`,
+  `sqlite3`, `cat > run.py <<EOF`) is now coloured as the language it is, not
+  as one block of string.
+- What a call printed shows 24 lines before it scrolls, not 8, and an opened
+  step keeps more space between its title, the command and the output.
+- A step of what an agent did that has no words of its own (`Ran make test`)
+  is now set in the same type as the rest of the chat, not in the code font;
+  only the command inside the opened step and what it printed stay in code.
+
 ## [0.1.0-alpha.14] - 2026-11-10
 
 ### What an agent did is quieter

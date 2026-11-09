@@ -249,7 +249,7 @@ test("a step opens to what it did: the edit as a diff, the command whole in one 
 
   await app.waitFor("label:Copy code");
   expect(said(app, "pnpm test")).toBe(true);
-  await app.waitFor("label:Output, 11 lines");
+  await app.waitFor("label:Output, 35 lines");
   await app.waitUntil(() => said(app, "20 lines not kept"));
 });
 

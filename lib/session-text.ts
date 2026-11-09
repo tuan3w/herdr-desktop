@@ -246,8 +246,8 @@ export function tailText(text: string, max: number): string {
   return space > 0 ? cut.slice(space + 1) : cut;
 }
 
-/** Lines of a tool's output in view before the output scrolls inside itself. */
-export const OUTPUT_LINES = 8;
+/** Lines of a tool's output in view before the output scrolls inside itself: a test run or a build log is read here, not in a terminal. */
+export const OUTPUT_LINES = 24;
 
 /** What a tool's output panel shows. */
 export interface OutputView {

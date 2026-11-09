@@ -83,13 +83,13 @@ function stepsPt(row: Extract<Row, { kind: "steps" }>): number {
     const running = step.calls.some((c) => c.item.tool?.status === "pending" || c.item.tool?.status === "inProgress");
     pt += 44 + (running ? 2 * OUT_LINE_PT + 12 : 0);
     if (!step.open) continue;
-    pt += 32 * step.thoughts.length + 12;
+    pt += 32 * step.thoughts.length + 16;
     for (const call of step.calls) {
       const tool = call.item.tool;
       if (!tool) continue;
       const command = (tool.subject ?? "").split("\n").length;
       const output = Math.min(tool.head.length + tool.tail.length, OUTPUT_LINES) + 0.5;
-      pt += 16 + CODE_HEAD_PT + CODE_LINE_PT * Math.min(command, CODE_SHOWN) + OUT_LINE_PT * output;
+      pt += 28 + CODE_HEAD_PT + CODE_LINE_PT * Math.min(command, CODE_SHOWN) + OUT_LINE_PT * output;
     }
   }
   return pt;

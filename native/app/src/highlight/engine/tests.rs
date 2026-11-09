@@ -742,3 +742,47 @@ fn an_unfinished_annotation_does_not_hang_the_kotlin_grammar() {
     let spans = h.update(next).spans.to_vec();
     assert!(spans.iter().any(|s| s.role == Role::FunctionDef));
 }
+
+#[test]
+fn a_heredoc_is_read_in_the_language_of_the_command_it_feeds() {
+    let py = "python3 - <<'EOF'\nimport os\ndef run(x):\n    return x + 1\nEOF";
+    let spans = highlight(Lang::Bash, py);
+    well_formed(&spans, py);
+    assert!(has(&spans, py, "import", Role::Keyword));
+    assert!(has(&spans, py, "return", Role::Control));
+    assert!(has(&spans, py, "python3", Role::Function));
+
+    let js = "node <<EOF\nconst a = 1;\nEOF";
+    assert!(has(&highlight(Lang::Bash, js), js, "const", Role::Keyword));
+
+    // The file it is written to names the language when the program only copies it.
+    let file = "cat > run.py <<'EOF'\nimport os\nEOF";
+    assert!(has(
+        &highlight(Lang::Bash, file),
+        file,
+        "import",
+        Role::Keyword
+    ));
+
+    // A wrapper runs the next word.
+    let sudo = "sudo -u app python3 <<EOF\nimport os\nEOF";
+    assert!(has(
+        &highlight(Lang::Bash, sudo),
+        sudo,
+        "import",
+        Role::Keyword
+    ));
+}
+
+#[test]
+fn a_heredoc_for_a_program_that_reads_no_language_stays_a_string() {
+    let text = "git commit -F - <<EOF\nfix the import of os\nEOF";
+    let spans = highlight(Lang::Bash, text);
+    well_formed(&spans, text);
+    assert!(
+        spans
+            .iter()
+            .any(|s| s.role == Role::String && text[s.range()].contains("fix the import"))
+    );
+    assert!(!spans.iter().any(|s| s.role == Role::Keyword));
+}

@@ -31,6 +31,7 @@ Decided, not built yet (owner, 2026-11-07): a file opened from a path link in th
 - Selection works across lines and across the whole message: `MarkdownText` is one selectable area, and the gutter and signs are not selectable.
 - The group is named by `codeLabel` (`Code, TypeScript, 41 lines`) and holds the text of each line; the tools are named by what they do (`Code options`, `Copy code`, `Show all 41 lines`).
 - Language: the fence's first word, else the path, else a shebang, else a sniff that fires only on near-certain shapes (a diff header, a JSON document of several lines, `<?php`, a `$ ` prompt). `text`, `plain`, `output` and `log` mean "do not colour", and a word nobody has a grammar for is plain: a wrong guess colours prose.
+- A here-document in a shell block is read in the language of the program it feeds (`python3 - <<'EOF'`, `node`, `sqlite3`, `ruby`, `php`, `lua`, `sh`), or of the file `cat` or `tee` writes (`cat > run.py <<EOF`); for any other program (`git commit -F -`) its body stays a string (owner, 2026-11-10, a Python script in a command was one green string).
 - Text goes through `safeCode` (`lib/visible-text.ts`): direction overrides and control characters become `‹U+202E›`, and everything else stays as written, because it is also what `Copy code` copies.
 
 ## Streaming

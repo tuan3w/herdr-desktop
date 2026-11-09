@@ -646,7 +646,7 @@ pub fn supports(lang: Lang) -> bool {
 /// Whether `lang` holds other languages (fenced code, `<script>`), which makes every update a full
 /// repaint: these documents are short, and an injected block can change with a byte far from it.
 pub fn injects(lang: Option<Lang>) -> bool {
-    matches!(lang, Some(Lang::Markdown | Lang::Html))
+    matches!(lang, Some(Lang::Markdown | Lang::Html | Lang::Bash))
 }
 
 /// The grammar of Markdown's inline layer (emphasis, code spans, links).
@@ -783,10 +783,91 @@ fn collect(
             }
             return;
         }
+        (Lang::Bash, "redirected_statement") => {
+            if let Some(lang) = heredoc_language(node, text) {
+                let mut bodies = Vec::new();
+                heredoc_bodies(node, &mut bodies);
+                injections.extend(bodies.into_iter().map(|range| (range, lang)));
+            }
+        }
         _ => {}
     }
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         collect(host, child, text, injections, inline);
     }
+}
+
+/// The byte ranges of the here-document bodies below `node`.
+fn heredoc_bodies(node: tree_sitter::Node, out: &mut Vec<Range<usize>>) {
+    if node.kind() == "heredoc_body" {
+        out.push(node.start_byte()..node.end_byte());
+        return;
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        heredoc_bodies(child, out);
+    }
+}
+
+/// The last part of a path: `/usr/bin/python3` is `python3`.
+fn base(word: &str) -> &str {
+    word.rsplit('/').next().unwrap_or(word)
+}
+
+/// The language an interpreter or a database shell reads.
+fn of_program(program: &str) -> Option<Lang> {
+    Some(match program {
+        "python" | "python2" | "python3" | "pypy" | "pypy3" => Lang::Python,
+        "node" | "nodejs" | "deno" | "bun" => Lang::JavaScript,
+        "ruby" | "irb" => Lang::Ruby,
+        "php" => Lang::Php,
+        "lua" | "luajit" => Lang::Lua,
+        "sh" | "bash" | "zsh" | "dash" | "ksh" => Lang::Bash,
+        "sqlite3" | "psql" | "mysql" | "mariadb" => Lang::Sql,
+        _ => return None,
+    })
+}
+
+/// What a here-document is written in, from the command it feeds: an interpreter (`python3 - <<'EOF'`,
+/// `node`, `sqlite3 db <<EOF`), or the file it is written to (`cat > run.py <<EOF`). Nothing for a
+/// program that is not known to read a language (`cat`, `git commit -F -`): its body stays a string.
+fn heredoc_language(stmt: tree_sitter::Node, text: &str) -> Option<Lang> {
+    let mut cursor = stmt.walk();
+    let mut program: Option<&str> = None;
+    let mut target: Option<&str> = None;
+    for child in stmt.children(&mut cursor) {
+        match child.kind() {
+            "command" => {
+                // `sudo -u app python3`, `env A=1 node`, `time sqlite3`: a wrapper's options may take an argument
+                // (`-u app`), so past one the program is the first word that is a known reader, not the next word.
+                let words = text[child.start_byte()..child.end_byte()].split_whitespace();
+                let mut words = words.filter(|w| !w.contains('=')).map(base);
+                let first = words.next();
+                program = if matches!(
+                    first,
+                    Some("sudo" | "env" | "time" | "nohup" | "exec" | "command")
+                ) {
+                    words.find(|w| of_program(w).is_some() || matches!(*w, "cat" | "tee"))
+                } else {
+                    first
+                };
+            }
+            "file_redirect" => {
+                if let Some(dest) = child.child_by_field_name("destination") {
+                    target =
+                        Some(text[dest.start_byte()..dest.end_byte()].trim_matches(['\'', '"']));
+                }
+            }
+            _ => {}
+        }
+    }
+    let program = program?;
+    of_program(program).or_else(|| {
+        // `cat`/`tee` writing a file the person can name by its extension.
+        matches!(program, "cat" | "tee")
+            .then_some(target)
+            .flatten()
+            .and_then(Lang::from_path)
+    })
 }

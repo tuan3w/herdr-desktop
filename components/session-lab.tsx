@@ -383,7 +383,7 @@ function scene(name: string): Scene {
             toolKind: "execute",
             subject: "pnpm test",
             status: "failed",
-            head: OUTPUT.slice(0, 6),
+            head: OUTPUT.slice(0, 30),
             tail: ["FAIL src/case-9.test.ts", "1 failed, 39 passed", "", "Ran all test suites."],
             omitted: 20,
           }),
