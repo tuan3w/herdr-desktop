@@ -70,6 +70,8 @@ export function SessionOverview(props: {
   /** Controls the popover from outside; omitted, a press on the trigger opens and closes it. */
   open?: boolean;
   onClose?: () => void;
+  /** Layout classes of the trigger's wrapper (the kit's `self-start` by default; a header line centres it). */
+  class?: string;
 }) {
   const own = signal(false);
   const shown = () => props.open ?? own();
@@ -153,6 +155,7 @@ export function SessionOverview(props: {
       align="start"
       popupClass="w-96"
       trigger={props.trigger ?? (() => <View />)}
+      class={props.class}
     >
       <PopoverTitle>Session details</PopoverTitle>
       <If when={view()?.title}>{(title) => <PopoverDescription>{title()}</PopoverDescription>}</If>

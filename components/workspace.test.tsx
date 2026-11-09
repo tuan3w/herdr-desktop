@@ -22,6 +22,7 @@ import {
   shown,
   sidebarRow,
   TERMINAL_ON,
+  terminal,
 } from "../app-seam";
 import mixed from "../fixtures/herdr/mixed.json";
 
@@ -299,13 +300,13 @@ test("a terminal agent that was shown as a terminal opens as one again until Sho
   await settle(app);
   expect(app.count("role:tab")).toBe(0);
   await openAgents(app, FIRST);
-  expect(shown(app, FIRST)).toBe(true);
+  await app.waitFor(terminal(FIRST));
 });
 
 test("a terminal agent whose log can be read has Show chat in its header and it swaps the tab for the chat; one that cannot has no such button", async () => {
   const app = await ready(undefined, { storage: TERMINAL_ON });
   await openTerminals(app, FIRST);
-  expect(shown(app, FIRST)).toBe(true);
+  await app.waitFor(terminal(FIRST));
   expect(app.shows("label:Show chat")).toBe(true);
   await app.press("label:Show chat >> nth=0");
   await settle(app);

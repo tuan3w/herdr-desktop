@@ -328,7 +328,8 @@ export function AnswerDock(props: {
     </View>
   );
 
-  const frame = () => (props.inline ? "gap-2" : "gap-2 border-t border-border bg-background px-4 py-3");
+  // 24 pt in, the conversation column's and the header's edge.
+  const frame = () => (props.inline ? "gap-2" : "gap-2 border-t border-border bg-background px-6 py-3");
 
   return (
     <If

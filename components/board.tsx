@@ -9,8 +9,9 @@ import { Btn, Empty, FOCUS_RING, NUM } from "#kit";
 import { chipCount, inFilter, tableItems } from "#lib/board-table";
 import type { BoardFilter, TableItem } from "#lib/board-table";
 import { hasAnswerView } from "#lib/bulk-answer";
+import { headerOnBand, mainInset } from "#lib/chrome";
 import { allRows, board, revision, reviewable } from "#lib/herdr";
-import { COLUMN, PAD, ROW } from "#lib/layout";
+import { BAR, COLUMN, ROW } from "#lib/layout";
 import { hoverTransition } from "#lib/motion";
 import { select, selected } from "#lib/selection";
 import { foldedProjects, keepItems, moreOpen } from "#lib/sidebar";
@@ -106,12 +107,24 @@ export function Board(props: {
           </Empty>
         }
       >
-        <View class={`min-h-0 w-full flex-1 gap-3 ${PAD.page}`} style={{ maxWidth: COLUMN.home }}>
-          <View class="flex-row flex-wrap items-center justify-between gap-2">
-            <Chips filter={filter} counts={(f) => chipCount(board().counts, f)} onFilter={(next) => filter.set(next)} />
-            <If when={filter() === "done"}>
-              <PickToReview />
-            </If>
+        {/* The chips are the Board's first line, on the window's top band (`BAR`): it drags the window there and keeps clear of the window controls. */}
+        <View class="min-h-0 w-full flex-1 gap-3 px-6" style={{ maxWidth: COLUMN.home }}>
+          {/* A wrapping row packs its lines at the top: the outer view centres them in the band. */}
+          <View
+            desktop={{ windowDrag: headerOnBand() }}
+            style={{ minHeight: BAR, paddingRight: headerOnBand() ? mainInset().right : 0 }}
+            class="justify-center"
+          >
+            <View class="flex-row flex-wrap items-center justify-between gap-2">
+              <Chips
+                filter={filter}
+                counts={(f) => chipCount(board().counts, f)}
+                onFilter={(next) => filter.set(next)}
+              />
+              <If when={filter() === "done"}>
+                <PickToReview />
+              </If>
+            </View>
           </View>
           <If when={filter() === "blocked" && hasAnswerView(allRows(board()))}>
             <BulkAnswer />

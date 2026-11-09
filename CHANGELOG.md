@@ -4,6 +4,16 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+### Changed
+
+- The window has one line of chrome at the top: on macOS the system title bar is gone and the traffic lights sit in
+  the sidebar's first line; the tabs, the sidebar's top and a chat's header share that line's height and centre.
+- Under a row of tabs, a chat's header no longer repeats its title; `Changes` shows once, as a tab or a button.
+- The sidebar is quieter and lines up: no app name row or keycaps, search opens from an icon, idle agents carry no
+  mark, a worktree is one label (its branch), and every title, label and sub-line starts on one edge.
+- While an agent works the message box says `Queue a message` instead of a help line under it, and Stop is a quiet
+  ring rather than the loudest button on screen.
+
 ## [0.1.0-alpha.4] - 2026-11-08
 
 ### A calmer window you can keep open all day

@@ -39,7 +39,9 @@ Inter for text, IBM Plex Mono for identifiers (`design/typography.md` has the ta
 | `nav` | 32 | `min-h-8 px-3` | the height of a small control: one line of chrome |
 | `more` | 28 | `min-h-7 px-3` | a quiet row (`3 more idle`) |
 | `table` | 32 | `min-h-8 px-3` | the board's table: a default control's height (36 is off the ladder) |
-| `tab` | 32 | `relative h-8 min-w-40 max-w-56 flex-1` | the dock's tabs: one chrome line |
+| `tab` | 32 | `relative h-8 min-w-30 max-w-56 flex-1` | the dock's tabs: a 32-pt chip with 4 pt around it is one `BAR` |
+
+`BAR` (40) is the top band (on macOS the window's own top edge, the system title bar hidden: `lib/chrome.ts`): the sidebar's first line, the tab strip and a pane's header (`TopBar`) are each one `BAR`, so their centre lines meet. A header's text sits 24 pt in (20 of bar padding and the first control's 4), on the conversation column's edge.
 
 Controls (kit; the targets the kit follows): `Btn` 32 (`min-h-8`), small `Btn` 28, `IconButton` 28, a field, a select, a menu item and a combobox row 32, a segmented control about 28 and a tab of `Tabs` 28; a switch about 30 x 18. Every control is a step of `CONTROL` (28, 32 or 44); with Settings > Large hit targets (`largeTargets`) the answer chips grow to `CONTROL.large` (44 pt). Why 28: a pointer is precise (emil says 44 for touch, and the large setting gives it); a 28 floor lets a dozen rows show.
 

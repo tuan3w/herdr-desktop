@@ -246,7 +246,7 @@ export function SessionQuestion(props: { machine: string; id: string; view: Sess
         <View
           role="group"
           accessibilityLabel="Question from the agent"
-          class="gap-3 border-t border-border bg-background px-4 py-3"
+          class="gap-3 border-t border-border bg-background px-6 py-3"
         >
           <View class="gap-1">
             <Text role="header" class="text-sm font-medium text-foreground">

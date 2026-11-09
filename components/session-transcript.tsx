@@ -229,7 +229,7 @@ export function SessionTranscript(props: {
         empty={() => (
           <View class={`py-8 ${CHAT_COLUMN}`}>
             <Text class="text-sm text-muted-foreground">
-              {props.opening() ? "Opening the session…" : "Nothing here yet. Ask anything below."}
+              {props.opening() ? "Opening the session…" : "Nothing here yet."}
             </Text>
           </View>
         )}

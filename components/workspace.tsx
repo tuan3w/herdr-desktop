@@ -10,6 +10,7 @@ import { dockWidth, TabFace, tabFrameClass, tabsCompact } from "#components/tab-
 import { TerminalTab } from "#components/terminal-tab";
 import { Btn, EDGE, Empty } from "#kit";
 import { openSettings } from "#lib/actions";
+import { mainInset } from "#lib/chrome";
 import {
   attach,
   activated,
@@ -136,6 +137,7 @@ export function Workspace() {
         renderDropIndicator={() => <View class="size-full" />}
         groupClass="bg-background"
         tabBarClass={stripsShown(layout()) ? "flex-row flex-wrap gap-1 bg-background p-1" : "hidden"}
+        tabBarStyle={{ paddingLeft: 4 + mainInset().left, paddingRight: 4 + mainInset().right }}
         tabClass={tabFrameClass(tabsCompact())}
         tabStyle={hoverTransition()}
         contentClass="min-h-0 flex-1"

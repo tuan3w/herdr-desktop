@@ -10,6 +10,8 @@ import { Btn, Clipped, dialogDepth, Empty, IconButton, NUM, Segmented, Skeleton,
 import { agentPart, filesText, identityFit, totalsOf } from "#lib/changes";
 import { LIST_COLUMN, layoutFor } from "#lib/changes-layout";
 import { createChanges } from "#lib/changes-model";
+import { headerOnBand, mainInset } from "#lib/chrome";
+import { BAR } from "#lib/layout";
 
 /** The most the sheet of files is high, and the room it leaves around itself in the pane. */
 const SHEET_MAX = 480;
@@ -220,7 +222,16 @@ export function Changes(props: { machine: string; cwd: string; active: boolean }
       onLayout={({ bounds }) => width.set(Math.round(bounds.size.width))}
     >
       <View class="border-b border-border">
-        <View class="min-h-10 flex-row items-center gap-3 px-4 py-1">
+        {/* Alone in the window this is the top band (`BAR`): it drags the window and keeps clear of its controls. */}
+        <View
+          desktop={{ windowDrag: headerOnBand() }}
+          style={{
+            minHeight: BAR,
+            paddingLeft: 16 + (headerOnBand() ? mainInset().left : 0),
+            paddingRight: 16 + (headerOnBand() ? mainInset().right : 0),
+          }}
+          class="flex-row items-center gap-3 py-1"
+        >
           <View
             class="min-w-0 flex-1 flex-row items-baseline gap-1.5"
             onLayout={({ bounds }) => room.set(bounds.size.width)}

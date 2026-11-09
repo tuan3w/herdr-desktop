@@ -35,6 +35,7 @@ import {
   palette,
   shortcutsOpen,
 } from "#lib/actions";
+import { controls, mainInset, setWindowChrome } from "#lib/chrome";
 import { BOARD, dockReady, focused, loadDock, openTerminal, openSession, showBoard, startDock } from "#lib/dock";
 import { board, startHerdr } from "#lib/herdr";
 import { warmCode } from "#lib/highlight";
@@ -120,6 +121,7 @@ function App() {
     // nsh opens a window phone-sized (390 x 844) and the sidebar alone takes a third of that: open at desktop size. A window
     // that is already wider (a test or a screenshot that sized it) is left alone.
     if (windowSize().width < 600) Window.setFrame({ size: { width: 1280, height: 800 } });
+    setWindowChrome();
     effect(() => Window.setTitle(board().title));
     effect(() => Menu.setApplicationMenu(appMenu()));
   }
@@ -136,6 +138,8 @@ function App() {
   // In a snug window (under 1100) the full sidebar is its narrow width and its edge is fixed; the person's own width is kept for wide windows.
   const fixedWidth = () => rail() || snug();
   const sideWidth = () => (rail() ? RAIL_WIDTH : snug() ? SIDEBAR_WIDTH.narrow : sidebarWidth());
+  // The traffic lights are wider than the rail: what of them passes the sidebar's edge, the main region keeps clear.
+  effect(() => mainInset.set({ left: Math.max(0, controls().left - sideWidth()), right: controls().right }));
   effect(() => {
     if (!ready()) {
       loading = true;

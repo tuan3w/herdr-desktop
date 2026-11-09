@@ -3,10 +3,12 @@ import { effect, lifecycle, Text, untracked, View } from "nsh";
 import type { SessionView } from "herdr-desktop/native";
 
 import { SessionOverview } from "#components/session-overview";
+import { TopBar } from "#components/top-bar";
 import { Btn, Clipped, FOCUS_RING, Icon, IconButton } from "#kit";
 import { openChanges } from "#lib/changes";
 import { changedBranch, changedFiles, readCount } from "#lib/changes-count";
-import { sessionKey } from "#lib/dock";
+import { headerOnBand } from "#lib/chrome";
+import { changesKey, groups, layout, sessionKey } from "#lib/dock";
 import { projectOf, rowOf } from "#lib/herdr";
 import { hoverTransition } from "#lib/motion";
 import { phaseStatus, sessionTitle } from "#lib/session-text";
@@ -18,8 +20,10 @@ import { splitTab } from "#lib/split";
 const CONTEXT_WARN = 85;
 
 /**
- * The top of a chat, one line: `title · project · branch`. The title opens the session's facts (`SessionOverview`:
- * agent, machine, folder, id, settings, `End session`) until the inspector exists. It carries no state word and no mark:
+ * The top of a chat, one `TopBar` line: `title · project · branch`, then the actions. The title opens the session's facts
+ * (`SessionOverview`: agent, machine, folder, id, settings, `End session`) until the inspector exists. Under a tab strip the
+ * front tab already says the title, so the line drops it (said once) and a `...` at its end opens the same facts. It
+ * carries no state word and no mark:
  * what the agent needs is the answer dock's to say, once, and the sidebar row's. `Terminal` (a session read from a
  * terminal agent's log; icon, the word and its key) opens the real terminal of the pane; it exists only while the terminal
  * tab is on in Settings (`terminalEnabled`), and off the header simply has one control fewer. `Open beside` (the columns
@@ -56,35 +60,55 @@ export function SessionHeader(props: {
     return row ? projectOf(row.project)?.name : undefined;
   };
   const where = () => [project(), branch()].filter(Boolean).join(" \u00b7 ");
-  return (
-    <View class="min-h-12 flex-row items-center gap-3 border-b border-border px-6 py-2">
-      <SessionOverview
-        machine={props.machine}
-        id={props.id}
-        trigger={(t) => (
-          <View
-            role="button"
-            accessibilityLabel={`${title()}, session details`}
-            accessibilityState={{ expanded: t.expanded() }}
-            onPress={t.onPress}
-            onFocus={t.onFocus}
-            onBlur={t.onBlur}
-            style={hoverTransition()}
-            class={`min-w-0 flex-row items-center gap-1 rounded-md px-1 hover:bg-accent ${FOCUS_RING}`}
-          >
+  // Changes said once: while its tab is in this chat's group, the tab is the way there.
+  const changesTabHere = () => {
+    const key = sessionKey(props.machine, props.id);
+    const changes = changesKey(props.machine, props.view.cwd ?? "");
+    return groups(layout()).some((g) => g.panels.includes(key) && g.panels.includes(changes));
+  };
+  const details = () => (
+    <SessionOverview
+      machine={props.machine}
+      id={props.id}
+      // Centred on the line: the kit's `self-start` put the title 4 pt above the actions' centre.
+      class="min-w-0 shrink self-center"
+      trigger={(t) => (
+        <View
+          role="button"
+          accessibilityLabel={`${title()}, session details`}
+          accessibilityState={{ expanded: t.expanded() }}
+          onPress={t.onPress}
+          onFocus={t.onFocus}
+          onBlur={t.onBlur}
+          style={hoverTransition()}
+          class={`min-w-0 flex-row items-center gap-1 rounded-md hover:bg-accent ${FOCUS_RING} ${headerOnBand() ? "px-1" : "size-7 justify-center"}`}
+        >
+          <If when={headerOnBand()} else={<Icon name="ellipsis" size={16} tone="muted-foreground" />}>
             <Clipped class="shrink text-sm font-medium text-foreground">{title()}</Clipped>
             <Icon name="chevron-down" size={14} tone="muted-foreground" />
-          </View>
-        )}
-      />
-      <Clipped class="min-w-0 flex-1 text-xs text-muted-foreground">{where()}</Clipped>
+          </If>
+        </View>
+      )}
+    />
+  );
+  return (
+    <TopBar>
+      <If when={headerOnBand()}>{details()}</If>
+      {/* Under a strip this is the line's first text: 4 pt in, on the column's edge like the title's. */}
+      <Clipped
+        fade={["from-background/0 to-background"]}
+        boxClass={`min-w-0 flex-1 ${headerOnBand() ? "" : "pl-1"}`}
+        class="text-xs text-muted-foreground"
+      >
+        {where()}
+      </Clipped>
       <If when={(props.view.contextPercent ?? 0) >= CONTEXT_WARN}>
         <Text
           accessibilityLabel={`Context ${Math.round(props.view.contextPercent!)} percent full`}
           class="text-xs font-medium text-destructive"
         >{`Context ${Math.round(props.view.contextPercent!)}%`}</Text>
       </If>
-      <If when={props.view.cwd}>
+      <If when={props.view.cwd && !changesTabHere()}>
         <Btn
           small
           variant="ghost"
@@ -127,6 +151,7 @@ export function SessionHeader(props: {
           onPress={() => props.onShowTerminal?.()}
         />
       </If>
-    </View>
+      <If when={!headerOnBand()}>{details()}</If>
+    </TopBar>
   );
 }

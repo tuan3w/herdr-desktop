@@ -2,6 +2,7 @@ import { cleanup, signal, Text, View } from "nsh";
 
 import { SessionTranscript } from "#components/session-transcript";
 import { Btn, Clipped, Empty, IconButton } from "#kit";
+import { BAR } from "#lib/layout";
 import { createSessionModel, latest, type SubagentPort } from "#lib/session";
 import { agoText, elapsedText, type Entry } from "#lib/session-inspector";
 
@@ -70,7 +71,7 @@ export function SubagentChat(props: {
   };
   return (
     <View accessibilityLabel={`Subagent conversation: ${props.name}`} class="min-h-0 flex-1">
-      <View class="min-h-12 flex-row items-center gap-2 border-b border-border pl-1 pr-3">
+      <View style={{ minHeight: BAR }} class="flex-row items-center gap-2 border-b border-border pl-1 pr-3">
         <IconButton icon="chevron-left" label="Back to activity" onPress={props.onBack} />
         <View class="min-w-0 flex-1">
           <Clipped class="text-sm font-medium text-foreground">{props.name}</Clipped>
@@ -118,7 +119,7 @@ export function SubagentChat(props: {
           </Empty>
         )}
       </If>
-      <Text class="border-t border-border px-4 py-2 text-xs text-muted-foreground">
+      <Text class="shrink-0 border-t border-border px-4 py-2 text-xs text-muted-foreground">
         {`Read only. Messages go to ${props.parentTitle}, which relays them.`}
       </Text>
     </View>

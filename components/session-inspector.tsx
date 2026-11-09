@@ -4,6 +4,7 @@ import type { ObservedView } from "herdr-desktop/native";
 
 import { SubagentChat } from "#components/subagent-chat";
 import { Btn, Clipped, FOCUS_RING, FOCUS_RING_INSET, Icon, IconButton, NUM, notify, snug, Tipped } from "#kit";
+import { BAR } from "#lib/layout";
 import { hoverTransition } from "#lib/motion";
 import { latest, type SessionPort } from "#lib/session";
 import {
@@ -496,7 +497,8 @@ export function SessionInspector(props: {
         when={opened() !== null && props.port.subagent ? opened() : null}
         else={
           <>
-            <View class="min-h-12 flex-row items-center gap-2 border-b border-border pl-4 pr-2">
+            {/* One `BAR`, so its hairline continues the chat header's. */}
+            <View style={{ minHeight: BAR }} class="flex-row items-center gap-2 border-b border-border pl-4 pr-2">
               <Text role="header" class="flex-1 text-sm font-medium text-foreground">
                 Activity
               </Text>

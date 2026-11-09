@@ -179,7 +179,7 @@ export function TabChip(props: {
       onContextMenu={props.onContextMenu}
       onMouseEnter={() => pointer.set(true)}
       onMouseLeave={() => pointer.set(false)}
-      class={`relative h-7 w-full flex-row items-center ${props.tiled ? "justify-center" : "gap-2 pl-2 pr-1"}`}
+      class={`relative h-8 w-full flex-row items-center ${props.tiled ? "justify-center" : "gap-2 pl-2 pr-1"}`}
     >
       {tile}
       <If when={!props.tiled}>

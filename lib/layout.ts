@@ -107,7 +107,8 @@ export const ICON = { meta: 12, text: 14, control: 16, empty: 20 } as const;
  * - `agent`: the standard two-line row, a 13-pt title and a 12-pt meta line (about 35 pt of text) with 4 pt above and below.
  * - `agentCompact`: one line, a state glyph and a title: 32 puts 12 agents in under 400 pt of the sidebar.
  * - `project`: a project header, 28: it is a label for the rows under it and must not look as tall as one of them.
- * - `nav`: 32, the height of a default `Btn`, so the chrome has one line. `tab`, `tabTile`: 28 (`CONTROL.small`), a chip of the strip.
+ * - `nav`: 32, the height of a default `Btn`, so the chrome has one line. `tab`, `tabTile`: 32, a chip of the strip, so the
+ *   strip (4 pt around it) is one `BAR`.
  * - `more`: `3 more idle`, a quiet row, 28.
  * - `table`: a row of the board's table, 32: a default control's height (it was 36, off the ladder); the kit's `Table` spells the same number.
  */
@@ -118,10 +119,17 @@ export const ROW = {
   nav: { height: 32, class: "min-h-8 px-3" },
   more: { height: 28, class: "min-h-7 px-3" },
   table: { height: 32, class: "min-h-8 px-3" },
-  tab: { height: 28, class: "relative h-7 min-w-30 max-w-42 flex-1" },
-  /** A strip with many tabs: the inactive ones are a tile (28 square), the front one stays a chip of 192. */
-  tabTile: { height: 28, class: "relative h-7 w-7 shrink-0 selected:w-48" },
+  tab: { height: 32, class: "relative h-8 min-w-30 max-w-56 flex-1" },
+  /** A strip with many tabs: the inactive ones are a tile (32 square), the front one stays a chip of 192. */
+  tabTile: { height: 32, class: "relative h-8 w-8 shrink-0 selected:w-48" },
 } as const;
+
+/**
+ * The window's top band and every bar that sits on it (the sidebar's first line, the tab strip, a pane's header): one height,
+ * so their centre lines meet. 40 is a 32-pt control with 4 pt either side, and under macOS's 44 of compact chrome, so the
+ * traffic lights are centred in it (`Window.setTitleBar`, `lib/chrome.ts`).
+ */
+export const BAR = 40;
 
 /** Gaps between the parts of a page: inside a row, between rows of a card, between cards and between sections (one: a grid has one gap). */
 export const GAP = { row: "gap-3", rows: "gap-1", section: "gap-6" } as const;

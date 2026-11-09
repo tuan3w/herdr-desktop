@@ -6,6 +6,7 @@ The working state of the app. It changes with every slice, so it lives here and 
 
 - The kit (`components/kit/`), type scale and row tiers (`lib/layout.ts`, `nsh.json`).
 - Sidebar grouped by project, one-line rows, project header as one quiet line, the rail while the Board is open, a footer for connection problems.
+- One top band (2026-11-09): on macOS the system title bar hidden (`lib/chrome.ts`; Windows and Linux keep it and their menu bar: GTK keeps the menu row even with `autoHide`, rendered), sidebar first line, tab strip and pane headers (`TopBar`) at one height; sidebar on one text column, idle unmarked, search on demand. Rendered on Linux under Xvfb only: the macOS traffic-light inset and window dragging from the band are unverified.
 - The Board as a project-grouped table with filter chips, and bulk answering of terminal prompts (two presses, every command shown, per-pane re-read).
 - The one answer dock in the composer's place; the ranked chat turn (calls as one muted line, effects and failures always visible).
 - Settings dialog (large, centered; Machines inline in its page).

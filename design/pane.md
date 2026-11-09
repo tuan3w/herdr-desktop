@@ -8,7 +8,7 @@
 
 A real terminal: a pty running herdr's own client, drawn by `Terminal`, with the whole keyboard and mouse. It is the way to **work in** an agent; the chat is the way to **supervise** it. An agent that omp, Claude Code or Codex runs opens as its chat, with the terminal one press away; a shell, or an agent whose log cannot be found, opens as the terminal. The tab's title is `<agent> (terminal)`.
 
-Top to bottom: the header (`TerminalHeader`), a notice when the machine is not connected, the terminal, one muted hint line. The header names the agent and its machine and folder, and carries `Chat` (only when the agent has a chat; `mod+shift+m`), `Browse files` and `Pane options` (`Duplicate`, `Copy title`, `Copy pane id`). No `Stop`, no `Send`, no message box and no answer dock: typing goes to the program, Ctrl+C is the person's, and the app sends nothing the person did not type. A pane herdr no longer has shows `This agent is gone`.
+Top to bottom: the header (`TerminalHeader`, one `TopBar` line like a chat's), a notice when the machine is not connected, the terminal, one muted hint line. The header names the agent (only while no tab strip says it) and its machine and folder, carries no state mark (the sidebar row says it once), and carries `Chat` (only when the agent has a chat; `mod+shift+m`), `Browse files` and `Pane options` (`Duplicate`, `Copy title`, `Copy pane id`). No `Stop`, no `Send`, no message box and no answer dock: typing goes to the program, Ctrl+C is the person's, and the app sends nothing the person did not type. A pane herdr no longer has shows `This agent is gone`.
 
 ## Rules
 
