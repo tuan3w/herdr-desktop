@@ -1,7 +1,9 @@
 /**
  * The slash commands of an agent, ported from herdr-mobile (`slash_catalog.dart`, `slash_usage.dart`, `command_model.dart`):
  * what the chat composer's first word can complete to and what pinning and sending teach it. The list is the agent's own
- * (`available_commands_update`), never a table kept here. Pure: `lib/pane-memory.ts` keeps the memory, the composer shows it.
+ * (`available_commands_update`, Claude's skill listing) plus, for a chat read from a terminal, the agent's built-ins
+ * from `lib/slash-builtins.ts` (owner, 2026-11-09: Claude Code's log never lists `/clear` or `/compact`). Pure:
+ * `lib/pane-memory.ts` keeps the memory, the composer shows it.
  */
 
 /** Where a command comes from; listing order is this order. */

@@ -45,6 +45,7 @@ import { MAX_FILES, restoreText } from "#lib/session-compose";
 import { composerOff } from "#lib/session-text";
 import { enterNewline, picturesOriginal } from "#lib/settings";
 import { byKind, hintFor, matchCommands, type SlashCommand } from "#lib/slash";
+import { withBuiltIns } from "#lib/slash-builtins";
 import { draftOf, setDraft } from "#lib/view-state";
 
 /**
@@ -204,14 +205,18 @@ export function createComposer(props: {
 
   // ---- the two lists ----
   const commands = computed<SlashCommand[]>(() =>
-    view().commands.map((c) => ({
-      name: c.name,
-      description: c.description,
-      hint: c.hint ?? undefined,
-      source: "builtIn",
-      trigger: "/",
-      kind: c.kind,
-    })),
+    withBuiltIns(
+      view().commands.map((c) => ({
+        name: c.name,
+        description: c.description,
+        hint: c.hint ?? undefined,
+        source: "builtIn",
+        trigger: "/",
+        kind: c.kind,
+      })),
+      view().agent,
+      !!view().observed,
+    ),
   );
   const slash = computed<SlashCommand[]>(() =>
     hidden() || off() !== null ? [] : byKind(matchCommands(value(), view().agent, commands(), slashMemory())),
