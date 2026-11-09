@@ -102,8 +102,8 @@ export function diffStat(tool: ToolItem): { added: number; removed: number } {
   return { added, removed };
 }
 
-/** The words a status has for a person and for a screen reader. */
-export function toolStatusText(status: ToolStatusName): string {
+/** The words a status has for a person and for a screen reader; a failed call the agent ran again says so. */
+export function toolStatusText(status: ToolStatusName, retried = false): string {
   switch (status) {
     case "pending":
       return "waiting";
@@ -112,7 +112,7 @@ export function toolStatusText(status: ToolStatusName): string {
     case "completed":
       return "done";
     case "failed":
-      return "failed";
+      return retried ? "failed, then retried" : "failed";
   }
 }
 
@@ -272,8 +272,9 @@ export function outputView(tool: ToolItem, all: boolean): OutputView {
 }
 
 /**
- * What a folded work group says in one muted line, as a sentence: `Read 8 files, ran 4 commands, edited 3 files`. A zero
- * count is left out; a group of thoughts only says how many steps it took. Never a time: a replay has none to give.
+ * What a folded work group says in one muted line, as a sentence: `Read 8 files, ran 4 commands, edited 3 files`, and
+ * `· 2 retried` when the agent ran failed calls again. A zero count is left out; a group of thoughts only says how many
+ * steps it took. Never a time: a replay has none to give.
  */
 export function workLine(s: {
   steps: number;
@@ -282,6 +283,7 @@ export function workLine(s: {
   fetches: number;
   commands: number;
   changed: number;
+  retried?: number;
 }): string {
   const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   const parts: string[] = [];
@@ -292,7 +294,8 @@ export function workLine(s: {
   if (s.changed > 0) parts.push(`edited ${count(s.changed, "file", "files")}`);
   if (parts.length === 0) return `Took ${count(s.steps, "step", "steps")}`;
   const line = parts.join(", ");
-  return line.charAt(0).toUpperCase() + line.slice(1);
+  const said = line.charAt(0).toUpperCase() + line.slice(1);
+  return s.retried ? `${said} · ${s.retried} retried` : said;
 }
 
 /** How many of the newest open calls the live line names: all of them when every one reads a file, else the newest. */

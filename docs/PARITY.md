@@ -68,3 +68,6 @@ One row per mobile feature (`herdr-mobile/docs/GUIDE.md` sections 3-9 and `docs/
 | A pane herdr could not restore (`restore_error`): `Not running` and why, no reads | herdr-mobile `abda030` | planned: the field is parsed, the pane is still read and shown as gone | | |
 | Subagents of an omp `task` call, one line each in the chat | (desktop, from omp's own updates) | done | `components/subagent-lines.tsx`, `lib/session-subagents.ts`, `native/core/src/session/vendored/acp/update.rs` | `components/session-tab.test.tsx`, `native/core/tests/session.rs` |
 | Messages queued behind a turn survive a dropped connection, held with `Send now` | (desktop) | done; memory only | `native/core/src/session/hub.rs` | `native/core/tests/session.rs` |
+| `Send anyway` on a message herdr refused (the agent waits for an answer) | herdr-mobile `eb4f178` | planned: the refused message is handed back to the box and nothing is typed; no button types it into the pane anyway | | |
+| The model of a terminal Claude Code as the chat's model chip | herdr-mobile `657e476` | planned: the log's `model` is read only to skip synthetic messages | | |
+| The terminal's raw output kept out of the chat (mobile moved it into the background sheet) | herdr-mobile `25a810d` | not applicable: a chat read from a terminal never drew a raw-output box here | | |

@@ -321,6 +321,7 @@ function CallsBox(props: { row: Extract<Row, { kind: "calls" }>; ctx: RowContext
                 tool={call().item.tool!}
                 cwd={props.ctx.cwd}
                 open={call().open}
+                retried={call().retried}
                 onToggle={() => props.ctx.model.choose(itemKey(call().item.id), call().open)}
               />
               <If when={call().open}>
@@ -354,12 +355,12 @@ function SubagentRow(props: { row: Extract<Row, { kind: "subagent" }>; ctx: RowC
   const summary = () => subagentSummary(list());
   return (
     <Line class="py-1">
-      <View class="rounded-lg border border-border">
+      <View class="overflow-hidden rounded-lg border border-border">
         <Disclosure
           onPress={() => props.ctx.model.toggle(props.row)}
           label={`Subagent: ${line().object}, ${toolStatusText(tool().status)}${summary() ? `, ${summary()}` : ""}`}
           open={props.row.open}
-          class="min-h-9 flex-row items-center gap-2 rounded-lg px-3"
+          class="min-h-9 flex-row items-center gap-2 px-3"
         >
           <Icon name="bot" size={16} tone="muted-foreground" />
           <Text

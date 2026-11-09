@@ -615,6 +615,17 @@ export const SCENARIOS: Record<string, Scenario> = {
     params: { mode: "scripted", scene: "subagents-done", quiet: true },
     steps: (app) => app.wait(3000),
   },
+  // Failures the agent got past are a count and a muted `Retried` (the fold opened to show the rows); one that stands is a line.
+  "chat-retried": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "retried", quiet: true },
+    steps: async (app) => {
+      await app.wait(2500);
+      await app.press("label:/retried$/ >> nth=0");
+      await app.wait(600);
+    },
+  },
   // A chat read from a terminal agent while it works: no queue, the box says where a message goes.
   "chat-terminal-working": {
     fixture: "empty",

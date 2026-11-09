@@ -318,3 +318,64 @@ test("an effects row that did not change is the same object when its turn is rea
   const second = buildRows(input(grown), new Map(first.map((r) => [r.key, r])));
   expect(second.find((r) => r.kind === "effects")).toBe(first.find((r) => r.kind === "effects"));
 });
+
+const worked = (rows: readonly Row[]) => {
+  const row = rows.find((r) => r.kind === "work");
+  if (row?.kind !== "work") throw new Error("no work group");
+  return row;
+};
+
+test("a failure the agent ran again is a count on the group and a muted mark on its row, not a failure under the answer", () => {
+  const items = [
+    say("user", "fix it"),
+    tool("pnpm test", "failed", "execute", { tail: ["expected 3, got 4"] }),
+    edit("src/retry.ts", 6, 2),
+    tool("pnpm test"),
+    say("agent", "Fixed."),
+  ];
+  const rows = buildRows(input(items));
+  expect(worked(rows).work.summary.retried).toBe(1);
+  expect(effectsOf(rows)?.failures ?? []).toEqual([]);
+  const open = buildRows(input(items, { open: new Map([[worked(rows).key, true]]) }));
+  const calls = open.find((r) => r.kind === "calls");
+  if (calls?.kind !== "calls") throw new Error("no calls");
+  expect(calls.calls.map((c) => c.retried)).toEqual([true, false, false]);
+});
+
+test("a failure nothing ran again stands, with the last line it printed", () => {
+  const items = [
+    say("user", "push"),
+    tool("git pull", "failed", "execute", { tail: ["conflict"] }),
+    say("agent", "Stuck."),
+  ];
+  const rows = buildRows(input(items));
+  expect(worked(rows).work.summary.retried).toBe(0);
+  expect(effectsOf(rows)?.failures.map((f) => f.result)).toEqual(["conflict"]);
+});
+
+test("a failed try that was followed by another failed try is retried, and only the last of the chain stands", () => {
+  const items = [
+    say("user", "go"),
+    tool("pnpm lint", "failed", "execute", { tail: ["first"] }),
+    tool("pnpm lint", "failed", "execute", { tail: ["second"] }),
+    say("agent", "Still failing."),
+  ];
+  const rows = buildRows(input(items));
+  expect(worked(rows).work.summary.retried).toBe(1);
+  expect(effectsOf(rows)?.failures.map((f) => f.result)).toEqual(["second"]);
+});
+
+test("a failure that did something outside this machine is never called retried, and a different command is not a retry", () => {
+  const pushed = tool("git push", "failed", "execute", { effect: { kind: "push", text: "Push rejected" } });
+  const items = [
+    say("user", "go"),
+    pushed,
+    tool("git push"),
+    tool("pnpm build", "failed"),
+    tool("pnpm test"),
+    say("agent", "x"),
+  ];
+  const rows = buildRows(input(items));
+  expect(worked(rows).work.summary.retried).toBe(0);
+  expect(effectsOf(rows)?.failures).toHaveLength(2);
+});

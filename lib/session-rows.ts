@@ -34,6 +34,8 @@ export interface WorkSummary {
   changed: number;
   /** Calls that failed. */
   failed: number;
+  /** Failed calls the agent ran again later in the group (`retriedIn`): the line counts them, nothing else says them. */
+  retried: number;
   /** Calls still waiting or running. */
   unfinished: number;
   /** Lines added across its diffs. */
@@ -92,6 +94,8 @@ export interface Call {
   open: boolean;
   /** Every kept line of its output, not the first lines. */
   all: boolean;
+  /** It failed and the agent ran the same call again later in its group: shown as `Retried`, never as a failure. */
+  retried: boolean;
 }
 
 /** The key of the run of calls that starts at item `id`. */
@@ -174,7 +178,29 @@ const isNarration = (items: readonly SessionItem[], at: number): boolean => {
 /** Part of a work group: a call, a thought, or narration between calls. */
 const isMember = (items: readonly SessionItem[], at: number): boolean => isWork(items[at]!) || isNarration(items, at);
 
-function summarize(group: readonly SessionItem[]): WorkSummary {
+/**
+ * The failed calls of a work group that the agent ran again: the same kind of call on the same subject (the command, the
+ * file) later in the group, whatever came of it. An agent that gets an error mostly knows how to go on, so a failure it
+ * went past is a count on the group's line and a muted word on its row, not a failure line under the answer; the last
+ * of a chain of failed tries is the one that stands. A call that did something outside this machine (a push, a delete)
+ * never counts as retried: that failure is always said. Narrower than "the turn went on": a failure the agent answered
+ * round with another command stands, because nothing says the answer was the fix.
+ */
+function retriedIn(group: readonly SessionItem[], cwd: string | null | undefined): Set<number> {
+  const out = new Set<number>();
+  const later = new Set<string>();
+  for (let at = group.length - 1; at >= 0; at -= 1) {
+    const item = group[at]!;
+    const tool = item.tool;
+    if (!tool) continue;
+    const same = `${toolKindOf(tool)}|${toolLine(tool, cwd).object}`;
+    if (tool.status === "failed" && !tool.effect && later.has(same)) out.add(item.id);
+    later.add(same);
+  }
+  return out;
+}
+
+function summarize(group: readonly SessionItem[], retried: ReadonlySet<number>): WorkSummary {
   const out: WorkSummary = {
     steps: group.length,
     reads: 0,
@@ -183,6 +209,7 @@ function summarize(group: readonly SessionItem[]): WorkSummary {
     commands: 0,
     changed: 0,
     failed: 0,
+    retried: retried.size,
     unfinished: 0,
     added: 0,
     removed: 0,
@@ -207,13 +234,17 @@ function summarize(group: readonly SessionItem[]): WorkSummary {
   return out;
 }
 
-function contribute(group: readonly SessionItem[], cwd: string | null | undefined): Contribution {
+function contribute(
+  group: readonly SessionItem[],
+  cwd: string | null | undefined,
+  retried: ReadonlySet<number>,
+): Contribution {
   const out: Contribution = { failures: [], external: [], paths: [], added: 0, removed: 0 };
   const paths = new Set<string>();
   for (const item of group) {
     const tool = item.tool;
     if (!tool) continue;
-    if (tool.status === "failed") {
+    if (tool.status === "failed" && !retried.has(item.id)) {
       const line = toolLine(tool, cwd);
       const last = [...tool.head, ...tool.tail].reverse().find((l) => l.trim() !== "");
       out.failures.push({
@@ -295,13 +326,14 @@ export function buildRows(
       const key = workKey(item.id);
       const open = input.open.get(key) ?? false;
       const after = items[end];
-      const summary = summarize(group);
+      const retried = retriedIn(group, input.cwd);
+      const summary = summarize(group, retried);
       const s = summary;
-      groups.push(contribute(group, input.cwd));
+      groups.push(contribute(group, input.cwd, retried));
       keep({
         kind: "work",
         key,
-        sig: `${open}|${s.steps}|${s.reads}|${s.searches}|${s.fetches}|${s.commands}|${s.changed}|${s.failed}|${s.unfinished}|${s.added}|${s.removed}`,
+        sig: `${open}|${s.steps}|${s.reads}|${s.searches}|${s.fetches}|${s.commands}|${s.changed}|${s.failed}|${s.retried}|${s.unfinished}|${s.added}|${s.removed}`,
         work: { id: item.id, open, summary },
       });
       if (open) {
@@ -313,7 +345,7 @@ export function buildRows(
           keep({
             kind: "calls",
             key: callsKey(run[0]!.item.id),
-            sig: run.map((c) => `${c.item.rev}|${c.open}|${c.all}`).join(";"),
+            sig: run.map((c) => `${c.item.rev}|${c.open}|${c.all}|${c.retried}`).join(";"),
             calls: run,
           });
           run = [];
@@ -337,7 +369,12 @@ export function buildRows(
               seconds: secs,
             });
           } else {
-            run.push({ item: member, open: mopen, all: input.open.get(moreKey(member.id)) ?? false });
+            run.push({
+              item: member,
+              open: mopen,
+              all: input.open.get(moreKey(member.id)) ?? false,
+              retried: retried.has(member.id),
+            });
           }
         });
         endRun();

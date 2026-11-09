@@ -62,14 +62,18 @@ export function Disclosure(props: {
 
 /**
  * A call's state, said only when it is an exception: waiting is a dashed ring, running a half ring, failed the word
- * `Failed` in red. A call that finished well draws nothing: success is silence, and the folded line already counts it.
+ * `Failed` in red. A failure the agent ran again (`retried`) is the muted word `Retried`: it went on, so it is not
+ * red. A call that finished well draws nothing: success is silence, and the folded line already counts it.
  */
-export function ToolStatus(props: { status: ToolStatusName }) {
+export function ToolStatus(props: { status: ToolStatusName; retried?: boolean }) {
   return (
     <>
       <If when={props.status === "failed"}>
-        <Text accessibilityElementsHidden class="shrink-0 text-sm text-destructive">
-          Failed
+        <Text
+          accessibilityElementsHidden
+          class={`shrink-0 text-sm ${props.retried ? "text-muted-foreground" : "text-destructive"}`}
+        >
+          {props.retried ? "Retried" : "Failed"}
         </Text>
       </If>
       <If when={props.status === "inProgress" || props.status === "pending"}>
@@ -103,17 +107,18 @@ export function DiffStat(props: { added: number; removed: number }) {
 }
 
 /**
- * One tool call as one muted line: a muted verb, what it acted on, the size of an edit, `Failed` when it failed, a
- * chevron. No icon and no check: success is silence. A press opens its details (`ToolDetails`) under it, in place. The
- * row is a button named by what it says and whether it is open; a tooltip carries the whole subject.
+ * One tool call as one muted line: a muted verb, what it acted on, the size of an edit, `Failed` when it failed (`Retried`
+ * when the agent ran it again), a chevron. No icon and no check: success is silence. A press opens its details
+ * (`ToolDetails`) under it, in place. The row is a button named by what it says and whether it is open; a tooltip
+ * carries the whole subject.
  */
-export function ToolRow(props: { tool: ToolItem; cwd: string; open: boolean; onToggle: () => void }) {
+export function ToolRow(props: { tool: ToolItem; cwd: string; open: boolean; retried: boolean; onToggle: () => void }) {
   const line = () => toolLine(props.tool, props.cwd);
   const said = () => [line().verb, line().object].filter(Boolean).join(" ");
   return (
     <Disclosure
       onPress={props.onToggle}
-      label={`Tool: ${said()}, ${toolStatusText(props.tool.status)}`}
+      label={`Tool: ${said()}, ${toolStatusText(props.tool.status, props.retried)}`}
       open={props.open}
       class="group/row min-h-8 flex-row items-center gap-2 px-3"
     >
@@ -132,7 +137,7 @@ export function ToolRow(props: { tool: ToolItem; cwd: string; open: boolean; onT
         </Text>
       </Clipped>
       <DiffStat added={line().added} removed={line().removed} />
-      <ToolStatus status={props.tool.status} />
+      <ToolStatus status={props.tool.status} retried={props.retried} />
       <Icon name={props.open ? "chevron-down" : "chevron-right"} size={12} tone="muted-foreground" />
     </Disclosure>
   );

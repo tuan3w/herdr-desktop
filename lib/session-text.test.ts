@@ -135,6 +135,8 @@ test("a folded group is one sentence of counts: zero counts and times are left o
   );
   expect(workLine({ ...none, commands: 2 })).toBe("Ran 2 commands");
   expect(workLine({ ...none, steps: 2 })).toBe("Took 2 steps");
+  expect(workLine({ ...none, commands: 4, retried: 2 })).toBe("Ran 4 commands · 2 retried");
+  expect(workLine({ ...none, commands: 4, retried: 0 })).toBe("Ran 4 commands");
 });
 
 test("the live line says what the open call does, and Thinking when none is open", () => {

@@ -432,6 +432,45 @@ function scene(name: string): Scene {
           say("agent", "All three are done: no session fixation, the promo tests pass, and the diff reads clean."),
         ],
       };
+    case "retried":
+      // A turn where the agent got past two failures (a count on the fold line, `Retried` on the rows, nothing under the
+      // answer), then a turn whose failure stands (a line under the answer).
+      return {
+        view: { running: false, phase: "idle" },
+        items: [
+          say("user", "The promo retry loops one time too many. Fix it and run the checks."),
+          call("pnpm test promo-eu", {
+            status: "failed",
+            subject: "pnpm test promo-eu",
+            tail: ["expected 3 attempts, got 4"],
+          }),
+          call("Edit src/retry.ts", {
+            toolKind: "edit",
+            subject: "src/retry.ts",
+            diffs: [{ path: "src/retry.ts", old: "a", new: "b", added: 6, removed: 2 }],
+          }),
+          call("pnpm test promo-eu", { subject: "pnpm test promo-eu" }),
+          call("pnpm lint", {
+            status: "failed",
+            subject: "pnpm lint",
+            tail: ["src/retry.ts:41 'attempt' is never used"],
+          }),
+          call("Edit src/retry.ts", {
+            toolKind: "edit",
+            subject: "src/retry.ts",
+            diffs: [{ path: "src/retry.ts", old: "b", new: "c", added: 1, removed: 1 }],
+          }),
+          call("pnpm lint", { subject: "pnpm lint" }),
+          say("agent", "The retry loop now stops after three attempts. The promo tests and lint pass."),
+          say("user", "Push it."),
+          call("git pull", {
+            status: "failed",
+            subject: "git pull",
+            tail: ["CONFLICT (content): Merge conflict in src/retry.ts"],
+          }),
+          say("agent", "The pull stopped on a conflict in src/retry.ts. Want me to resolve it?"),
+        ],
+      };
     case "calls-narration": {
       // Three turns of a Claude Code session as a person sees it opened: narration between runs of calls, a heredoc
       // command, a long search, a sized edit, a failed call, and a turn still running with nothing open (`Thinking`).
@@ -479,7 +518,7 @@ function scene(name: string): Scene {
             status: "failed",
             tail: ["FAIL src/case-9.test.ts", "1 failed, 39 passed"],
           }),
-          call("Run: pnpm test", { toolKind: "execute", subject: "pnpm test" }),
+          call("Run: pnpm test auth", { toolKind: "execute", subject: "pnpm test auth" }),
           call("Run: git push", {
             toolKind: "execute",
             subject: "git push origin main",

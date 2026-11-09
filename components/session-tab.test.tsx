@@ -193,6 +193,18 @@ test("a finished turn is ranked by consequence: the narration and reads fold, th
   expect(said(app, "Found it. Changing")).toBe(true);
 });
 
+test("a failure the agent ran again is a count and a muted Retried, a failure that stands and a failed push stay lines under the answer", async () => {
+  const app = await scripted("retried");
+  await app.waitFor(label("^Agent: The retry loop now stops"));
+  expect(app.shows(label("^Ran 4 commands, edited 1 file · 2 retried$"))).toBe(true);
+  expect(app.shows(label("^Failed: Ran pnpm test promo-eu"))).toBe(false);
+  expect(app.shows(label("^Failed: Ran pnpm lint"))).toBe(false);
+  expect(app.shows(label("^Failed: Ran git pull, CONFLICT"))).toBe(true);
+  await app.press(label("^Ran 4 commands, edited 1 file · 2 retried$"));
+  await app.waitFor(label("^Tool: Ran pnpm test promo-eu, failed, then retried$"));
+  expect(app.shows(label("^Tool: Ran pnpm lint, failed, then retried$"))).toBe(true);
+});
+
 test("a call opens to what it did: the edit as a diff, the command whole, the output with Show all, the lines the machine did not keep", async () => {
   const app = await scripted("tools");
   await app.press(label("^Read 1 file, ran 1 command, edited 1 file$"));
