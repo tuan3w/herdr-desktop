@@ -4,6 +4,44 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+## [0.1.0-alpha.12] - 2026-11-09
+
+### Errors the agent recovers from stay quiet
+
+A failed call the agent ran again is no longer red. It reads `Retried`
+and is counted on the turn's folded line, so a turn full of fixed errors
+reads calmly. A failure that stands is still loud.
+
+> [!TIP]
+> Try it: in a chat where the agent's test run failed and it ran it again,
+> look at the folded line above its answer.
+
+- The folded line says `Ran 4 commands, edited 1 file · 2 retried`, and
+  the failed row inside it reads `Retried` in muted text instead of `Failed`
+  in red.
+- Nothing about a retried failure is listed under the answer any more.
+- A retry is the same command, or the same file, run again later in the
+  same stretch of work. A different command is not counted, so when in
+  doubt the failure is shown.
+- A failure nothing came after stays a line under the answer. A failed
+  push, delete or install is never counted as retried: it always stays a
+  line.
+- Of several failed tries in a row, only the last one is shown.
+
+**Fixed**
+
+- Hovering a subagent card no longer paints its grey over the card's
+  rounded corners and outline. The card now clips its header inside its
+  border, as the box of calls does.
+
+**Not checked**
+
+- Not tried on a real conversation: the rule was drawn and tested on made-up
+  turns. Not run on a Mac; on Linux it was drawn in light and dark at 1280
+  and 760 px.
+- The hover fix was drawn on Linux only, where the outline already looked
+  the same before it; whether it cures what you saw on a Mac is not known.
+
 ## [0.1.0-alpha.11] - 2026-11-09
 
 ### A message never lands on a question by mistake

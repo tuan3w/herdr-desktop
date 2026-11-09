@@ -1,7 +1,7 @@
 {
   "name": "Herdr Desktop",
   "id": "dev.herdrmobile.herdr_desktop",
-  "version": "0.1.0-alpha.11",
+  "version": "0.1.0-alpha.12",
   "build": 1,
   "icon": "icon.png",
   "appearance": "system",
