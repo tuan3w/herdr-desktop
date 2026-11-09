@@ -252,7 +252,7 @@ test("the top buttons open what they say: new agent session, settings", async ()
 test("rows carry no pick boxes: an agent is picked from its menu or with Ctrl+press, Shift+press picks a range", async () => {
   const app = await ready();
   expect(app.shows("label:Select payments review")).toBe(false);
-  await app.press("label:Options for payments review");
+  await pressSettled(app, "label:Options for payments review", "Pick for a bulk action");
   await app.press("Pick for a bulk action");
   expect(picked(app)).toBe("picked 1");
   await app.keyboard.down("control");
@@ -346,8 +346,8 @@ const projects = (extra: { storage?: Record<string, string> } = {}) =>
   });
 /** Whether `entry` of the menu of `project` takes a press; the menu is closed again. */
 async function canChoose(app: App, project: string, entry: string): Promise<boolean> {
-  await app.press(`label:Options for ${project}`);
-  await app.clock!.runFor(150);
+  // The menu opens in real time: press again until its row shows.
+  await pressSettled(app, `label:Options for ${project}`, entry);
   const on = app.enabled(entry);
   await app.keyboard.press("escape");
   return on;

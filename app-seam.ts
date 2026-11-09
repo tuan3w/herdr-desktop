@@ -92,11 +92,15 @@ export async function ready(platform?: "macos" | "windows" | "linux", extra: Non
 /**
  * Presses `selector` until `done` holds (a selector that shows, or a condition for a result no selector names), then
  * waits for it. A press that took is not repeated: the repeat is only for a press the headless harness lost or aimed at
- * a row that moved. Each repeat runs the clock, never the real time.
+ * a row that moved. Each repeat runs the clock; before a press it waits, in real time, for the view to be there.
  */
 export async function pressSettled(app: App, selector: string, done: string | (() => boolean)): Promise<void> {
   const holds = typeof done === "string" ? () => app.shows(done) : done;
   for (let attempt = 0; attempt < 5 && !holds(); attempt++) {
+    // The view may not be there yet (a chat's button waits for its first read, a menu for its first frame), and a press on
+    // none throws: wait for it in real time first.
+    await app.waitUntil(() => holds() || app.shows(selector));
+    if (holds()) break;
     await app.press(selector);
     await app.clock!.runFor(300);
   }

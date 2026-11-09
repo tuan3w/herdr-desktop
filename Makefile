@@ -19,7 +19,7 @@ endif
 CORE := native/core/Cargo.toml
 APP  := native/app/Cargo.toml
 
-.PHONY: lint fmt fmt-check hooks verify verify-mac check test test-smoke core docs consistency a11y copy run package theme perf cpu perf-check schema shots shots-mac
+.PHONY: lint fmt fmt-check hooks verify verify-mac check test test-smoke core docs consistency test-waits a11y copy run package theme perf cpu perf-check schema shots shots-mac
 
 # Linux: everything. `a11y` needs AT-SPI (dbus, Xvfb, python3-gi), which only Linux has.
 verify: check test core docs a11y
@@ -48,6 +48,7 @@ check:
 	nsh check
 	node scripts/absolute-imports.mjs --check
 	node scripts/check-consistency.mjs
+	node scripts/check-test-waits.mjs
 	node_modules/.bin/oxlint --deny-warnings
 	node_modules/.bin/oxfmt --check
 
@@ -74,6 +75,11 @@ docs:
 # Ratchet on the ladders of lib/layout.ts: fails on a violation not in scripts/consistency-baseline.json.
 consistency:
 	node scripts/check-consistency.mjs
+
+# Ratchet on the waits of the TSX tests (`herdr-test`, section 5): fails on a new assertion right after an action, or an order read
+# from texts(); the existing ones are in scripts/test-waits-baseline.json.
+test-waits:
+	node scripts/check-test-waits.mjs
 
 # AT-SPI tree of every screen: no unnamed control (needs dbus-run-session, xvfb-run, python3-gi).
 a11y:

@@ -251,7 +251,10 @@ test("mod+2 puts the keyboard on the first answer: it sends and arms nothing, an
   expect(sentKeys()).toEqual([]);
   expect(app.texts().some((t) => t.startsWith("Press again to send"))).toBe(false);
 
-  await app.keyboard.press("1");
+  for (let attempt = 0; attempt < 5 && !app.shows("Reported sent: 1"); attempt++) {
+    await app.keyboard.press("1");
+    await app.clock!.runFor(300);
+  }
   await app.waitFor("Reported sent: 1");
   expect(sentKeys()).toEqual(["w1:p1: 1 enter"]);
 });

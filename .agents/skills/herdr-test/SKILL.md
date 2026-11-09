@@ -27,6 +27,7 @@ Run `nsh` and `cargo` from the repo root (rustup reads `rust-toolchain.toml`, 1.
 | One test | `HERDR_DESKTOP_TEST=1 nsh test components/board.test.tsx --filter "<part of the name>"` |
 | See the ops of a run | add `--trace` |
 | Smoke subset (App + every global shortcut) | `make test-smoke` |
+| The waits of the tests (a new assertion right after an action, an order read from `texts()`) | `make test-waits` (also in `make check`) |
 | Rust: fmt, clippy `-D warnings`, tests of both crates | `make core` |
 | Lint, format, imports | `make check` (oxlint `--deny-warnings`, oxfmt `--check`, `scripts/absolute-imports.mjs --check`, `nsh check`); `make fmt` to format |
 | Docs gate (DESIGN.md < 100 lines, design/*.md < 150, backticked names exist) | `make docs` |
@@ -85,6 +86,12 @@ test("what a person would notice, in a sentence", async () => {
 | The host dies with no message (`the host left`) | A preloaded allocator plus GTK (`native/app/src/preload_guard.rs`) | Not a test bug; `docs/DEVELOPMENT.md` has how to get a stack |
 | A clipboard or storage write "worked" but nothing happened | `Clipboard.writeText` needs `"clipboard": true` in `nsh.json`; `Storage` is one 5 MB quota and its storage is isolated from the real app's | Assert the observable result; read `app.storage()` |
 | Asset import error appears only in `nsh test` | `nsh check` does not resolve asset imports (a deleted icon fails at bundle time) | Run the test, not only `nsh check` |
+| An `expect(app.shows(x)).toBe(true)` right after a press, a key, `runFor` or an open passes alone and fails in the full run or under load | **The family behind most flakes (2026-11-09: ten tests).** The step moves the manual clock only; what appears comes from real-time work (a pane read, a git read, a log read, the board loading, a terminal mounting) on other threads, and nothing waits for it | Wait for the fact: `waitFor`, `waitUntil`, `pressSettled`; assert after. `make test-waits` fails on a new one (`scripts/check-test-waits.mjs`, ratchet in `scripts/test-waits-baseline.json`) |
+| A wait times out in 5 s although the thing did happen, or an app wait of N looks ends early | `waitFor` and `waitUntil` move the manual clock while they wait, so a budget the app counts in clock time (`questionGone`: 30 looks of 100 ms, the 400 ms guard, the 4 s armed window) is spent while the test waits for real-time work | Do not spend clock time before the change that must find the budget left (a short `runFor`, not `runFor(1000)`); wait for the real-time fact first (`await app.waitFor("Status: working")`), then step the clock |
+| `app.press` throws `is disabled` or `no pressable view matches` | The harness refuses a press on a view that is off or not yet there; it does not ignore it. A row is off until its data is read (a question not yet read, a menu not yet open) | Wait until `app.enabled(x)` or the row shows, or use `pressSettled`; never press to prove a press is ignored: assert `enabled` instead |
+| A label assertion fails only for a moment after a change | A control is renamed for a guard: `1. Yes. The question changed` for 400 ms, `, sending` while busy | Match by regex (`label:/^1\\. Yes/`) or wait for the plain name |
+| A click on a notification, or `Show terminal`, ends in a card, not a terminal | The terminal tab is off by default (owner, 2026-11-08): an agent without a chat opens `TerminalOff` | `ready(undefined, { storage: TERMINAL_ON })` for a test that looks at the terminal |
+| An order assertion over `app.texts()` differs run to run (also in lists that are not the board) | The texts of a recycled list are in the order the cells were made | Test the order in the model (`lib/changes.test.ts`), assert presence in the component test; `make test-waits` flags `texts().indexOf` |
 
 ## 6. Rust
 
@@ -93,7 +100,7 @@ test("what a person would notice, in a sentence", async () => {
 ## 7. After writing
 
 1. The new test fails on the old code (when a bug) and passes on the new.
-2. Run the file three times; run it once while something else uses the CPU if you can, or reason about every wait: is each one a fact?
+2. Run the file ten times, and a few of them while something else uses the CPU (three copies of `nsh test` at once do it); a flake that fails one run in twelve passes three runs two times in three. Reason about every wait: is each one a fact, and does it move the clock before the change it waits for?
 3. `nsh check`, `node_modules/.bin/oxlint --deny-warnings`, `node_modules/.bin/oxfmt --check`, `node scripts/absolute-imports.mjs --check`; `make fmt` fixes format.
 4. Say what you ran and on which platform; say what you did not (the full suite, Linux if on a Mac, `make a11y`, `make core`).
 5. A docs change that a test implies (`design/*.md`, `docs/DEVELOPMENT.md` for a new quirk, with the failure that taught it) goes in the same change.

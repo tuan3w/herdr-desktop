@@ -3,7 +3,19 @@ import { expect, test } from "nsh/test";
 
 import type { App } from "nsh/test";
 
-import { ENTRY, FIRST, openAgents, pressSettled, ready, saved, seeded, settle, terminal } from "../app-seam";
+import {
+  ENTRY,
+  FIRST,
+  openAgents,
+  pressSettled,
+  ready,
+  saved,
+  seeded,
+  settle,
+  showQuiet,
+  sidebarRow,
+  terminal,
+} from "../app-seam";
 
 ENTRY.path = "../App.tsx";
 
@@ -79,8 +91,9 @@ test("off, a terminal tab restored from the saved layout shows the same state an
 
 test("off, a chat has no Terminal button and the terminal's key opens nothing; on, the button is back", async () => {
   const app = await ready();
-  await openAgents(app, FIRST);
-  await app.waitFor("label:Answer");
+  // A press can land on a row that is replaced a moment later (an agent's chat opens on the wrong one): press until it is the right chat.
+  await showQuiet(app, sidebarRow(FIRST));
+  await pressSettled(app, sidebarRow(FIRST), "label:Answer");
   expect(app.shows("label:Show terminal")).toBe(false);
   const before = app.count("role:tab");
   await app.keyboard.press("mod+shift+m");
@@ -98,8 +111,9 @@ test("off, a chat has no Terminal button and the terminal's key opens nothing; o
 
 test("off, the palette offers no Show terminal", async () => {
   const app = await ready();
-  await openAgents(app, FIRST);
-  await app.waitFor("label:Answer");
+  // A press can land on a row that is replaced a moment later (an agent's chat opens on the wrong one): press until it is the right chat.
+  await showQuiet(app, sidebarRow(FIRST));
+  await pressSettled(app, sidebarRow(FIRST), "label:Answer");
   await app.keyboard.press("mod+p");
   await app.waitFor("label:Search agents, projects and commands");
   await app.type("label:Search agents, projects and commands", "show terminal");
