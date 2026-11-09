@@ -22,7 +22,7 @@ A screen, row, word or animation that answers none of these is noise. Before add
 
 | Region | Job | Never |
 |---|---|---|
-| Sidebar | The one list of every agent, grouped by project, state on the row; navigation; new | Hold what the main region holds, or list an agent a second time |
+| Sidebar | The one list of every agent, in sections (Pinned, This computer, each machine) of projects, state on the row; navigation; new | Hold what the main region holds, or list an agent a second time |
 | Main | The one thing being worked on: an agent's conversation or terminal, the overview, settings | Be a second list of agents |
 | Inspector (right, collapsible, remembers its state) | What you consult, not read: where it runs, branch, context used, changes, files, subagents | Hold the conversation |
 | Status | Connection truth per machine, exceptions only | Repeat counts the sidebar shows |
@@ -31,7 +31,7 @@ An agent appears **once per view**. The conversation keeps a readable measure; e
 
 ### Standing owner decisions (the specifics are in `design/*.md`, which win over older text)
 
-- The sidebar is grouped by project only; attention is a mark on the row, said once, never a second list.
+- The sidebar is in sections: Pinned, This computer, then each other machine, with projects under them and projects where nothing runs folded into one quiet line (owner decision, 2026-11-09, replacing "grouped by project only"); attention is a mark on the row, said once, never a second list.
 - Answering happens in the agent's own conversation, in the one answer dock; answering many at once is the overview's filtered view. Jumping to the next waiting agent never answers and never advances by itself.
 - A chat turn is ranked by consequence, not time: the pending question, the final answer, failures and effects outside the working tree are always visible; everything else folds to one muted line.
 - Settings is a large centered dialog with a list of its pages at the left (owner decision, 2026-11-08, replacing the page in the main region). Anything else the person looks at for minutes (files, changes, an agent's details) is a region or a tab, not a dialog, so a question waiting for them stays visible.

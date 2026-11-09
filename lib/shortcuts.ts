@@ -179,9 +179,14 @@ export const GLOBAL: Record<GlobalShortcut, Shortcut> = {
 /** A chat's inspector (its subagents and background tasks): bound by the chat in front, which owns it. */
 export const INSPECTOR_KEY = "mod+shift+i";
 
+/** Move the focused project header up or down its section of the sidebar: bound by the header while it has the focus. */
+export const MOVE_UP_KEY = "mod+shift+up";
+export const MOVE_DOWN_KEY = "mod+shift+down";
+
 /** Work only in one place: a component binds its own, or the control takes them natively. */
 export const LOCAL: Shortcut[] = [
   { keys: [INSPECTOR_KEY], label: "Show or hide a chat's activity: its subagents and background tasks", group: "chat" },
+  { keys: [MOVE_UP_KEY, MOVE_DOWN_KEY], label: "Sidebar: move the focused project up or down", group: "navigate" },
   { keys: ["enter"], label: "Send the message, choose the highlighted row", group: "typing" },
   { keys: ["shift+enter"], label: "New line in the message", group: "typing" },
   { keys: ["up", "down"], label: "Move in menus and lists; volume in the player", group: "typing" },

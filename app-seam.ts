@@ -105,12 +105,24 @@ export const expandSidebar = (app: App): Promise<void> =>
   pressSettled(app, "label:Expand sidebar", "label:Search projects and agents");
 
 /**
+ * Lists the sidebar's quiet projects (`N quiet projects in <section>`) when `target` is not on screen: a project where
+ * nothing works, waits or is open (the `mixed` fixture's `web`) waits behind that line. The fixtures have one machine,
+ * so one line.
+ */
+export async function showQuiet(app: App, target: string): Promise<void> {
+  const line = "label:/^\\d+ quiet projects? in /";
+  if (app.shows(target) || !app.shows(line)) return;
+  await pressSettled(app, line, target);
+}
+
+/**
  * Opens these agents' terminal tabs: the sidebar opens the chat of an agent that has one, so each is opened and then
  * switched with `Show terminal` (an agent already shown as a terminal this run needs no switch). Needs the terminal tab on
  * (`TERMINAL_ON`): off, there is no `Show terminal` to press.
  */
 export async function openTerminals(app: App, ...names: string[]): Promise<void> {
   for (const name of names) {
+    await showQuiet(app, sidebarRow(name));
     await app.press(sidebarRow(name));
     await settle(app);
     // A chat opens when the session's first read arrives (real time): wait for its button. An agent already shown as a terminal
@@ -129,9 +141,12 @@ export async function front(app: App): Promise<string> {
   return panel === "board" ? panel : nameOf(panel);
 }
 
-/** Opens these agents' tabs from the sidebar, in order: each opens in its default view (a chat for omp, Claude Code and Codex). */
+/** Opens these agents' tabs from the sidebar, in order (a quiet project's agent through its quiet line): each opens in its default view (a chat for omp, Claude Code and Codex). */
 export async function openAgents(app: App, ...names: string[]): Promise<void> {
-  for (const name of names) await app.press(sidebarRow(name));
+  for (const name of names) {
+    await showQuiet(app, sidebarRow(name));
+    await app.press(sidebarRow(name));
+  }
   await settle(app);
 }
 

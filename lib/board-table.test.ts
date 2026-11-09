@@ -35,16 +35,22 @@ const mixed = () =>
     project("web", [row("local/p5", { name: "web busy" }), row("local/p6", { name: "web asks", status: "blocked" })]),
   ]);
 
-test("the table lists the sidebar's projects, in the sidebar's order, with the same rows", () => {
+test("the table lists the sidebar's projects with the same rows (the sidebar orders them by section, the table is one list)", () => {
   const board = boardData([
     project("zeta", [row("local/p1", { name: "z one" })], { pinned: true }),
     project("api", [row("local/p2", { name: "a one", status: "blocked" }), row("local/p3", { name: "a two" })]),
     project("lab", [row("lab/p4", { name: "far" })]),
+    project("notes", [row("local/p5", { name: "idle one", status: "idle" })]),
   ]);
   const machines = [machine("local"), machine("lab")];
-  const side = sidebarItems(board, machines, "", [], []);
+  // Every quiet line open, so the sidebar lists every project it has.
+  const side = sidebarItems(board, machines, { quiet: ["pinned", "machine:local", "machine:lab"] });
   const flat = tableItems(board, machines, "all", [], []);
-  const ids = (items: { kind: string; key: string }[]) => items.filter((i) => i.kind !== "checkout").map((i) => i.key);
+  const ids = (items: { kind: string; key: string }[]) =>
+    items
+      .filter((i) => i.kind === "project" || i.kind === "row")
+      .map((i) => i.key)
+      .sort();
   expect(ids(flat)).toEqual(ids(side));
 });
 

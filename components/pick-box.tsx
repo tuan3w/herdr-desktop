@@ -64,24 +64,17 @@ export function useRowKeys(row: () => BoardRow, order: () => readonly string[]) 
 }
 
 /**
- * The place of a row's glyph while the row is looked at: the box that picks the agent for a bulk action covers the glyph
- * when the pointer is on this slot or the focus is anywhere in the row, and on every row once anything is picked (so a
- * range can be built without hunting). It sits over the row's left padding, centred on the row's glyph column (the
- * sidebar's is 16 pt wide, on the nav icons' column; the Board's 12), so a row spends no width on a column of boxes that is
- * empty most of the time. The row is the `group/row` that holds it.
+ * The place of a Board row's glyph while the row is looked at: the box that picks the agent for a bulk action covers the
+ * glyph when the pointer is on this slot or the focus is anywhere in the row, and on every row once anything is picked (so
+ * a range can be built without hunting). It sits over the row's left padding, centred on its 12-pt glyph column, so a row
+ * spends no width on a column of boxes that is empty most of the time. The row is the `group/row` that holds it. (The
+ * sidebar puts its box at the row's right end, beside the `...`: its glyph is there.)
  */
-export function PickSlot(props: {
-  rowKey: string;
-  name: string;
-  order: () => readonly string[];
-  surface: "sidebar" | "page";
-}) {
+export function PickSlot(props: { rowKey: string; name: string; order: () => readonly string[] }) {
   return (
-    <View
-      class={`group/pick absolute inset-y-0 justify-center ${props.surface === "sidebar" ? "left-0 w-10 items-center" : "left-1 w-7"}`}
-    >
+    <View class="group/pick absolute inset-y-0 left-1 w-7 justify-center">
       <View
-        class={`rounded-md ${props.surface === "sidebar" ? "bg-sidebar" : "bg-background"} ${selected().length > 0 ? "" : "opacity-0 group-hover/pick:opacity-100 group-focus-within/row:opacity-100"}`}
+        class={`rounded-md bg-background ${selected().length > 0 ? "" : "opacity-0 group-hover/pick:opacity-100 group-focus-within/row:opacity-100"}`}
       >
         <PickBox rowKey={props.rowKey} name={props.name} order={props.order} />
       </View>

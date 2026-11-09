@@ -1,11 +1,11 @@
 import { Herdr } from "herdr-desktop/native";
-import { announce, computed, effect, List, Scroll, signal, Text, untracked, View } from "nsh";
+import { announce, computed, effect, keymap, List, Scroll, signal, Text, untracked, View } from "nsh";
 import { Button } from "nsh/base";
 
 import type { BoardProject, BoardRow, MachineStatus } from "herdr-desktop/native";
 import type { InputRef, ListRef } from "nsh/types";
 
-import { PickSlot, useRowKeys } from "#components/pick-box";
+import { PickBox, useRowKeys } from "#components/pick-box";
 import { Monogram, ProjectMark } from "#components/project-parts";
 import { SidebarFooter } from "#components/sidebar-footer";
 import { StatusGlyph } from "#components/status-glyph";
@@ -32,7 +32,7 @@ import {
 import { newSession, openSettings, settingsPage, sidebarSearch } from "#lib/actions";
 import { checkoutsOf, openChanges } from "#lib/changes";
 import { controls } from "#lib/chrome";
-import { BOARD, context, focused, rowKeyOf, showBoard } from "#lib/dock";
+import { BOARD, context, focused, layout, panelsOf, rowKeyOf, showBoard } from "#lib/dock";
 import { actionSlot, estimate, machineFits } from "#lib/header-fit";
 import { board, projectOf, revision, rowOf, started } from "#lib/herdr";
 import { BAR, ROW } from "#lib/layout";
@@ -41,21 +41,29 @@ import { linkGlyph, linkText } from "#lib/machine-state";
 import { hoverTransition, moveTransition } from "#lib/motion";
 import { openProject } from "#lib/nav";
 import { openAgent } from "#lib/open-agent";
+import { selected } from "#lib/selection";
 import { largeTargets, setSidebarCollapsed } from "#lib/settings";
-import { keyLabel } from "#lib/shortcuts";
+import { keyLabel, keyText, MOVE_DOWN_KEY, MOVE_UP_KEY } from "#lib/shortcuts";
 import {
   ageText,
   foldedProjects,
+  foldedSections,
+  keepItems,
   moreOpen,
+  moveProject,
+  type ProjectMove,
   projectFolder,
   projectLabel,
+  projectOrder,
   projectState,
+  quietOpen,
   rowLabel,
-  keepItems,
   type SidebarItem,
   sidebarItems,
   toggleMore,
   toggleProject,
+  toggleQuiet,
+  toggleSection,
   treeOffset,
 } from "#lib/sidebar";
 import { openAgentBeside } from "#lib/split";
@@ -112,9 +120,28 @@ const statuses = computed<MachineStatus[]>(() => {
   return Herdr.machineStatuses();
 });
 
+/** The agents open in a tab of the workspace shown, and the one worked in: their projects are never quiet. */
+const openKeys = computed(() => {
+  const keys = panelsOf(layout()).flatMap((panel) => rowKeyOf(panel) ?? []);
+  const here = rowKeyOf(focused());
+  return here === null ? keys : [...keys, here];
+});
+
 let shown: SidebarItem[] = [];
 const items = computed(
-  () => (shown = keepItems(shown, sidebarItems(board(), statuses(), query(), foldedProjects(), moreOpen()))),
+  () =>
+    (shown = keepItems(
+      shown,
+      sidebarItems(board(), statuses(), {
+        query: query(),
+        folds: foldedProjects(),
+        opened: moreOpen(),
+        sections: foldedSections(),
+        quiet: quietOpen(),
+        order: projectOrder(),
+        open: openKeys(),
+      }),
+    )),
 );
 const rowKeys = computed(() => items().flatMap((i) => (i.kind === "row" ? [i.row.key] : [])));
 
@@ -226,8 +253,29 @@ const openEntry = (project: BoardProject) => ({
   onSelect: () => openProject(project.key),
 });
 
-/** What a project's menu offers: show its tabs, pin it, start a chat in it, review what its agents changed. */
-function projectEntries(project: BoardProject) {
+type ProjectItem = Extract<SidebarItem, { kind: "project" }>;
+
+/** Moves a project in its section's order (`moveProject`) and says so; a move with no neighbour that way does nothing. */
+function move(item: ProjectItem, to: ProjectMove) {
+  const before = projectOrder();
+  const next = moveProject(board(), before, {
+    section: item.section,
+    key: item.project.key,
+    above: item.above,
+    below: item.below,
+    to,
+  });
+  if (next === before) return;
+  projectOrder.set(next);
+  announce(`Moved ${item.project.name} ${to === "top" ? "to the top" : to}`);
+}
+
+/**
+ * What a project's menu offers: show its tabs, pin it, move it in its section, start a chat in it, review what its agents
+ * changed. A move that has nowhere to go is disabled, never hidden, so the menu keeps its shape.
+ */
+function projectEntries(item: ProjectItem) {
+  const project = item.project;
   return [
     openEntry(project),
     {
@@ -246,6 +294,19 @@ function projectEntries(project: BoardProject) {
       accelerator: "P",
       onSelect: () => Herdr.pinProject(project.key, !project.pinned),
     },
+    {
+      label: "Move up",
+      shortcut: keyText(MOVE_UP_KEY),
+      onSelect: () => move(item, "up"),
+      disabled: item.above === null,
+    },
+    {
+      label: "Move down",
+      shortcut: keyText(MOVE_DOWN_KEY),
+      onSelect: () => move(item, "down"),
+      disabled: item.below === null,
+    },
+    { label: "Move to top", accelerator: "T", onSelect: () => move(item, "top"), disabled: item.above === null },
     {
       label: "New agent session here…",
       accelerator: "N",
@@ -267,6 +328,9 @@ function projectEntries(project: BoardProject) {
 /** The header button's left padding (`pl-3`), which `machineFits` takes off the line. */
 const HEADER_PAD = 12;
 
+/** The header's gap (`gap-2`) before a folder's end: with the end's width, what the machine label cannot use. */
+const TAIL_GAP = 8;
+
 /** What a folded header's right end holds (the count and the signal dot, with their gap): the one number here that is not measured. */
 const FOLDED_MARK = 40;
 
@@ -282,35 +346,49 @@ function useNatural() {
 }
 
 /**
- * A project: one quiet line, the name with a small chevron right after it, its machine (muted, amber when stale; none for
- * this computer), while folded how many of its agents wait (the signal dot and the number) and, on hover or focus over it,
- * a plus (a new session in its folder) and its menu at the free right edge. The whole line is one button that folds it: no
- * fill on hover, because the name and the chevron are one thing; `Open project` is the menu's first entry. The machine is
- * whole or left out (`machineFits`, from measured widths); only a name that is really too long fades. A pin is said in the
- * bubble and the accessible name, not by a mark: it answers none of the five questions at a glance.
- * Its text starts at the left edge of the agents' glyphs. The row reads its item and holds no state, because the list recycles cells.
+ * A project: one quiet line, the name with a small chevron right after it, in `Pinned` its machine (muted, amber when
+ * stale; none for this computer: a machine's section names it), the end of its folder in mono when another project of its
+ * section has its name, while folded how many of its agents wait (the signal dot and the number) and, on hover or focus
+ * over it, a plus (a new session in its folder) and its menu at the free right edge. The whole line is one button that
+ * folds it: no fill on hover, because the name and the chevron are one thing; `Open project` is the menu's first entry.
+ * The machine is whole or left out (`machineFits`, from measured widths); only a name that is really too long fades. A pin
+ * is said in the bubble and the accessible name, not by a mark. While it has the focus, `mod+shift+up`/`down` move it in
+ * its section. Its text starts on the agents' titles. The row reads its item and holds no state, because the list
+ * recycles cells.
  */
-export function Project(props: { item: () => Extract<SidebarItem, { kind: "project" }> }) {
+export function Project(props: { item: () => ProjectItem }) {
   const p = () => props.item().project;
-  // The line's width and the two texts' own widths; the slot at the right edge is held back whether or not the actions
+  // The line's width and the texts' own widths; the slot at the right edge is held back whether or not the actions
   // show, so nothing reflows on hover.
   const width = signal(0);
   const nameW = useNatural();
   const machineW = useNatural();
+  const tailW = useNatural();
   const menuOpen = signal(false);
+  const focus = signal(false);
+  // Bound only while the header has the focus, and read at the press: a recycled cell shows other projects over time.
+  effect(() => {
+    if (!focus()) return;
+    return keymap.bind({
+      [MOVE_UP_KEY]: () => move(props.item(), "up"),
+      [MOVE_DOWN_KEY]: () => move(props.item(), "down"),
+    });
+  });
   const slot = () => actionSlot({ plus: true, large: largeTargets() });
   const machine = () => props.item().machine ?? "";
+  const tail = () => props.item().tail ?? "";
+  const tailRoom = () => (tail() === "" ? 0 : (tailW.of(tail()) ?? estimate(tail().length, "machine")) + TAIL_GAP);
   const showMachine = () =>
     machine() !== "" &&
     (width() === 0 ||
       machineFits({
         name: nameW.of(p().name) ?? estimate(p().name.length, "name"),
         machine: machineW.of(machine()) ?? estimate(machine().length, "machine"),
-        room: width() - HEADER_PAD - slot() - (props.item().folded ? FOLDED_MARK : 0),
+        room: width() - HEADER_PAD - slot() - tailRoom() - (props.item().folded ? FOLDED_MARK : 0),
       }));
   return (
-    <View role="group" accessibilityLabel={projectLabel(p())} class={`group mt-3 ${p().offline ? "opacity-60" : ""}`}>
-      <Tipped label={[p().name, machine(), p().pinned ? "pinned" : ""].filter(Boolean).join(" · ")}>
+    <View role="group" accessibilityLabel={projectLabel(p())} class={`group mt-2 ${p().offline ? "opacity-60" : ""}`}>
+      <Tipped label={[p().name, machine(), tail(), p().pinned ? "pinned" : ""].filter(Boolean).join(" · ")}>
         <View
           role="button"
           onPress={() => toggleProject(p().key)}
@@ -318,6 +396,8 @@ export function Project(props: { item: () => Extract<SidebarItem, { kind: "proje
             openEntry(p()),
             ...copyEntries("Project name", p().name, "Folder", projectFolder(p())),
           ])}
+          onFocus={() => focus.set(true)}
+          onBlur={() => focus.set(false)}
           onLayout={({ bounds }) => width.set(bounds.size.width)}
           accessibilityLabel={`${props.item().folded ? "Unfold" : "Fold"} ${p().name}`}
           accessibilityState={{ expanded: !props.item().folded }}
@@ -334,6 +414,9 @@ export function Project(props: { item: () => Extract<SidebarItem, { kind: "proje
             </Text>
             <Text class="text-xs" onTextLayout={machineW.onTextLayout(machine())}>
               {machine()}
+            </Text>
+            <Text class="font-mono text-xs" onTextLayout={tailW.onTextLayout(tail())}>
+              {tail()}
             </Text>
           </View>
           <Clipped fade={[FADE]} boxClass="min-w-0 shrink" class="text-sm font-medium text-muted-foreground">
@@ -354,6 +437,11 @@ export function Project(props: { item: () => Extract<SidebarItem, { kind: "proje
             >
               {machine()}
             </Text>
+          </If>
+          <If when={tail() !== ""}>
+            <Clipped fade={[FADE]} boxClass="min-w-0 shrink" class="font-mono text-xs text-muted-foreground">
+              {tail()}
+            </Clipped>
           </If>
           <If when={props.item().folded}>
             <View class="ml-auto pl-2">
@@ -378,7 +466,7 @@ export function Project(props: { item: () => Extract<SidebarItem, { kind: "proje
         />
         <ActionMenu
           label={`Options for ${p().name}`}
-          entries={projectEntries(p())}
+          entries={projectEntries(props.item())}
           onOpenChange={(open) => menuOpen.set(open)}
         />
       </View>
@@ -387,22 +475,97 @@ export function Project(props: { item: () => Extract<SidebarItem, { kind: "proje
 }
 
 /**
- * The agents' title column inside the sidebar's own padding: the row's 12, the 16-pt glyph column, the 12 between. A checkout
- * line and `N more idle` start their text there, so the sidebar has one text edge.
+ * A section's label (`Pinned`, `This computer`, another machine): small and muted, a chevron that folds it, the machine's
+ * link as a word only while it is not live (amber, like a stale machine's name), never a mark for live. Folded, it says
+ * how many of its agents wait (the signal dot and the number), as a folded project does. One button, like a project header.
  */
-const TEXT_COLUMN = 40;
+function Section(props: { item: () => Extract<SidebarItem, { kind: "section" }> }) {
+  const it = props.item;
+  const waiting = () => (it().folded && it().needsYou > 0 ? it().needsYou : 0);
+  return (
+    <View
+      role="button"
+      onPress={() => toggleSection(it().section)}
+      accessibilityLabel={[
+        `${it().folded ? "Unfold" : "Fold"} ${it().label}`,
+        it().state ?? "",
+        waiting() === 0 ? "" : waiting() === 1 ? "1 needs you" : `${waiting()} need you`,
+      ]
+        .filter(Boolean)
+        .join(", ")}
+      accessibilityState={{ expanded: !it().folded }}
+      class={`mt-4 min-h-7 flex-row items-center gap-2 px-3 rounded-md ${FOCUS_RING_SIDEBAR}`}
+    >
+      <Clipped fade={[FADE]} boxClass="min-w-0 shrink" class="text-xs font-medium text-muted-foreground">
+        {it().label}
+      </Clipped>
+      <View
+        style={moveTransition()}
+        class={it().folded ? "" : "rotate-90"}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        <Icon name="chevron-right" size={12} tone="muted-foreground" />
+      </View>
+      <If when={it().state !== null}>
+        <Text style={{ numberOfLines: 1 }} class="shrink-0 text-xs text-warning">
+          {it().state ?? ""}
+        </Text>
+      </If>
+      <If when={waiting() > 0}>
+        <View
+          class="ml-auto flex-row items-center gap-2 pl-2"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          <Badge dot tone="signal" onSidebar />
+          <Text style={NUM} class="text-xs text-muted-foreground">{`${waiting()}`}</Text>
+        </View>
+      </If>
+    </View>
+  );
+}
+
+/**
+ * `3 quiet projects ›` at the end of a section: its projects where nothing works, waits, is to review or open, behind one
+ * line that lists them under it in place (the line stays where it is, its chevron turns). Never hides a waiting agent: a
+ * project with one is not quiet.
+ */
+function QuietLine(props: { item: () => Extract<SidebarItem, { kind: "quiet" }> }) {
+  const it = props.item;
+  const text = () => `${it().count} quiet ${it().count === 1 ? "project" : "projects"}`;
+  return (
+    <View
+      role="button"
+      onPress={() => toggleQuiet(it().section)}
+      accessibilityLabel={`${text()} in ${it().label}`}
+      accessibilityState={{ expanded: it().open }}
+      style={hoverTransition()}
+      class={`mt-2 flex-row items-center gap-2 ${ROW.more.class} ${FILL}`}
+    >
+      <Text class="text-xs text-muted-foreground">{text()}</Text>
+      <View
+        style={moveTransition()}
+        class={it().open ? "rotate-90" : ""}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        <Icon name="chevron-right" size={12} tone="muted-foreground" />
+      </View>
+    </View>
+  );
+}
 
 /**
  * A checkout of a project that has several: the worktree a group of agents works in, as one label on the agents' title
- * column (`TEXT_COLUMN`). The branch, once herdr said it, is what tells two checkouts apart; until then the folder's name.
- * The spoken name keeps all three: folder, kind and branch.
+ * edge (the row's own padding). The branch, once herdr said it, is what tells two checkouts apart; until then the folder's
+ * name. The spoken name keeps all three: folder, kind and branch.
  */
 function Checkout(props: { item: () => Extract<SidebarItem, { kind: "checkout" }> }) {
   const c = () => props.item().checkout;
   return (
     <View
-      style={{ paddingLeft: TEXT_COLUMN }}
-      class="min-h-7 flex-row items-center pr-3"
+      class={`flex-row items-center ${ROW.more.class}`}
       accessibilityLabel={`${c().name}, ${c().linked ? "worktree" : "main checkout"}${c().branch ? `, branch ${c().branch}` : ""}`}
     >
       <Clipped
@@ -426,41 +589,56 @@ const rowDetail = (row: BoardRow) =>
     .filter(Boolean)
     .join(" · ");
 
+/** What a row's hover actions do at rest: hidden, and shown while the pointer is on the row or the focus is in it. */
+const ON_ROW = "opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100";
+
 /**
- * An agent in one line: its state as a quiet shape (none while idle) and its name. A stale machine's agent is a dashed ring,
- * no word (`rowLabel` still says `offline`); the program, machine and age are in the bubble and in the accessible name. The
- * box that picks it for a bulk action takes the glyph's place on hover.
+ * An agent in one line: its name from the row's padding (the project header's text edge) and its state as a quiet shape at
+ * the right end (none while idle). A stale machine's agent is a dashed ring, no word (`rowLabel` still says `offline`); the
+ * program, machine and age are in the bubble and in the accessible name. On hover or focus the `...` comes over the
+ * glyph's place on a backing of the row's own fill (the glyph is covered, nothing moves), with the box that picks the
+ * agent for a bulk action just before it; once anything is picked, every row shows its box there (the glyph stays).
  */
 function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
   const row = () => props.item().row;
   const menuOpen = signal(false);
+  const backs = () => (isOpen(row()) ? [BACK, BACK_OPEN] : [BACK, BACK_HOVER]);
   return (
     <View class="group/row relative">
       <Tipped label={rowDetail(row())}>
         <AgentButton item={props.item} />
       </Tipped>
-      <PickSlot rowKey={row().key} name={row().name} order={rowKeys} surface="sidebar" />
-      <View
-        class={`absolute inset-y-0 right-0 flex-row ${
-          menuOpen() ? "opacity-100" : "opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100"
-        }`}
-      >
-        <View
-          class="pointer-events-none w-3"
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        >
-          <Each of={isOpen(row()) ? [FADE, FADE_OPEN] : [FADE, FADE_HOVER]} key="index">
-            {(layer) => <View class={`absolute inset-0 bg-linear-to-r ${layer()}`} />}
-          </Each>
+      <View class="absolute inset-y-0 right-0 flex-row">
+        <View class={`flex-row ${menuOpen() || selected().length > 0 ? "opacity-100" : ON_ROW}`}>
+          <View
+            class="pointer-events-none w-3"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
+            <Each of={isOpen(row()) ? [FADE, FADE_OPEN] : [FADE, FADE_HOVER]} key="index">
+              {(layer) => <View class={`absolute inset-0 bg-linear-to-r ${layer()}`} />}
+            </Each>
+          </View>
+          <View class="items-center justify-center">
+            <View
+              class="pointer-events-none absolute inset-0"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              <Each of={backs()} key="index">
+                {(layer) => <View class={`absolute inset-0 ${layer()}`} />}
+              </Each>
+            </View>
+            <PickBox rowKey={row().key} name={row().name} order={rowKeys} />
+          </View>
         </View>
-        <View class="w-10 items-center justify-center">
+        <View class={`w-10 items-center justify-center ${menuOpen() ? "opacity-100" : ON_ROW}`}>
           <View
             class="pointer-events-none absolute inset-0"
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
           >
-            <Each of={isOpen(row()) ? [BACK, BACK_OPEN] : [BACK, BACK_HOVER]} key="index">
+            <Each of={backs()} key="index">
               {(layer) => <View class={`absolute inset-0 rounded-r-md ${layer()}`} />}
             </Each>
           </View>
@@ -477,9 +655,9 @@ function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
 
 /**
  * The pressable line, apart from `Agent` so `useTriggerFocus` is called inside the bubble's trigger. Its fill is the row's
- * (`group/row`), not its own, so it stays lit while the pointer is on the `...` that sits over its right edge. The title runs
- * to the row's padding at rest and on hover alike: the `...` comes over its tail on a backing of the row's own fill, so the
- * text never moves.
+ * (`group/row`), not its own, so it stays lit while the pointer is on the actions that sit over its right end. The title
+ * starts on the row's padding and runs to the glyph's box, which is kept while idle so a change of state never re-cuts it;
+ * the actions come over the tail on a backing of the row's own fill, so the text never moves.
  */
 function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
   const row = () => props.item().row;
@@ -501,13 +679,8 @@ function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> 
         tip.onBlur?.();
       }}
       style={hoverTransition()}
-      class={`min-w-0 flex-row items-center gap-3 ${ROW.agentCompact.class} ${ROW_FILL} ${row().offline ? "opacity-60" : ""}`}
+      class={`min-w-0 flex-row items-center gap-2 ${ROW.agentCompact.class} ${ROW_FILL} ${row().offline ? "opacity-60" : ""}`}
     >
-      {/* The one signal mark of an agent that waits, in this view (`design/attention.md`, rule 4). Its column is the nav
-          icons' 16 pt, so every title in the sidebar starts on the same line as `New session`. */}
-      <View class="size-4 items-center justify-center">
-        <StatusGlyph status={row().offline ? "unknown" : row().status} id={row().key} loud />
-      </View>
       <Clipped
         fade={isOpen(row()) ? [FADE, FADE_OPEN] : [FADE, FADE_HOVER]}
         boxClass="min-w-0 flex-1"
@@ -515,11 +688,16 @@ function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> 
       >
         {row().name}
       </Clipped>
+      {/* The one signal mark of an agent that waits, in this view (`design/attention.md`, rule 4), centred where the `...`
+          comes on hover, so the one replaces the other in place. */}
+      <View class="size-4 items-center justify-center">
+        <StatusGlyph status={row().offline ? "unknown" : row().status} id={row().key} loud />
+      </View>
     </View>
   );
 }
 
-/** `N more idle` under a project, its text on the agents' title column (`TEXT_COLUMN`). */
+/** `N more idle` under a project, its text on the agents' title edge. */
 function More(props: { item: () => Extract<SidebarItem, { kind: "more" }> }) {
   const it = props.item;
   const text = () => (it().open ? "Show fewer idle" : `${it().count} more idle`);
@@ -529,15 +707,15 @@ function More(props: { item: () => Extract<SidebarItem, { kind: "more" }> }) {
       onPress={() => toggleMore(it().project)}
       accessibilityLabel={`${text()} in ${nameOf(it().project)}`}
       accessibilityState={{ expanded: it().open }}
-      style={{ ...hoverTransition(), paddingLeft: TEXT_COLUMN }}
-      class={`min-h-7 justify-center pr-3 ${FILL}`}
+      style={hoverTransition()}
+      class={`justify-center ${ROW.more.class} ${FILL}`}
     >
       <Text class="text-xs text-muted-foreground">{text()}</Text>
     </View>
   );
 }
 
-/** The tree: projects, checkouts, agents. Rows are recycled, so each reads its item and holds nothing of its own. */
+/** The tree: sections, projects, checkouts, agents. Rows are recycled, so each reads its item and holds nothing of its own. */
 function Tree() {
   let list: ListRef | undefined;
   /** The lines in view, by key: the open agent's line is brought in only when it is not one of them. */
@@ -576,27 +754,43 @@ function Tree() {
       accessibilityLabel="Projects and agents"
     >
       {(item) => {
+        const section = ofKind(item, "section");
+        const quiet = ofKind(item, "quiet");
         const project = ofKind(item, "project");
         const checkout = ofKind(item, "checkout");
         const row = ofKind(item, "row");
         const more = ofKind(item, "more");
         return (
           <If
-            when={item().kind === "project"}
+            when={item().kind === "row"}
             else={
               <If
-                when={item().kind === "checkout"}
+                when={item().kind === "project"}
                 else={
-                  <If when={item().kind === "row"} else={<More item={more} />}>
-                    <Agent item={row} />
+                  <If
+                    when={item().kind === "checkout"}
+                    else={
+                      <If
+                        when={item().kind === "section"}
+                        else={
+                          <If when={item().kind === "quiet"} else={<More item={more} />}>
+                            <QuietLine item={quiet} />
+                          </If>
+                        }
+                      >
+                        <Section item={section} />
+                      </If>
+                    }
+                  >
+                    <Checkout item={checkout} />
                   </If>
                 }
               >
-                <Checkout item={checkout} />
+                <Project item={project} />
               </If>
             }
           >
-            <Project item={project} />
+            <Agent item={row} />
           </If>
         );
       }}

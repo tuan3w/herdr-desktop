@@ -20,6 +20,7 @@ import {
   SECOND,
   settle,
   shown,
+  showQuiet,
   sidebarRow,
   TERMINAL_ON,
   terminal,
@@ -315,6 +316,7 @@ test("a terminal agent whose log can be read has Show chat in its header and it 
   expect(app.count("role:tab")).toBe(0);
 
   // pi has no log this app can read as a conversation: its terminal is the only view.
+  await showQuiet(app, sidebarRow("notes"));
   await app.press(sidebarRow("notes"));
   await settle(app);
   expect(shown(app, "notes")).toBe(true);
@@ -324,6 +326,7 @@ test("a terminal agent whose log can be read has Show chat in its header and it 
 test("a project's menu and the chat's header open the Changes tab of the checkout they are about", async () => {
   const app = await ready();
   await expandSidebar(app);
+  await showQuiet(app, "label:Options for web");
   await app.press("label:Options for web");
   await app.clock!.runFor(300);
   // `web` holds agents in three folders, so its menu names each; a project with one checkout says `Review changes`.

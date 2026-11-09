@@ -2,7 +2,7 @@ import { expect, open, test } from "nsh/test";
 
 import type { App } from "nsh/test";
 
-import { pressSettled, quiet } from "../app-seam";
+import { pressSettled, quiet, showQuiet } from "../app-seam";
 import { scripted } from "./board-seam";
 
 /** The sidebar beside lines that say what its buttons did (`sidebar-lab.tsx`), against the scripted herdr's `mixed` fixture: the projects `payments` (5 agents) and `web` (3). */
@@ -17,6 +17,9 @@ const lab = (extra: { width?: number; storage?: Record<string, string> } = {}) =
   });
 
 const row = (name: string) => `label:/^${name}, /`;
+/** `web` is quiet in `mixed` (idle and unknown agents only): its header and rows wait behind this line. */
+const QUIET = "label:1 quiet project in This computer";
+const WEB = "label:/^web, This computer/";
 const PAYMENTS = "label:/^payments, This computer, 2 need you/";
 const FOLD_PAYMENTS = "label:Fold payments";
 /** The search button of the sidebar's first line: shown only in the full sidebar, it opens and closes the field. */
@@ -40,14 +43,65 @@ async function menu(app: App, options: string, entry: string) {
 }
 const picked = (app: App) => app.texts().find((t) => t.startsWith("picked "));
 
-test("agents are listed under their project, and each row names the agent, its state, its project and machine", async () => {
+test("agents are listed under their project in the section of their machine, and each row names the agent, its state, its project and machine", async () => {
   const app = await ready();
   expect(app.shows("label:payments, This computer, 2 need you, 2 working, 1 to review")).toBe(true);
-  expect(app.shows("label:web, This computer")).toBe(true);
   expect(app.shows("label:payments review, claude, needs you, payments, This computer")).toBe(true);
   expect(app.shows(row("Fix login flow"))).toBe(true);
-  // This computer is the default: no line of its own and no name in a header (the screen reader still hears it).
-  expect(app.texts()).not.toContain("This computer");
+  // The section names the machine once; no project header repeats it (the screen reader still hears it per project).
+  expect(app.shows("label:Fold This computer")).toBe(true);
+  expect(app.texts().filter((t) => t === "This computer")).toHaveLength(1);
+  // Nothing is pinned: no Pinned section.
+  expect(app.shows("label:/^Fold Pinned/")).toBe(false);
+});
+
+test("a section's quiet projects wait behind one line that lists them in place and folds them back", async () => {
+  const app = await ready();
+  expect(app.shows(QUIET)).toBe(true);
+  expect(app.shows(WEB)).toBe(false);
+  await pressSettled(app, QUIET, WEB);
+  expect(app.shows(row("Styling pass"))).toBe(true);
+  // The line stays where it was, above what it opened.
+  expect(app.shows(QUIET)).toBe(true);
+  await app.press(QUIET);
+  await app.waitFor(WEB, { state: "gone" });
+});
+
+test("a quiet project that starts working leaves the quiet line, below the projects that were there", async () => {
+  const app = await ready();
+  expect(app.shows(WEB)).toBe(false);
+  scripted("mixed").become("w2:p1", "working");
+  await app.waitFor(WEB);
+  expect(app.shows(QUIET)).toBe(false);
+  expect(app.shows(PAYMENTS)).toBe(true);
+  // Where it lands (the board's order, the others unmoved) is `lib/sidebar.test.ts`: the headless tree is not in screen order.
+});
+
+test("a folded section hides its projects, says how many wait in it, and stays folded after a restart", async () => {
+  const app = await ready();
+  const twos = () => app.texts().filter((t) => t === "2").length;
+  await pressSettled(app, "label:Fold This computer", "label:Unfold This computer, 2 need you");
+  expect(app.shows(row("payments review"))).toBe(false);
+  expect(app.shows(PAYMENTS)).toBe(false);
+  expect(app.shows(QUIET)).toBe(false);
+  expect(twos()).toBe(1);
+  await app.clock!.runFor(100);
+  const saved = app.storage()["herdr.sidebar.v1"];
+  expect(JSON.parse(saved).foldedSections).toEqual(["machine:local"]);
+
+  const again = await lab({ storage: { "herdr.sidebar.v1": saved } });
+  await again.waitFor("label:Unfold This computer, 2 need you");
+  expect(again.shows(row("payments review"))).toBe(false);
+  await pressSettled(again, "label:Unfold This computer, 2 need you", "label:Fold This computer");
+  await again.waitFor(row("payments review"));
+});
+
+test("a search lists the quiet projects' matches without their line", async () => {
+  const app = await ready();
+  await pressSettled(app, SEARCH, FIELD);
+  await app.type(FIELD, "styling");
+  await app.waitFor(row("Styling pass"));
+  expect(app.shows(QUIET)).toBe(false);
 });
 
 test("an expanded project header shows no count, a folded one shows how many wait", async () => {
@@ -60,12 +114,14 @@ test("an expanded project header shows no count, a folded one shows how many wai
   await app.waitUntil(() => twos() === 1);
   expect(app.texts().some((t) => /working|to review/.test(t))).toBe(false);
   // web waits for nothing: folded, it says nothing at all.
+  await showQuiet(app, "label:Fold web");
   await pressSettled(app, "label:Fold web", "label:Unfold web");
   expect(twos()).toBe(1);
 });
 
 test("a project header offers a plus that starts a session in its folder", async () => {
   const app = await ready();
+  await showQuiet(app, "label:New agent session in web");
   await app.press("label:New agent session in web");
   expect(app.shows("new session dialog open")).toBe(true);
   expect(app.shows("new session folder /home/dev/web")).toBe(true);
@@ -128,16 +184,20 @@ test("a folded project hides its agents, keeps its header and chips, and stays f
 
   const again = await ready({ storage: { "herdr.sidebar.v1": saved } });
   expect(again.shows(row("Refactor ledger"))).toBe(false);
-  expect(again.shows(row("Weekly notes"))).toBe(false);
-  expect(again.shows("label:/^web, This computer/")).toBe(true);
+  expect(again.shows("label:Fold This computer")).toBe(true);
   await pressSettled(again, "label:Unfold payments", "label:Fold payments");
   await again.waitFor(row("Refactor ledger"));
 });
 
-test("a project's menu pins it (the project then says so) and starts a chat in its folder", async () => {
+test("a project's menu pins it into the Pinned section (the project then says so) and starts a chat in its folder", async () => {
   const app = await ready();
+  await showQuiet(app, "label:Options for web");
   await menu(app, "Options for web", "Pin to the top");
   await app.waitFor("label:web, This computer, pinned");
+  // Pinned is the first section; a pinned project is never quiet, and it is listed once.
+  expect(app.shows("label:Fold Pinned")).toBe(true);
+  expect(app.shows(QUIET)).toBe(false);
+  expect(app.count("label:Fold web")).toBe(1);
 
   await app.press("label:Options for web");
   expect(app.shows("Unpin")).toBe(true);
@@ -174,6 +234,7 @@ test("a project's menu starts a new worktree: the new session dialog opens on it
 
 test("a project that is not a repository has no New worktree… to choose", async () => {
   const app = await ready();
+  await showQuiet(app, "label:Options for web");
   await app.press("label:Options for web");
   await app.clock!.runFor(150);
   expect(app.enabled("New worktree…")).toBe(false);
@@ -188,7 +249,7 @@ test("the top buttons open what they say: new agent session, settings", async ()
   expect(app.shows("settings page look")).toBe(true);
 });
 
-test("agents are picked with the box at the row's left, and Shift picks everything from the last pick", async () => {
+test("agents are picked with the box at the row's right end, and Shift picks everything from the last pick", async () => {
   const app = await ready();
   await app.press("label:Select payments review");
   expect(picked(app)).toBe("picked 1");
@@ -265,4 +326,49 @@ test("with every machine online the sidebar has no footer text, and a machine th
   await app.waitUntil(() => app.shows("label:/^Build box, (Not connected|Connecting)/"));
   expect(app.shows("label:Machines")).toBe(true);
   expect(app.shows("label:Settings")).toBe(true);
+});
+
+/** The scripted herdr's `projects` fixture: payments-api, payments-api-hotfix and web have something going on, notes is quiet. */
+const projects = (extra: { storage?: Record<string, string> } = {}) =>
+  open("./sidebar-lab.tsx", {
+    width: 1280,
+    height: 800,
+    platform: "linux",
+    clock: {},
+    host: { params: { fixture: "projects" } },
+    ...extra,
+  });
+/** Whether `entry` of the menu of `project` takes a press; the menu is closed again. */
+async function canChoose(app: App, project: string, entry: string): Promise<boolean> {
+  await app.press(`label:Options for ${project}`);
+  await app.clock!.runFor(150);
+  const on = app.enabled(entry);
+  await app.keyboard.press("escape");
+  return on;
+}
+
+test("a project's menu moves it up, down or to the top of its section, the ends do nothing, and the order survives a restart", async () => {
+  const app = await projects();
+  await app.waitFor("label:Options for web");
+  await quiet(app);
+  // The board's order (by name) until moved: payments-api, then web.
+  expect(await canChoose(app, "payments-api", "Move up")).toBe(false);
+  expect(await canChoose(app, "payments-api", "Move to top")).toBe(false);
+  expect(await canChoose(app, "web", "Move down")).toBe(false);
+
+  await menu(app, "Options for web", "Move up");
+  await app.clock!.runFor(150);
+  expect(await canChoose(app, "web", "Move up")).toBe(false);
+  expect(await canChoose(app, "web", "Move to top")).toBe(false);
+  expect(await canChoose(app, "web", "Move down")).toBe(true);
+  expect(await canChoose(app, "payments-api", "Move down")).toBe(false);
+
+  const again = await projects({ storage: { "herdr.sidebar.v1": app.storage()["herdr.sidebar.v1"] } });
+  await again.waitFor("label:Options for web");
+  await quiet(again);
+  expect(await canChoose(again, "web", "Move up")).toBe(false);
+  expect(await canChoose(again, "payments-api", "Move down")).toBe(false);
+  await menu(again, "Options for payments-api", "Move to top");
+  await again.clock!.runFor(150);
+  expect(await canChoose(again, "payments-api", "Move up")).toBe(false);
 });

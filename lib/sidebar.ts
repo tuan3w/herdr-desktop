@@ -1,6 +1,13 @@
 import { effect, host, signal, Storage } from "nsh";
 
-import type { BoardCheckout, BoardData, BoardProject, BoardRow, MachineStatus } from "herdr-desktop/native";
+import type {
+  BoardCheckout,
+  BoardData,
+  BoardProject,
+  BoardRow,
+  LinkStateName,
+  MachineStatus,
+} from "herdr-desktop/native";
 
 import { SIDEBAR_WIDTH } from "#lib/layout";
 import { save } from "#lib/save";
@@ -9,24 +16,45 @@ import { statusText } from "#lib/status";
 import { fold } from "#lib/text";
 
 /**
- * What the sidebar lists and how it reads it aloud. The list is the board's projects in the board's order: a project
- * names its machine in its own header (unless it is this computer) and holds its checkouts (when it has more than one)
- * and its agents. A machine is never a line of its own: its link is the footer's. The home shows the same projects, so the two never disagree; folding a project or the search
- * narrows what is listed, nothing else.
+ * What the sidebar lists and how it reads it aloud. The board's projects in sections: `Pinned` (the projects the person
+ * pinned), then `This computer`, then every other machine by name. A project is listed once, in `Pinned` or in its
+ * machine's section; inside a machine its header says no machine (the section does), and holds its checkouts (when it has
+ * more than one) and its agents. A section's quiet projects (nothing working, waiting, to review, stale or open) wait
+ * behind one line. The home shows the same projects and rows as one table; folding or the search narrows what is listed,
+ * nothing else.
  */
 
 /** One line of the tree. The list is virtualized, so a line is plain data and its view keeps no state. */
 export type SidebarItem =
   | {
+      kind: "section";
+      key: string;
+      /** `pinned` or `machine:<id>`: what its fold is remembered by. */
+      section: string;
+      label: string;
+      /** The machine's link in one word while it is not live (`stale`, `offline`), else null. */
+      state: string | null;
+      folded: boolean;
+      /** How many of its agents wait: what a folded section says. */
+      needsYou: number;
+    }
+  | {
       kind: "project";
       key: string;
       project: BoardProject;
       folded: boolean;
-      /** The machine's name for the header, or null for this computer (the usual case says nothing). */
+      /** The machine's name for the header: only in `Pinned`, and null for this computer (a machine's section says it). */
       machine: string | null;
       /** The machine is not online: the header's machine name turns amber and the rows are dashed. */
       stale: boolean;
+      /** The end of its folder, only when another project of its section has the same name (`~/old`), else null. */
+      tail: string | null;
+      /** Its section (`pinned`, `machine:<id>`), and its neighbours in the list it is shown in: where a move takes it. */
+      section: string;
+      above: string | null;
+      below: string | null;
     }
+  | { kind: "quiet"; key: string; section: string; label: string; count: number; open: boolean }
   | { kind: "checkout"; key: string; project: string; checkout: BoardCheckout }
   | { kind: "row"; key: string; project: string; row: BoardRow }
   | { kind: "more"; key: string; project: string; count: number; open: boolean };
@@ -35,6 +63,7 @@ const KEY = "herdr.sidebar.v1";
 
 /** The id of this computer's machine (`store::LOCAL_ID` in the core): `BoardProject.machine` is this for its projects. */
 const LOCAL_MACHINE = "local";
+const PINNED = "pinned";
 
 /** The sidebar's width in points: the person drags its edge, and a compact window overrides it with the rail. */
 export const sidebarWidth = signal<number>(SIDEBAR_WIDTH.default);
@@ -44,19 +73,44 @@ export const sidebarWidth = signal<number>(SIDEBAR_WIDTH.default);
  * project that needs the person is never hidden by it (its header still says so).
  */
 export const foldedProjects = signal<readonly string[]>([]);
+/** Sections the person folded (`pinned`, `machine:<id>`), remembered like project folds. */
+export const foldedSections = signal<readonly string[]>([]);
 /** Projects whose idle agents beyond the first few are all listed (`QUIET_SHOWN`), in memory only. */
 export const moreOpen = signal<readonly string[]>([]);
+/** Sections whose quiet projects are listed, in memory only like `moreOpen`. */
+export const quietOpen = signal<readonly string[]>([]);
 export const sidebarReady = signal(false);
 /** How far the tree is scrolled, in points: where the person is in a long list. */
 export const treeOffset = signal(0);
 
+const flip = (all: readonly string[], key: string) =>
+  all.includes(key) ? all.filter((k) => k !== key) : [...all, key];
+
 export function toggleProject(key: string): void {
-  foldedProjects.update((all) => (all.includes(key) ? all.filter((k) => k !== key) : [...all, key]));
+  foldedProjects.update((all) => flip(all, key));
 }
 
 export function toggleMore(key: string): void {
-  moreOpen.update((all) => (all.includes(key) ? all.filter((k) => k !== key) : [...all, key]));
+  moreOpen.update((all) => flip(all, key));
 }
+
+export function toggleSection(section: string): void {
+  foldedSections.update((all) => flip(all, section));
+}
+
+export function toggleQuiet(section: string): void {
+  quietOpen.update((all) => flip(all, section));
+}
+
+/**
+ * The order the person gave the projects of each section (`pinned`, `machine:<id>`), by `BoardProject.key`. A project not
+ * in its section's list (new, or never moved) goes above the placed ones; a key whose project is gone keeps its place, so
+ * a machine that comes back finds its projects where they were.
+ */
+export const projectOrder = signal<Readonly<Record<string, readonly string[]>>>({});
+
+const strings = (v: unknown): string[] | null =>
+  Array.isArray(v) ? v.filter((k): k is string => typeof k === "string") : null;
 
 export async function loadSidebar(): Promise<void> {
   try {
@@ -64,8 +118,17 @@ export async function loadSidebar(): Promise<void> {
     if (raw) {
       const saved: unknown = JSON.parse(raw);
       if (typeof saved === "object" && saved !== null) {
-        if ("foldedProjects" in saved && Array.isArray(saved.foldedProjects)) {
-          foldedProjects.set(saved.foldedProjects.filter((k): k is string => typeof k === "string"));
+        const projects = "foldedProjects" in saved ? strings(saved.foldedProjects) : null;
+        if (projects) foldedProjects.set(projects);
+        const sections = "foldedSections" in saved ? strings(saved.foldedSections) : null;
+        if (sections) foldedSections.set(sections);
+        if ("order" in saved && typeof saved.order === "object" && saved.order !== null) {
+          const order: Record<string, string[]> = {};
+          for (const [section, keys] of Object.entries(saved.order)) {
+            const list = strings(keys);
+            if (list) order[section] = list;
+          }
+          projectOrder.set(order);
         }
         // A width saved under an older, narrower range is brought into today's, not thrown away.
         if ("width" in saved && typeof saved.width === "number") sidebarWidth.set(clampSidebar(saved.width));
@@ -81,7 +144,12 @@ export async function loadSidebar(): Promise<void> {
 }
 
 effect(() => {
-  const state = { foldedProjects: foldedProjects(), width: sidebarWidth() };
+  const state = {
+    foldedProjects: foldedProjects(),
+    foldedSections: foldedSections(),
+    order: projectOrder(),
+    width: sidebarWidth(),
+  };
   if (sidebarReady()) save(KEY, JSON.stringify(state));
 });
 
@@ -249,50 +317,247 @@ export function projectLines(data: BoardData, statuses: readonly MachineStatus[]
   return out;
 }
 
+/** A machine's link in one word for its section's label, only while it is not live; null when it is (live says nothing). */
+export function linkWord(state: LinkStateName | undefined): string | null {
+  switch (state) {
+    case "offline":
+      return "offline";
+    case "connecting":
+    case "attention":
+      // What it shows is the last state read: the footer line says why and what happens next.
+      return "stale";
+    case "off":
+      return "switched off";
+    default:
+      return null;
+  }
+}
+
+/** A section of the sidebar: `Pinned` or one machine, with its projects in the person's order. */
+export interface Section {
+  /** `pinned` or `machine:<id>`: what its fold and its order are kept by. */
+  id: string;
+  label: string;
+  state: string | null;
+  lines: ProjectLine[];
+}
+
+const machineSection = (machine: string) => `machine:${machine}`;
+const sectionOf = (project: Pick<BoardProject, "pinned" | "machine">) =>
+  project.pinned ? PINNED : machineSection(project.machine);
+
 /**
- * The lines to show, the board's projects in the board's order. A project carries its machine (null for this computer)
- * and whether that machine is not online. A search lists every match (open, without the idle cut: a hit must not hide
- * behind `22 more idle`) and drops projects with no match; a project that is folded lists only its header, and a search
- * overrides folds.
+ * `items` in the person's order: those `order` does not place (new, or never moved) first, in the order given, then the
+ * placed ones in `order`'s order. With no order it is the order given (the board's).
+ */
+export function arrange<T>(items: readonly T[], keyOf: (item: T) => string, order: readonly string[] = []): T[] {
+  const at = new Map(order.map((key, i) => [key, i]));
+  const unplaced = items.filter((item) => !at.has(keyOf(item)));
+  const placed = items.filter((item) => at.has(keyOf(item))).sort((a, b) => at.get(keyOf(a))! - at.get(keyOf(b))!);
+  return [...unplaced, ...placed];
+}
+
+/**
+ * The projects grouped as the sidebar shows them: `Pinned` (when anything is pinned), `This computer`, then the other
+ * machines by name; inside each, the person's order (`projectOrder`, `arrange`). A project is in exactly one section.
+ */
+export function sectionsOf(
+  lines: readonly ProjectLine[],
+  statuses: readonly MachineStatus[],
+  order: Readonly<Record<string, readonly string[]>>,
+): Section[] {
+  const groups = new Map<string, ProjectLine[]>();
+  for (const line of lines) {
+    const id = sectionOf(line.project);
+    groups.set(id, [...(groups.get(id) ?? []), line]);
+  }
+  const machines: Section[] = [];
+  let pinned: Section | null = null;
+  for (const [id, group] of groups) {
+    const lines = arrange(group, (l) => l.project.key, order[id]);
+    if (id === PINNED) {
+      pinned = { id, label: "Pinned", state: null, lines };
+      continue;
+    }
+    const machine = group[0].project.machine;
+    const host = statuses.find((s) => s.id === machine);
+    const label = machine === LOCAL_MACHINE ? "This computer" : (host?.name ?? group[0].project.machineName);
+    machines.push({ id, label, state: linkWord(host?.state), lines });
+  }
+  machines.sort(
+    (a, b) =>
+      Number(b.id === machineSection(LOCAL_MACHINE)) - Number(a.id === machineSection(LOCAL_MACHINE)) ||
+      a.label.toLowerCase().localeCompare(b.label.toLowerCase()) ||
+      a.id.localeCompare(b.id),
+  );
+  return pinned ? [pinned, ...machines] : machines;
+}
+
+/**
+ * A quiet project waits behind its section's `N quiet projects` line: no agent of it works, waits, finished unreviewed, sits
+ * on a machine that is not live, or is open in a tab (`open`). It is active again the moment one does.
+ */
+export function isQuietProject(line: ProjectLine, open: ReadonlySet<string>): boolean {
+  const p = line.project;
+  return !line.stale && !p.offline && p.needsYou + p.working + p.toReview === 0 && !p.rows.some((r) => open.has(r.key));
+}
+
+/** A folder with the home folder written `~`, in parts: `/home/dev/old` is `["~", "old"]`. */
+const folderParts = (path: string) =>
+  path
+    .replace(/^\/(home|Users)\/[^/]+(?=\/|$)/, "~")
+    .split("/")
+    .filter(Boolean);
+
+/**
+ * The shortest end of each folder that no other folder of the list shares (`/home/dev/old` and `/home/dev/research` are
+ * `~/old` and `~/research`; `/a/x/web` and `/b/y/web` are `x/web` and `y/web`): what tells two projects of one name apart.
+ * A part directly under the home folder keeps its `~`, so a short end still says where it is.
+ */
+export function folderTails(paths: readonly string[]): string[] {
+  const all = paths.map(folderParts);
+  return all.map((parts, i) => {
+    const end = (k: number) => parts.slice(-k).join("/");
+    let k = 1;
+    while (k < parts.length && all.some((other, j) => j !== i && other.slice(-k).join("/") === end(k))) k++;
+    if (k === parts.length - 1 && parts[0] === "~") k++;
+    return k >= parts.length && parts[0] !== "~" ? `/${end(k)}` : end(k);
+  });
+}
+
+/** What the sidebar shows beyond the board: the person's folds, opened lines, order, the search and the open tabs. */
+export interface SidebarView {
+  query: string;
+  /** Folded projects (`foldedProjects`). */
+  folds: readonly string[];
+  /** Projects whose idle rows are all listed (`moreOpen`). */
+  opened: readonly string[];
+  /** Folded sections (`foldedSections`). */
+  sections: readonly string[];
+  /** Sections whose quiet projects are listed (`quietOpen`). */
+  quiet: readonly string[];
+  /** The person's order per section (`projectOrder`). */
+  order: Readonly<Record<string, readonly string[]>>;
+  /** Keys of the rows open in a tab: their projects are never quiet. */
+  open: readonly string[];
+}
+
+/**
+ * The lines to show: sections (`sectionsOf`), each with its projects, their checkouts, agents and `N more idle`, and its
+ * quiet projects behind one line at its end (listed under it while it is open; never in `Pinned`, where the person asked
+ * to see them). A project carries its machine only in `Pinned` and only when it is not this computer, and the end of its
+ * folder when another project of its section has the same name. A search lists every match (open, without the idle cut
+ * or the quiet line: a hit must not hide behind `22 more idle`), drops projects with no match and overrides folds.
  */
 export function sidebarItems(
   data: BoardData,
   statuses: readonly MachineStatus[],
-  query: string,
-  folds: readonly string[],
-  opened: readonly string[],
+  view: Partial<SidebarView> = {},
 ): SidebarItem[] {
+  const query = view.query ?? "";
   const searching = fold(query).trim() !== "";
+  const open = new Set(view.open ?? []);
   const out: SidebarItem[] = [];
   const lines = projectLines(data, statuses, {
     keep: searching ? (r, p) => matches(r, p.name, query) : undefined,
-    folds: searching ? null : folds,
-    opened: searching ? true : opened,
+    folds: searching ? null : (view.folds ?? []),
+    opened: searching ? true : (view.opened ?? []),
   });
-  for (const line of lines) {
-    const { project } = line;
+  for (const section of sectionsOf(lines, statuses, view.order ?? {})) {
+    const folded = !searching && (view.sections ?? []).includes(section.id);
     out.push({
-      kind: "project",
-      key: `p:${project.key}`,
-      project,
-      folded: line.folded,
-      machine: line.machine,
-      stale: line.stale,
+      kind: "section",
+      key: `s:${section.id}`,
+      section: section.id,
+      label: section.label,
+      state: section.state,
+      folded,
+      needsYou: section.lines.reduce((sum, l) => sum + l.project.needsYou, 0),
     });
-    const grouped = project.checkouts.length > 1;
-    for (const group of byCheckout(project, line.shown)) {
-      if (grouped && group.checkout)
-        out.push({
-          kind: "checkout",
-          key: `c:${project.key}:${group.checkout.path}`,
-          project: project.key,
-          checkout: group.checkout,
-        });
-      for (const row of group.rows) out.push({ kind: "row", key: row.key, project: project.key, row });
+    if (folded) continue;
+    const pinned = section.id === PINNED;
+    const twins = new Map<string, ProjectLine[]>();
+    for (const line of section.lines) twins.set(line.project.name, [...(twins.get(line.project.name) ?? []), line]);
+    const tails = new Map<string, string>();
+    for (const same of twins.values()) {
+      if (same.length < 2) continue;
+      const ends = folderTails(same.map((l) => projectFolder(l.project)));
+      same.forEach((l, i) => tails.set(l.project.key, ends[i]));
     }
-    if (line.more) out.push({ kind: "more", key: `m:${project.key}`, project: project.key, ...line.more });
+    const quiet = searching || pinned ? [] : section.lines.filter((l) => isQuietProject(l, open));
+    const active = section.lines.filter((l) => !quiet.includes(l));
+    const list = (group: ProjectLine[]) =>
+      group.forEach((line, i) =>
+        pushProject(out, line, {
+          section: section.id,
+          machine: pinned ? line.machine : null,
+          tail: tails.get(line.project.key) || null,
+          above: group[i - 1]?.project.key ?? null,
+          below: group[i + 1]?.project.key ?? null,
+        }),
+      );
+    list(active);
+    if (quiet.length === 0) continue;
+    const shown = (view.quiet ?? []).includes(section.id);
+    out.push({
+      kind: "quiet",
+      key: `q:${section.id}`,
+      section: section.id,
+      label: section.label,
+      count: quiet.length,
+      open: shown,
+    });
+    if (shown) list(quiet);
   }
   return out;
+}
+
+/** A project's header, then its checkouts and agents as `line` lists them, then its `N more idle`. */
+function pushProject(
+  out: SidebarItem[],
+  line: ProjectLine,
+  where: Pick<Extract<SidebarItem, { kind: "project" }>, "section" | "machine" | "tail" | "above" | "below">,
+): void {
+  const { project } = line;
+  out.push({ kind: "project", key: `p:${project.key}`, project, folded: line.folded, stale: line.stale, ...where });
+  const grouped = project.checkouts.length > 1;
+  for (const group of byCheckout(project, line.shown)) {
+    if (grouped && group.checkout)
+      out.push({
+        kind: "checkout",
+        key: `c:${project.key}:${group.checkout.path}`,
+        project: project.key,
+        checkout: group.checkout,
+      });
+    for (const row of group.rows) out.push({ kind: "row", key: row.key, project: project.key, row });
+  }
+  if (line.more) out.push({ kind: "more", key: `m:${project.key}`, project: project.key, ...line.more });
+}
+
+export type ProjectMove = "up" | "down" | "top";
+
+/**
+ * The person's order after moving `key` in its section: `up` before `above`, `down` after `below` (its neighbours in the
+ * list it is shown in: the active projects or the quiet ones), `top` to the head of the section. The section's whole order
+ * is written, the board's projects of that section included, so a project that turns up later goes above them; keys of
+ * projects that are gone stay at the end. A move with no neighbour that way is no move.
+ */
+export function moveProject(
+  data: BoardData,
+  order: Readonly<Record<string, readonly string[]>>,
+  move: { section: string; key: string; above: string | null; below: string | null; to: ProjectMove },
+): Readonly<Record<string, readonly string[]>> {
+  const { section, key, to } = move;
+  const stored = order[section] ?? [];
+  const present = data.projects.filter((p) => sectionOf(p) === section).map((p) => p.key);
+  const full = arrange(present, (k) => k, stored).filter((k) => k !== key);
+  // Already first of its list: `top` has nowhere to take it either.
+  const neighbour = to === "down" ? move.below : move.above === null ? null : to === "up" ? move.above : full[0];
+  if (neighbour === null || neighbour === undefined || !present.includes(key)) return order;
+  const at = full.indexOf(neighbour);
+  if (at < 0) return order;
+  full.splice(to === "down" ? at + 1 : at, 0, key);
+  return { ...order, [section]: [...full, ...stored.filter((k) => !present.includes(k))] };
 }
 
 /**

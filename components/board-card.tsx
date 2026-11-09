@@ -223,7 +223,7 @@ export function AgentLine(props: {
           />
         </View>
       </If>
-      <PickSlot rowKey={row().key} name={row().name} order={props.order} surface="page" />
+      <PickSlot rowKey={row().key} name={row().name} order={props.order} />
     </View>
   );
 }
