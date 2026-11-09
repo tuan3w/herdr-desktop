@@ -263,6 +263,46 @@ test("while the agent works the empty box says a message is queued once, in the 
   await app.waitFor("text:Esc");
 });
 
+test("a chat read from a terminal says a message goes to the terminal while its agent works, never that it queues", async () => {
+  const app = await chat("terminal");
+  await app.waitFor("label:Stop");
+  expect(app.shows("text:Send to the terminal")).toBe(true);
+  expect(app.shows("text:Queue a message")).toBe(false);
+
+  await app.type(BOX, "and the lint too");
+  // The button names what it does with the words, and no queue strip promises a wait.
+  await app.waitFor("label:Send to the terminal");
+  expect(app.shows("label:Queue message")).toBe(false);
+  expect(app.texts().filter((t) => /queue/i.test(t))).toEqual([]);
+});
+
+test("a refusal the box took back is not taken again when the box mounts again, and the next refusal still is", async () => {
+  const app = await chat();
+  await app.type(BOX, "hello");
+  await app.submit(BOX);
+  await app.waitUntil(() => logged(app, "send hello"));
+  await app.press("Agent refuses it");
+  await app.waitUntil(() => box(app) === "hello");
+  expect(said(app, "The agent did not take the message")).toBe(true);
+
+  // The person clears it and leaves; coming back must not bring the old refusal back into the box.
+  await app.clear(BOX);
+  await app.press("Go away");
+  await app.waitUntil(() => !app.shows(BOX));
+  await app.press("Come back");
+  await app.waitFor(BOX);
+  expect(box(app)).toBe("");
+  expect(said(app, "The agent did not take the message")).toBe(false);
+
+  await app.press("Finish the turn");
+  // A new refusal is a new message: it comes back.
+  await app.type(BOX, "second");
+  await app.submit(BOX);
+  await app.waitUntil(() => logged(app, "send second"));
+  await app.press("Agent refuses it");
+  await app.waitUntil(() => box(app) === "second");
+});
+
 test("a command list opens at a slash in the same list as files", async () => {
   const app = await chat("commands");
   await app.type(BOX, "/re");

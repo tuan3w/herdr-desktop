@@ -575,13 +575,9 @@ fn coming_back_shows_the_saved_conversation_at_once_and_ends_as_the_keepers_repl
     assert_eq!(spoken(&done), spoken(&before), "no turn twice, none lost");
 }
 
-#[test]
-fn a_connection_that_dies_ends_the_session_here_without_blaming_the_agent() {
-    let rig = Rig::new();
-    let hub = rig.hub(rig.remote("devbox"));
-    let session = hub.start(LOCAL, "omp", &rig.cwd()).expect("start");
-    let id = session.id().to_owned();
-    wait_idle(&session);
+/// What a dropped ssh looks like from here: the process that carries the connection of the one session on the board is
+/// gone. It is this test's own child.
+fn drop_the_connection(rig: &Rig, hub: &SessionHub) {
     // The hub lists the machine in the background (once at start, once more after `start`), and each
     // listing is an ssh of its own that the stand-in also records: the last pid in the file may be one
     // of those, and killing it changes nothing. The poller is one thread, so once the new session is on
@@ -603,13 +599,21 @@ fn a_connection_that_dies_ends_the_session_here_without_blaming_the_agent() {
             .collect();
         (pids.len() == 1).then(|| pids[0])
     });
-    // What a dropped ssh looks like from here: the process that carries the connection is gone. It is
-    // this test's own child.
     rustix::process::kill_process(
         rustix::process::Pid::from_raw(pid).expect("pid"),
         rustix::process::Signal::KILL,
     )
     .expect("kill our own child");
+}
+
+#[test]
+fn a_connection_that_dies_ends_the_session_here_without_blaming_the_agent() {
+    let rig = Rig::new();
+    let hub = rig.hub(rig.remote("devbox"));
+    let session = hub.start(LOCAL, "omp", &rig.cwd()).expect("start");
+    let id = session.id().to_owned();
+    wait_idle(&session);
+    drop_the_connection(&rig, &hub);
     let s = eventually("the session to notice", || {
         let s = session.snapshot();
         matches!(s.phase, SessionPhase::Ended(_)).then_some(s)
@@ -865,6 +869,146 @@ fn a_session_left_past_the_linger_is_closed_and_its_keeper_keeps_running() {
     assert!(kept.iter().any(|k| k.id == id && k.alive()), "{kept:?}");
     // And it can be attached again, from the machine.
     wait_idle(&hub.attach(LOCAL, &id).expect("attach"));
+}
+
+/// A session that works with one message waiting behind the turn.
+fn working_with_a_message_waiting(hub: &SessionHub, rig: &Rig, waiting: &str) -> SessionHandle {
+    let session = hub.start(LOCAL, "omp", &rig.cwd()).expect("start");
+    wait_idle(&session);
+    queue_behind_a_turn(&session, waiting);
+    session
+}
+
+/// Starts the turn that waits for a cancel and queues `waiting` behind it.
+fn queue_behind_a_turn(session: &SessionHandle, waiting: &str) {
+    session.send("slow", Outgoing::default()).expect("send");
+    eventually("the turn to start", || {
+        session.snapshot().running.then_some(())
+    });
+    assert_eq!(
+        session.send(waiting, Outgoing::default()),
+        Ok(SendOutcome::Queued)
+    );
+}
+
+#[test]
+fn a_session_with_messages_queued_is_not_reaped_until_the_queue_is_empty() {
+    let rig = Rig::new();
+    let mut config = HubConfig::new(Arc::new(|| {}));
+    config.linger = Duration::from_millis(1);
+    config.reap_every = Duration::from_millis(10);
+    let hub = SessionHub::new(config);
+    hub.set_host(LOCAL, rig.local());
+    let session = working_with_a_message_waiting(&hub, &rig, "later");
+    hub.release(LOCAL, session.id());
+
+    // The reaper comes every 10 ms and the linger is 1 ms: it has had many rounds, and the connection stays.
+    let until = Instant::now() + Duration::from_millis(600);
+    while Instant::now() < until {
+        assert!(session.is_open(), "the queued message would be lost");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert_eq!(session.queued(), 1);
+
+    // Taken back, nothing waits any more: it is only a session somebody left.
+    let id = session.snapshot().queue[0].id;
+    session.unqueue(id).expect("call").expect("still waiting");
+    eventually("the reaper to close it", || {
+        (!session.is_open()).then_some(())
+    });
+}
+
+#[test]
+fn a_session_with_messages_queued_does_not_give_its_place_up_to_a_new_one() {
+    let rig = Rig::new();
+    let hub = rig.hub(rig.local());
+    let mut open = Vec::new();
+    for _ in 0..MAX_ATTACHED {
+        let s = hub.start(LOCAL, "omp", &rig.cwd()).expect("start");
+        wait_idle(&s);
+        open.push(s);
+    }
+    queue_behind_a_turn(&open[1], "later");
+    // The one with a message waiting was left first, so it would be the first to go.
+    hub.release(LOCAL, open[1].id());
+    hub.release(LOCAL, open[2].id());
+    let fifth = hub
+        .start(LOCAL, "omp", &rig.cwd())
+        .expect("the other lingering session makes room");
+    wait_idle(&fifth);
+    eventually("the session without a queue to close", || {
+        (!open[2].is_open()).then_some(())
+    });
+    assert!(open[1].is_open(), "its queued message would be lost");
+    assert_eq!(open[1].queued(), 1);
+    // With only that one left lingering the machine is full, as it is when nobody lingers.
+    assert!(matches!(
+        hub.start(LOCAL, "omp", &rig.cwd()),
+        Err(KeeperError::TooMany(_))
+    ));
+}
+
+#[test]
+fn messages_queued_when_the_connection_drops_come_back_held_and_go_when_the_person_says_so() {
+    let rig = Rig::new();
+    let hub = rig.hub(rig.remote("devbox"));
+    let session = hub.start(LOCAL, "omp", &rig.cwd()).expect("start");
+    let id = session.id().to_owned();
+    wait_idle(&session);
+    session.send("sleep:4", Outgoing::default()).expect("send");
+    // The agent has shown the turn arrived, so only what waits behind it is at stake.
+    eventually("the agent to answer", || {
+        (!messages(&session.snapshot(), Role::Agent).is_empty()).then_some(())
+    });
+    assert_eq!(
+        session.send("plain", Outgoing::default()),
+        Ok(SendOutcome::Queued)
+    );
+    drop_the_connection(&rig, &hub);
+    let ended = eventually("the session to notice", || {
+        let s = session.snapshot();
+        matches!(s.phase, SessionPhase::Ended(_)).then_some(s)
+    });
+    assert_eq!(ended.queue.len(), 1);
+    assert_eq!(ended.queue[0].text, "plain");
+    assert_eq!(
+        ended.queue[0].held.as_deref(),
+        Some("The connection dropped")
+    );
+    assert_eq!(
+        session.release_queue(),
+        Ok(false),
+        "an ended session sends nothing"
+    );
+
+    // The turn ends on the machine while nobody is connected; then the person reconnects.
+    eventually("the turn to end on the machine", || {
+        rig.remote("devbox")
+            .list()
+            .ok()?
+            .iter()
+            .any(|k| k.id == id && !k.turn_active)
+            .then_some(())
+    });
+    let again = hub.attach(LOCAL, &id).expect("attach again");
+    let held = eventually("the held message in the new session", || {
+        let s = again.snapshot();
+        (s.phase == SessionPhase::Idle && !s.queue.is_empty()).then_some(s)
+    });
+    assert_eq!(held.queue.len(), 1);
+    assert_eq!(held.queue[0].text, "plain");
+    assert_eq!(
+        held.queue[0].held.as_deref(),
+        Some("The connection dropped")
+    );
+
+    // `Send now` lets it go.
+    assert_eq!(again.release_queue(), Ok(true));
+    let done = eventually("the held message to go and be answered", || {
+        let s = again.snapshot();
+        (s.queue.is_empty() && messages(&s, Role::Agent).iter().any(|m| m == "Hello")).then_some(s)
+    });
+    assert_eq!(messages(&done, Role::User), ["sleep:4", "plain"]);
 }
 
 #[test]

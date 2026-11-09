@@ -52,12 +52,15 @@ export function SessionHeader(props: {
     untracked(() => void readCount(props.machine, props.view.cwd));
   });
   const count = () => changed() ?? 0;
-  const title = () => sessionTitle(props.view, props.view.agent);
-  const project = () => {
-    const row = rowOf(
+  const row = () =>
+    rowOf(
       props.id.startsWith("pane:") ? `${props.machine}/${props.id.slice(5)}` : `${props.machine}/session:${props.id}`,
     );
-    return row ? projectOf(row.project)?.name : undefined;
+  // The board's name, so the header, the tab and the sidebar row say one thing (a renamed chat included).
+  const title = () => row()?.name ?? sessionTitle(props.view, props.view.agent);
+  const project = () => {
+    const r = row();
+    return r ? projectOf(r.project)?.name : undefined;
   };
   const where = () => [project(), branch()].filter(Boolean).join(" \u00b7 ");
   // Changes said once: while its tab is in this chat's group, the tab is the way there.

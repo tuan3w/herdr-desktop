@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 fn snapshot(log: &str, title: &str) -> Value {
     json!({"version": "0.9.5", "protocol": 22, "focused_workspace_id": "w1",
         "workspaces": [{"workspace_id": "w1", "number": 1, "label": "payments", "focused": true, "pane_count": 1, "tab_count": 1, "active_tab_id": "w1:t1", "agent_status": "idle"}],
-        "tabs": [{"tab_id": "w1:t1", "workspace_id": "w1", "number": 1, "label": "main", "focused": true, "pane_count": 1, "agent_status": "idle"}],
+        "tabs": [{"tab_id": "w1:t1", "workspace_id": "w1", "number": 1, "label": "1", "focused": true, "pane_count": 1, "agent_status": "idle"}],
         "panes": [{"pane_id": "w1:p1", "terminal_id": "tw1:p1", "workspace_id": "w1", "tab_id": "w1:t1", "focused": true, "agent_status": "idle",
             "revision": 1, "agent": "omp", "cwd": "/home/dev/payments-api", "terminal_title": title}],
         "layouts": [],
@@ -91,13 +91,15 @@ fn an_omp_pane_opens_as_a_chat_and_its_log_names_it_on_the_board_when_its_title_
         .collect();
     assert_eq!(said, ["fix the rounding", "Done."]);
 
-    // Typing into the chat types into the pane: the scripted herdr served the request.
+    // Typing into the chat sends the message to the agent in the pane with `agent.prompt` (herdr checks it is
+    // not waiting for an answer, and presses Enter itself): the scripted herdr served the request.
     chat.send("now the tests").expect("sent");
-    let inputs = rig.sent("pane.send_input");
-    assert_eq!(inputs.len(), 1);
-    assert_eq!(inputs[0]["pane_id"], "w1:p1");
-    assert_eq!(inputs[0]["text"], "now the tests");
-    assert_eq!(inputs[0]["keys"], json!(["enter"]));
+    let prompts = rig.sent("agent.prompt");
+    assert_eq!(
+        prompts,
+        [json!({"target": "w1:p1", "text": "now the tests"})]
+    );
+    assert!(rig.sent("pane.send_input").is_empty());
 
     // The agent writes its answer: the chat has it without anyone asking.
     let mut f = std::fs::OpenOptions::new()

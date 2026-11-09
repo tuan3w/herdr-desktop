@@ -1,8 +1,9 @@
-import { Sessions } from "herdr-desktop/native";
+import { Herdr, Sessions } from "herdr-desktop/native";
 import { afterEach, expect, open, test } from "nsh/test";
 
 import type { App } from "nsh/test";
 
+import mixed from "../fixtures/herdr/mixed.json";
 import { endSessions } from "./chat-parts-seam";
 
 /** The details of a session against a real keeper driving the scripted ACP agent, and against a session that is not this app's. */
@@ -40,6 +41,9 @@ test("the details say what the session is: agent, machine, folder, id and where 
   expect(app.texts()).toContain("/");
   expect(app.texts()).toContain(await theSession());
   expect(app.texts()).toContain("Waiting for you");
+  // A keeper's chat lives in no herdr workspace or tab.
+  expect(app.shows("Workspace")).toBe(false);
+  expect(app.shows("Tab")).toBe(false);
   // The scripted agent reports only the older `modes` shape: that one choice is the settings, with the mode's name. It
   // reports no context size and no model, so there is no empty Context heading and no Model or Thinking choice.
   expect(app.shows("Settings")).toBe(true);
@@ -69,6 +73,20 @@ test("ending a session is confirmed first, and a refusal of the person's leaves 
   await app.waitUntil(() => !app.shows("Session details"));
   expect(Sessions.view("local", id)).toBeNull();
   expect((await Sessions.list("local")).some((s) => s.id === id)).toBe(false);
+});
+
+test("an agent seen in a herdr pane says which workspace and tab it is in", async () => {
+  const app = await open("./chat-parts-lab.tsx", { ...DESKTOP, host: { params: { part: "pane-chat" } } });
+  await app.waitFor("Session details");
+  await app.waitFor("Workspace");
+  expect(app.texts()).toContain("payments");
+  // the tab's name follows herdr when the person renames it
+  const snapshot = JSON.parse(JSON.stringify(mixed.snapshot)) as typeof mixed.snapshot;
+  for (const t of snapshot.tabs) if (t.tab_id === "w1:t1") t.label = "deploys";
+  Herdr.testSetSnapshot(snapshot);
+  Herdr.testPush({ event: "pane_agent_status_changed", data: { pane_id: "w1:p2", agent_status: "blocked" } });
+  await app.waitFor("deploys");
+  expect(app.shows("Tab")).toBe(true);
 });
 
 test("a session this app did not start is refused with the machine's own words, and nothing is confirmed", async () => {

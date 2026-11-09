@@ -194,11 +194,15 @@ impl FakeWorktrees {
 }
 
 impl Script {
-    /// Answers `worktree.list` and `worktree.create` from `fake` (see [`FakeWorktrees`]).
+    /// Answers `worktree.list`, `worktree.create` and `worktree.remove` from `fake` (see [`FakeWorktrees`]). A removal
+    /// is acknowledged only: the fake has no workspaces to close, and a test that needs a refusal scripts its own.
     pub fn worktrees(self, fake: Arc<FakeWorktrees>) -> Self {
         let for_list = fake.clone();
         self.on_with("worktree.list", move |p| for_list.list(p))
             .on_with("worktree.create", move |p| fake.create(p))
+            .on_with("worktree.remove", |p| {
+                Ok(json!({"type": "worktree_removed", "workspace_id": p.get("workspace_id"), "forced": false}))
+            })
     }
 }
 

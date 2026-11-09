@@ -1,6 +1,8 @@
+import { Herdr } from "herdr-desktop/native";
 import { expect, test } from "nsh/test";
 
 import { ENTRY, FIRST, openTerminals, ready, SECOND, settle, terminal, TERMINAL_ON } from "../app-seam";
+import mixed from "../fixtures/herdr/mixed.json";
 
 ENTRY.path = "../App.tsx";
 
@@ -103,4 +105,27 @@ test("a window of two groups keeps a strip in each, even for a group of one", as
   await settle(app);
   // One group again after the emptied group closed? Either way a lone remaining group of one draws no strip.
   expect(app.count("role:tab")).toBeLessThanOrEqual(1);
+});
+
+/** Gives `w1:t1` (the tab of both agents) this label, the way herdr does when the person renames the tab. */
+function labelTab(label: string) {
+  const snapshot = JSON.parse(JSON.stringify(mixed.snapshot)) as typeof mixed.snapshot;
+  for (const t of snapshot.tabs) if (t.tab_id === "w1:t1") t.label = label;
+  Herdr.testSetSnapshot(snapshot);
+  Herdr.testPush({ event: "pane_agent_status_changed", data: { pane_id: "w1:p2", agent_status: "blocked" } });
+}
+
+test("a terminal tab is titled by the tab the person named, never by a tab that only has herdr's number, and a pane label beats both", async () => {
+  const app = await ready(undefined, { storage: TERMINAL_ON });
+  await openTerminals(app, FIRST, SECOND);
+  // herdr numbers a tab nobody named ("1"): that says nothing, so the program's own name stays
+  expect(app.shows(tab(SECOND, "2 of 2"))).toBe(true);
+
+  labelTab("deploys");
+  await app.waitFor(tab("deploys", "2 of 2"));
+  // `payments review` is the label of its own pane: more specific than the tab's name
+  expect(app.shows(tab(FIRST, "1 of 2"))).toBe(true);
+
+  labelTab("1");
+  await app.waitFor(tab(SECOND, "2 of 2"));
 });

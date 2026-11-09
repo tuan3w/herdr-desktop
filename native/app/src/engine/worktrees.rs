@@ -45,6 +45,25 @@ impl Fleet {
         Ok(made)
     }
 
+    /// Has herdr remove the worktree that is open as workspace `workspace_id`, and close that workspace. herdr is
+    /// never told to force it: a worktree with changes is refused, and herdr says why.
+    pub fn remove_worktree(&self, machine: &str, workspace_id: &str) -> Result<(), String> {
+        let link = self.link(machine).ok_or_else(|| unknown(machine))?;
+        let removed = worktree::remove(link.wire().as_ref(), workspace_id, REQUEST_TIMEOUT);
+        // The workspace may be gone, or still there: read the snapshot soon either way.
+        link.refresh();
+        removed.map_err(|err| match err.problem {
+            Problem::Unsupported => {
+                "This herdr can't remove worktrees. Update herdr on that machine.".to_owned()
+            }
+            Problem::Retryable => format!(
+                "{} The worktree may be gone anyway: look again before you try twice.",
+                err.message.trim_end()
+            ),
+            _ => err.explain(),
+        })
+    }
+
     /// The branch `worktree.list` last gave the checkout at `path` on `machine`.
     pub(super) fn branch_of(&self, machine: &str, path: &str) -> Option<String> {
         self.branches

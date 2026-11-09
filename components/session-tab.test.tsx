@@ -157,6 +157,28 @@ test("while the turn runs every group is one folded line and one live line says 
   await app.waitFor(label("^Tool: Ran pnpm test, failed"));
 });
 
+test("a running task call shows one line per subagent with the tool it is in; when all are done the lines fold into a summary", async () => {
+  const app = await scripted("subagents");
+  // omp's launcher (kind `other`) is the bordered card, and its lines are in view without opening it.
+  await app.waitFor(label("^Subagent: Spawning 3 subagents, running$"));
+  expect(app.shows(label("^Subagent audit, running, Reading src/auth\\.ts, 12 tools, 1m 4s$"))).toBe(true);
+  expect(app.shows(label("^Subagent tests, running, Running pnpm test promo-eu, 4 tools, 31s$"))).toBe(true);
+  // A finished one says the last thing it did, in the past tense.
+  expect(app.shows(label("^Subagent review, done, Read src/auth\\.ts, 7 tools, 2m 10s$"))).toBe(true);
+  expect(said(app, "3 subagents, ")).toBe(false);
+  // Nothing shows as a plain call: the launcher stands outside the fold.
+  expect(app.shows(label("^Tool: "))).toBe(false);
+
+  await app.press("Subagents finish");
+  await app.waitFor(label("^Subagent: Spawning 3 subagents, done, 3 subagents, 2m 10s$"));
+  expect(said(app, "3 subagents, 2m 10s")).toBe(true);
+  // Folded behind the chevron: the lines are gone until the card is opened.
+  expect(app.shows(label("^Subagent audit"))).toBe(false);
+  await app.press(label("^Subagent: Spawning 3 subagents"));
+  await app.waitFor(label("^Subagent audit, done, Read src/auth\\.ts, 12 tools, 1m 4s$"));
+  expect(app.shows(label("^Subagent tests, done, Ran pnpm test promo-eu, 4 tools, 31s$"))).toBe(true);
+});
+
 test("a finished turn is ranked by consequence: the narration and reads fold, the failure, the push and the edits stay", async () => {
   const app = await scripted("ranked");
   await app.waitFor(label("^Agent: Fixed in"));

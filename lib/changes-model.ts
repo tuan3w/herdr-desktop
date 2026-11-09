@@ -612,7 +612,7 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
           return false;
         }
       } else {
-        await Herdr.sendInput(row.machine, row.paneId, text, ["enter"]);
+        await Herdr.prompt(row.machine, row.paneId, text);
       }
     } catch (e) {
       notify(`Could not send the notes: ${reason(e)}`, { lasting: true });

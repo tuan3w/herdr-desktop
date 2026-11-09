@@ -27,7 +27,7 @@ import { keyLabel } from "#lib/shortcuts";
 import type { GlobalShortcut } from "#lib/shortcuts";
 import { statusText } from "#lib/status";
 import type { AgentStatus } from "#lib/status";
-import { tabLabel } from "#lib/tabs";
+import { namedPlace, tabLabel, terminalTitle } from "#lib/tabs";
 
 /** The fills a chip can have, in the order they are laid: the ground, the resting tint, the hovered tint, the front card. */
 const FADE = {
@@ -246,7 +246,7 @@ export function TabFace(props: { tab: DockTab }) {
             ? (row()?.name ?? "Chat")
             : gone()
               ? "Agent gone"
-              : `${info()?.name ?? at?.pane ?? ""} (terminal)`;
+              : `${info() ? terminalTitle(info()!) : (at?.pane ?? "")} (terminal)`;
   const status = () => (chat ? (row()?.status ?? "unknown") : gone() ? "unknown" : (info()?.status ?? "unknown"));
   /** The folder the tab's agent works in (a Changes tab's checkout), when known. */
   const folder = () => changes?.cwd ?? files?.dir ?? (chat ? row()?.cwd : info()?.cwd);
@@ -273,11 +273,21 @@ export function TabFace(props: { tab: DockTab }) {
   const remote = () => (chat ? row()?.machineName : undefined) ?? project()?.machineName;
   const count = () => groupOf(layout(), props.tab.panel)?.panels.length ?? props.tab.index + 1;
   const word = () => (plain ? "" : statusText(status(), row()?.reviewed));
-  /** The tooltip, `project \u00b7 title \u00b7 state \u00b7 machine`: the whole identity, which a tile alone cannot say. */
+  /** What the person named around a terminal tab's pane, `workspace \u203a tab`, minus a part the title already says. */
+  const place = () => {
+    const i = info();
+    return i
+      ? namedPlace(i)
+          .filter((part) => part !== terminalTitle(i))
+          .join(" \u203a ")
+      : "";
+  };
+  /** The tooltip, `project \u00b7 title \u00b7 workspace \u203a tab \u00b7 state \u00b7 machine`: the whole identity, which a tile alone cannot say. */
   const identity = () =>
     [
       project()?.name && project()?.name !== title() ? project()!.name : "",
       title(),
+      place(),
       word(),
       remote() && project()?.machine !== "local" ? remote() : "",
     ]

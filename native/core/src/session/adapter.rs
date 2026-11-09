@@ -9,11 +9,13 @@
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use parking_lot::Mutex;
 
 use super::vendored::acp::{self, Id, Message, SessionUpdate};
+use super::vendored::attach::Attachment;
 use super::vendored::question::{self, Act, Form, Kind};
 use super::vendored::queue::{self, Queue};
 use super::vendored::risk as mode_risk;
@@ -29,8 +31,9 @@ use super::types::{
     AcpInfo, Ask, AuthMethodView, CommandKind, DiffView, FieldAnswer, FieldChoice, FieldKind,
     ImageRef, Item, ItemKind, Location, ModeRisk, ObservedInfo, OptionChoice, Part, PartKind,
     PermissionChoice, PermissionView, PlanStatus, PlanStep, QuestionField, QuestionView,
-    QueuedMessage, Role, SessionOption, SessionPhase, SessionSnapshot, SlashCommand, ToolStatus,
-    ToolView, TurnUsageView, Unsent, UsageView, Waiting,
+    QueuedMessage, Role, SessionOption, SessionPhase, SessionSnapshot, SlashCommand,
+    TaskAgentStatus, TaskAgentView, ToolStatus, ToolView, TurnUsageView, Unsent, UsageView,
+    Waiting,
 };
 use crate::observed::model::{Block, PictureRef, Update};
 use crate::prompt;
@@ -93,6 +96,20 @@ pub(super) fn ensure_script(home: &Path) -> std::io::Result<PathBuf> {
 /// appeared was meant for what was on screen before.
 pub(super) const ANSWER_GUARD_MS: u64 = session::ANSWER_GUARD_MS;
 
+/// Numbers a refusal the box takes back (`Unsent::seq`). One count for every session of the process, not one per
+/// driver: the screen remembers the last number it took for a chat, and a session opened again after a dropped
+/// connection is a new driver for the same chat, whose first refusal must not be mistaken for a taken one.
+static NEXT_UNSENT: AtomicU64 = AtomicU64::new(1);
+
+/// Why queued messages wait for the person when the connection that carried them ended.
+const HELD_DROPPED: &str = "The connection dropped";
+const HELD_AGENT_GONE: &str = "The agent exited";
+/// The prompt that was on its way when the connection dropped, with no sign from the agent that it arrived.
+const HELD_IN_FLIGHT: &str =
+    "The connection dropped as this was sent; look in the conversation before you send it again";
+/// A second refusal before the screen showed the first.
+const HELD_REFUSED: &str = "The agent did not take it";
+
 /// The keeper tells a client that sent `_meta.herdr.since` that only the turns from there on follow.
 const HERDR_REPLAY: &str = "_herdr/replay";
 
@@ -154,7 +171,11 @@ pub(super) struct Driver {
     lost: bool,
     ended_by: Option<String>,
     unsent: Option<Unsent>,
-    unsent_seq: u64,
+    /// A snapshot that carries `unsent` was made: the screen has had its chance to take it back into the box.
+    unsent_shown: bool,
+    /// The text of the prompt that went out last, until the agent shows it got it (any line of its own): what the
+    /// person was typing may not have reached it when the connection drops now.
+    in_flight: Option<(String, Vec<Attachment>)>,
     revision: u64,
     items: ItemCache,
     /// The conversation's lines as the keeper sent them (and the app's own prompts), for the saved copy. Shared with
@@ -219,7 +240,8 @@ impl Driver {
             lost: false,
             ended_by: None,
             unsent: None,
-            unsent_seq: 0,
+            unsent_shown: false,
+            in_flight: None,
             revision: 0,
             items: ItemCache::default(),
             window: Arc::new(Mutex::new(Window::default())),
@@ -320,14 +342,20 @@ impl Driver {
                 },
                 Effect::RetryIn(d) => actions.push(Action::RetryIn(d)),
                 Effect::RestoreInput(text, files) => {
-                    self.unsent_seq += 1;
+                    // A refusal the screen has not looked at yet is the person's to read first: a later one waits
+                    // in the queue, held, instead of taking its place.
+                    if self.unsent.is_some() && !self.unsent_shown && !self.queue.is_full() {
+                        self.hold_front_fresh(text, files, HELD_REFUSED.to_owned());
+                        continue;
+                    }
                     let (files, pictures) = outgoing::split(&files);
                     self.unsent = Some(Unsent {
-                        seq: self.unsent_seq,
+                        seq: NEXT_UNSENT.fetch_add(1, Ordering::Relaxed),
                         text,
                         files,
                         pictures,
                     });
+                    self.unsent_shown = false;
                 }
                 Effect::RestoreQueued {
                     id,
@@ -353,6 +381,10 @@ impl Driver {
         let Ok(message) = Message::parse(line) else {
             return Vec::new();
         };
+        // Anything the agent says on its own (an update, a request) proves the prompt before it arrived.
+        if !matches!(message, Message::Response { .. }) {
+            self.in_flight = None;
+        }
         // The keeper says what its log gave up; the reducer does not read it.
         if let Message::Response {
             outcome: Ok(result),
@@ -524,9 +556,17 @@ impl Driver {
         self.run(effects, now_ms)
     }
 
-    /// The connection closed. `reason` is what the command that carried it said, when it said.
+    /// The connection closed. `reason` is what the command that carried it said, when it said. What waited in the
+    /// queue is held for the person (`Send now` lets it go once the session is open again, and the hub carries it into
+    /// the session that replaces this one), and so is a prompt the agent never showed it had received.
     pub(super) fn on_closed(&mut self, reason: Option<String>, agent_gone: bool, now_ms: u64) {
         let was_ended = matches!(self.session.phase(), Phase::Ended(_));
+        let unanswered = self
+            .session
+            .prompting()
+            .then(|| self.in_flight.take())
+            .flatten();
+        self.in_flight = None;
         let effects = self
             .session
             .handle(Event::Closed, now_ms, &mut self.transcript);
@@ -534,6 +574,52 @@ impl Driver {
         if !was_ended {
             self.ended_by = reason;
             self.lost = !agent_gone;
+        }
+        if let Some((text, files)) = unanswered {
+            if self.queue.is_full() {
+                self.run(vec![Effect::RestoreInput(text, files)], now_ms);
+            } else {
+                self.hold_front_fresh(text, files, HELD_IN_FLIGHT.to_owned());
+            }
+        }
+        self.queue.hold_all(if agent_gone {
+            HELD_AGENT_GONE
+        } else {
+            HELD_DROPPED
+        });
+    }
+
+    /// Puts a message at the front of the queue, held for `why`, under an id of its own (the queue numbers what is
+    /// pushed, so a message that was sent before it was queued takes the next number).
+    fn hold_front_fresh(&mut self, text: String, files: Vec<Attachment>, why: String) {
+        if self.queue.is_full() {
+            return;
+        }
+        self.queue.push(text, files);
+        let id = self.queue.entries().back().map(|q| q.id);
+        if let Some(q) = id.and_then(|id| self.queue.take(id)) {
+            self.queue.hold_front(q, why);
+        }
+    }
+
+    /// The queue of a session whose connection ended, taken out (every message in it held) to be put into the
+    /// session that replaces it.
+    pub(super) fn take_queue(&mut self) -> Vec<queue::Queued> {
+        let mut all = Vec::new();
+        while let Some(id) = self.queue.entries().front().map(|q| q.id) {
+            match self.queue.take(id) {
+                Some(q) => all.push(q),
+                None => break,
+            }
+        }
+        all
+    }
+
+    /// Puts the messages a closed session still held into this one, held, in their order and with their reasons.
+    pub(super) fn carry(&mut self, carried: Vec<queue::Queued>) {
+        for q in carried.into_iter().rev() {
+            let why = q.held.unwrap_or_else(|| HELD_DROPPED.to_owned());
+            self.hold_front_fresh(q.text, q.files, why);
         }
     }
 
@@ -611,6 +697,7 @@ impl Driver {
             .send_queued(q.id, &q.text, &q.files, &mut self.transcript)
         {
             Ok(effects) => {
+                self.in_flight = Some((q.text.clone(), q.files.clone()));
                 self.begin_turn(now_ms);
                 Some(self.run(effects, now_ms))
             }
@@ -644,7 +731,12 @@ impl Driver {
             .session
             .send(text, &attachments, &mut self.transcript)
             .map_err(refusal)?;
-        self.unsent = None;
+        // A refusal the screen has had its look at is old news once the person sends again; one it has not is kept
+        // (and a refusal of this message then queues behind it, see `run`).
+        if self.unsent_shown {
+            self.unsent = None;
+        }
+        self.in_flight = Some((text.to_owned(), attachments));
         self.begin_turn(now_ms);
         Ok((Sent::Now, self.run(effects, now_ms)))
     }
@@ -669,6 +761,10 @@ impl Driver {
 
     /// Held messages go again (the person said so).
     pub(super) fn release_queue(&mut self) -> bool {
+        // A session that ended sends nothing: its messages stay held until a new one carries them.
+        if matches!(self.session.phase(), Phase::Ended(_)) {
+            return false;
+        }
         self.queue.release()
     }
 
@@ -862,6 +958,7 @@ impl Driver {
     /// The conversation as it stands. Items that did not change are the same `Arc` as in the last one.
     pub(super) fn snapshot(&mut self) -> SessionSnapshot {
         self.revision += 1;
+        self.unsent_shown = self.unsent.is_some();
         let items = self.items_snapshot();
         let waiting = self
             .session
@@ -1250,6 +1347,28 @@ fn item_view(item: &transcript::Item) -> Item {
                 cwd: t.cwd.clone(),
                 exit_code: t.exit.as_ref().and_then(|e| e.code),
                 exit_signal: t.exit.as_ref().and_then(|e| e.signal.clone()),
+                subagents: t
+                    .subagents()
+                    .into_iter()
+                    .map(|a| TaskAgentView {
+                        id: a.id,
+                        name: a.name,
+                        agent: a.agent,
+                        status: match a.state {
+                            acp::SubagentState::Pending => TaskAgentStatus::Pending,
+                            acp::SubagentState::Running => TaskAgentStatus::Running,
+                            acp::SubagentState::Completed => TaskAgentStatus::Completed,
+                            acp::SubagentState::Failed => TaskAgentStatus::Failed,
+                            acp::SubagentState::Aborted => TaskAgentStatus::Aborted,
+                        },
+                        assignment: a.assignment,
+                        tool_count: a.tool_count,
+                        duration_ms: a.duration_ms,
+                        current_tool: a.current_tool,
+                        recent_tools: a.recent_tools,
+                        tokens: a.tokens,
+                    })
+                    .collect(),
                 diffs: t
                     .diffs
                     .iter()
@@ -2065,6 +2184,178 @@ mod tests {
             .expect("a tool call")
     }
 
+    /// The real capture of an omp `task` call (herdr-mobile's `acp_task_updates.json`): the launch, a
+    /// progress with the subagent running, and one with it done.
+    fn task_updates() -> Vec<serde_json::Value> {
+        serde_json::from_str(include_str!("../../tests/fixtures/acp_task_updates.json"))
+            .expect("the captured updates")
+    }
+
+    fn feed_update(d: &mut Driver, update: &serde_json::Value) {
+        d.on_line(&update_line(update.clone()), 0);
+    }
+
+    #[test]
+    fn a_task_call_carries_its_subagents_as_the_agent_last_reported_them() {
+        let mut d = open();
+        let updates = task_updates();
+
+        // The launch alone: what it asked for, pending, named by the model.
+        feed_update(&mut d, &updates[0]);
+        let launch = tool_view(&mut d);
+        assert_eq!(launch.kind.as_deref(), Some("other"));
+        assert_eq!(launch.subagents.len(), 1);
+        let asked = &launch.subagents[0];
+        assert_eq!(
+            (asked.name.as_str(), asked.agent.as_str(), asked.status),
+            ("PongReply", "task", TaskAgentStatus::Pending)
+        );
+        assert_eq!(
+            asked.assignment,
+            "Reply with the word pong and nothing else."
+        );
+
+        // Running: its tool, its counts, its tokens.
+        feed_update(&mut d, &updates[1]);
+        let running = tool_view(&mut d);
+        assert_eq!(running.subagents.len(), 1);
+        let a = &running.subagents[0];
+        assert_eq!(a.id, "PongReply");
+        assert_eq!(a.status, TaskAgentStatus::Running);
+        assert_eq!(a.current_tool.as_deref(), Some("yield"));
+        assert_eq!((a.tool_count, a.duration_ms, a.tokens), (1, 0, Some(9523)));
+        assert_eq!(a.assignment, "Reply with the word pong and nothing else.");
+
+        // Done: its last tools replace the current one.
+        feed_update(&mut d, &updates[2]);
+        let done = tool_view(&mut d);
+        let a = &done.subagents[0];
+        assert_eq!(a.status, TaskAgentStatus::Completed);
+        assert_eq!(a.current_tool, None);
+        assert_eq!(a.recent_tools, ["yield"]);
+        assert_eq!(a.duration_ms, 4075);
+    }
+
+    #[test]
+    fn a_call_without_a_result_or_a_launch_has_no_subagents_and_a_finished_launch_alone_none_either()
+     {
+        let mut d = open();
+        // An ordinary call, and a call whose result and launch were trimmed away from an old turn (the
+        // keeper keeps a command and a path of the input, nothing else).
+        feed_update(
+            &mut d,
+            &json!({"sessionUpdate": "tool_call", "toolCallId": "a", "title": "Read x", "kind": "read",
+                "status": "completed", "rawInput": {"path": "x"}}),
+        );
+        feed_update(
+            &mut d,
+            &json!({"sessionUpdate": "tool_call", "toolCallId": "b", "title": "Spawning Audit subagent",
+                "kind": "other", "status": "completed", "rawInput": {}}),
+        );
+        // A launch the agent finished without ever sending a progress: nothing to say about it.
+        feed_update(
+            &mut d,
+            &json!({"sessionUpdate": "tool_call", "toolCallId": "c", "title": "Spawning Audit subagent",
+                "kind": "other", "status": "completed",
+                "rawInput": {"tasks": [{"name": "Audit", "agent": "task", "task": "audit"}]}}),
+        );
+        let tools: Vec<ToolView> = d
+            .snapshot()
+            .items
+            .iter()
+            .filter_map(|i| match &i.kind {
+                ItemKind::Tool(t) => Some(t.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(tools.len(), 3);
+        assert!(tools.iter().all(|t| t.subagents.is_empty()));
+    }
+
+    #[test]
+    fn another_tools_tasks_list_is_not_a_launch() {
+        let mut d = open();
+        feed_update(
+            &mut d,
+            &json!({"sessionUpdate": "tool_call", "toolCallId": "t", "title": "Todo", "kind": "other",
+                "status": "in_progress", "rawInput": {"tasks": [{"content": "write", "done": false}]}}),
+        );
+        assert!(tool_view(&mut d).subagents.is_empty());
+    }
+
+    #[test]
+    fn a_subagent_is_named_by_the_launch_task_with_its_id_or_its_index_and_keeps_its_id_otherwise()
+    {
+        let mut d = open();
+        feed_update(
+            &mut d,
+            &json!({"sessionUpdate": "tool_call", "toolCallId": "t", "title": "Spawning 3 subagents",
+                "kind": "other", "status": "in_progress",
+                "rawInput": {"tasks": [
+                    {"name": "Audit", "agent": "reviewer", "task": "audit auth"},
+                    {"name": "Tests", "agent": "task", "task": "run the tests"}]}}),
+        );
+        let entry = |id: &str, index: Option<u64>, status: &str| {
+            let mut e = json!({"id": id, "agent": "task", "status": status, "toolCount": 2, "durationMs": 61000,
+                "assignment": "", "recentTools": [
+                    {"tool": "read", "args": "a.ts"}, {"tool": "read", "args": "b.ts"},
+                    {"tool": "grep", "args": "needle in\nsrc"}, {"tool": "edit", "args": "c.ts"}]});
+            if let Some(i) = index {
+                e["index"] = json!(i);
+            }
+            e
+        };
+        feed_update(
+            &mut d,
+            &json!({"sessionUpdate": "tool_call_update", "toolCallId": "t", "status": "in_progress",
+                "rawOutput": {"details": {"progress": [
+                    // The id carries the index in front of the name; the index finds the task.
+                    entry("0-Audit", Some(0), "running"),
+                    // No index, but the id is the name of a task (the second one) that is not at its place.
+                    entry("Tests", None, "completed"),
+                    // A third nobody asked for by name: it keeps its id.
+                    entry("Extra", Some(7), "failed")]}}}),
+        );
+        let view = tool_view(&mut d);
+        let named: Vec<(&str, &str, TaskAgentStatus)> = view
+            .subagents
+            .iter()
+            .map(|a| (a.name.as_str(), a.agent.as_str(), a.status))
+            .collect();
+        assert_eq!(
+            named,
+            [
+                ("Audit", "task", TaskAgentStatus::Running),
+                ("Tests", "task", TaskAgentStatus::Completed),
+                ("Extra", "task", TaskAgentStatus::Failed),
+            ]
+        );
+        // The assignment the progress left empty comes from the launch.
+        assert_eq!(view.subagents[0].assignment, "audit auth");
+        // Only the last three tools, oldest first, each on one line.
+        assert_eq!(
+            view.subagents[0].recent_tools,
+            ["read b.ts", "grep needle in src", "edit c.ts"]
+        );
+    }
+
+    #[test]
+    fn a_task_call_keeps_at_most_sixteen_subagents_and_cuts_what_they_were_asked() {
+        let mut d = open();
+        let many: Vec<serde_json::Value> = (0..40)
+            .map(|i| json!({"id": format!("a{i}"), "status": "running", "assignment": "x".repeat(900)}))
+            .collect();
+        feed_update(
+            &mut d,
+            &json!({"sessionUpdate": "tool_call_update", "toolCallId": "t", "status": "in_progress",
+                "rawOutput": {"details": {"progress": many}}}),
+        );
+        let view = tool_view(&mut d);
+        assert_eq!(view.subagents.len(), 16);
+        assert_eq!(view.subagents[0].assignment.chars().count(), 300);
+        assert!(view.subagents[0].assignment.ends_with('…'));
+    }
+
     #[test]
     fn a_long_streamed_output_keeps_only_its_head_and_tail_however_long_it_runs() {
         let mut d = open();
@@ -2453,5 +2744,120 @@ mod tests {
             d.answer_permission("1", "digest", "allow", 0),
             Err(Refusal::NotReady)
         );
+    }
+
+    // The person's words are not lost when the connection goes or two refusals come close together.
+
+    fn agent_chunk() -> String {
+        update_line(
+            json!({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Hi"}}),
+        )
+    }
+
+    fn held_texts(d: &mut Driver) -> Vec<(String, Option<String>)> {
+        d.snapshot()
+            .queue
+            .into_iter()
+            .map(|q| (q.text, q.held))
+            .collect()
+    }
+
+    #[test]
+    fn a_prompt_the_agent_never_showed_it_got_is_held_when_the_connection_drops_and_one_it_answered_is_not()
+     {
+        let mut d = open();
+        d.send("first", Outgoing::default(), 0).expect("send");
+        d.on_closed(None, false, 1);
+        assert_eq!(
+            held_texts(&mut d),
+            [("first".to_owned(), Some(HELD_IN_FLIGHT.to_owned()))]
+        );
+
+        let mut d = open();
+        d.send("first", Outgoing::default(), 0).expect("send");
+        d.on_line(&agent_chunk(), 1);
+        d.on_closed(None, false, 2);
+        assert!(held_texts(&mut d).is_empty(), "the agent had it");
+    }
+
+    #[test]
+    fn queued_messages_are_held_when_the_connection_closes_and_go_in_the_session_that_replaces_it()
+    {
+        let mut d = open();
+        d.send("a", Outgoing::default(), 0).expect("send");
+        d.on_line(&agent_chunk(), 1);
+        for text in ["b", "c"] {
+            let (sent, _) = d.send(text, Outgoing::default(), 1).expect("queued");
+            assert_eq!(sent, Sent::Queued);
+        }
+        d.on_closed(None, false, 2);
+        let held = Some(HELD_DROPPED.to_owned());
+        assert_eq!(
+            held_texts(&mut d),
+            [
+                ("b".to_owned(), held.clone()),
+                ("c".to_owned(), held.clone())
+            ]
+        );
+        assert!(!d.release_queue(), "a session that ended lets nothing go");
+
+        let carried = d.take_queue();
+        assert_eq!(carried.len(), 2);
+        assert!(d.snapshot().queue.is_empty());
+
+        let mut next = open();
+        next.carry(carried);
+        assert_eq!(
+            held_texts(&mut next),
+            [("b".to_owned(), held.clone()), ("c".to_owned(), held)]
+        );
+        let ids: Vec<u64> = next.snapshot().queue.iter().map(|q| q.id).collect();
+        assert_ne!(ids[0], ids[1], "each message is its own");
+        // Held ones wait for the person; `Send now` lets the first go.
+        assert!(next.tick(3).is_empty());
+        assert!(next.release_queue());
+        let actions = next.tick(4);
+        assert!(
+            actions.iter().any(
+                |a| matches!(a, Action::Write(l) if l.contains("session/prompt") && l.contains("\"b\""))
+            ),
+            "{actions:?}"
+        );
+    }
+
+    #[test]
+    fn a_refusal_the_screen_has_not_looked_at_is_kept_and_the_next_refusal_waits_held() {
+        let refuse = |d: &mut Driver, id: u64| {
+            d.on_line(
+                &json!({"jsonrpc": "2.0", "id": id, "error": {"code": -32000, "message": "nope"}})
+                    .to_string(),
+                1,
+            );
+        };
+        let mut d = open();
+        d.send("one", Outgoing::default(), 0).expect("send");
+        refuse(&mut d, 3);
+        // The person sends again before the screen showed the first refusal.
+        d.send("two", Outgoing::default(), 2).expect("send");
+        refuse(&mut d, 4);
+        let s = d.snapshot();
+        assert_eq!(s.unsent.as_ref().map(|u| u.text.as_str()), Some("one"));
+        assert_eq!(
+            s.queue
+                .iter()
+                .map(|q| (q.text.as_str(), q.held.as_deref()))
+                .collect::<Vec<_>>(),
+            [("two", Some(HELD_REFUSED))]
+        );
+        let seen = s.unsent.expect("kept").seq;
+
+        // Once the screen has had it, a later refusal takes its place as before, with a number of its own.
+        d.send("three", Outgoing::default(), 3).expect("send");
+        refuse(&mut d, 5);
+        let s = d.snapshot();
+        let again = s.unsent.expect("the new refusal");
+        assert_eq!(again.text, "three");
+        assert!(again.seq > seen);
+        assert_eq!(s.queue.len(), 1);
     }
 }

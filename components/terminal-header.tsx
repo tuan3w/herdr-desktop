@@ -7,6 +7,7 @@ import { ActionMenu, Btn, Clipped, IconButton, type MenuEntry } from "#kit";
 import { agentTitle } from "#lib/agent-kinds";
 import { headerOnBand } from "#lib/chrome";
 import { keyLabel } from "#lib/shortcuts";
+import { namedPlace, terminalTitle } from "#lib/tabs";
 
 /**
  * The top of a terminal tab, one `TopBar` line like a chat's: its name (only while no tab strip says it), its agent, machine
@@ -30,14 +31,19 @@ export function TerminalHeader(props: {
     { label: `Copy pane id ${props.pane}`, onSelect: props.onCopyPaneId },
   ];
   const where = () =>
-    [props.info.agent && agentTitle(props.info.agent), props.info.machineName, props.info.cwd]
+    [
+      props.info.agent && agentTitle(props.info.agent),
+      ...namedPlace(props.info),
+      props.info.machineName,
+      props.info.cwd,
+    ]
       .filter(Boolean)
       .join(" · ");
   return (
     <TopBar>
       <If when={headerOnBand()}>
         <Text role="header" class="shrink px-1 text-sm font-medium text-foreground" style={{ numberOfLines: 1 }}>
-          {props.info.name}
+          {terminalTitle(props.info)}
         </Text>
       </If>
       <Clipped

@@ -128,3 +128,40 @@ fn a_restart_remembers_which_keepers_this_app_started_and_only_those_can_be_ende
         Err(Refusal::Stopped)
     );
 }
+
+#[test]
+fn a_renamed_chat_shows_the_persons_name_on_the_board_until_an_empty_one_takes_it_back() {
+    let rig = start("empty");
+    let _end = Keepers(&rig.engine);
+    let session = rig
+        .engine
+        .sessions()
+        .start("local", "omp", &cwd(&rig))
+        .expect("a session starts");
+    let id = session.id().to_owned();
+    wait_for("the session on the board", || {
+        rig.engine.board().rows().any(|r| r.session)
+    });
+    let name_on_board = |rig: &common::Rig| {
+        rig.engine
+            .board()
+            .rows()
+            .find(|r| r.session && r.pane_id == id)
+            .map(|r| r.name.clone())
+            .expect("the chat is on the board")
+    };
+    let own = name_on_board(&rig);
+    assert_ne!(own, "Billing");
+
+    rig.engine
+        .rename_chat("local", &id, " Billing ")
+        .expect("renamed");
+    assert_eq!(name_on_board(&rig), "Billing");
+    assert_eq!(
+        rig.engine.chat_name("local", &id).as_deref(),
+        Some("Billing")
+    );
+
+    rig.engine.rename_chat("local", &id, "").expect("cleared");
+    assert_eq!(name_on_board(&rig), own, "the agent's own title is back");
+}

@@ -8,9 +8,10 @@
 //! A chat that was open before starts from the copy of its last records the follower saved ([`super::copy`]): the
 //! follower shows it at once and asks the keeper only for what the log gained since (`follow --from`).
 //!
-//! The person's hand is the pane. Text goes in with [`PaneIo::send_input`] (what the agent's own composer
-//! takes) and the log says whether it arrived; a question the agent's question tool asked is answered by keys,
-//! one screen at a time ([`AskDriver`]), and the log has the last word on what was recorded. Approvals are the
+//! The person's hand is the pane. A message goes in with [`PaneIo::prompt`] (herdr's `agent.prompt`: it refuses
+//! while the agent waits for an answer) and the log says whether it arrived; a question the agent's question tool
+//! asked is answered by keys, one screen at a time ([`AskDriver`]), and the log has the last word on what was
+//! recorded. Approvals are the
 //! terminal's own prompts and are answered through the pane (`Herdr.answer`), not here. Nothing is sent on a
 //! timer or by default.
 
@@ -89,6 +90,11 @@ pub trait PaneIo: Send + Sync {
 
     /// Types `text` (bracketed-paste aware, no Enter), then presses `keys`. Either may be empty.
     fn send_input(&self, text: &str, keys: &[String]) -> Result<(), String>;
+
+    /// A message to the agent as its composer's Enter would send it, through herdr's `agent.prompt`: herdr refuses
+    /// while the agent waits for an answer or is not at its prompt, and the error says why. Not for answers to a
+    /// dialog (those are keys, [`PaneIo::send_input`]).
+    fn prompt(&self, text: &str) -> Result<(), String>;
 
     /// Presses keys by herdr's names.
     fn send_keys(&self, keys: &[String]) -> Result<(), String>;
@@ -587,10 +593,7 @@ impl ObservedHandle {
             } => return Err(Refusal::Blocked("Needs you in the terminal".into())),
             PaneState::Agent { .. } => {}
         }
-        self.inner
-            .io
-            .send_input(text, &["enter".to_owned()])
-            .map_err(Refusal::Blocked)?;
+        self.inner.io.prompt(text).map_err(Refusal::Blocked)?;
         let _ = self.inner.inputs.send(Input::Sent(text.to_owned()));
         Ok(SendOutcome::Sent)
     }
@@ -886,6 +889,10 @@ impl PaneIo for SubagentIo {
     }
 
     fn send_input(&self, _: &str, _: &[String]) -> Result<(), String> {
+        Err(SUBAGENT_READ_ONLY.to_owned())
+    }
+
+    fn prompt(&self, _: &str) -> Result<(), String> {
         Err(SUBAGENT_READ_ONLY.to_owned())
     }
 

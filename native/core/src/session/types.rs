@@ -85,6 +85,41 @@ pub struct Part {
     pub data: Option<String>,
 }
 
+/// Where one subagent of a `task` call stands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskAgentStatus {
+    /// Asked for, not running yet.
+    Pending,
+    Running,
+    Completed,
+    Failed,
+    Aborted,
+}
+
+/// One subagent of an omp `task` call, as the call last reported it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskAgentView {
+    /// omp's id for it.
+    pub id: String,
+    /// What the person reads: the name the launch gave it, else its id.
+    pub name: String,
+    /// The agent type (`task`, `reviewer`); empty when omp does not say.
+    pub agent: String,
+    pub status: TaskAgentStatus,
+    /// What it was asked, on one line, cut at 300 characters.
+    pub assignment: String,
+    /// Tools it has called.
+    pub tool_count: u64,
+    /// How long it has run, as omp last reported.
+    pub duration_ms: u64,
+    /// The tool it is in now, with its subject (`read lib/auth.ts`).
+    pub current_tool: Option<String>,
+    /// Its last three finished tools, oldest first.
+    pub recent_tools: Vec<String>,
+    /// Tokens it has used, when omp says.
+    pub tokens: Option<u64>,
+}
+
 /// A tool call: what the agent ran and what came of it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ToolView {
@@ -123,6 +158,8 @@ pub struct ToolView {
     pub exit_code: Option<i64>,
     /// The signal that ended the command, when one did.
     pub exit_signal: Option<String>,
+    /// For omp's `task` call: its subagents (at most 16), empty for any other call.
+    pub subagents: Vec<TaskAgentView>,
 }
 
 /// A picture in a message of an observed session. The log does not carry its bytes: fetch them when the

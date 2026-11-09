@@ -83,6 +83,11 @@ export function SessionOverview(props: {
     revision();
     return shown() ? (Sessions.view(props.machine, props.id) ?? undefined) : undefined;
   });
+  /** Where herdr keeps the pane of an agent seen in a herdr pane (`pane:` ids); a keeper's chat has no workspace or tab. */
+  const place = computed(() => {
+    revision();
+    return shown() && props.id.startsWith("pane:") ? Herdr.paneMeta(props.machine, props.id.slice(5)) : null;
+  });
   const info = signal<SessionInfo | undefined>(undefined);
   const failure = signal<string | undefined>(undefined);
   const ending = signal(false);
@@ -163,6 +168,8 @@ export function SessionOverview(props: {
         <Detail label="Agent" value={agentLabel(view()?.agent ?? info()?.agent ?? "")} />
         <Detail label="Machine" value={machineName()} />
         <Detail label="Folder" value={view()?.cwd ?? info()?.cwd ?? ""} mono />
+        <If when={place()?.workspaceLabel}>{(label) => <Detail label="Workspace" value={label()} />}</If>
+        <If when={place()?.tabLabel}>{(label) => <Detail label="Tab" value={label()} />}</If>
         <Detail
           label="Session id"
           value={props.id}

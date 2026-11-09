@@ -42,6 +42,7 @@ export interface Anchor {
 
 const drafts = new Map<string, Draft>();
 const anchors = new Map<string, Anchor>();
+const unsentSeen = new Map<string, number>();
 let timer: ReturnType<typeof setTimeout> | undefined;
 
 /** The unsent message of a tab, `undefined` when it has none. */
@@ -51,6 +52,18 @@ export const draftOf = (key: string): Draft | undefined => drafts.get(key);
 export function setDraft(key: string, draft: Draft): void {
   if (draft.text === "" && draft.files.length === 0 && draft.refs.length === 0) drafts.delete(key);
   else drafts.set(key, draft);
+}
+
+/**
+ * The number of the last refusal (`SessionView.unsent.seq`) a tab's message box took back, `undefined` before the first
+ * box of the tab. A box that mounts again (it unmounts while a question or permission shows, and on a project switch)
+ * must not take back a refusal an earlier box already took; one that came while no box was mounted is still the new box's.
+ * Memory only, like a draft.
+ */
+export const unsentSeenOf = (key: string): number | undefined => unsentSeen.get(key);
+
+export function setUnsentSeen(key: string, seq: number): void {
+  unsentSeen.set(key, seq);
 }
 
 /** The chat's last scroll position, `undefined` when it has none. */
@@ -71,6 +84,7 @@ export function setAnchor(key: string, anchor: Anchor): void {
 /** Forgets what a tab held (its pane or session is gone). */
 export function forgetView(key: string): void {
   drafts.delete(key);
+  unsentSeen.delete(key);
   if (anchors.delete(key)) save(VIEWS_KEY, serialize());
 }
 

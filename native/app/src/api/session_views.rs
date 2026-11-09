@@ -233,6 +233,71 @@ pub enum ToolStatusName {
     Failed,
 }
 
+/// Where one subagent of a `task` call stands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PropEnum)]
+pub enum SubagentProgressStatus {
+    /// Asked for, not running yet.
+    Pending,
+    /// Working.
+    Running,
+    /// Finished well.
+    Completed,
+    /// Failed.
+    Failed,
+    /// Stopped before it finished.
+    Aborted,
+}
+
+/// One subagent of an omp `task` call, as the call last reported it.
+#[derive(Debug, Clone, PartialEq, Eq, JsObject)]
+pub struct SubagentProgress {
+    /// omp's id for it.
+    pub id: String,
+    /// What the person reads: the name the launch gave it, else its id.
+    pub name: String,
+    /// The agent type (`task`, `reviewer`); empty when omp does not say.
+    pub agent: String,
+    /// Where it stands.
+    pub status: SubagentProgressStatus,
+    /// What it was asked, on one line, cut at 300 characters.
+    pub assignment: String,
+    /// Tools it has called.
+    pub tool_count: u32,
+    /// How long it has run, in milliseconds, as omp last reported.
+    pub duration_ms: u64,
+    /// The tool it is in now, with its subject (`read lib/auth.ts`).
+    #[prop(skip_none)]
+    pub current_tool: Option<String>,
+    /// Its last three finished tools, oldest first.
+    pub recent_tools: Vec<String>,
+    /// Tokens it has used, when omp says.
+    #[prop(skip_none)]
+    pub tokens: Option<u64>,
+}
+
+impl From<&core::TaskAgentView> for SubagentProgress {
+    fn from(a: &core::TaskAgentView) -> Self {
+        Self {
+            id: a.id.clone(),
+            name: a.name.clone(),
+            agent: a.agent.clone(),
+            status: match a.status {
+                core::TaskAgentStatus::Pending => SubagentProgressStatus::Pending,
+                core::TaskAgentStatus::Running => SubagentProgressStatus::Running,
+                core::TaskAgentStatus::Completed => SubagentProgressStatus::Completed,
+                core::TaskAgentStatus::Failed => SubagentProgressStatus::Failed,
+                core::TaskAgentStatus::Aborted => SubagentProgressStatus::Aborted,
+            },
+            assignment: a.assignment.clone(),
+            tool_count: u32::try_from(a.tool_count).unwrap_or(u32::MAX),
+            duration_ms: a.duration_ms,
+            current_tool: a.current_tool.clone(),
+            recent_tools: a.recent_tools.clone(),
+            tokens: a.tokens,
+        }
+    }
+}
+
 /// What a transcript item is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PropEnum)]
 pub enum ItemType {
@@ -338,6 +403,9 @@ pub struct ToolItem {
     /// What a completed command did outside this machine; absent for reads, local work, failed or unfinished calls.
     #[prop(skip_none)]
     pub effect: Option<EffectItem>,
+    /// For omp's `task` call: how far each of its subagents has got (at most 16); absent for any other call.
+    #[prop(skip_none)]
+    pub progress: Option<Vec<SubagentProgress>>,
 }
 
 impl From<ToolEffect> for EffectItem {
@@ -497,6 +565,8 @@ impl From<&core::Item> for SessionItem {
                         }
                         _ => None,
                     },
+                    progress: (!t.subagents.is_empty())
+                        .then(|| t.subagents.iter().map(Into::into).collect()),
                 });
             }
             ItemKind::Note(text) => out.text = Some(text.clone()),

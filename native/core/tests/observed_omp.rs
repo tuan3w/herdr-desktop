@@ -35,6 +35,9 @@ impl PaneIo for Pane {
     fn send_input(&self, _: &str, _: &[String]) -> Result<(), String> {
         Ok(())
     }
+    fn prompt(&self, _: &str) -> Result<(), String> {
+        Ok(())
+    }
     fn send_keys(&self, _: &[String]) -> Result<(), String> {
         Ok(())
     }

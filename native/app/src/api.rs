@@ -315,6 +315,29 @@ impl Herdr {
         run(move |engine| engine.send_input(&machine, &pane, &text, &keys)).await
     }
 
+    /// A message to the agent in a pane (`agent.prompt`): herdr checks, as it types, that the agent is not waiting
+    /// for an answer or not at its prompt, and presses Enter itself. A refusal throws with what to tell the person
+    /// and types nothing. A herdr too old for `agent.prompt` gets the text and Enter as `sendInput` does. Answers to
+    /// a dialog are keys: use `sendInput` or `answer` for those.
+    pub async fn prompt(machine: String, pane: String, text: String) -> Result<(), String> {
+        run(move |engine| engine.prompt(&machine, &pane, &text)).await
+    }
+
+    /// The agents herdr on a machine can start (`server.agent_manifests`), by kind. Empty when that herdr cannot say:
+    /// offer every kind then.
+    pub async fn agent_kinds(machine: String) -> Result<Vec<String>, String> {
+        run(move |engine| engine.agent_manifests(&machine)).await
+    }
+
+    /// Has herdr install its hook into an agent's own settings on a machine (`integration.install`): `target` is
+    /// `omp`, `claude` or `codex`. Resolves with herdr's messages (what it wrote, what to do next).
+    pub async fn install_integration(
+        machine: String,
+        target: String,
+    ) -> Result<Vec<String>, String> {
+        run(move |engine| engine.install_integration(&machine, &target)).await
+    }
+
     /// Answers the question a blocked agent is waiting on with option `optionIndex` of the prompt whose
     /// `digest` the person saw. The pane is read again first: the keys are sent only if the agent is still
     /// blocked, still shows that exact question and still has that option. Otherwise nothing is sent and
@@ -539,6 +562,13 @@ impl Herdr {
                 .map_err(|e| e.explain())
         })
         .await
+    }
+
+    /// Has herdr remove the worktree open as a workspace (`worktree.remove`) and close that workspace. herdr is never
+    /// told to force it, and a repository it does not trust is refused, so a worktree with changes comes back as
+    /// herdr's own refusal. Throws with what to tell the person.
+    pub async fn remove_worktree(machine: String, workspace_id: String) -> Result<(), String> {
+        run(move |engine| engine.remove_worktree(&machine, &workspace_id)).await
     }
 
     /// Test seam: the requests the scripted herdr served, oldest first, optionally of one `method`

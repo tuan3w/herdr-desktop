@@ -9,8 +9,8 @@ import { scripted, sentKeys } from "./board-seam";
 /** Picking agents and acting on them, against `mixed.json`: working `Refactor ledger` (w1:p4) and `upgrade deps` (w1:p5), waiting `payments review` (w1:p1). */
 const DESKTOP = { width: 1280, height: 800, platform: "linux", clock: {} } as const;
 /** Opens the home and lets it finish laying out before any press (see `board.test.tsx`). */
-async function lab() {
-  const app = await open("./board-lab.tsx", { ...DESKTOP, host: { params: { fixture: "mixed" } } });
+async function lab(fixture = "mixed") {
+  const app = await open("./board-lab.tsx", { ...DESKTOP, host: { params: { fixture } } });
   await quiet(app);
   return app;
 }
@@ -121,20 +121,35 @@ test("Send anyway is off when the dialog opens, and turning it on includes the w
   expect(sentKeys()).toEqual(["w1:p1: esc"]);
 });
 
-test("a message is typed into each agent picked and Enter pressed", async () => {
+test("a message is sent to each agent picked through herdr's own prompt, not typed key by key", async () => {
   const app = await lab();
   await pick(app, "Refactor ledger", "upgrade deps");
   await app.press(`${inBar}Message`);
   await app.waitFor("Message 2 agents");
   // An empty message is not sent.
   await app.press("text:Message 2 agents").catch(() => undefined);
-  expect(Herdr.testRequests("pane.send_input")).toEqual([]);
+  expect(Herdr.testRequests("agent.prompt")).toEqual([]);
   await app.type("label:Message", "wrap up and commit");
   await app.press("text:Message 2 agents");
   await app.waitFor("Messaged 2 agents");
-  const sent = Herdr.testRequests("pane.send_input").map((r) => r.params);
-  expect(sent).toHaveLength(2);
-  for (const params of sent) expect(params).toMatchObject({ text: "wrap up and commit", keys: ["enter"] });
+  const sent = Herdr.testRequests("agent.prompt").map((r) => r.params);
+  expect(sent.map((p) => (p as { target: string }).target).sort()).toEqual(["w1:p4", "w1:p5"]);
+  for (const params of sent) expect(params).toMatchObject({ text: "wrap up and commit" });
+  expect(Herdr.testRequests("pane.send_input")).toEqual([]);
+});
+
+test("a message herdr refuses because the agent is waiting for an answer says so and types nothing", async () => {
+  const app = await lab("prompt-blocked");
+  await pick(app, "Refactor ledger");
+  await app.press(`${inBar}Message`);
+  await app.waitFor("Message 1 agent");
+  await app.type("label:Message", "wrap up and commit");
+  await app.press("text:Message 1 agent");
+  await app.waitUntil(() => app.texts().some((t) => t.includes("1 failed")));
+  expect(app.texts().some((t) => t.includes("Messaged"))).toBe(false);
+  // The refusal is final: no second try by keys, which is how a stale Enter lands on a permission dialog.
+  expect(Herdr.testRequests("agent.prompt")).toHaveLength(1);
+  expect(["pane.send_input", "pane.send_text", "pane.send_keys"].flatMap((m) => Herdr.testRequests(m))).toEqual([]);
 });
 
 test("Close closes the panes only after the dialog is confirmed", async () => {

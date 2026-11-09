@@ -81,14 +81,18 @@ export function SessionComposer(props: {
   // would move under the pointer. They take the box's width (`boxWidth`) and sit on its top edge.
   const box = signal<ViewRef | null>(null);
   // While the commands are listed the box says what typing does; while the agent works it says where a message goes, once,
-  // instead of a note under the box (the keys of the list and the keyboard sheet say the rest).
+  // instead of a note under the box (the keys of the list and the keyboard sheet say the rest). A chat read from a terminal
+  // has no queue: the words are typed into the pane at once, so it says so instead of promising a wait.
+  const terminal = () => !!props.view().observed;
   const boxWidth = signal(0);
   const placeholder = () =>
     c.off() ??
     (c.listed() === "slash"
       ? "Type to filter"
       : c.running()
-        ? "Queue a message"
+        ? terminal()
+          ? "Send to the terminal"
+          : "Queue a message"
         : boxWidth() > 0 && boxWidth() < FULL_HINT_MIN
           ? "Ask anything"
           : "Ask anything · @ for files · / for commands");
@@ -220,7 +224,7 @@ export function SessionComposer(props: {
           <SessionModeChip machine={props.machine} id={props.id} />
           <SessionModelPicker machine={props.machine} id={props.id} />
           <View class="flex-1" />
-          <SendButton c={c} />
+          <SendButton c={c} terminal={terminal()} />
         </View>
       </View>
       <AttachPicker
@@ -245,13 +249,15 @@ export function SessionComposer(props: {
 const startsWord = (text: string): boolean => text === "" || /\s$/.test(text);
 
 /**
- * The round button: Send, Queue message while the agent works, Stop while a turn runs with nothing typed. Stop is a muted
+ * The round button: Send, Queue message while the agent works (Send to the terminal for a chat read from a terminal, which
+ * has no queue), Stop while a turn runs with nothing typed. Stop is a muted
  * ring, not a filled button: while the agent works nothing needs the person, and a filled Stop was the loudest thing on
  * screen (`design/taste.md`, hierarchy by subtraction). Its tooltip carries the key that also stops the turn.
  */
-function SendButton(props: { c: Composer }): JSX.Element {
+function SendButton(props: { c: Composer; terminal: boolean }): JSX.Element {
   const c = props.c;
-  const label = () => (c.showStop() ? "Stop" : c.running() ? "Queue message" : "Send message");
+  const label = () =>
+    c.showStop() ? "Stop" : c.running() ? (props.terminal ? "Send to the terminal" : "Queue message") : "Send message";
   const usable = () => c.canSend();
   return (
     <Tipped label={label()} shortcut={c.showStop() ? keyText("escape") : undefined} side="top">

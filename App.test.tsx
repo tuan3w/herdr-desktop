@@ -550,3 +550,28 @@ test("no bar sits under the workspace on the board or in a chat that reports no 
   await openAgents(app, FIRST);
   expect(app.shows("label:Status")).toBe(false);
 });
+
+/** Runs a palette command by its name: `mod+p`, a search, the row. */
+async function runCommand(app: App, name: string) {
+  await app.keyboard.press("mod+p");
+  await settle(app);
+  await app.clear("label:Search agents, projects and commands");
+  await app.type("label:Search agents, projects and commands", name.replace("…", ""));
+  await settle(app);
+  await app.press(`label:/^${name}/`);
+  await settle(app);
+}
+
+test("installing herdr's hook changes another program's settings, so it asks first and only a confirmed one reaches herdr", async () => {
+  const app = await ready();
+  app.onDialog(() => "Cancel");
+  await runCommand(app, "Install herdr hook for Claude Code…");
+  expect(Herdr.testRequests("integration.install")).toEqual([]);
+
+  app.onDialog(() => "Install hook");
+  await runCommand(app, "Install herdr hook for Claude Code…");
+  await app.waitUntil(() => Herdr.testRequests("integration.install").length === 1);
+  expect(Herdr.testRequests("integration.install")[0].params).toEqual({ target: "claude" });
+  // It says where, and that the agent must be restarted, with what herdr added.
+  await app.waitUntil(() => app.texts().some((t) => t.includes("Installed on This computer. Restart the agent")));
+});

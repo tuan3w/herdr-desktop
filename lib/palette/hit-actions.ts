@@ -2,8 +2,8 @@ import { Herdr, Sessions } from "herdr-desktop/native";
 import { announce, Clipboard } from "nsh";
 
 import { confirmDestructive, notify } from "#kit";
-import { naming, newSession, openSettings } from "#lib/actions";
-import { context, focusComposerSoon, moveFocused, removePanel, terminalKey } from "#lib/dock";
+import { chatNaming, naming, newSession, openSettings, paneNaming } from "#lib/actions";
+import { context, focusComposerSoon, inside, moveFocused, removePanel, terminalKey } from "#lib/dock";
 import { projectOf, reviewWithUndo, rowOf } from "#lib/herdr";
 import { openProject } from "#lib/nav";
 import { canShowChat, openAgent, showChat, showTerminal, viewOf } from "#lib/open-agent";
@@ -119,6 +119,10 @@ function agentActions(key: string): HitAction[] {
   const project = projectOf(row.project);
   const chat = viewOf(row) === "chat";
   const terminalChat = chat && !row.session;
+  /** The linked worktree the agent works in, when it does: the one `Remove worktree…` is about. */
+  const checkout =
+    project?.checkouts.find((c) => c.path === row.checkout) ??
+    project?.checkouts.find((c) => row.cwd && inside(row.cwd, c.path));
   const other: HitAction = terminalChat
     ? { id: "terminal", label: "Show terminal", run: () => showTerminal(row.machine, row.paneId) }
     : !chat && canShowChat(row.machine, row.paneId)
@@ -185,14 +189,12 @@ function agentActions(key: string): HitAction[] {
     {
       id: "rename",
       label: "Rename…",
-      disabled: row.session ? "A chat session keeps its own name" : undefined,
       run: () =>
-        naming.set({
-          title: "Rename agent",
-          initial: row.name,
-          confirm: "Rename",
-          onSubmit: (name) => void Herdr.renamePane(row.machine, row.paneId, name).catch(failed("Could not rename it")),
-        }),
+        naming.set(
+          row.session
+            ? chatNaming(row.machine, row.paneId, row.name)
+            : paneNaming(row.machine, row.paneId, Herdr.paneMeta(row.machine, row.paneId)?.paneLabel ?? ""),
+        ),
     },
     { id: "copy-id", label: row.session ? "Copy session id" : "Copy pane id", run: copy(row.paneId, "Id") },
     {
@@ -219,6 +221,27 @@ function agentActions(key: string): HitAction[] {
           notify(`Closed pane ${row.name}`);
         } catch (e) {
           failed("Could not close the pane")(e);
+        }
+      },
+    },
+    {
+      id: "remove-worktree",
+      label: "Remove worktree…",
+      asks: "closes its workspace",
+      disabled: row.session ? "Not a terminal pane" : checkout?.linked ? undefined : "Not in a linked worktree",
+      run: async () => {
+        const ok = await confirmDestructive({
+          title: `Remove worktree “${checkout?.name ?? row.name}”?`,
+          description:
+            "This asks herdr to remove the worktree folder and close its workspace, with everything that runs in it. herdr may refuse and say why; this app never forces it.",
+          action: "Remove worktree",
+        });
+        if (!ok) return;
+        try {
+          await Herdr.removeWorktree(row.machine, row.workspaceId);
+          announce(`Removed worktree ${checkout?.name ?? row.name}`);
+        } catch (e) {
+          failed("Could not remove the worktree")(e);
         }
       },
     },

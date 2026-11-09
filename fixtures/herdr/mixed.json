@@ -30,7 +30,7 @@
         "tab_id": "w1:t1",
         "workspace_id": "w1",
         "number": 1,
-        "label": "main",
+        "label": "1",
         "focused": true,
         "pane_count": 5,
         "agent_status": "idle"
@@ -39,7 +39,7 @@
         "tab_id": "w2:t1",
         "workspace_id": "w2",
         "number": 1,
-        "label": "main",
+        "label": "1",
         "focused": false,
         "pane_count": 4,
         "agent_status": "idle"

@@ -17,6 +17,7 @@ import { browseFiles } from "#lib/open-files";
 import { registerPane } from "#lib/pane-input";
 import { minContrast, terminalEnabled, terminalFontSize, terminalOptionAsMeta } from "#lib/settings";
 import { paletteFromTerminalKey } from "#lib/shortcuts";
+import { terminalTitle } from "#lib/tabs";
 import { herdrClientCommand } from "#lib/terminal-command";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
@@ -200,7 +201,7 @@ function LiveTerminal(props: TerminalTabProps) {
                 }
                 onBrowse={() => browseFiles(props.machine, i().cwd ?? "~")}
                 onDuplicate={() => void duplicate()}
-                onCopyTitle={() => copy(i().name, "Title copied")}
+                onCopyTitle={() => copy(terminalTitle(i()), "Title copied")}
                 onCopyPaneId={() => copy(props.pane, "Pane id copied")}
               />
               <If when={i().feedState === "stale"}>

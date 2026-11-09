@@ -1,8 +1,9 @@
 import { expect, test } from "nsh/test";
 
-import type { SessionItem } from "herdr-desktop/native";
+import type { SessionItem, SubagentProgress } from "herdr-desktop/native";
 
 import type { Row } from "#lib/session-rows";
+import { subagentLinesPt } from "#lib/session-subagents";
 import {
   AT_END_PT,
   DEFAULT_ROW_PT,
@@ -65,4 +66,53 @@ test("an answer's height counts a long fence as the lines it shows folded, and w
   expect(rowPt(agent(fence(80)))).toBe(rowPt(agent(fence(40))));
   expect(rowPt(agent(fence(10)))).toBeLessThan(rowPt(agent(fence(40))));
   expect(rowPt(agent(prose(4)))).toBeGreaterThan(rowPt(agent(prose(2))));
+});
+
+test("a subagent card is as tall as its lines: one per subagent while one works or the card is open, none when all are done and it is folded", () => {
+  const agent = (id: string, status: "running" | "completed"): SubagentProgress => ({
+    id,
+    name: id,
+    agent: "task",
+    status,
+    assignment: "",
+    toolCount: 1,
+    durationMs: 1000,
+    recentTools: [],
+  });
+  const card = (list: SubagentProgress[], open: boolean): Row => ({
+    kind: "subagent",
+    key: "k",
+    sig: "s",
+    open,
+    all: false,
+    item: {
+      id: 1,
+      rev: 1,
+      kind: "tool",
+      images: [],
+      parts: [],
+      tool: {
+        id: "t",
+        title: "Spawning",
+        toolKind: "other",
+        status: "inProgress",
+        head: [],
+        tail: [],
+        omitted: 0,
+        diffs: [],
+        locations: [],
+        parts: [],
+        terminal: false,
+        progress: list,
+      },
+    },
+  });
+  const bare = rowPt(card([], false));
+  expect(bare).toBe(48);
+  const running = [agent("a", "running"), agent("b", "completed"), agent("c", "running")];
+  expect(rowPt(card(running, false))).toBe(bare + subagentLinesPt(3));
+  const done = [agent("a", "completed"), agent("b", "completed")];
+  expect(rowPt(card(done, false))).toBe(bare);
+  expect(rowPt(card(done, true))).toBe(bare + subagentLinesPt(2));
+  expect(rowPt(card(running, false))).toBeGreaterThan(rowPt(card(done, false)));
 });

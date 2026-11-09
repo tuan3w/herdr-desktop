@@ -172,6 +172,66 @@ pub struct ToolCall {
     pub raw_output: Option<String>,
     /// What `_meta` says about the command's terminal.
     pub stream: Stream,
+    /// omp's `task` call: how far each subagent has got (`rawOutput.details.progress[]`), at most
+    /// [`SUBAGENTS_MAX`].
+    pub progress: Vec<SubagentProgress>,
+    /// omp's `task` call: the subagents the launch asked for (`rawInput.tasks[]`), all pending, in order.
+    pub launched: Vec<SubagentProgress>,
+}
+
+/// The most subagents of one call that are read.
+pub const SUBAGENTS_MAX: usize = 16;
+/// The most characters of a subagent's assignment, and of a tool line, that are kept.
+const ASSIGNMENT_MAX: usize = 300;
+const TOOL_LINE_MAX: usize = 80;
+/// How many of a subagent's last tools are kept.
+const RECENT_TOOLS: usize = 3;
+
+/// Where one subagent of a `task` call stands (omp's `AgentProgress.status`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SubagentState {
+    /// Asked for, not running yet (or a status this client does not know).
+    #[default]
+    Pending,
+    Running,
+    Completed,
+    Failed,
+    Aborted,
+}
+
+impl SubagentState {
+    /// Whether it still has work to do.
+    #[must_use]
+    pub fn is_active(self) -> bool {
+        matches!(self, SubagentState::Pending | SubagentState::Running)
+    }
+}
+
+/// One subagent of an omp `task` call, read from `rawOutput.details.progress[]` (or, before any progress
+/// came, from the launch's `rawInput.tasks[]`). Shapes: `AgentProgress` in oh-my-pi, checked against a real
+/// capture (`tests/fixtures/acp_task_updates.json`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SubagentProgress {
+    /// omp's id for it (the name of its log file).
+    pub id: String,
+    /// What the person reads: the launch's `tasks[].name` when one matches (see [`name_subagents`]), else
+    /// `id`.
+    pub name: String,
+    /// The agent type (`task`, `reviewer`).
+    pub agent: String,
+    pub state: SubagentState,
+    /// What it was asked, on one line, cut at 300 characters.
+    pub assignment: String,
+    /// Tools it has called.
+    pub tool_count: u64,
+    pub duration_ms: u64,
+    /// The tool it is in now with its subject (`read lib/auth.ts`).
+    pub current_tool: Option<String>,
+    /// Its last three finished tools, oldest first, each with a short subject.
+    pub recent_tools: Vec<String>,
+    pub tokens: Option<u64>,
+    /// omp's `index` of it, else its place in the list: how the launch's task is found.
+    pub index: usize,
 }
 
 /// A `session/update` payload.
@@ -529,6 +589,141 @@ fn raw_output_text(v: &Value) -> Option<String> {
     (!text.is_empty()).then_some(text)
 }
 
+/// `text` cut to `max` characters, with an ellipsis when it was cut.
+fn cut_chars(text: &str, max: usize) -> String {
+    if text.chars().count() <= max {
+        return text.to_string();
+    }
+    let mut out: String = text.chars().take(max.saturating_sub(1)).collect();
+    out.truncate(out.trim_end().len());
+    out.push('…');
+    out
+}
+
+/// A tool's name and, when there is one, its subject, on one short line: `read lib/auth.ts`.
+fn tool_line(tool: &str, subject: Option<&str>) -> Option<String> {
+    let tool = clean_line(tool);
+    if tool.is_empty() {
+        return None;
+    }
+    let subject = subject.map(clean_line).filter(|s| !s.is_empty());
+    let line = match subject {
+        Some(s) => format!("{tool} {s}"),
+        None => tool,
+    };
+    Some(cut_chars(&line, TOOL_LINE_MAX))
+}
+
+/// `rawOutput.details.progress[]` of an omp `task` call: one entry per subagent, at most
+/// [`SUBAGENTS_MAX`]. An entry without a usable shape is skipped; anything else is empty.
+fn subagent_progress(raw_output: &Value) -> Vec<SubagentProgress> {
+    let Some(list) = raw_output
+        .get("details")
+        .and_then(|d| d.get("progress"))
+        .and_then(Value::as_array)
+    else {
+        return Vec::new();
+    };
+    list.iter()
+        .take(SUBAGENTS_MAX)
+        .enumerate()
+        .filter(|(_, p)| p.is_object())
+        .map(|(at, p)| {
+            let text = |k: &str| str_of(p, k).map(clean_line).unwrap_or_default();
+            let id = text("id");
+            let assignment = Some(text("assignment"))
+                .filter(|a| !a.is_empty())
+                .unwrap_or_else(|| text("task"));
+            let recent: Vec<String> = p
+                .get("recentTools")
+                .and_then(Value::as_array)
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|t| match t {
+                            Value::String(name) => tool_line(name, None),
+                            _ => tool_line(str_of(t, "tool")?, str_of(t, "args")),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            SubagentProgress {
+                name: id.clone(),
+                id,
+                agent: text("agent"),
+                state: match str_of(p, "status") {
+                    Some("running") => SubagentState::Running,
+                    Some("completed") => SubagentState::Completed,
+                    Some("failed") => SubagentState::Failed,
+                    Some("aborted") => SubagentState::Aborted,
+                    _ => SubagentState::Pending,
+                },
+                assignment: cut_chars(&assignment, ASSIGNMENT_MAX),
+                tool_count: p.get("toolCount").and_then(Value::as_u64).unwrap_or(0),
+                duration_ms: p.get("durationMs").and_then(Value::as_u64).unwrap_or(0),
+                current_tool: str_of(p, "currentTool")
+                    .and_then(|t| tool_line(t, str_of(p, "currentToolArgs"))),
+                recent_tools: recent[recent.len().saturating_sub(RECENT_TOOLS)..].to_vec(),
+                tokens: p.get("tokens").and_then(Value::as_u64),
+                index: p
+                    .get("index")
+                    .and_then(Value::as_u64)
+                    .and_then(|n| usize::try_from(n).ok())
+                    .unwrap_or(at),
+            }
+        })
+        .collect()
+}
+
+/// `rawInput.tasks[]` of an omp `task` launch, as pending subagents. Only items with a `task` string count
+/// (omp's shape), so another tool's `tasks` list is not mistaken for one.
+fn subagents_launched(raw_input: &Value) -> Vec<SubagentProgress> {
+    let Some(list) = raw_input.get("tasks").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    let items: Vec<(usize, &Value)> = list.iter().take(SUBAGENTS_MAX).enumerate().collect();
+    if !items.iter().any(|(_, t)| str_of(t, "task").is_some()) {
+        return Vec::new();
+    }
+    items
+        .into_iter()
+        .map(|(at, t)| {
+            let text = |k: &str| str_of(t, k).map(clean_line).unwrap_or_default();
+            let name = text("name");
+            SubagentProgress {
+                id: name.clone(),
+                name,
+                agent: text("agent"),
+                assignment: cut_chars(&text("task"), ASSIGNMENT_MAX),
+                index: at,
+                ..SubagentProgress::default()
+            }
+        })
+        .collect()
+}
+
+/// Names `progress` from the launch: an entry takes the name of the launch task whose name is its `id`, else
+/// of the one at its `index` (its place in the list when omp sends none); with no such task, or an unnamed
+/// one, it keeps its `id`. An empty assignment or agent is filled from the same task. omp's ids can carry
+/// more than the name the model gave (the log file's name), the launch's name is the one the person read.
+pub fn name_subagents(progress: &mut [SubagentProgress], launched: &[SubagentProgress]) {
+    for p in progress {
+        let task = launched
+            .iter()
+            .find(|l| !l.name.is_empty() && l.name == p.id)
+            .or_else(|| launched.iter().find(|l| l.index == p.index));
+        let Some(task) = task else { continue };
+        if !task.name.is_empty() {
+            p.name.clone_from(&task.name);
+        }
+        if p.assignment.is_empty() {
+            p.assignment.clone_from(&task.assignment);
+        }
+        if p.agent.is_empty() {
+            p.agent.clone_from(&task.agent);
+        }
+    }
+}
+
 impl ToolCall {
     /// Reads a `tool_call` / `tool_call_update` (or a permission request's
     /// `toolCall`). `None` when it has no `toolCallId`.
@@ -574,6 +769,8 @@ impl ToolCall {
                 .unwrap_or_default(),
             raw_output: v.get("rawOutput").and_then(raw_output_text),
             stream: Stream::from_meta(v.get("_meta")),
+            progress: v.get("rawOutput").map(subagent_progress).unwrap_or_default(),
+            launched: v.get("rawInput").map(subagents_launched).unwrap_or_default(),
         })
     }
 

@@ -24,7 +24,7 @@ const act = (action: BulkAction, row: BoardRow, text: string) =>
   action === "stop"
     ? Herdr.sendKeys(row.machine, row.paneId, ["esc"])
     : action === "message"
-      ? Herdr.sendInput(row.machine, row.paneId, text, ["enter"])
+      ? Herdr.prompt(row.machine, row.paneId, text)
       : Herdr.closePane(row.machine, row.paneId);
 
 function Names(props: { rows: readonly BoardRow[] }) {

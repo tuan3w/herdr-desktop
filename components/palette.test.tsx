@@ -3,7 +3,7 @@ import { expect, test } from "nsh/test";
 
 import type { App } from "nsh/test";
 
-import { DONE, ENTRY, FIRST, front, ready, SECOND, settle, WEB } from "../app-seam";
+import { DONE, ENTRY, FIRST, front, quiet, ready, SECOND, seeded, settle, WEB } from "../app-seam";
 
 ENTRY.path = "../App.tsx";
 
@@ -148,4 +148,34 @@ test("a natural phrase opens the first step of a two-step command filtered to wh
   await settle(app);
   expect(app.shows(FIELD)).toBe(true);
   expect(app.shows("New agent session in")).toBe(false);
+});
+
+/** Opens the actions of the agent the search finds, in the `projects` fixture: `Fix rounding in refunds` works in a linked worktree, `Refactor ledger` in the main checkout. */
+async function actionsOf(name: string): Promise<App> {
+  const app = await seeded("projects");
+  await app.waitFor("label:Board, 2 need you");
+  await quiet(app);
+  await openPalette(app);
+  await type(app, name);
+  await app.keyboard.press("mod+p");
+  await settle(app);
+  return app;
+}
+
+test("Remove worktree is offered only for an agent in a linked worktree, and asks first, never forcing", async () => {
+  const main = await actionsOf("Refactor ledger");
+  expect(main.enabled(row("Remove worktree…"))).toBe(false);
+
+  const declined = await actionsOf("Fix rounding");
+  expect(declined.enabled(row("Remove worktree…"))).toBe(true);
+  declined.onDialog(() => "Cancel");
+  await declined.press(row("Remove worktree…"));
+  await settle(declined);
+  expect(Herdr.testRequests("worktree.remove")).toEqual([]);
+
+  const app = await actionsOf("Fix rounding");
+  app.onDialog(() => "Remove worktree");
+  await app.press(row("Remove worktree…"));
+  await app.waitUntil(() => Herdr.testRequests("worktree.remove").length === 1);
+  expect(Herdr.testRequests("worktree.remove")[0].params).toEqual({ workspace_id: "w2" });
 });

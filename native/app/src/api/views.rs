@@ -626,6 +626,12 @@ pub struct PaneMeta {
     pub workspace_label: String,
     /// The tab's name.
     pub tab_label: String,
+    /// The name the person gave the pane; empty when none.
+    pub pane_label: String,
+    /// The tab's name was given by the person (it is not herdr's default, its number).
+    pub tab_named: bool,
+    /// The workspace's name was given by the person (it is not the folder or repository herdr names it by).
+    pub workspace_named: bool,
     /// The machine's name.
     pub machine_name: String,
     /// Whether what the pane shows can be trusted; `gone` means herdr no longer has the pane.
@@ -646,6 +652,9 @@ impl From<PaneSummary> for PaneMeta {
             tab_id: s.tab_id,
             workspace_label: s.workspace_label,
             tab_label: s.tab_label,
+            pane_label: s.pane_label,
+            tab_named: s.tab_named,
+            workspace_named: s.workspace_named,
             machine_name: s.machine_name,
             feed_state: s.feed.into(),
             prompt: s.prompt.as_ref().map(PromptView::from),

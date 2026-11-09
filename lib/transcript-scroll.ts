@@ -1,4 +1,5 @@
 import type { Row } from "#lib/session-rows";
+import { linesShown, subagentLinesPt, subagentsOf } from "#lib/session-subagents";
 
 /**
  * How far from the end the list still pulls the view down as rows grow (`autoscrollToBottomThreshold`). Small on purpose:
@@ -82,7 +83,8 @@ export function rowPt(row: Row): number {
     case "effects":
       return 8 + 28 * (row.effects.failures.length + row.effects.external.length + (row.effects.edited ? 1 : 0));
     case "subagent":
-      return 48;
+      // The card's header, and while one works (or the card is open) a line of `SUBAGENT_LINE_PT` for each subagent.
+      return 48 + subagentLinesPt(row.item.tool ? linesShown(subagentsOf(row.item.tool), row.open) : 0);
     case "thought":
       return 36;
     default:

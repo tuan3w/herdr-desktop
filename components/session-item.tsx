@@ -6,8 +6,9 @@ import type { EffectKindName } from "herdr-desktop/native";
 import { type Folds, MarkdownText } from "#components/markdown";
 import { MessageFiles } from "#components/message-files";
 import { DiffStat, Disclosure, PartChips, ToolDetails, ToolRow, ToolStatus } from "#components/session-tool";
+import { SubagentLines } from "#components/subagent-lines";
 import { TurnPictures } from "#components/turn-pictures";
-import { ActionMenu, type CopyEntry, copyMenu, copyText, FOCUS_RING, Icon, type IconName, IconButton } from "#kit";
+import { ActionMenu, type CopyEntry, copyMenu, copyText, FOCUS_RING, Icon, type IconName, IconButton, NUM } from "#kit";
 import { openChanges } from "#lib/changes";
 import { CHAT_COLUMN } from "#lib/layout";
 import type { LinkPanel } from "#lib/link-panel";
@@ -19,6 +20,7 @@ import { plainText } from "#lib/plain-text";
 import type { SessionModel } from "#lib/session";
 import { withoutPlaceholders } from "#lib/session-pictures";
 import { type Call, type External, type Failure, itemKey, moreKey, type Row } from "#lib/session-rows";
+import { linesShown, subagentsOf, subagentSummary } from "#lib/session-subagents";
 import { durationText, itemLabel, toolLine, toolStatusText, visibleText, workLine } from "#lib/session-text";
 
 /** The widest a line of the conversation is: past this, text is hard to follow and the window is better left calm. */
@@ -339,17 +341,23 @@ function CallsBox(props: { row: Extract<Row, { kind: "calls" }>; ctx: RowContext
   );
 }
 
-/** A call that started another agent: a bordered line with its state, outside the fold, open to what it handed back. */
+/**
+ * A call that started another agent: a bordered line with its state, outside the fold, open to what it handed back. An
+ * omp `task` call also says how its subagents do: one quiet line each under the header (`SubagentLines`), always in view
+ * while one works; when all are done the lines fold behind the chevron and the header says `3 subagents, 2m 10s`.
+ */
 function SubagentRow(props: { row: Extract<Row, { kind: "subagent" }>; ctx: RowContext }) {
   tally("row.mount");
   const tool = () => props.row.item.tool!;
   const line = () => toolLine(tool(), props.ctx.cwd);
+  const list = () => subagentsOf(tool());
+  const summary = () => subagentSummary(list());
   return (
     <Line class="py-1">
       <View class="rounded-lg border border-border">
         <Disclosure
           onPress={() => props.ctx.model.toggle(props.row)}
-          label={`Subagent: ${line().object}, ${toolStatusText(tool().status)}`}
+          label={`Subagent: ${line().object}, ${toolStatusText(tool().status)}${summary() ? `, ${summary()}` : ""}`}
           open={props.row.open}
           class="min-h-9 flex-row items-center gap-2 rounded-lg px-3"
         >
@@ -360,10 +368,18 @@ function SubagentRow(props: { row: Extract<Row, { kind: "subagent" }>; ctx: RowC
           >
             {line().object}
           </Text>
+          <If when={summary()}>
+            <Text class="shrink-0 text-xs text-muted-foreground" style={NUM}>
+              {summary()}
+            </Text>
+          </If>
           <DiffStat added={line().added} removed={line().removed} />
           <ToolStatus status={tool().status} />
           <Icon name={props.row.open ? "chevron-down" : "chevron-right"} size={14} tone="muted-foreground" />
         </Disclosure>
+        <If when={linesShown(list(), props.row.open) > 0}>
+          <SubagentLines list={list()} cwd={props.ctx.cwd} />
+        </If>
         <If when={props.row.open}>
           <View class="px-3 pb-2">
             <ToolDetails

@@ -194,6 +194,126 @@ fn naming_fallbacks_in_order() {
     );
 }
 
+/// The name of the one agent in a snapshot built from `agent` and `pane` fields over a bare pane in `/home/dev/api`,
+/// with the name its session log gives when `log` is set.
+fn named(agent: Value, pane: Value, log: Option<&PaneName>) -> String {
+    let mut a = json!({"pane_id": "w1:p1", "workspace_id": "w1", "tab_id": "t", "agent": "omp",
+        "agent_status": "idle", "cwd": "/home/dev/api"});
+    a.as_object_mut()
+        .unwrap()
+        .extend(agent.as_object().unwrap().clone());
+    let mut p =
+        json!({"pane_id": "w1:p1", "workspace_id": "w1", "tab_id": "t", "cwd": "/home/dev/api"});
+    p.as_object_mut()
+        .unwrap()
+        .extend(pane.as_object().unwrap().clone());
+    let snap = Snapshot::from_result(&json!({"snapshot": {"agents": [a], "panes": [p],
+        "workspaces": [{"workspace_id": "w1", "label": "api"}]}}))
+    .unwrap();
+    let mut names = LogNames::new();
+    if let Some(name) = log {
+        names.insert(("local".to_owned(), "w1:p1".to_owned()), name.clone());
+    }
+    let board = Board::from(
+        &[online("local", snap)],
+        BoardExtras {
+            sessions: &[],
+            names: &names,
+            pins: &BTreeSet::new(),
+        },
+        &Reviewed::default(),
+        &FirstSeen::new(),
+        Instant::now(),
+    );
+    first_row(&board).name.clone()
+}
+
+#[test]
+fn herdrs_hook_title_names_an_agent_after_its_label_and_before_the_terminal_title() {
+    let terminal = json!({"terminal_title": "π > api"});
+    // The hook title on the agent or on the pane beats the terminal title.
+    assert_eq!(
+        named(
+            json!({"title": "Fix login", "terminal_title": "π > api"}),
+            json!({}),
+            None
+        ),
+        "Fix login"
+    );
+    assert_eq!(
+        named(terminal.clone(), json!({"title": "  Fix login  "}), None),
+        "Fix login"
+    );
+    // The label the person gave the pane wins over it, and the name given at start too.
+    assert_eq!(
+        named(
+            json!({"title": "Fix login"}),
+            json!({"label": "mine"}),
+            None
+        ),
+        "mine"
+    );
+    assert_eq!(
+        named(
+            json!({"title": "Fix login", "name": "api-agent"}),
+            json!({}),
+            None
+        ),
+        "api-agent"
+    );
+    // An empty or blank hook title changes nothing: the terminal title, then the folder.
+    assert_eq!(
+        named(
+            json!({"title": "   ", "terminal_title": "Refactor ledger"}),
+            json!({}),
+            None
+        ),
+        "Refactor ledger"
+    );
+    assert_eq!(named(json!({"title": ""}), json!({}), None), "api");
+    // A hook title that only repeats the agent's kind says nothing: the terminal title is used.
+    assert_eq!(
+        named(
+            json!({"title": "omp", "terminal_title": "Refactor ledger"}),
+            json!({}),
+            None
+        ),
+        "Refactor ledger"
+    );
+}
+
+#[test]
+fn a_good_hook_title_is_kept_over_a_log_name_and_a_generic_one_is_not() {
+    let log = PaneName::title("From the log");
+    assert_eq!(
+        named(json!({"title": "Fix login"}), json!({}), Some(&log)),
+        "Fix login"
+    );
+    // A hook title that is only the folder is as generic as a terminal title that is.
+    assert_eq!(
+        named(json!({"title": "api"}), json!({}), Some(&log)),
+        "From the log"
+    );
+}
+
+#[test]
+fn a_name_given_when_the_agent_started_is_never_replaced_by_a_log_title() {
+    let log = PaneName::title("Refactor");
+    assert_eq!(
+        named(
+            json!({"name": "api", "terminal_title": "π > api"}),
+            json!({}),
+            Some(&log)
+        ),
+        "api"
+    );
+    // Without a given name the log still replaces a title that says nothing.
+    assert_eq!(
+        named(json!({"terminal_title": "π > api"}), json!({}), Some(&log)),
+        "Refactor"
+    );
+}
+
 #[test]
 fn an_unconnected_machine_lists_its_agents_dimmed_and_never_counts_them_as_needing_you() {
     let snap = Arc::new(snapshot_fixture("snapshot-mixed.json"));

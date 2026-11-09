@@ -56,3 +56,19 @@ test("cancelling submits nothing, and the next opening starts from its own initi
   await app.press("Rename workspace");
   expect(app.value(NAME)).toBe("payments");
 });
+
+test("a label that can be taken away can be cleared, says what empty means, and an unchanged one cannot be confirmed", async () => {
+  const app = await open("./machines-lab.tsx", DESKTOP);
+  await app.press("Rename pane label");
+  const optional = "label:/^Name$/";
+  expect(app.value(optional)).toBe("release check");
+  expect(app.texts()).toContain("Leave empty to show the program's own title");
+  expect(app.enabled("Rename")).toBe(false);
+
+  await app.clear(optional);
+  // empty is a choice here, not a missing name: no error, and the button submits it
+  expect(app.enabled("Rename")).toBe(true);
+  await app.press("Rename");
+  expect(app.texts()).toContain("name cleared");
+  await app.waitFor("Rename", { state: "gone" });
+});

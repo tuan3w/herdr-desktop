@@ -114,11 +114,27 @@ pub fn is_generic_pane_title(
     same(agent) || same(folder) || same(workspace)
 }
 
-/// What the pane is called in the snapshot: the name the person gave it, else the terminal title with agent
-/// chrome removed (`Pane.title`). Empty when it has neither.
+/// What the pane is called in the snapshot: the name the person gave it, else herdr's hook title (`title`), else the
+/// terminal title with agent chrome removed (`Pane.title`). Empty when it has none. The same order as the board's
+/// `name_of`, so a good hook title is kept and a generic one still loses to a name read from the log.
 pub fn pane_title(agent: &AgentInfo, pane: Option<&PaneInfo>) -> String {
     if let Some(label) = given_label(pane) {
         return label.to_owned();
+    }
+    let hook = agent
+        .title
+        .as_deref()
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .or_else(|| {
+            pane.and_then(|p| p.title.as_deref())
+                .map(str::trim)
+                .filter(|t| !t.is_empty())
+        })
+        .map(clean_terminal_title)
+        .filter(|t| !t.is_empty());
+    if let Some(hook) = hook {
+        return hook;
     }
     agent
         .terminal_title_stripped
@@ -146,7 +162,7 @@ fn given_label(pane: Option<&PaneInfo>) -> Option<&str> {
 /// read job, which judges a log's title when it lands.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TitleCheck {
-    /// The person named the pane: that name is never generic.
+    /// The person named the pane, or the agent when starting it: that name is never generic.
     named: bool,
     agent: Option<String>,
     folder: String,
@@ -160,8 +176,11 @@ impl TitleCheck {
             .cwd
             .as_deref()
             .or_else(|| pane.and_then(|p| p.cwd.as_deref()));
+        // A name given at `agent.start` (`agent.name`) is the person's too: a log title never replaces it.
+        let named = given_label(pane).is_some()
+            || agent.name.as_deref().is_some_and(|n| !n.trim().is_empty());
         Self {
-            named: given_label(pane).is_some(),
+            named,
             agent: agent.agent.clone(),
             folder: folder_name(cwd),
             workspace: workspace_label.map(str::to_owned),

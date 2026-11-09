@@ -261,6 +261,9 @@ impl PaneIo for Pane {
         }
         Ok(())
     }
+    fn prompt(&self, text: &str) -> Result<(), String> {
+        self.send_input(text, &["enter".to_owned()])
+    }
     fn send_keys(&self, keys: &[String]) -> Result<(), String> {
         self.keys.lock().push(keys.to_vec());
         Ok(())

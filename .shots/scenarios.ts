@@ -165,14 +165,14 @@ export const SCENARIOS: Record<string, Scenario> = {
   palette: {
     fixture: "mixed",
     steps: async (app) => {
-      await app.keyboard.press("ctrl+k");
+      await app.keyboard.press("ctrl+p");
       await app.wait(500);
     },
   },
   "palette-query": {
     fixture: "mixed",
     steps: async (app) => {
-      await app.keyboard.press("ctrl+k");
+      await app.keyboard.press("ctrl+p");
       await app.wait(300);
       await app.type(PALETTE_FIELD, "pay");
       await app.wait(400);
@@ -181,7 +181,7 @@ export const SCENARIOS: Record<string, Scenario> = {
   "palette-agents": {
     fixture: "mixed",
     steps: async (app) => {
-      await app.keyboard.press("ctrl+k");
+      await app.keyboard.press("ctrl+p");
       await app.wait(300);
       await app.type(PALETTE_FIELD, "@");
       await app.wait(400);
@@ -190,18 +190,18 @@ export const SCENARIOS: Record<string, Scenario> = {
   "palette-actions": {
     fixture: "mixed",
     steps: async (app) => {
-      await app.keyboard.press("ctrl+k");
+      await app.keyboard.press("ctrl+p");
       await app.wait(300);
       await app.type(PALETTE_FIELD, "auth");
       await app.wait(300);
-      await app.keyboard.press("ctrl+k");
+      await app.keyboard.press("ctrl+p");
       await app.wait(400);
     },
   },
   "palette-two-step": {
     fixture: "mixed",
     steps: async (app) => {
-      await app.keyboard.press("ctrl+k");
+      await app.keyboard.press("ctrl+p");
       await app.wait(300);
       await app.type(PALETTE_FIELD, "new session pay");
       await app.wait(500);
@@ -210,14 +210,14 @@ export const SCENARIOS: Record<string, Scenario> = {
   "palette-empty": {
     fixture: "empty",
     steps: async (app) => {
-      await app.keyboard.press("ctrl+k");
+      await app.keyboard.press("ctrl+p");
       await app.wait(500);
     },
   },
   "palette-noresult": {
     fixture: "mixed",
     steps: async (app) => {
-      await app.keyboard.press("ctrl+k");
+      await app.keyboard.press("ctrl+p");
       await app.wait(300);
       await app.type(PALETTE_FIELD, "zzzqq");
       await app.wait(500);
@@ -267,7 +267,7 @@ export const SCENARIOS: Record<string, Scenario> = {
   machines: {
     fixture: "mixed",
     steps: async (app) => {
-      await app.keyboard.press("ctrl+k");
+      await app.keyboard.press("ctrl+p");
       await app.wait(300);
       await app.type("label:Search agents, projects and commands", "Machines");
       await app.keyboard.press("enter");
@@ -311,7 +311,7 @@ export const SCENARIOS: Record<string, Scenario> = {
   "machines-attention": {
     fixture: "mixed",
     steps: async (app) => {
-      await app.keyboard.press("ctrl+k");
+      await app.keyboard.press("ctrl+p");
       await app.wait(300);
       await app.type("label:Search agents, projects and commands", "Machines");
       await app.keyboard.press("enter");
@@ -600,6 +600,43 @@ export const SCENARIOS: Record<string, Scenario> = {
         "for i in 1 2 3; do curl -sS -o /dev/null -w '%{http_code} %{url_effective}\\n' -L https://github.com/acme/payments-api/releases/download/v0.1.0/SHA256SUMS; done",
     },
     steps: (app) => app.wait(4500),
+  },
+  // omp's `task` call with three subagents, two working and one done: a line each under the card's header, in view.
+  "chat-subagents": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "subagents", quiet: true },
+    steps: (app) => app.wait(3000),
+  },
+  // The same once all three are done: the lines fold behind the chevron and the header says `3 subagents, 2m 10s`.
+  "chat-subagents-done": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "subagents-done", quiet: true },
+    steps: (app) => app.wait(3000),
+  },
+  // A chat read from a terminal agent while it works: no queue, the box says where a message goes.
+  "chat-terminal-working": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "terminal", quiet: true },
+    steps: (app) => app.wait(3000),
+  },
+  // The details of an agent seen in a herdr pane: they name its workspace and tab (the popover's scroll gutter is here too).
+  "session-overview-pane": {
+    fixture: "mixed",
+    entry: "../components/chat-parts-lab.tsx",
+    params: { part: "pane-chat" },
+    steps: (app) => app.wait(1500),
+  },
+  // A name that can be taken away: the pane's label, empty is allowed and the helper says what it means.
+  "rename-pane": {
+    fixture: "mixed",
+    entry: "../components/machines-lab.tsx",
+    steps: async (app) => {
+      await app.press("Rename pane label");
+      await app.wait(600);
+    },
   },
   // The person's message with a picture and a file attached, and tool rows naming relative paths (`attached` scene).
   "chat-attached": {

@@ -215,6 +215,8 @@ function App() {
           title={naming()?.title ?? ""}
           initial={naming()?.initial}
           confirm={naming()?.confirm ?? ""}
+          allowEmpty={naming()?.allowEmpty}
+          helper={naming()?.helper}
           onClose={() => naming.set(null)}
           onSubmit={(name) => naming()?.onSubmit(name)}
         />

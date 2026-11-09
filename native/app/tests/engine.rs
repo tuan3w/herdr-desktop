@@ -421,9 +421,18 @@ fn a_pane_header_knows_its_names_its_state_and_its_question() {
             "payments review",
             "claude",
             "payments",
-            "main",
+            "1",
             "This computer"
         )
+    );
+    // The fixture's tab carries herdr's default label (its number); its workspace and pane were named by a person.
+    assert_eq!(
+        (
+            meta.pane_label.as_str(),
+            meta.tab_named,
+            meta.workspace_named
+        ),
+        ("payments review", false, true)
     );
     assert_eq!(
         (meta.workspace_id.as_str(), meta.tab_id.as_str()),
@@ -691,4 +700,534 @@ fn a_herdr_without_worktrees_and_an_unknown_machine_are_errors_not_panics() {
         .expect_err("unsupported");
     assert_eq!(error.problem, herdr_core::worktree::Problem::Unsupported);
     assert!(rig.engine.worktrees("nowhere", "/x").is_err());
+}
+
+// ---- names, words for errors, messages, folders, agents, hooks ------------------------------------
+
+/// A fixture over a snapshot of `workspaces`, `tabs` and `panes` (JSON lists) with these `answers`.
+fn world(workspaces: Value, tabs: Value, panes: Value, answers: Value) -> Rig {
+    common::start_with(json!({
+        "snapshot": {"version": "0.9.5", "protocol": 22, "workspaces": workspaces, "tabs": tabs,
+                     "panes": panes, "layouts": [], "agents": []},
+        "answers": answers,
+    }))
+}
+
+fn pane(id: &str, workspace: &str, tab: &str, cwd: &str) -> Value {
+    json!({"pane_id": id, "workspace_id": workspace, "tab_id": tab, "terminal_id": "t", "cwd": cwd,
+           "agent_status": "unknown", "revision": 1})
+}
+
+/// What `workspace.create` or `tab.create` answers for a pane that opened in `cwd`.
+fn made_in(cwd: &str) -> Value {
+    json!({"type": "workspace_created",
+           "workspace": {"workspace_id": "w7", "number": 7, "label": "x", "agent_status": "unknown"},
+           "tab": {"tab_id": "w7:t1", "workspace_id": "w7", "number": 1, "label": "1", "agent_status": "unknown"},
+           "root_pane": {"pane_id": "w7:p1", "workspace_id": "w7", "tab_id": "w7:t1", "terminal_id": "t",
+                         "cwd": cwd, "agent_status": "unknown", "revision": 1}})
+}
+
+fn error(code: &str, message: &str) -> Value {
+    json!({"error": {"code": code, "message": message}})
+}
+
+#[test]
+fn a_pane_says_which_names_the_person_gave_and_which_are_herdrs_defaults() {
+    let rig = world(
+        json!([
+            {"workspace_id": "w1", "number": 1, "label": "web"},
+            {"workspace_id": "w2", "number": 2, "label": "payments"},
+            {"workspace_id": "w3", "number": 3, "label": "payments-api",
+             "worktree": {"repo_key": "git:p", "repo_name": "payments-api", "repo_root": "/src/payments-api",
+                          "checkout_path": "/src/payments-api", "is_linked_worktree": false}},
+            {"workspace_id": "w4", "number": 4, "label": "hotfix",
+             "worktree": {"repo_key": "git:p", "repo_name": "payments-api", "repo_root": "/src/payments-api",
+                          "checkout_path": "/src/hotfix", "is_linked_worktree": true}}
+        ]),
+        json!([
+            {"tab_id": "w1:t1", "workspace_id": "w1", "number": 1, "label": "1"},
+            {"tab_id": "w1:t3", "workspace_id": "w1", "number": 3, "label": "3"},
+            {"tab_id": "w2:t1", "workspace_id": "w2", "number": 1, "label": "deploys"},
+            {"tab_id": "w3:t1", "workspace_id": "w3", "number": 1, "label": " "},
+            {"tab_id": "w4:t1", "workspace_id": "w4", "number": 1, "label": "1"}
+        ]),
+        json!([
+            pane("w1:p1", "w1", "w1:t1", "/home/dev/web"),
+            pane("w1:p3", "w1", "w1:t3", "/home/dev/web"),
+            {"pane_id": "w2:p1", "workspace_id": "w2", "tab_id": "w2:t1", "terminal_id": "t",
+             "cwd": "/src/api", "label": "  review ", "agent_status": "unknown", "revision": 1},
+            pane("w3:p1", "w3", "w3:t1", "/elsewhere"),
+            pane("w4:p1", "w4", "w4:t1", "/elsewhere")
+        ]),
+        json!({}),
+    );
+    let meta = |pane: &str| rig.engine.pane_summary("local", pane).expect("listed");
+    let named = |pane: &str| {
+        let m = meta(pane);
+        (m.pane_label, m.tab_named, m.workspace_named)
+    };
+    // herdr's defaults: a tab labelled with its number, a workspace labelled with its folder.
+    assert_eq!(named("w1:p1"), (String::new(), false, false));
+    assert_eq!(
+        named("w1:p3"),
+        (String::new(), false, false),
+        "tab 3 is `3`"
+    );
+    // Given by the person: another tab label, another workspace label, a pane label (trimmed).
+    assert_eq!(named("w2:p1"), ("review".to_owned(), true, true));
+    // A workspace named after its repository is not a given name; a blank tab label is not one either.
+    assert_eq!(named("w3:p1"), (String::new(), false, false));
+    assert_eq!(
+        meta("w3:p1").tab_label,
+        " ",
+        "the label itself is as herdr said"
+    );
+    // The checkout's folder is another name herdr uses; `hotfix` is the checkout folder here.
+    assert_eq!(named("w4:p1"), (String::new(), false, false));
+    // A pane herdr does not have names nothing.
+    assert_eq!(named("w9:p9"), (String::new(), false, false));
+}
+
+#[test]
+fn a_workspace_made_with_a_name_names_its_first_tab_and_the_tab_shows_as_named() {
+    let rig = start("empty");
+    let made = rig
+        .engine
+        .create_workspace("local", Some("api"), Some("/home/dev/api"))
+        .expect("made");
+    assert_eq!(made.tab_id, "w9:t1");
+    assert_eq!(
+        rig.sent("workspace.create"),
+        [json!({"focus": false, "label": "api", "cwd": "/home/dev/api"})]
+    );
+    assert_eq!(
+        rig.sent("tab.rename"),
+        [json!({"tab_id": "w9:t1", "label": "api"})]
+    );
+    let order: Vec<_> = rig
+        .fixture()
+        .requests(None)
+        .into_iter()
+        .map(|r| r.method)
+        .filter(|m| m == "workspace.create" || m == "tab.rename")
+        .collect();
+    assert_eq!(order, ["workspace.create", "tab.rename"]);
+    // herdr's snapshot after the rename: the tab carries the name.
+    rig.fixture()
+        .set_snapshot(json!({"version": "0.9.5", "protocol": 22,
+        "workspaces": [{"workspace_id": "w9", "number": 9, "label": "api"}],
+        "tabs": [{"tab_id": "w9:t1", "workspace_id": "w9", "number": 1, "label": "api"}],
+        "panes": [pane("w9:p1", "w9", "w9:t1", "/home/dev/api")], "layouts": [], "agents": []}));
+    wait_for("the snapshot with the named tab", || {
+        rig.engine
+            .pane_summary("local", "w9:p1")
+            .is_some_and(|m| m.tab_named)
+    });
+    // No name, no tab rename.
+    rig.engine
+        .create_workspace("local", None, None)
+        .expect("made");
+    assert_eq!(rig.sent("tab.rename").len(), 1);
+}
+
+#[test]
+fn a_tab_rename_that_fails_does_not_undo_the_workspace() {
+    let rig = world(
+        json!([]),
+        json!([]),
+        json!([]),
+        json!({"tab.rename": error("tab_not_found", "no tab")}),
+    );
+    let made = rig
+        .engine
+        .create_workspace("local", Some("api"), None)
+        .expect("the workspace exists, so the call succeeds");
+    assert_eq!(made.workspace_id, "w9");
+    assert!(rig.sent("workspace.close").is_empty());
+}
+
+#[test]
+fn closing_something_herdr_no_longer_has_is_closing_it_and_other_errors_have_words() {
+    let rig = world(
+        json!([]),
+        json!([]),
+        json!([]),
+        json!({
+            "pane.close": error("pane_not_found", "no pane w1:p1"),
+            "tab.close": error("tab_not_found", "no tab"),
+            "workspace.close": error("workspace_not_found", "no workspace"),
+            "pane.rename": error("pane_not_found", "no pane w1:p1"),
+            "workspace.rename": error("workspace_not_found", "no workspace"),
+            "tab.rename": error("tab_not_found", "no tab"),
+            "pane.zoom": error("invalid_request", "unknown variant `pane.zoom`, expected one of `ping`"),
+            "pane.send_keys": error("permission_denied", "the pane is read only"),
+        }),
+    );
+    let e = &rig.engine;
+    assert_eq!(e.close_pane("local", "w1:p1"), Ok(()));
+    assert_eq!(e.close_tab("local", "w1:t1"), Ok(()));
+    assert_eq!(e.close_workspace("local", "w1"), Ok(()));
+    assert_eq!(rig.sent("pane.close").len(), 1, "the close was asked for");
+    // Anything but a close is told what is gone.
+    assert_eq!(
+        e.rename_pane("local", "w1:p1", "x"),
+        Err("That pane is gone.".into())
+    );
+    assert_eq!(
+        e.rename_workspace("local", "w1", "x"),
+        Err("That workspace is gone.".into())
+    );
+    assert_eq!(
+        e.rename_tab("local", "w1:t1", "x"),
+        Err("That tab is gone.".into())
+    );
+    assert_eq!(
+        e.zoom_pane("local", "w1:p1", true),
+        Err("This herdr is too old for that. Update herdr on that machine.".into())
+    );
+    // Other errors are herdr's own words; an unknown machine too.
+    assert_eq!(
+        e.send_keys("local", "w1:p1", &["esc".to_owned()]),
+        Err("the pane is read only".into())
+    );
+    assert_eq!(
+        e.close_pane("nowhere", "w1:p1"),
+        Err("There is no machine nowhere".into())
+    );
+}
+
+#[test]
+fn a_close_that_herdr_refuses_for_another_reason_is_an_error() {
+    let rig = world(
+        json!([]),
+        json!([]),
+        json!([]),
+        json!({"pane.close": error("permission_denied", "not yours")}),
+    );
+    assert_eq!(
+        rig.engine.close_pane("local", "w1:p1"),
+        Err("not yours".into())
+    );
+}
+
+#[test]
+fn a_message_goes_through_agent_prompt_and_a_refusal_types_nothing() {
+    let rig = world(
+        json!([]),
+        json!([]),
+        json!([]),
+        json!({
+            "agent.prompt": {"type": "agent_prompted"},
+        }),
+    );
+    rig.engine
+        .prompt("local", "w1:p1", "run the tests")
+        .expect("sent");
+    assert_eq!(
+        rig.sent("agent.prompt"),
+        [json!({"target": "w1:p1", "text": "run the tests"})]
+    );
+    assert!(rig.sent("pane.send_input").is_empty());
+
+    let refusals = [
+        (
+            "agent_blocked",
+            "The agent is waiting for an answer, so the message wasn't sent. Answer it first.",
+        ),
+        (
+            "agent_not_ready",
+            "The agent isn't at its prompt, so the message wasn't sent.",
+        ),
+        (
+            "agent_not_found",
+            "No agent runs in that pane any more, so the message wasn't sent.",
+        ),
+    ];
+    for (code, words) in refusals {
+        let rig = world(
+            json!([]),
+            json!([]),
+            json!([]),
+            json!({"agent.prompt": error(code, "herdr's own sentence")}),
+        );
+        assert_eq!(
+            rig.engine.prompt("local", "w1:p1", "go"),
+            Err(words.to_owned())
+        );
+        assert!(
+            rig.sent("pane.send_input").is_empty() && rig.sent("pane.send_keys").is_empty(),
+            "{code}: nothing is typed after a refusal"
+        );
+    }
+}
+
+#[test]
+fn a_herdr_that_predates_agent_prompt_gets_the_text_and_enter() {
+    for refusal in [
+        error(
+            "invalid_request",
+            "unknown variant `agent.prompt`, expected one of `ping`",
+        ),
+        error("unknown_method", "no such method"),
+    ] {
+        let rig = world(
+            json!([]),
+            json!([]),
+            json!([]),
+            json!({"agent.prompt": refusal}),
+        );
+        rig.engine
+            .prompt("local", "w1:p1", "hello")
+            .expect("sent the old way");
+        assert_eq!(
+            rig.sent("pane.send_input"),
+            [json!({"pane_id": "w1:p1", "text": "hello", "keys": ["enter"]})]
+        );
+    }
+}
+
+#[test]
+fn a_folder_herdr_could_not_use_is_an_error_and_what_was_made_is_closed() {
+    let rig = world(
+        json!([]),
+        json!([]),
+        json!([]),
+        json!({"workspace.create": made_in("/home/dev"), "tab.create": {
+            "type": "tab_created",
+            "tab": {"tab_id": "w1:t7", "workspace_id": "w1", "number": 7, "label": "x", "agent_status": "unknown"},
+            "root_pane": {"pane_id": "w1:p7", "workspace_id": "w1", "tab_id": "w1:t7", "terminal_id": "t",
+                          "cwd": "/home/dev", "agent_status": "unknown", "revision": 1}}}),
+    );
+    let said = "/src/missing doesn't exist on that machine, so herdr would have opened /home/dev. Nothing was started.";
+    assert_eq!(
+        rig.engine
+            .create_workspace("local", Some("api"), Some("/src/missing"))
+            .map(drop),
+        Err(said.to_owned())
+    );
+    assert_eq!(rig.sent("workspace.close"), [json!({"workspace_id": "w7"})]);
+    assert!(
+        rig.sent("tab.rename").is_empty(),
+        "a closed workspace is not named"
+    );
+    assert_eq!(
+        rig.engine
+            .create_tab("local", "w1", None, Some("/src/missing"))
+            .map(drop),
+        Err(said.to_owned())
+    );
+    assert_eq!(rig.sent("tab.close"), [json!({"tab_id": "w1:t7"})]);
+
+    let start = StartAgent {
+        cwd: "/src/missing".to_owned(),
+        agent: "claude".to_owned(),
+        ..StartAgent::default()
+    };
+    assert_eq!(
+        rig.engine.start_agent("local", &start).map(drop),
+        Err(said.to_owned())
+    );
+    assert!(
+        rig.sent("agent.start").is_empty(),
+        "no agent starts in the wrong folder"
+    );
+
+    // The folder herdr opened is the one asked for, give or take a trailing slash; none asked for is any.
+    assert!(
+        rig.engine
+            .create_workspace("local", None, Some("/home/dev"))
+            .is_ok()
+    );
+    assert!(
+        rig.engine
+            .create_workspace("local", None, Some("/home/dev/"))
+            .is_ok()
+    );
+    assert!(rig.engine.create_workspace("local", None, None).is_ok());
+    assert_eq!(
+        rig.sent("workspace.close").len(),
+        2,
+        "only the two that failed were closed"
+    );
+}
+
+#[test]
+fn a_root_folder_is_compared_as_it_is() {
+    let rig = world(
+        json!([]),
+        json!([]),
+        json!([]),
+        json!({"workspace.create": made_in("/")}),
+    );
+    assert!(
+        rig.engine
+            .create_workspace("local", None, Some("/"))
+            .is_ok()
+    );
+    assert!(
+        rig.engine
+            .create_workspace("local", None, Some("//"))
+            .is_ok()
+    );
+    assert!(
+        rig.engine
+            .create_workspace("local", None, Some("/home"))
+            .is_err()
+    );
+}
+
+#[test]
+fn the_agents_a_machine_can_start_come_from_its_manifests_and_an_old_herdr_says_nothing() {
+    let rig = world(
+        json!([]),
+        json!([]),
+        json!([]),
+        json!({"server.agent_manifests": {"type": "agent_manifest_status", "manifests": [
+            {"agent": "claude", "source": "builtin", "source_kind": "builtin", "local_override_shadowing_remote": false},
+            {"agent": "omp", "source": "builtin", "source_kind": "builtin", "local_override_shadowing_remote": false}]}}),
+    );
+    assert_eq!(
+        rig.engine.agent_manifests("local"),
+        Ok(vec!["claude".to_owned(), "omp".to_owned()])
+    );
+    for refusal in [
+        None,
+        Some(error(
+            "invalid_request",
+            "unknown variant `server.agent_manifests`",
+        )),
+    ] {
+        let answers = match refusal {
+            Some(e) => json!({"server.agent_manifests": e}),
+            None => json!({}),
+        };
+        let rig = world(json!([]), json!([]), json!([]), answers);
+        assert_eq!(rig.engine.agent_manifests("local"), Ok(vec![]));
+    }
+    assert!(rig.engine.agent_manifests("nowhere").is_err());
+}
+
+#[test]
+fn a_hook_is_installed_for_the_three_agents_and_nothing_else() {
+    let rig = start("empty");
+    assert_eq!(
+        rig.engine.install_integration("local", "claude"),
+        Ok(vec!["Installed the claude hook.".to_owned()])
+    );
+    assert_eq!(
+        rig.sent("integration.install"),
+        [json!({"target": "claude"})]
+    );
+    assert!(rig.engine.install_integration("local", "omp").is_ok());
+    assert!(rig.engine.install_integration("local", "codex").is_ok());
+    for bad in ["", "pi", "claude; rm -rf ~", "Claude"] {
+        assert_eq!(
+            rig.engine.install_integration("local", bad),
+            Err("Unknown agent".to_owned()),
+            "{bad:?}"
+        );
+    }
+    assert_eq!(
+        rig.sent("integration.install").len(),
+        3,
+        "the unknown ones were never sent"
+    );
+
+    let refused = world(
+        json!([]),
+        json!([]),
+        json!([]),
+        json!({"integration.install": error("integration_failed", "cannot write ~/.claude/settings.json")}),
+    );
+    assert_eq!(
+        refused.engine.install_integration("local", "claude"),
+        Err("cannot write ~/.claude/settings.json".to_owned())
+    );
+    let none = world(
+        json!([]),
+        json!([]),
+        json!([]),
+        json!({"integration.install": {"type": "integration_install", "target": "omp", "details": {"messages": []}}}),
+    );
+    assert_eq!(none.engine.install_integration("local", "omp"), Ok(vec![]));
+}
+
+#[test]
+fn a_worktree_is_removed_by_workspace_id_alone_and_a_refusal_has_words() {
+    use herdr_core::worktree::Problem;
+    let rig = start("worktrees-missing");
+    rig.engine.remove_worktree("local", "w21").expect("removed");
+    assert_eq!(
+        rig.sent("worktree.remove"),
+        [json!({"workspace_id": "w21"})]
+    );
+
+    let dirty = world(
+        json!([]),
+        json!([]),
+        json!([]),
+        json!({"worktree.remove": error("worktree_dirty", "the worktree has uncommitted changes")}),
+    );
+    assert_eq!(
+        dirty.engine.remove_worktree("local", "w21"),
+        Err("the worktree has uncommitted changes".to_owned())
+    );
+    assert!(
+        dirty
+            .fixture()
+            .requests(None)
+            .iter()
+            .all(|r| r.params.get("force").is_none() && r.params.get("trust_repository").is_none())
+    );
+
+    // A herdr that lacks the method.
+    let old = start("empty");
+    assert_eq!(
+        old.engine.remove_worktree("local", "w21"),
+        Err("This herdr can't remove worktrees. Update herdr on that machine.".to_owned())
+    );
+    assert!(old.engine.remove_worktree("nowhere", "w21").is_err());
+    let _ = Problem::Unsupported;
+}
+
+#[test]
+fn a_chat_name_is_kept_trimmed_cut_and_taken_back_by_an_empty_one() {
+    let rig = start("empty");
+    let e = &rig.engine;
+    assert_eq!(e.chat_name("local", "s1"), None);
+    e.rename_chat("local", "s1", "  Billing  ").expect("saved");
+    e.rename_chat("local", "s2", &"x".repeat(300))
+        .expect("saved");
+    assert_eq!(e.chat_name("local", "s1").as_deref(), Some("Billing"));
+    assert_eq!(
+        e.chat_name("local", "s2").map(|n| n.chars().count()),
+        Some(200)
+    );
+    assert_eq!(
+        e.setting("chats.names")
+            .and_then(|v| v.get("local/s1").cloned()),
+        Some(json!("Billing"))
+    );
+    let ticks = rig.ticks.load(std::sync::atomic::Ordering::Relaxed);
+    e.rename_chat("local", "s1", "   ").expect("saved");
+    assert_eq!(
+        e.chat_name("local", "s1"),
+        None,
+        "empty takes the name back"
+    );
+    wait_for("the UI to be told", || {
+        rig.ticks.load(std::sync::atomic::Ordering::Relaxed) > ticks
+    });
+    e.rename_chat("local", "s2", "").expect("saved");
+    assert_eq!(e.setting("chats.names"), None, "no names, no setting");
+
+    // It survives a restart.
+    e.rename_chat("local", "s3", "Keep").expect("saved");
+    let Rig { engine, dir, .. } = rig;
+    drop(engine);
+    let again = start_in("empty", dir);
+    assert_eq!(
+        again.engine.chat_name("local", "s3").as_deref(),
+        Some("Keep")
+    );
 }

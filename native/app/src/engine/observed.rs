@@ -112,6 +112,10 @@ impl PaneIo for FleetPane {
             .send_input(&self.machine, &self.pane, text, keys)
     }
 
+    fn prompt(&self, text: &str) -> Result<(), String> {
+        self.fleet()?.prompt(&self.machine, &self.pane, text)
+    }
+
     fn send_keys(&self, keys: &[String]) -> Result<(), String> {
         self.fleet()?.send_keys(&self.machine, &self.pane, keys)
     }

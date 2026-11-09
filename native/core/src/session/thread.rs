@@ -23,6 +23,7 @@ use super::host::{Attach, KeeperHost};
 use super::lines::AttachLines;
 use super::outgoing::{self, Caps, Outgoing, Pasted};
 use super::types::{FieldAnswer, SessionPhase, SessionSnapshot};
+use super::vendored::queue::Queued;
 use crate::cache::{Cache, Key, Kind};
 
 /// How long a caller waits for the session thread to take an action.
@@ -63,6 +64,8 @@ pub(super) struct Opening<'a> {
     pub on_change: Arc<dyn Fn() + Send + Sync>,
     /// Where the conversation's saved copy is read from and written to.
     pub cache: Arc<crate::cache::Cache>,
+    /// What the session this one replaces still had queued (see [`SessionHandle::take_queue`]): shown held.
+    pub carried: Vec<Queued>,
 }
 
 pub(super) type Listing =
@@ -127,6 +130,7 @@ impl SessionHandle {
             listing,
             on_change,
             cache,
+            carried,
         } = opening;
         let conn = host.attach(id)?;
         let started = Instant::now();
@@ -145,6 +149,7 @@ impl SessionHandle {
         };
         let seeded = copy.is_some();
         let (mut driver, first) = Driver::new(begin, agent, cwd, 0, copy);
+        driver.carry(carried);
         let (tx, rx) = unbounded();
         // A saved copy is on screen before the thread has run once.
         let initial = if seeded {
@@ -205,6 +210,17 @@ impl SessionHandle {
     /// Whether the thread still runs (it ends when the session ends or the connection is lost).
     pub fn is_open(&self) -> bool {
         self.inner.shared.alive.load(Ordering::Acquire)
+    }
+
+    /// How many messages wait in the queue (as of the last snapshot), held or not.
+    pub fn queued(&self) -> usize {
+        self.snapshot().queue.len()
+    }
+
+    /// Takes the queue out of the session, every message in it as it was held. For the hub, to carry what a session
+    /// whose connection ended still held into the one that replaces it; the thread of an ended session still answers.
+    pub(super) fn take_queue(&self) -> Result<Vec<Queued>, Refusal> {
+        self.call(|d, _| (d.take_queue(), Vec::new()))
     }
 
     /// Whether `other` is this very session (a clone of the same handle), not another one opened for the same keeper.

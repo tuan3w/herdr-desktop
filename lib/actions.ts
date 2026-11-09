@@ -1,4 +1,4 @@
-import { Herdr } from "herdr-desktop/native";
+import { Herdr, Sessions } from "herdr-desktop/native";
 import { announce, openUrl, signal } from "nsh";
 
 import type { BoardData, BoardRow, PaneMeta } from "herdr-desktop/native";
@@ -28,7 +28,7 @@ import {
   selectNth,
   showBoard,
 } from "#lib/dock";
-import { allRows, board, meta } from "#lib/herdr";
+import { allRows, board, meta, rowOf } from "#lib/herdr";
 import { back, forward, previousAgent, previousProject, stepProject, switcherKey } from "#lib/nav";
 import { canShowChat, openAgent, showChat, showTerminal, TERMINAL_OFF } from "#lib/open-agent";
 import { browseFiles } from "#lib/open-files";
@@ -94,6 +94,10 @@ export interface NameRequest {
   title: string;
   initial?: string;
   confirm: string;
+  /** The name can be taken away (a pane's label, a chat's name): empty is a valid answer. */
+  allowEmpty?: boolean;
+  /** What empty means, under the field. */
+  helper?: string;
   onSubmit: (name: string) => void;
 }
 export const naming = signal<NameRequest | null>(null);
@@ -136,9 +140,6 @@ export function goAttention(step: 1 | -1): void {
 
 // ---- where a pane lives ----
 
-/** Where panes made here live in herdr: a shell pane is not an agent, so the board has no row for it. */
-const made = new Map<string, { workspaceId: string; tabId: string }>();
-
 const metas = new Map<string, Accessor<PaneMeta | null>>();
 function paneMeta(machine: string, pane: string): PaneMeta | null {
   const key = `${machine}/${pane}`;
@@ -159,21 +160,24 @@ interface Here {
   tabId?: string;
   workspaceLabel: string;
   tabLabel: string;
+  /** The label the person gave the pane itself, `""` when none (then `name` is the program's). */
+  paneLabel: string;
 }
 
 function here(): Here | null {
   const at = focusedPane();
   if (!at) return null;
-  const row = allRows(board()).find((r) => r.machine === at.machine && r.paneId === at.pane);
-  const where = row ?? made.get(`${at.machine}/${at.pane}`);
   const m = paneMeta(at.machine, at.pane);
+  const row = allRows(board()).find((r) => r.machine === at.machine && r.paneId === at.pane);
   return {
     ...at,
     name: m?.name ?? row?.name ?? at.pane,
-    workspaceId: where?.workspaceId,
-    tabId: where?.tabId,
+    // herdr's own snapshot places a shell pane too; the board has a row only for an agent.
+    workspaceId: m?.workspaceId || row?.workspaceId || undefined,
+    tabId: m?.tabId || row?.tabId || undefined,
     workspaceLabel: m?.workspaceLabel ?? "",
     tabLabel: m?.tabLabel ?? "",
+    paneLabel: m?.paneLabel ?? "",
   };
 }
 
@@ -184,13 +188,7 @@ function targetMachine(): string {
 
 const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-async function openMade(
-  machine: string,
-  created: { workspaceId: string; tabId: string; paneId: string },
-): Promise<void> {
-  made.set(`${machine}/${created.paneId}`, { workspaceId: created.workspaceId, tabId: created.tabId });
-  await openTerminal(machine, created.paneId);
-}
+// ---- names ----
 
 function fail(what: string, e: unknown): void {
   notify(`${what}: ${message(e)}`, { type: "error" });
@@ -209,7 +207,7 @@ function newWorkspace(): void {
     confirm: "Create",
     onSubmit: (name) => {
       Herdr.createWorkspace(machine, name, null).then(
-        (created) => openMade(machine, created),
+        (created) => openTerminal(machine, created.paneId),
         (e) => fail("Could not create the workspace", e),
       );
     },
@@ -224,30 +222,70 @@ function newTab(): void {
     title: "New tab",
     confirm: "Create",
     onSubmit: (name) => {
-      Herdr.createTab(machine, workspaceId!, name, null).then(
-        (created) => openMade(machine, created),
+      Herdr.createTab(machine, workspaceId, name, null).then(
+        (created) => openTerminal(machine, created.paneId),
         (e) => fail("Could not create the tab", e),
       );
     },
   });
 }
 
+/** The pane's own label: empty takes it away, and the program's own title shows again. Shared by the palette and a row's action panel. */
+export function paneNaming(machine: string, pane: string, label: string): NameRequest {
+  return {
+    title: "Rename pane",
+    initial: label,
+    confirm: "Rename",
+    allowEmpty: true,
+    helper: "Leave empty to show the program's own title",
+    onSubmit: (name) =>
+      Herdr.renamePane(machine, pane, name).then(
+        () => announce("Renamed pane"),
+        (e) => fail("Could not rename the pane", e),
+      ),
+  };
+}
+
+/** A chat's name on this computer: empty goes back to the agent's own title. A keeper has no pane, so this is not `renamePane`. */
+export function chatNaming(machine: string, id: string, current: string): NameRequest {
+  return {
+    title: "Rename chat",
+    initial: current,
+    confirm: "Rename",
+    allowEmpty: true,
+    helper: "Leave empty to use the agent's own title",
+    onSubmit: (name) =>
+      Sessions.rename(machine, id, name).then(
+        () => announce("Renamed chat"),
+        (e) => fail("Could not rename the chat", e),
+      ),
+  };
+}
+
 function rename(kind: "workspace" | "tab" | "pane"): void {
+  if (kind === "pane" && !focusedPane()) {
+    // A keeper's chat has no herdr pane: the same command names the chat.
+    const chat = parseSessionKey(focused());
+    const key = rowKeyOf(focused());
+    if (chat) naming.set(chatNaming(chat.machine, chat.id, (key === null ? undefined : rowOf(key))?.name ?? ""));
+    return;
+  }
   const at = here();
   if (!at) return;
+  if (kind === "pane") {
+    naming.set(paneNaming(at.machine, at.pane, at.paneLabel));
+    return;
+  }
   const { machine } = at;
-  const initial = kind === "workspace" ? at.workspaceLabel : kind === "tab" ? at.tabLabel : at.name;
   naming.set({
     title: `Rename ${kind}`,
-    initial,
+    initial: kind === "workspace" ? at.workspaceLabel : at.tabLabel,
     confirm: "Rename",
     onSubmit: (name) => {
       const done =
         kind === "workspace"
           ? Herdr.renameWorkspace(machine, at.workspaceId!, name)
-          : kind === "tab"
-            ? Herdr.renameTab(machine, at.tabId!, name)
-            : Herdr.renamePane(machine, at.pane, name);
+          : Herdr.renameTab(machine, at.tabId!, name);
       done.then(
         () => announce(`Renamed ${kind}`),
         (e) => fail(`Could not rename the ${kind}`, e),
@@ -261,7 +299,6 @@ async function splitHerdrPane(direction: "right" | "down"): Promise<void> {
   if (!at) return;
   try {
     const pane = await Herdr.splitPane(at.machine, at.pane, direction);
-    if (at.workspaceId) made.set(`${at.machine}/${pane}`, { workspaceId: at.workspaceId, tabId: at.tabId ?? "" });
     await openTerminal(at.machine, pane);
   } catch (e) {
     fail("Could not split the pane", e);
@@ -294,6 +331,32 @@ async function closeInHerdr(kind: "pane" | "tab" | "workspace"): Promise<void> {
     notify(`Closed ${kind} ${label}`);
   } catch (e) {
     fail(`Could not close the ${kind}`, e);
+  }
+}
+
+/** The agents herdr can install its hook into (`integration.install` targets), under the name a person knows them by. */
+const HOOKS = [
+  { id: "installHookOmp", target: "omp", agent: "omp" },
+  { id: "installHookClaude", target: "claude", agent: "Claude Code" },
+  { id: "installHookCodex", target: "codex", agent: "Codex" },
+] as const;
+
+/** Asks herdr on the target machine to install its hook for `target`: it changes that agent's own settings, so it asks first. */
+async function installHook(target: string, agent: string): Promise<void> {
+  const machine = targetMachine();
+  const where = Herdr.machines().find((m) => m.id === machine)?.name ?? machine;
+  const ok = await confirmDestructive({
+    title: `Install the herdr hook for ${agent} on ${where}?`,
+    description:
+      "This changes the agent's own settings on that machine so herdr can see its title and state. Codex asks you to trust the hook the first time.",
+    action: "Install hook",
+  });
+  if (!ok) return;
+  try {
+    const said = await Herdr.installIntegration(machine, target);
+    notify([`Installed on ${where}. Restart the agent to use it.`, ...said].join(" "));
+  } catch (e) {
+    fail("Could not install the hook", e);
   }
 }
 
@@ -417,6 +480,7 @@ const extra: Record<string, () => void> = {
   moveOther: () => void moveFocused("other"),
   focusOther: () => void focusOtherGroup(),
   mergeSplits: () => void mergeSplits(),
+  ...Object.fromEntries(HOOKS.map((h) => [h.id, () => void installHook(h.target, h.agent)])),
   accessibilityGuide: () => void openUrl(ACCESSIBILITY_GUIDE),
 };
 
@@ -539,7 +603,13 @@ export function actions(): Action[] {
   list.push({ id: "newTab", label: "New tab in this workspace…", group: "herdr", disabled: !at?.workspaceId });
   list.push({ id: "renameWorkspace", label: "Rename workspace…", group: "herdr", disabled: !at?.workspaceId });
   list.push({ id: "renameTab", label: "Rename tab…", group: "herdr", disabled: !at?.tabId });
-  list.push({ id: "renamePane", label: "Rename pane…", group: "herdr", disabled: !pane });
+  // A keeper's chat has no pane, but the same command names the chat.
+  list.push({
+    id: "renamePane",
+    label: "Rename pane…",
+    group: "herdr",
+    disabled: !pane && parseSessionKey(focused()) === null,
+  });
   list.push({
     id: "splitHerdrRight",
     label: "Split pane right in herdr",
@@ -575,6 +645,13 @@ export function actions(): Action[] {
     disabled: !at?.workspaceId,
     keywords: ["stop", "kill"],
   });
+  for (const hook of HOOKS)
+    list.push({
+      id: hook.id,
+      label: `Install herdr hook for ${hook.agent}…`,
+      group: "herdr",
+      keywords: ["integration", "title", "state", "setup"],
+    });
   list.push({ id: "machines", label: "Machines…", group: "App", keywords: ["ssh", "connect", "computer"] });
 
   list.push({ id: "moveRight", label: "Move tab to split right", group: "Tabs", disabled: !canMove });

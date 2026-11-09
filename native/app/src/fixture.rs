@@ -26,7 +26,10 @@
 //!   (a created worktree joins its repository); `create_at` is where created worktrees are, so a test can name a folder
 //!   that exists. Without the key the herdr is one that has no worktrees (`unknown_method`).
 //! * `answers` overrides the result of any method; without an entry the mutating methods succeed
-//!   (`{"type":"ok"}`, or the shape herdr uses for the methods that create something).
+//!   (`{"type":"ok"}`, or the shape herdr uses for the methods that create something). An answer that is
+//!   `{"error": {"code": "pane_not_found", "message": "no pane"}}` makes the method fail the way herdr does, with
+//!   that code and message (every request is still recorded). `integration.install` answers one message by default;
+//!   `server.agent_manifests` is unknown (`unknown_method`, like a herdr that predates it) until an answer gives it.
 //!
 //! `ping`, `session.snapshot`, `pane.read` and `pane.get` are always answered from the current state,
 //! which a test changes with [`Fixture::set_snapshot`] and [`Fixture::set_screen`].
@@ -61,6 +64,7 @@ const OK_METHODS: &[&str] = &[
     "workspace.rename",
     "agent.send_keys",
     "agent.rename",
+    "agent.prompt",
 ];
 
 /// Whether the test seam is open (`HERDR_DESKTOP_TEST=1`).
@@ -387,8 +391,27 @@ fn script(state: &Arc<State>, events: Vec<Value>, answers: Map<String, Value>) -
         "pane.zoom",
         json!({"type": "pane_zoom", "changed": true, "zoom_changed": true, "focus_changed": false, "zoomed": true}),
     );
+    script = script.on_with("integration.install", |params| {
+        let target = params.get("target").cloned().unwrap_or(Value::Null);
+        let name = target.as_str().unwrap_or_default();
+        Ok(json!({"type": "integration_install", "target": target,
+            "details": {"messages": [format!("Installed the {name} hook.")]}}))
+    });
     for (method, result) in answers {
-        script = script.on(&method, result);
+        script = match result.get("error") {
+            Some(error) => {
+                let said = |key: &str| {
+                    error
+                        .get(key)
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_owned()
+                };
+                let failure = (said("code"), said("message"));
+                script.on_with(&method, move |_| Err(failure.clone()))
+            }
+            None => script.on(&method, result),
+        };
     }
     script
 }

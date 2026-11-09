@@ -220,6 +220,19 @@ pub fn create(
     })
 }
 
+/// Has herdr remove the worktree open as workspace `workspace_id` (the folder and the workspace). Never sends `force`
+/// or `trust_repository`: a worktree with changes, or a repository herdr has not trusted, is herdr's to refuse, and the
+/// refusal is the error (a gone workspace is an error here too: nothing was removed).
+pub fn remove(wire: &dyn Wire, workspace_id: &str, timeout: Duration) -> Result<(), WorktreeError> {
+    wire.request(
+        "worktree.remove",
+        json!({"workspace_id": workspace_id}),
+        timeout,
+    )
+    .map(drop)
+    .map_err(classify)
+}
+
 fn parse_worktree(value: &Value) -> Option<Worktree> {
     let path = value.get("path")?.as_str()?.to_owned();
     let flag = |name: &str| value.get(name).and_then(Value::as_bool).unwrap_or(false);

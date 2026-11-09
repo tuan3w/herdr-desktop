@@ -28,10 +28,15 @@ export const visibleText = (s: string): string => s.replace(BIDI, hex).replace(C
 /**
  * A call that started another agent (a worker, a reviewer): shown as its own bordered line, outside the fold of the
  * work around it, because what it hands back is a result the person reads, not a step they skim. Agents name these
- * calls `task`, `subagent` or `agent`.
+ * calls `task`, `subagent` or `agent`; omp names its launcher by what it spawns (`Spawning PongReply subagent`, kind
+ * `other`), so a call that carries subagents (`progress`: what its result reported, or what its launch asked for) is one
+ * too.
  */
 export const isSubagent = (tool: ToolItem): boolean =>
-  tool.toolKind === "task" || tool.toolKind === "subagent" || tool.toolKind === "agent";
+  tool.toolKind === "task" ||
+  tool.toolKind === "subagent" ||
+  tool.toolKind === "agent" ||
+  (tool.progress?.length ?? 0) > 0;
 
 /** The first `max` characters on one line, with an ellipsis when it was cut. */
 export function oneLine(text: string, max: number): string {

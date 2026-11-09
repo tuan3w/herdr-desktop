@@ -230,6 +230,9 @@ test("a pane that herdr drops while its tab is open leaves a tab that says so an
   expect(app.count("role:tab")).toBe(0);
 });
 
+/** The pane rename's field: its name is not marked required, because empty is a valid label. */
+const PANE_NAME = "label:/^Name$/";
+
 async function palette(app: App, command: string) {
   // `mod+shift+l`: from a terminal tab `mod+p` is the program's, and this one is the app's everywhere.
   await app.keyboard.press("mod+shift+l");
@@ -243,12 +246,38 @@ test("renaming the pane in front from the palette asks for a name, starting from
   const app = await ready();
   await openAgents(app, FIRST);
   await palette(app, "Rename pane…");
-  expect(app.value("label:Name *")).toBe(FIRST);
-  await app.clear("label:Name *");
-  await app.type("label:Name *", "release check");
+  expect(app.value(PANE_NAME)).toBe(FIRST);
+  await app.clear(PANE_NAME);
+  await app.type(PANE_NAME, "release check");
   await app.press("text:Rename");
   await app.waitUntil(() => Herdr.testRequests("pane.rename").length === 1);
   expect(JSON.stringify(Herdr.testRequests("pane.rename")[0].params)).toContain("release check");
+});
+
+test("clearing a pane's label is a rename to nothing: herdr drops the label and the program's own title shows again", async () => {
+  const app = await ready();
+  await openAgents(app, FIRST);
+  await palette(app, "Rename pane…");
+  expect(app.texts()).toContain("Leave empty to show the program's own title");
+  await app.clear(PANE_NAME);
+  await app.press("text:Rename");
+  await app.waitUntil(() => Herdr.testRequests("pane.rename").length === 1);
+  expect(Herdr.testRequests("pane.rename")[0].params).toMatchObject({ pane_id: "w1:p1", label: null });
+});
+
+test("a shell pane herdr knows can have its tab and workspace renamed, though no agent row and no tab of ours made it", async () => {
+  const app = await ready();
+  await openAgents(app, "notes");
+  await app.keyboard.press("mod+shift+l");
+  await app.type("label:Search agents, projects and commands", "Rename tab");
+  expect(app.enabled("label:/^Rename tab…/")).toBe(true);
+  await app.press("label:Rename tab…");
+  await settle(app);
+  await app.clear("label:Name *");
+  await app.type("label:Name *", "deploys");
+  await app.press("text:Rename");
+  await app.waitUntil(() => Herdr.testRequests("tab.rename").length === 1);
+  expect(Herdr.testRequests("tab.rename")[0].params).toMatchObject({ tab_id: "w2:t1", label: "deploys" });
 });
 
 test("pane commands are dimmed on the board, where there is no pane to act on", async () => {
@@ -278,11 +307,11 @@ test("an agent with a chat opens as a chat; Show terminal swaps the tab for its 
   await openAgents(app, FIRST);
   expect(app.count("role:tab")).toBe(0);
   expect(shown(app, FIRST)).toBe(false);
-  expect(app.shows("label:Show terminal")).toBe(true);
+  await app.waitFor("label:Show terminal");
 
   await app.press("label:Show terminal");
   await settle(app);
-  expect(shown(app, FIRST)).toBe(true);
+  await app.waitFor(terminal(FIRST));
   expect(app.count("role:tab")).toBe(0);
   expect(app.shows("label:Show terminal")).toBe(false);
 
@@ -319,7 +348,7 @@ test("a terminal agent whose log can be read has Show chat in its header and it 
   await showQuiet(app, sidebarRow("notes"));
   await app.press(sidebarRow("notes"));
   await settle(app);
-  expect(shown(app, "notes")).toBe(true);
+  await app.waitFor(terminal("notes"));
   expect(app.shows("label:Show chat")).toBe(false);
 });
 

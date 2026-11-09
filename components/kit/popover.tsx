@@ -43,7 +43,11 @@ import type { TriggerFocus } from "./tooltip";
 export const PATIENT_CLICK_MS = 500;
 /** A blur counts as leaving only when no control took the focus within this long. */
 export const FOCUS_SETTLE_MS = 50;
-const POPUP = `min-w-48 max-w-sm gap-1 rounded-lg bg-popover p-3 text-popover-foreground ${EDGE.md}`;
+/**
+ * Padding is split between the popup and its `Scroll`: nsh draws the bar over the viewport's right edge and never reserves
+ * room for it, so the right 12 pt belongs to the scroll content (`design/scroll.md`, "Rows under the bar").
+ */
+const POPUP = `min-w-48 max-w-sm gap-1 rounded-lg bg-popover py-3 pl-3 text-popover-foreground ${EDGE.md}`;
 
 /** What `trigger` wires to the control: its press, its focus, and what to show while open. */
 export interface PopoverTrigger {
@@ -228,7 +232,7 @@ export function Popover(props: {
             class={`${POPUP} ${room() === undefined ? "" : `max-h-[${room()}px]`} ${props.popupClass ?? ""}`}
             style={{ ...presence.style, transformOrigin: popupOrigin(placedSide(), props.align ?? "center") }}
           >
-            <Scroll class="min-h-0 shrink" contentClass="gap-1">
+            <Scroll class="min-h-0 shrink" contentClass="gap-1 pr-3">
               {props.children}
             </Scroll>
           </Positioner>
@@ -243,7 +247,7 @@ export function Popover(props: {
  * screenshot does not draw an overlay. `PopoverTitle` and `PopoverDescription` work inside it; `PopoverClose` does not.
  */
 export function PopoverPreview(props: { children?: JSX.Element; class?: string }) {
-  return <View class={`self-start ${POPUP} ${props.class ?? ""}`}>{props.children}</View>;
+  return <View class={`self-start ${POPUP} pr-3 ${props.class ?? ""}`}>{props.children}</View>;
 }
 
 /** The popup's heading: names the popup for screen readers (Base UI's `Popover.Title`). */

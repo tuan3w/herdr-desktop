@@ -18,7 +18,8 @@ pub use permission::{outcome_cancelled, outcome_selected, PermissionOption, Perm
 pub use rpc::{Id, Message, ParseError, RpcError};
 pub use update::{
     is_unsafe_control, AgentState, Chunk, Command, Content, Exit, Location, Part, PartKind,
-    PlanEntry, PlanStatus, SessionUpdate, Stream, ToolCall, ToolContent, ToolStatus, PART_DATA_MAX,
+    PlanEntry, PlanStatus, SessionUpdate, Stream, SubagentProgress, SubagentState, ToolCall, ToolContent,
+    ToolStatus, name_subagents, PART_DATA_MAX, SUBAGENTS_MAX,
 };
 
 /// Method names the keeper and clients exchange.

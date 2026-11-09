@@ -1,4 +1,7 @@
+import { Herdr } from "herdr-desktop/native";
 import { expect, open, test } from "nsh/test";
+
+import type { App } from "nsh/test";
 
 const DESKTOP = { width: 1280, height: 800 };
 const FOLDER = "label:Folder *";
@@ -57,4 +60,47 @@ test("a start that fails keeps the dialog and what was typed, says why, and can 
   await app.waitUntil(() => app.texts().some((t) => t.includes("herdr")));
   await app.press("Show requests");
   expect(app.texts()).toContain("2 workspace.create, 0 agent.start");
+});
+
+/** The requests the start made, `workspace.create | agent.start`, as the lab's readout prints them. */
+async function asked(app: App) {
+  await app.press("Show requests");
+  const [, start] = (app.texts().find((t) => t.startsWith("workspace.create")) ?? "").split(" | ");
+  return start ?? "";
+}
+
+test("a name typed for the agent names it, and left empty the agent is named after its kind", async () => {
+  const app = await open("./machines-lab.tsx", DESKTOP);
+  await app.press("Open start agent");
+  await app.type(FOLDER, "/home/dev/payments-api");
+  await app.type("label:Name", "  api  ");
+  await app.press("Start agent");
+  await app.waitFor("started local w9:p1");
+  expect(await asked(app)).toContain('"name":"api"');
+
+  // A name belongs to one agent: the next opening starts with the field empty, and herdr names the agent by its kind.
+  await app.press("Open start agent");
+  expect(app.value("label:Name")).toBe("");
+  await app.press("Start agent");
+  await app.waitFor("Start agent", { state: "gone" });
+  const second = Herdr.testRequests("agent.start").at(-1)?.params as Record<string, unknown>;
+  expect(second.name).toBe("omp");
+});
+
+test("a machine whose herdr names the agents it can start is offered only those, and an older herdr gets every kind", async () => {
+  const some = await open("./machines-lab.tsx", { ...DESKTOP, host: { params: { fixture: "manifests" } } });
+  await some.press("Open start agent");
+  await some.waitUntil(() => Herdr.testRequests("server.agent_manifests").length === 1);
+  await some.press("label:Agent: omp");
+  await some.waitFor("label:Claude Code");
+  // the answer reaches the open list when it arrives
+  await some.waitUntil(() => !some.shows("label:Codex"));
+  expect(some.shows("label:Grok")).toBe(false);
+
+  const all = await open("./machines-lab.tsx", DESKTOP);
+  await all.press("Open start agent");
+  await all.waitUntil(() => Herdr.testRequests("server.agent_manifests").length === 1);
+  await all.press("label:Agent: omp");
+  await all.waitFor("label:Codex");
+  expect(all.shows("label:Grok")).toBe(true);
 });

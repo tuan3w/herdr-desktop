@@ -474,10 +474,11 @@ pub fn folder_name(cwd: Option<&str>) -> String {
     }
 }
 
-/// What an agent is called: the name the person gave the pane, else the agent's own name, else
-/// the terminal title with agent chrome removed, else the folder, else its kind. A title that says
-/// nothing (empty, `terminal`, the agent's own name) is skipped: omp titles a fresh pane `π > <folder>`
-/// and a board of those would read as one name repeated.
+/// What an agent is called: the name the person gave the pane, else the agent's own name, else herdr's hook title
+/// (`title`: what the agent's integration says it is doing), else the terminal title with agent chrome removed, else
+/// the folder, else its kind. A title that says nothing (empty, `terminal`, the agent's own name) is skipped: omp
+/// titles a fresh pane `π > <folder>` and a board of those would read as one name repeated. The same order is in
+/// `observed::names::pane_title` and in the engine's `terminal_name`.
 fn name_of(agent: &AgentInfo, pane: Option<&PaneInfo>, kind: &str, cwd: Option<&str>) -> String {
     let given = |s: Option<&str>| {
         s.map(str::trim)
@@ -489,7 +490,11 @@ fn name_of(agent: &AgentInfo, pane: Option<&PaneInfo>, kind: &str, cwd: Option<&
     {
         return name;
     }
-    let raw = agent
+    let hook = given(agent.title.as_deref())
+        .or_else(|| given(pane.and_then(|p| p.title.as_deref())))
+        .map(|t| clean_terminal_title(&t))
+        .unwrap_or_default();
+    let terminal = agent
         .terminal_title_stripped
         .as_deref()
         .or(agent.terminal_title.as_deref())
@@ -499,12 +504,17 @@ fn name_of(agent: &AgentInfo, pane: Option<&PaneInfo>, kind: &str, cwd: Option<&
                     .as_deref()
                     .or(p.terminal_title.as_deref())
             })
-        });
-    let title = raw.map(clean_terminal_title).unwrap_or_default();
-    let generic = title.is_empty()
-        || title.eq_ignore_ascii_case("terminal")
-        || title.eq_ignore_ascii_case(kind);
-    if !generic {
+        })
+        .map(clean_terminal_title)
+        .unwrap_or_default();
+    let generic = |title: &str| {
+        title.is_empty()
+            || title.eq_ignore_ascii_case("terminal")
+            || title.eq_ignore_ascii_case(kind)
+    };
+    // The first title that says something: herdr's hook title, then the terminal's.
+    let title = if generic(&hook) { terminal } else { hook };
+    if !generic(&title) {
         return title;
     }
     let folder = folder_name(cwd);

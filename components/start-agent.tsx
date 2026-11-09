@@ -1,7 +1,7 @@
 import { Herdr } from "herdr-desktop/native";
 import { announce, computed, effect, signal, Text, untracked, View } from "nsh";
 
-import { Autocomplete, Btn, FieldRow, Icon, Modal, SelectField } from "#kit";
+import { Autocomplete, Btn, Field, FieldRow, Icon, Modal, SelectField } from "#kit";
 import { AGENT_KINDS, folderError } from "#lib/agent-kinds";
 import { allRows, board, revision } from "#lib/herdr";
 
@@ -11,7 +11,9 @@ const reason = (e: unknown): string => (e instanceof Error ? e.message : String(
  * `Start a terminal agent`: pick the machine, the folder and the agent, and herdr opens a workspace there with the agent
  * running in it. Nothing is started without a connected machine, and a start that fails keeps what was typed and
  * says what happened (when the agent did not start, the shell it opened stays: the message says so). The machine,
- * folder and agent are remembered between openings, because starting several agents in one folder is the usual case.
+ * folder and agent are remembered between openings, because starting several agents in one folder is the usual case;
+ * the name is not, because it belongs to one agent. The agents offered are the ones that machine's herdr can start
+ * when it says (an older herdr does not: then every known kind is offered).
  * `onStarted` gets the new pane after the dialog closed, so the caller can open it.
  */
 export function StartAgent(props: {
@@ -22,6 +24,10 @@ export function StartAgent(props: {
   const machine = signal("");
   const folder = signal("");
   const agent = signal(AGENT_KINDS[0]?.kind ?? "");
+  const name = signal("");
+  /** What each machine's herdr says it can start, by machine id; empty or absent means unknown. */
+  const startable = signal<Record<string, string[]>>({});
+  const asked = new Set<string>();
   const attempted = signal(false);
   const busy = signal(false);
   const failure = signal<string | undefined>(undefined);
@@ -48,6 +54,11 @@ export function StartAgent(props: {
     const rows = allRows(board());
     return [...new Set(rows.filter((r) => r.machine === machine() && r.cwd).map((r) => r.cwd as string))];
   });
+  const offered = computed(() => {
+    const said = startable()[machine()] ?? [];
+    const some = AGENT_KINDS.filter((k) => said.includes(k.kind));
+    return some.length > 0 ? some : AGENT_KINDS;
+  });
 
   effect(() => {
     if (!props.open) return;
@@ -55,9 +66,27 @@ export function StartAgent(props: {
       attempted.set(false);
       failure.set(undefined);
       busy.set(false);
+      name.set("");
       // The remembered machine may have gone or dropped off: start from one that works.
       if (!ready()) machine.set(choices().find((c) => !c.disabled)?.value ?? choices()[0]?.value ?? "");
     });
+  });
+
+  // Each machine is asked once; one that did not answer is asked again when the dialog next opens.
+  effect(() => {
+    const id = machine();
+    if (!props.open || id === "") return;
+    untracked(() => {
+      if (asked.has(id)) return;
+      asked.add(id);
+      Herdr.agentKinds(id).then(
+        (kinds) => startable.update((all) => ({ ...all, [id]: kinds })),
+        () => asked.delete(id),
+      );
+    });
+  });
+  effect(() => {
+    if (!offered().some((k) => k.kind === agent())) agent.set(offered()[0]!.kind);
   });
 
   const start = async () => {
@@ -67,7 +96,11 @@ export function StartAgent(props: {
     failure.set(undefined);
     const where = machine();
     try {
-      const made = await Herdr.startAgent(where, { cwd: folder().trim(), agent: agent() });
+      const made = await Herdr.startAgent(where, {
+        cwd: folder().trim(),
+        agent: agent(),
+        name: name().trim() || undefined,
+      });
       announce(`Started ${AGENT_KINDS.find((k) => k.kind === agent())?.title ?? agent()}`);
       props.onClose();
       props.onStarted(where, made.paneId);
@@ -139,9 +172,18 @@ export function StartAgent(props: {
           />
         </FieldRow>
         <FieldRow>
+          <Field
+            label="Name"
+            value={name()}
+            onChange={(v) => name.set(v)}
+            onSubmit={() => void start()}
+            hint="The agent's kind when left empty"
+          />
+        </FieldRow>
+        <FieldRow>
           <SelectField
             label="Agent"
-            items={AGENT_KINDS.map((k) => ({ value: k.kind, title: k.title }))}
+            items={offered().map((k) => ({ value: k.kind, title: k.title }))}
             value={agent()}
             onChange={(kind) => agent.set(kind)}
           />

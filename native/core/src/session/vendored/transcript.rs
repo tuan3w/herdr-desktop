@@ -7,8 +7,8 @@
 //! tail of its output. The keeper still has everything.
 
 use crate::session::vendored::acp::{
-    AgentState, Chunk, Content, Exit, Location, Part, PartKind, SessionUpdate, ToolCall,
-    ToolContent, ToolStatus,
+    name_subagents, AgentState, Chunk, Content, Exit, Location, Part, PartKind, SessionUpdate,
+    SubagentProgress, ToolCall, ToolContent, ToolStatus,
 };
 use serde_json::Value;
 use std::collections::{BTreeSet, HashMap, VecDeque};
@@ -147,6 +147,34 @@ pub struct Tool {
     /// stream said better.
     content_out: Option<Output>,
     raw_out: Option<Output>,
+    /// omp's `task` call: the last progress of its subagents, and what the launch asked for.
+    agents: Vec<SubagentProgress>,
+    launched: Vec<SubagentProgress>,
+}
+
+impl Tool {
+    /// The subagents of an omp `task` call, named from the launch: its last progress, else, while the call
+    /// has not finished, what the launch asked for (all pending). Empty for any other call, and for a call
+    /// whose input and result were trimmed away.
+    #[must_use]
+    pub fn subagents(&self) -> Vec<SubagentProgress> {
+        let mut list = if self.agents.is_empty() {
+            if matches!(self.status, ToolStatus::Pending | ToolStatus::InProgress) {
+                self.launched.clone()
+            } else {
+                Vec::new()
+            }
+        } else {
+            self.agents.clone()
+        };
+        name_subagents(&mut list, &self.launched);
+        for p in &mut list {
+            if p.name.is_empty() {
+                p.name = if p.agent.is_empty() { "subagent".to_string() } else { p.agent.clone() };
+            }
+        }
+        list
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -682,6 +710,8 @@ impl Transcript {
                     progress: Streamed::default(),
                     content_out: None,
                     raw_out: None,
+                    agents: Vec::new(),
+                    launched: Vec::new(),
                 };
                 merge_tool(&mut t, call);
                 if t.title.is_empty() {
@@ -765,6 +795,13 @@ fn merge_tool(t: &mut Tool, call: &ToolCall) {
     }
     if let Some(raw) = &call.raw_output {
         t.raw_out = Some(trim_output(&cut(raw, RESULT_MAX)));
+    }
+    // Each update of a `task` call carries every subagent: the newest replaces the last.
+    if !call.progress.is_empty() {
+        t.agents.clone_from(&call.progress);
+    }
+    if !call.launched.is_empty() {
+        t.launched.clone_from(&call.launched);
     }
     let s = &call.stream;
     if !s.output.is_empty() {
@@ -980,6 +1017,18 @@ fn size_of(entry: &Entry) -> usize {
                     + t.input.as_ref().map_or(0, String::len)
                     + t.stream.bytes()
                     + t.progress.bytes()
+                    + t.agents
+                        .iter()
+                        .chain(&t.launched)
+                        .map(|a| {
+                            a.id.len()
+                                + a.name.len()
+                                + a.agent.len()
+                                + a.assignment.len()
+                                + a.current_tool.as_ref().map_or(0, String::len)
+                                + a.recent_tools.iter().map(String::len).sum::<usize>()
+                        })
+                        .sum::<usize>()
                     + [&t.content_out, &t.raw_out]
                         .iter()
                         .filter_map(|o| o.as_ref())

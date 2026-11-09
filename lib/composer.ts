@@ -46,7 +46,7 @@ import { composerOff } from "#lib/session-text";
 import { enterNewline, picturesOriginal } from "#lib/settings";
 import { byKind, hintFor, matchCommands, type SlashCommand } from "#lib/slash";
 import { withBuiltIns } from "#lib/slash-builtins";
-import { draftOf, setDraft } from "#lib/view-state";
+import { draftOf, setDraft, setUnsentSeen, unsentSeenOf } from "#lib/view-state";
 
 /**
  * The message box of a chat as a model: the words, what they point at (files, folders, pictures, long pastes), the two
@@ -159,7 +159,10 @@ export function createComposer(props: {
   const history = signal<History>(emptyHistory());
   let field: InputRef | undefined;
   let guardTimer: number | undefined;
-  let unsentSeq = 0;
+  // The refusal this tab's earlier boxes took back is not taken again by a box that mounts later (see `unsentSeenOf`);
+  // a tab with no earlier box starts from what the view holds, which nobody was waiting for.
+  let unsentSeq = unsentSeenOf(draftKey) ?? untracked(() => props.view().unsent?.seq ?? 0);
+  setUnsentSeen(draftKey, unsentSeq);
   let selSeq = 0;
   let pasteLength = 0;
   /** What GTK inserted for a picture's bytes read as text: taken out again when the edit arrives. */
@@ -566,6 +569,7 @@ export function createComposer(props: {
     const unsent = view().unsent;
     if (!unsent || unsent.seq === unsentSeq) return;
     unsentSeq = unsent.seq;
+    setUnsentSeen(draftKey, unsentSeq);
     untracked(() => {
       restore(unsent.text, unsent.files, unsent.pictures);
       error.set("The agent did not take the message. It is back in the box.");

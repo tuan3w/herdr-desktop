@@ -177,6 +177,22 @@ test("a call that starts another agent stands outside the fold, as its own line"
   expect(kinds(buildRows(input(items)))).toEqual(["user", "work", "subagent", "work"]);
 });
 
+test("omp's launcher (kind other, titled by what it spawns) is a subagent line once it carries subagents, and not before", () => {
+  const agent = {
+    id: "a",
+    name: "audit",
+    agent: "task",
+    status: "running" as const,
+    assignment: "",
+    toolCount: 0,
+    durationMs: 0,
+    recentTools: [],
+  };
+  const launch = tool("Spawning audit subagent", "inProgress", "other", { progress: [agent] });
+  const plain = tool("Spawning audit subagent", "completed", "other");
+  expect(kinds(buildRows(input([say("user", "go"), launch, plain])))).toEqual(["user", "subagent", "work"]);
+});
+
 test("how long a thought took comes from the agent's own times: to its last call's end, else the next row, else now; a replay has none", () => {
   const at = (item: SessionItem, startedMs: number, endedMs?: number): SessionItem => ({ ...item, startedMs, endedMs });
   const a = at(tool("ls"), 1000, 2500);

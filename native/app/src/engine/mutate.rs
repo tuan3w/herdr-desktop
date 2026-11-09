@@ -1,11 +1,15 @@
 //! Everything the person does to herdr besides answering: type into a pane, create, split, rename,
 //! focus and close things, start an agent. Method names and parameters are those of
-//! `docs/herdr-api.schema.json`; a herdr error is returned as its message.
+//! `docs/herdr-api.schema.json`; a herdr error is returned as words for the person (`words`), a few of
+//! its codes by name.
 
-use herdr_core::wire::WireError;
+use herdr_core::wire::{ErrorKind, WireError};
 use serde_json::{Value, json};
 
 use super::{Fleet, REQUEST_TIMEOUT, unknown};
+
+/// The agents herdr has an integration for, that this app offers to install the hook of.
+const INTEGRATION_TARGETS: [&str; 3] = ["omp", "claude", "codex"];
 
 /// What a create call made.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -16,6 +20,8 @@ pub struct Created {
     pub tab_id: String,
     /// The pane (a new tab or workspace has one).
     pub pane_id: String,
+    /// The folder herdr says the new pane opened in; `None` when its answer did not say.
+    pub cwd: Option<String>,
 }
 
 /// Which way a split goes.
@@ -44,15 +50,29 @@ pub struct StartAgent {
 
 impl Fleet {
     /// One request to a machine's herdr over its shared connection. Asks the link to read the snapshot
-    /// soon, because whatever was changed shows there.
-    fn call(&self, machine: &str, method: &str, params: Value) -> Result<Value, String> {
-        let link = self.link(machine).ok_or_else(|| unknown(machine))?;
-        let result = link
-            .wire()
-            .request(method, params, REQUEST_TIMEOUT)
-            .map_err(|e: WireError| e.message);
+    /// soon, because whatever was changed shows there. The error keeps herdr's code.
+    fn call_wire(&self, machine: &str, method: &str, params: Value) -> Result<Value, WireError> {
+        let link = self
+            .link(machine)
+            .ok_or_else(|| WireError::api("unknown_machine", unknown(machine)))?;
+        let result = link.wire().request(method, params, REQUEST_TIMEOUT);
         link.refresh();
         result
+    }
+
+    /// [`Fleet::call_wire`] with the error as words for the person.
+    fn call(&self, machine: &str, method: &str, params: Value) -> Result<Value, String> {
+        self.call_wire(machine, method, params)
+            .map_err(|e| words(&e))
+    }
+
+    /// A close: a pane, tab or workspace herdr no longer has is closed, whatever the reason.
+    fn close(&self, machine: &str, method: &str, params: Value) -> Result<(), String> {
+        match self.call_wire(machine, method, params) {
+            Ok(_) => Ok(()),
+            Err(e) if gone(&e) => Ok(()),
+            Err(e) => Err(words(&e)),
+        }
     }
 
     /// Types `text` into a pane without pressing anything.
@@ -94,8 +114,64 @@ impl Fleet {
         self.call(machine, "pane.send_input", params).map(drop)
     }
 
+    /// Sends a message to the agent in a pane with `agent.prompt`: herdr checks, as it types, that the agent is not
+    /// waiting for an answer or not at its prompt, and waits before Enter, so a stale Enter never lands on a
+    /// permission dialog. A herdr too old to know the method gets `pane.send_input` with Enter instead.
+    pub fn prompt(&self, machine: &str, pane: &str, text: &str) -> Result<(), String> {
+        match self.call_wire(
+            machine,
+            "agent.prompt",
+            json!({"target": pane, "text": text}),
+        ) {
+            Ok(_) => Ok(()),
+            Err(e) if unsupported(&e) => {
+                self.send_input(machine, pane, text, &["enter".to_owned()])
+            }
+            Err(e) => Err(words(&e)),
+        }
+    }
+
+    /// The agents herdr on a machine can start (`server.agent_manifests`). Empty when this herdr does not answer
+    /// that: the caller then knows nothing and offers every kind.
+    pub fn agent_manifests(&self, machine: &str) -> Result<Vec<String>, String> {
+        match self.call_wire(machine, "server.agent_manifests", json!({})) {
+            Ok(answer) => Ok(answer
+                .get("manifests")
+                .and_then(Value::as_array)
+                .map(|all| {
+                    all.iter()
+                        .filter_map(|m| m.get("agent").and_then(Value::as_str))
+                        .map(str::to_owned)
+                        .collect()
+                })
+                .unwrap_or_default()),
+            Err(e) if unsupported(&e) => Ok(Vec::new()),
+            Err(e) => Err(words(&e)),
+        }
+    }
+
+    /// Has herdr install its hook into an agent's own settings on a machine (`integration.install`); the messages it
+    /// answers with. `target` is one of `omp`, `claude`, `codex`.
+    pub fn install_integration(&self, machine: &str, target: &str) -> Result<Vec<String>, String> {
+        if !INTEGRATION_TARGETS.contains(&target) {
+            return Err("Unknown agent".to_owned());
+        }
+        let answer = self.call(machine, "integration.install", json!({"target": target}))?;
+        Ok(answer
+            .pointer("/details/messages")
+            .and_then(Value::as_array)
+            .map(|all| {
+                all.iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default())
+    }
+
     /// A new workspace (with one tab and one pane) running a shell in `cwd`. Never focused: moving the
-    /// person's view in herdr is not this app's to do unasked.
+    /// person's view in herdr is not this app's to do unasked. A name also names the first tab: `workspace.create`
+    /// labels only the workspace, and the terminal's tab shows the tab's label.
     pub fn create_workspace(
         &self,
         machine: &str,
@@ -103,7 +179,24 @@ impl Fleet {
         cwd: Option<&str>,
     ) -> Result<Created, String> {
         let result = self.call(machine, "workspace.create", create_params(None, label, cwd))?;
-        created(&result)
+        let made = created(&result)?;
+        if let Err(e) = folder_check(cwd, &made) {
+            let _ = self.call(
+                machine,
+                "workspace.close",
+                json!({"workspace_id": made.workspace_id}),
+            );
+            return Err(e);
+        }
+        if let Some(label) = label.filter(|l| !l.is_empty()) {
+            // The workspace and its name exist: a tab that keeps herdr's number is not worth failing for.
+            let _ = self.call(
+                machine,
+                "tab.rename",
+                json!({"tab_id": made.tab_id, "label": label}),
+            );
+        }
+        Ok(made)
     }
 
     /// A new tab (with one pane) in a workspace.
@@ -119,7 +212,12 @@ impl Fleet {
             "tab.create",
             create_params(Some(workspace_id), label, cwd),
         )?;
-        created(&result)
+        let made = created(&result)?;
+        if let Err(e) = folder_check(cwd, &made) {
+            let _ = self.call(machine, "tab.close", json!({"tab_id": made.tab_id}));
+            return Err(e);
+        }
+        Ok(made)
     }
 
     /// Splits a pane; the new pane's id.
@@ -141,26 +239,23 @@ impl Fleet {
         id_at(&result, "/pane/pane_id")
     }
 
-    /// Closes a pane (and kills what runs in it).
+    /// Closes a pane (and kills what runs in it). A pane herdr no longer has counts as closed.
     pub fn close_pane(&self, machine: &str, pane: &str) -> Result<(), String> {
-        self.call(machine, "pane.close", json!({"pane_id": pane}))
-            .map(drop)
+        self.close(machine, "pane.close", json!({"pane_id": pane}))
     }
 
-    /// Closes a tab and its panes.
+    /// Closes a tab and its panes. A tab herdr no longer has counts as closed.
     pub fn close_tab(&self, machine: &str, tab: &str) -> Result<(), String> {
-        self.call(machine, "tab.close", json!({"tab_id": tab}))
-            .map(drop)
+        self.close(machine, "tab.close", json!({"tab_id": tab}))
     }
 
-    /// Closes a workspace and everything in it.
+    /// Closes a workspace and everything in it. A workspace herdr no longer has counts as closed.
     pub fn close_workspace(&self, machine: &str, workspace: &str) -> Result<(), String> {
-        self.call(
+        self.close(
             machine,
             "workspace.close",
             json!({"workspace_id": workspace}),
         )
-        .map(drop)
     }
 
     /// Names a workspace.
@@ -299,5 +394,70 @@ fn created(result: &Value) -> Result<Created, String> {
             .to_owned(),
         tab_id: id_at(result, "/tab/tab_id")?,
         pane_id: id_at(result, "/root_pane/pane_id")?,
+        cwd: result
+            .pointer("/root_pane/cwd")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
     })
+}
+
+/// `/` stays `/`; any other trailing slashes do not matter.
+fn without_slash(path: &str) -> &str {
+    match path.trim_end_matches('/') {
+        "" if !path.is_empty() => "/",
+        trimmed => trimmed,
+    }
+}
+
+/// herdr opens a pane in its own home folder when the folder asked for does not exist on that machine, and says
+/// nothing. A different folder in the answer than the one asked for is an error, with what was made left to the
+/// caller to close.
+fn folder_check(requested: Option<&str>, made: &Created) -> Result<(), String> {
+    match (requested, made.cwd.as_deref()) {
+        (Some(asked), Some(actual)) if without_slash(asked) != without_slash(actual) => {
+            Err(format!(
+                "{asked} doesn't exist on that machine, so herdr would have opened {actual}. Nothing was started."
+            ))
+        }
+        _ => Ok(()),
+    }
+}
+
+/// This herdr does not know the method or a parameter of it: it is older than the request.
+fn unsupported(e: &WireError) -> bool {
+    match &e.kind {
+        ErrorKind::Api { code } if code == "unknown_method" => true,
+        ErrorKind::Api { code } if code == "invalid_request" => {
+            e.message.contains("unknown variant") || e.message.contains("unknown field")
+        }
+        _ => false,
+    }
+}
+
+/// herdr answered that the pane, tab, workspace or agent is not there (`pane_not_found`, ...).
+fn gone(e: &WireError) -> bool {
+    matches!(&e.kind, ErrorKind::Api { code } if code.ends_with("_not_found"))
+}
+
+/// What to tell the person about a failed request. Codes herdr names get a sentence of their own (the agent ones
+/// are herdr-mobile's); anything else is herdr's message.
+fn words(e: &WireError) -> String {
+    if unsupported(e) {
+        return "This herdr is too old for that. Update herdr on that machine.".to_owned();
+    }
+    let ErrorKind::Api { code } = &e.kind else {
+        return e.message.clone();
+    };
+    match code.as_str() {
+        "agent_blocked" => {
+            "The agent is waiting for an answer, so the message wasn't sent. Answer it first."
+        }
+        "agent_not_ready" => "The agent isn't at its prompt, so the message wasn't sent.",
+        "agent_not_found" => "No agent runs in that pane any more, so the message wasn't sent.",
+        "pane_not_found" => "That pane is gone.",
+        "workspace_not_found" => "That workspace is gone.",
+        "tab_not_found" => "That tab is gone.",
+        _ => return e.message.clone(),
+    }
+    .to_owned()
 }

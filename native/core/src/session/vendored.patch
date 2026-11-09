@@ -1010,8 +1010,8 @@
  
 -use crate::session::vendored::acp::{AgentState, Chunk, Content, SessionUpdate, ToolCall, ToolContent, ToolStatus};
 +use crate::session::vendored::acp::{
-+    AgentState, Chunk, Content, Exit, Location, Part, PartKind, SessionUpdate, ToolCall,
-+    ToolContent, ToolStatus,
++    name_subagents, AgentState, Chunk, Content, Exit, Location, Part, PartKind, SessionUpdate,
++    SubagentProgress, ToolCall, ToolContent, ToolStatus,
 +};
 +use serde_json::Value;
  use std::collections::{BTreeSet, HashMap, VecDeque};
@@ -1031,7 +1031,7 @@
  
  /// What a turn did, counted from its tool calls.
  #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-@@ -84,16 +95,58 @@
+@@ -84,16 +95,86 @@
      pub new: String,
  }
  
@@ -1087,10 +1087,38 @@
 +    /// stream said better.
 +    content_out: Option<Output>,
 +    raw_out: Option<Output>,
++    /// omp's `task` call: the last progress of its subagents, and what the launch asked for.
++    agents: Vec<SubagentProgress>,
++    launched: Vec<SubagentProgress>,
++}
++
++impl Tool {
++    /// The subagents of an omp `task` call, named from the launch: its last progress, else, while the call
++    /// has not finished, what the launch asked for (all pending). Empty for any other call, and for a call
++    /// whose input and result were trimmed away.
++    #[must_use]
++    pub fn subagents(&self) -> Vec<SubagentProgress> {
++        let mut list = if self.agents.is_empty() {
++            if matches!(self.status, ToolStatus::Pending | ToolStatus::InProgress) {
++                self.launched.clone()
++            } else {
++                Vec::new()
++            }
++        } else {
++            self.agents.clone()
++        };
++        name_subagents(&mut list, &self.launched);
++        for p in &mut list {
++            if p.name.is_empty() {
++                p.name = if p.agent.is_empty() { "subagent".to_string() } else { p.agent.clone() };
++            }
++        }
++        list
++    }
  }
  
  #[derive(Clone, Debug, PartialEq)]
-@@ -102,9 +155,17 @@
+@@ -102,9 +183,17 @@
          role: Role,
          message_id: Option<String>,
          text: String,
@@ -1108,7 +1136,7 @@
      /// The end of a turn, said once: how long, and what changed.
      Done {
          text: String,
-@@ -132,6 +193,11 @@
+@@ -132,6 +221,11 @@
      title: Option<String>,
      mode: Option<String>,
      context: Option<u8>,
@@ -1120,7 +1148,7 @@
      config: Vec<crate::session::vendored::acp::ConfigOption>,
      commands: Vec<crate::session::vendored::acp::Command>,
      plan: Vec<crate::session::vendored::acp::PlanEntry>,
-@@ -139,6 +205,8 @@
+@@ -139,6 +233,8 @@
      tool_at: HashMap<String, u64>,
      /// Items whose tool call has not finished: the ones a turn's end must close.
      open_tools: BTreeSet<u64>,
@@ -1129,7 +1157,7 @@
      /// Why the last turn stopped (`cancelled`, `error`, ...), until it is read with
      /// [`Transcript::take_stop`]. `turn_end` runs twice per turn (the state update and the prompt's
      /// response) and again during a replay: reading and clearing at the observed end keeps a
-@@ -165,11 +233,16 @@
+@@ -165,11 +261,16 @@
              title: None,
              mode: None,
              context: None,
@@ -1146,7 +1174,7 @@
              stop: None,
          }
      }
-@@ -242,7 +315,11 @@
+@@ -242,7 +343,11 @@
      /// Records the choice of option `id` before the agent has repeated its options.
      pub fn set_current(&mut self, id: &str, value: &str) {
          if let Some(o) = self.config.iter_mut().find(|o| o.id == id) {
@@ -1159,7 +1187,7 @@
          }
      }
      fn config_value(&self, what: &str) -> Option<&str> {
-@@ -256,6 +333,36 @@
+@@ -256,6 +361,36 @@
      pub fn context(&self) -> Option<u8> {
          self.context
      }
@@ -1196,7 +1224,7 @@
      #[must_use]
      pub fn title(&self) -> Option<&str> {
          self.title.as_deref()
-@@ -309,15 +416,63 @@
+@@ -309,15 +444,63 @@
      /// The person's own message, shown at once (the keeper does not echo a
      /// prompt back to the client that sent it).
      pub fn user(&mut self, text: impl Into<String>) {
@@ -1260,7 +1288,7 @@
      pub fn apply(&mut self, update: SessionUpdate) {
          match update {
              SessionUpdate::AgentMessage(c) => self.chunk(Role::Agent, c),
-@@ -335,19 +490,72 @@
+@@ -335,19 +518,72 @@
                  state: AgentState::Idle,
                  stop_reason,
              } => self.turn_end(stop_reason.as_deref()),
@@ -1337,7 +1365,7 @@
              }
          }
      }
-@@ -358,6 +566,13 @@
+@@ -358,6 +594,13 @@
              self.stop = Some(r.to_string());
          }
          self.running = false;
@@ -1351,7 +1379,7 @@
          // A call still open will never finish. Items are found by id each time: closing one can
          // drop others off the front to stay in budget, so positions do not hold still.
          let open: Vec<u64> = std::mem::take(&mut self.open_tools).into_iter().collect();
-@@ -365,7 +580,7 @@
+@@ -365,7 +608,7 @@
              let Some(i) = self.index_of(id) else { continue };
              if let Entry::Tool(t) = &mut self.items[i].entry {
                  t.status = ToolStatus::Failed;
@@ -1360,7 +1388,7 @@
              }
              self.touch(i);
          }
-@@ -383,9 +598,12 @@
+@@ -383,9 +626,12 @@
      }
  
      fn chunk(&mut self, role: Role, c: Chunk) {
@@ -1376,7 +1404,7 @@
          };
          // With an id the chunk continues the latest message of that role and id, wherever the
          // agent left off; without one it continues the message just before it, if that is its role.
-@@ -409,8 +627,16 @@
+@@ -409,8 +655,16 @@
              ),
          };
          if let Some(i) = target {
@@ -1394,7 +1422,7 @@
              }
              self.touch(i);
              return;
-@@ -419,6 +645,7 @@
+@@ -419,6 +673,7 @@
              role,
              message_id: c.message_id,
              text,
@@ -1402,7 +1430,7 @@
          });
      }
  
-@@ -439,11 +666,22 @@
+@@ -439,11 +694,24 @@
                  let mut t = Tool {
                      id: call.id.clone(),
                      title: String::new(),
@@ -1422,10 +1450,12 @@
 +                    progress: Streamed::default(),
 +                    content_out: None,
 +                    raw_out: None,
++                    agents: Vec::new(),
++                    launched: Vec::new(),
                  };
                  merge_tool(&mut t, call);
                  if t.title.is_empty() {
-@@ -504,6 +742,9 @@
+@@ -504,6 +772,9 @@
      if let Some(title) = &call.title {
          t.title.clone_from(title);
      }
@@ -1435,7 +1465,7 @@
      if call.kind.is_some() {
          t.kind.clone_from(&call.kind);
      }
-@@ -516,6 +757,30 @@
+@@ -516,6 +787,37 @@
      if let Some(subject) = call.subject() {
          t.subject = Some(subject);
      }
@@ -1447,6 +1477,13 @@
 +    }
 +    if let Some(raw) = &call.raw_output {
 +        t.raw_out = Some(trim_output(&cut(raw, RESULT_MAX)));
++    }
++    // Each update of a `task` call carries every subagent: the newest replaces the last.
++    if !call.progress.is_empty() {
++        t.agents.clone_from(&call.progress);
++    }
++    if !call.launched.is_empty() {
++        t.launched.clone_from(&call.launched);
 +    }
 +    let s = &call.stream;
 +    if !s.output.is_empty() {
@@ -1466,7 +1503,7 @@
      if !call.content.is_empty() {
          let text: Vec<&str> = call
              .content
-@@ -529,7 +794,7 @@
+@@ -529,7 +831,7 @@
              })
              .collect();
          if !text.is_empty() {
@@ -1475,7 +1512,7 @@
          }
          let diffs: Vec<Diff> = call
              .content
-@@ -544,13 +809,120 @@
+@@ -544,13 +846,120 @@
                      old: old_text.as_deref().map(|s| cut(s, DIFF_SIDE_MAX)),
                      new: cut(new_text, DIFF_SIDE_MAX),
                  }),
@@ -1597,7 +1634,7 @@
      }
  }
  
-@@ -590,14 +962,31 @@
+@@ -590,14 +999,43 @@
  }
  
  fn size_of(entry: &Entry) -> usize {
@@ -1620,6 +1657,18 @@
 +                    + t.input.as_ref().map_or(0, String::len)
 +                    + t.stream.bytes()
 +                    + t.progress.bytes()
++                    + t.agents
++                        .iter()
++                        .chain(&t.launched)
++                        .map(|a| {
++                            a.id.len()
++                                + a.name.len()
++                                + a.agent.len()
++                                + a.assignment.len()
++                                + a.current_tool.as_ref().map_or(0, String::len)
++                                + a.recent_tools.iter().map(String::len).sum::<usize>()
++                        })
++                        .sum::<usize>()
 +                    + [&t.content_out, &t.raw_out]
 +                        .iter()
 +                        .filter_map(|o| o.as_ref())
@@ -1918,7 +1967,7 @@
  }
  
  /// A tool call, or an update to one: every field but the id may be absent in an
-@@ -50,10 +159,19 @@
+@@ -50,10 +159,79 @@
  pub struct ToolCall {
      pub id: String,
      pub title: Option<String>,
@@ -1935,10 +1984,70 @@
 +    pub raw_output: Option<String>,
 +    /// What `_meta` says about the command's terminal.
 +    pub stream: Stream,
++    /// omp's `task` call: how far each subagent has got (`rawOutput.details.progress[]`), at most
++    /// [`SUBAGENTS_MAX`].
++    pub progress: Vec<SubagentProgress>,
++    /// omp's `task` call: the subagents the launch asked for (`rawInput.tasks[]`), all pending, in order.
++    pub launched: Vec<SubagentProgress>,
++}
++
++/// The most subagents of one call that are read.
++pub const SUBAGENTS_MAX: usize = 16;
++/// The most characters of a subagent's assignment, and of a tool line, that are kept.
++const ASSIGNMENT_MAX: usize = 300;
++const TOOL_LINE_MAX: usize = 80;
++/// How many of a subagent's last tools are kept.
++const RECENT_TOOLS: usize = 3;
++
++/// Where one subagent of a `task` call stands (omp's `AgentProgress.status`).
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
++pub enum SubagentState {
++    /// Asked for, not running yet (or a status this client does not know).
++    #[default]
++    Pending,
++    Running,
++    Completed,
++    Failed,
++    Aborted,
++}
++
++impl SubagentState {
++    /// Whether it still has work to do.
++    #[must_use]
++    pub fn is_active(self) -> bool {
++        matches!(self, SubagentState::Pending | SubagentState::Running)
++    }
++}
++
++/// One subagent of an omp `task` call, read from `rawOutput.details.progress[]` (or, before any progress
++/// came, from the launch's `rawInput.tasks[]`). Shapes: `AgentProgress` in oh-my-pi, checked against a real
++/// capture (`tests/fixtures/acp_task_updates.json`).
++#[derive(Clone, Debug, Default, PartialEq, Eq)]
++pub struct SubagentProgress {
++    /// omp's id for it (the name of its log file).
++    pub id: String,
++    /// What the person reads: the launch's `tasks[].name` when one matches (see [`name_subagents`]), else
++    /// `id`.
++    pub name: String,
++    /// The agent type (`task`, `reviewer`).
++    pub agent: String,
++    pub state: SubagentState,
++    /// What it was asked, on one line, cut at 300 characters.
++    pub assignment: String,
++    /// Tools it has called.
++    pub tool_count: u64,
++    pub duration_ms: u64,
++    /// The tool it is in now with its subject (`read lib/auth.ts`).
++    pub current_tool: Option<String>,
++    /// Its last three finished tools, oldest first, each with a short subject.
++    pub recent_tools: Vec<String>,
++    pub tokens: Option<u64>,
++    /// omp's `index` of it, else its place in the list: how the launch's task is found.
++    pub index: usize,
  }
  
  /// A `session/update` payload.
-@@ -71,6 +189,8 @@
+@@ -71,6 +249,8 @@
      /// `Some(None)` is a title that was cleared.
      SessionInfo {
          title: Option<Option<String>>,
@@ -1947,7 +2056,7 @@
      },
      /// The agent's mode changed (`plan`, `act`, ...).
      Mode(String),
-@@ -81,10 +201,28 @@
+@@ -81,10 +261,28 @@
      /// The agent's plan: a checklist it keeps up to date; each update replaces the whole list
      /// (an empty one clears it).
      Plan(Vec<PlanEntry>),
@@ -1977,7 +2086,7 @@
      },
      /// Plans, command lists and anything newer, by `sessionUpdate`.
      Other(String),
-@@ -116,6 +254,7 @@
+@@ -116,6 +314,7 @@
                          .filter(|s| !s.trim().is_empty())
                          .map(str::to_string)
                  }),
@@ -1985,7 +2094,7 @@
              },
              "current_mode_update" => {
                  match str_of(u, "currentModeId").or_else(|| str_of(u, "modeId")) {
-@@ -145,9 +284,33 @@
+@@ -145,9 +344,33 @@
                  u.get("used").and_then(Value::as_u64),
                  u.get("size").and_then(Value::as_u64),
              ) {
@@ -2020,7 +2129,7 @@
              other => SessionUpdate::Other(other.to_string()),
          })
      }
-@@ -233,23 +396,107 @@
+@@ -233,23 +456,107 @@
      v.get(key)?.as_str()
  }
  
@@ -2143,7 +2252,7 @@
      };
      Some(Chunk {
          message_id: str_of(u, "messageId").map(str::to_string),
-@@ -257,6 +504,31 @@
+@@ -257,6 +564,166 @@
      })
  }
  
@@ -2172,10 +2281,145 @@
 +    (!text.is_empty()).then_some(text)
 +}
 +
++/// `text` cut to `max` characters, with an ellipsis when it was cut.
++fn cut_chars(text: &str, max: usize) -> String {
++    if text.chars().count() <= max {
++        return text.to_string();
++    }
++    let mut out: String = text.chars().take(max.saturating_sub(1)).collect();
++    out.truncate(out.trim_end().len());
++    out.push('…');
++    out
++}
++
++/// A tool's name and, when there is one, its subject, on one short line: `read lib/auth.ts`.
++fn tool_line(tool: &str, subject: Option<&str>) -> Option<String> {
++    let tool = clean_line(tool);
++    if tool.is_empty() {
++        return None;
++    }
++    let subject = subject.map(clean_line).filter(|s| !s.is_empty());
++    let line = match subject {
++        Some(s) => format!("{tool} {s}"),
++        None => tool,
++    };
++    Some(cut_chars(&line, TOOL_LINE_MAX))
++}
++
++/// `rawOutput.details.progress[]` of an omp `task` call: one entry per subagent, at most
++/// [`SUBAGENTS_MAX`]. An entry without a usable shape is skipped; anything else is empty.
++fn subagent_progress(raw_output: &Value) -> Vec<SubagentProgress> {
++    let Some(list) = raw_output
++        .get("details")
++        .and_then(|d| d.get("progress"))
++        .and_then(Value::as_array)
++    else {
++        return Vec::new();
++    };
++    list.iter()
++        .take(SUBAGENTS_MAX)
++        .enumerate()
++        .filter(|(_, p)| p.is_object())
++        .map(|(at, p)| {
++            let text = |k: &str| str_of(p, k).map(clean_line).unwrap_or_default();
++            let id = text("id");
++            let assignment = Some(text("assignment"))
++                .filter(|a| !a.is_empty())
++                .unwrap_or_else(|| text("task"));
++            let recent: Vec<String> = p
++                .get("recentTools")
++                .and_then(Value::as_array)
++                .map(|a| {
++                    a.iter()
++                        .filter_map(|t| match t {
++                            Value::String(name) => tool_line(name, None),
++                            _ => tool_line(str_of(t, "tool")?, str_of(t, "args")),
++                        })
++                        .collect()
++                })
++                .unwrap_or_default();
++            SubagentProgress {
++                name: id.clone(),
++                id,
++                agent: text("agent"),
++                state: match str_of(p, "status") {
++                    Some("running") => SubagentState::Running,
++                    Some("completed") => SubagentState::Completed,
++                    Some("failed") => SubagentState::Failed,
++                    Some("aborted") => SubagentState::Aborted,
++                    _ => SubagentState::Pending,
++                },
++                assignment: cut_chars(&assignment, ASSIGNMENT_MAX),
++                tool_count: p.get("toolCount").and_then(Value::as_u64).unwrap_or(0),
++                duration_ms: p.get("durationMs").and_then(Value::as_u64).unwrap_or(0),
++                current_tool: str_of(p, "currentTool")
++                    .and_then(|t| tool_line(t, str_of(p, "currentToolArgs"))),
++                recent_tools: recent[recent.len().saturating_sub(RECENT_TOOLS)..].to_vec(),
++                tokens: p.get("tokens").and_then(Value::as_u64),
++                index: p
++                    .get("index")
++                    .and_then(Value::as_u64)
++                    .and_then(|n| usize::try_from(n).ok())
++                    .unwrap_or(at),
++            }
++        })
++        .collect()
++}
++
++/// `rawInput.tasks[]` of an omp `task` launch, as pending subagents. Only items with a `task` string count
++/// (omp's shape), so another tool's `tasks` list is not mistaken for one.
++fn subagents_launched(raw_input: &Value) -> Vec<SubagentProgress> {
++    let Some(list) = raw_input.get("tasks").and_then(Value::as_array) else {
++        return Vec::new();
++    };
++    let items: Vec<(usize, &Value)> = list.iter().take(SUBAGENTS_MAX).enumerate().collect();
++    if !items.iter().any(|(_, t)| str_of(t, "task").is_some()) {
++        return Vec::new();
++    }
++    items
++        .into_iter()
++        .map(|(at, t)| {
++            let text = |k: &str| str_of(t, k).map(clean_line).unwrap_or_default();
++            let name = text("name");
++            SubagentProgress {
++                id: name.clone(),
++                name,
++                agent: text("agent"),
++                assignment: cut_chars(&text("task"), ASSIGNMENT_MAX),
++                index: at,
++                ..SubagentProgress::default()
++            }
++        })
++        .collect()
++}
++
++/// Names `progress` from the launch: an entry takes the name of the launch task whose name is its `id`, else
++/// of the one at its `index` (its place in the list when omp sends none); with no such task, or an unnamed
++/// one, it keeps its `id`. An empty assignment or agent is filled from the same task. omp's ids can carry
++/// more than the name the model gave (the log file's name), the launch's name is the one the person read.
++pub fn name_subagents(progress: &mut [SubagentProgress], launched: &[SubagentProgress]) {
++    for p in progress {
++        let task = launched
++            .iter()
++            .find(|l| !l.name.is_empty() && l.name == p.id)
++            .or_else(|| launched.iter().find(|l| l.index == p.index));
++        let Some(task) = task else { continue };
++        if !task.name.is_empty() {
++            p.name.clone_from(&task.name);
++        }
++        if p.assignment.is_empty() {
++            p.assignment.clone_from(&task.assignment);
++        }
++        if p.agent.is_empty() {
++            p.agent.clone_from(&task.agent);
++        }
++    }
++}
++
  impl ToolCall {
      /// Reads a `tool_call` / `tool_call_update` (or a permission request's
      /// `toolCall`). `None` when it has no `toolCallId`.
-@@ -267,6 +539,9 @@
+@@ -267,6 +734,9 @@
              title: str_of(v, "title")
                  .filter(|t| !t.is_empty())
                  .map(str::to_string),
@@ -2185,7 +2429,7 @@
              kind: str_of(v, "kind").map(str::to_string),
              status: str_of(v, "status").map(|s| match s {
                  "completed" => ToolStatus::Completed,
-@@ -280,6 +555,25 @@
+@@ -280,6 +750,27 @@
                  .and_then(Value::as_array)
                  .map(|a| a.iter().filter_map(tool_content).collect())
                  .unwrap_or_default(),
@@ -2208,10 +2452,12 @@
 +                .unwrap_or_default(),
 +            raw_output: v.get("rawOutput").and_then(raw_output_text),
 +            stream: Stream::from_meta(v.get("_meta")),
++            progress: v.get("rawOutput").map(subagent_progress).unwrap_or_default(),
++            launched: v.get("rawInput").map(subagents_launched).unwrap_or_default(),
          })
      }
  
-@@ -320,9 +614,13 @@
+@@ -320,9 +811,13 @@
          }),
          "content" => {
              let inner = v.get("content")?;
@@ -2227,7 +2473,7 @@
          _ => None,
      }
  }
-@@ -455,18 +753,35 @@
+@@ -455,18 +950,35 @@
      }
  
      #[test]
@@ -2266,7 +2512,7 @@
              Some(SessionUpdate::UserMessage(Chunk {
                  content: Content::Other(_),
                  ..
-@@ -484,14 +799,32 @@
+@@ -484,14 +996,32 @@
                  content: Content::Text("hi".into())
              }))
          );
@@ -2301,7 +2547,7 @@
      }
  
      #[test]
-@@ -506,9 +839,17 @@
+@@ -506,9 +1036,17 @@
              SessionUpdate::from_value(&u),
              Some(SessionUpdate::Usage {
                  used: 47,
@@ -2320,7 +2566,7 @@
          // A window of size 0 says nothing: never a division by zero downstream.
          let z = json!({"sessionUpdate": "usage_update", "used": 1, "size": 0});
          assert_eq!(
-@@ -545,7 +886,9 @@
+@@ -545,7 +1083,9 @@
              {"type":"content","content":{"type":"text","text":"ok"}},
              {"type":"terminal","terminalId":"z"}]});
          let t = ToolCall::from_value(&u).expect("has an id");
@@ -2333,7 +2579,7 @@
      #[test]
 --- a/acp/mod.rs
 +++ a/acp/mod.rs
-@@ -13,12 +13,12 @@
+@@ -13,12 +13,13 @@
  mod rpc;
  mod update;
  
@@ -2345,11 +2591,12 @@
 -    is_unsafe_control, AgentState, Chunk, Command, Content, PlanEntry, PlanStatus, SessionUpdate,
 -    ToolCall, ToolContent, ToolStatus,
 +    is_unsafe_control, AgentState, Chunk, Command, Content, Exit, Location, Part, PartKind,
-+    PlanEntry, PlanStatus, SessionUpdate, Stream, ToolCall, ToolContent, ToolStatus, PART_DATA_MAX,
++    PlanEntry, PlanStatus, SessionUpdate, Stream, SubagentProgress, SubagentState, ToolCall, ToolContent,
++    ToolStatus, name_subagents, PART_DATA_MAX, SUBAGENTS_MAX,
  };
  
  /// Method names the keeper and clients exchange.
-@@ -26,8 +26,11 @@
+@@ -26,8 +27,11 @@
      pub const INITIALIZE: &str = "initialize";
      pub const SESSION_NEW: &str = "session/new";
      pub const SESSION_LOAD: &str = "session/load";
@@ -2361,7 +2608,7 @@
      pub const SESSION_CANCEL: &str = "session/cancel";
      pub const SESSION_UPDATE: &str = "session/update";
      pub const REQUEST_PERMISSION: &str = "session/request_permission";
-@@ -42,6 +45,8 @@
+@@ -42,6 +46,8 @@
  /// JSON-RPC and keeper error codes.
  pub mod code {
      pub const METHOD_NOT_FOUND: i64 = -32601;

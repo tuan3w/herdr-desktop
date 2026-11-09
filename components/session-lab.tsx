@@ -10,6 +10,7 @@ import type {
   SessionItem,
   SessionRef,
   SessionView,
+  SubagentProgress,
   ToolItem,
 } from "herdr-desktop/native";
 
@@ -118,6 +119,49 @@ const call = (title: string, over: Partial<ToolItem> = {}): SessionItem => ({
     ...over,
   },
 });
+
+/** One subagent of an omp `task` call, as the call reports it. */
+const agentProgress = (over: Partial<SubagentProgress>): SubagentProgress => ({
+  id: "audit",
+  name: "audit",
+  agent: "task",
+  status: "running",
+  assignment: "Audit the auth module for session fixation.",
+  toolCount: 0,
+  durationMs: 0,
+  recentTools: [],
+  ...over,
+});
+
+/** The three subagents of `subagents`, while they work: two running, one done. */
+const WORKING_AGENTS: SubagentProgress[] = [
+  agentProgress({ toolCount: 12, durationMs: 64_000, currentTool: `read ${tree}/src/auth.ts` }),
+  agentProgress({
+    id: "tests",
+    name: "tests",
+    status: "running",
+    toolCount: 4,
+    durationMs: 31_000,
+    currentTool: "bash pnpm test promo-eu",
+  }),
+  agentProgress({
+    id: "review",
+    name: "review",
+    agent: "reviewer",
+    status: "completed",
+    toolCount: 7,
+    durationMs: 130_000,
+    recentTools: ["read src/routes.ts", "grep needle", "read src/auth.ts"],
+  }),
+];
+
+/** The same three, all done: the card folds its lines to a summary. */
+const DONE_AGENTS: SubagentProgress[] = WORKING_AGENTS.map((a) => ({
+  ...a,
+  status: "completed",
+  currentTool: undefined,
+  recentTools: a.currentTool ? [a.currentTool] : a.recentTools,
+}));
 
 /** `item` with the agent's own times, in milliseconds since the session was attached. */
 const timed = (item: SessionItem, startedMs: number, endedMs?: number): SessionItem => ({
@@ -343,6 +387,49 @@ function scene(name: string): Scene {
             subject: "pnpm test promo-eu",
             status: "inProgress",
           }),
+        ],
+      };
+    case "terminal":
+      // A chat read from a terminal while its agent works: a message is typed into the pane at once, nothing queues.
+      return {
+        view: {
+          running: true,
+          phase: "working",
+          observed: {
+            paneId: "w1:p1",
+            kind: "claude",
+            label: "Claude Code",
+            link: "following",
+            turnEnded: false,
+            subagents: [],
+            background: [],
+            earlier: "none",
+            answersQuestions: true,
+          },
+        },
+        items: [say("user", "Run the promo tests."), say("agent", "Running them now.")],
+      };
+    case "subagents":
+      // omp's `task` call (kind `other`, titled by what it spawns) with three subagents: two work, one is done.
+      return {
+        view: { running: true, phase: "working" },
+        items: [
+          say("user", "Audit auth, run the promo tests and review the diff, side by side."),
+          call("Spawning 3 subagents", {
+            toolKind: "other",
+            status: "inProgress",
+            progress: WORKING_AGENTS,
+          }),
+        ],
+      };
+    case "subagents-done":
+      // The same call once all three are done and the turn is over: the lines fold behind the chevron.
+      return {
+        view: { running: false, phase: "idle" },
+        items: [
+          say("user", "Audit auth, run the promo tests and review the diff, side by side."),
+          call("Spawning 3 subagents", { toolKind: "other", status: "completed", progress: DONE_AGENTS }),
+          say("agent", "All three are done: no session fixation, the promo tests pass, and the diff reads clean."),
         ],
       };
     case "calls-narration": {
@@ -633,6 +720,8 @@ function scripted(initial: Scene) {
   };
   const ok = (kind: ActionResult["kind"] = "done"): ActionResult => ({ kind, message: "" });
   let queued = view.queue as QueuedView[];
+  let lastSent = "";
+  let refusals = 0;
 
   let release: (() => void) | undefined;
   let signedIn = false;
@@ -642,6 +731,7 @@ function scripted(initial: Scene) {
     items: (start, count) => items.slice(start, start + count),
     itemIds: () => items.map((i) => i.id),
     send: async (text, files, pictures) => {
+      lastSent = text;
       told(
         `send ${text.length > 200 ? `${text.slice(0, 80)}… (${text.length} characters, ends ${text.slice(-12)})` : text}${files.length > 0 ? ` +${files.join(",")}` : ""}${pictures.length > 0 ? ` +pictures ${pictures.map((p) => p.number).join(",")}` : ""}`,
       );
@@ -716,7 +806,17 @@ function scripted(initial: Scene) {
       change();
     },
     set: change,
+    /** Changes the tool call titled `title`, as an update of the agent does (its revision moves). */
+    changeCall: (title: string, make: (tool: ToolItem) => ToolItem) => {
+      const at = items.findIndex((i) => i.tool?.title === title);
+      if (at >= 0) edit(at, (i) => ({ ...i, tool: make(i.tool!) }));
+    },
     finish: () => change({ running: false, phase: "idle" }),
+    /** The agent did not take the last message: the session hands it back (`SessionView.unsent`), numbered anew each time. */
+    refuse: () => {
+      refusals += 1;
+      change({ unsent: { seq: refusals, text: lastSent, files: [], pictures: [] } });
+    },
     plan: (plan: PlanStepView[]) => change({ plan }),
     /** The agent answers the sign-in the person is waiting on (with a refusal: the scene's other method never works). */
     answer: () => release?.(),
@@ -865,7 +965,15 @@ function Scripted() {
               })
             }
           />
+          <Btn
+            small
+            label="Subagents finish"
+            onPress={() =>
+              lab.changeCall("Spawning 3 subagents", (t) => ({ ...t, status: "completed", progress: DONE_AGENTS }))
+            }
+          />
           <Btn small label="Finish the turn" onPress={() => lab.finish()} />
+          <Btn small label="Agent refuses it" onPress={() => lab.refuse()} />
           <Btn small label="Lose the connection" onPress={() => lab.set({ connectionLost: true })} />
           <Btn small label="Agent answers" onPress={() => lab.answer()} />
           <Btn small label="I signed in elsewhere" onPress={() => lab.signedInElsewhere()} />

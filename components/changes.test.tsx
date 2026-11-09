@@ -213,7 +213,7 @@ test("the notes are previewed whole before anything is sent, and go to the agent
   await app.keyboard.press("mod+enter");
   await app.waitFor("Send 2 notes to the agent");
   await app.clock!.runFor(200);
-  expect(Herdr.testRequests("pane.send_input")).toEqual([]);
+  expect(Herdr.testRequests("agent.prompt")).toEqual([]);
   const texts = app.texts();
   const message = texts.find((t) => /^Notes on your changes in \S+ \(2\):/.test(t));
   expect(message).toBeDefined();
@@ -225,11 +225,11 @@ test("the notes are previewed whole before anything is sent, and go to the agent
   // The scripted herdr moves its agents into the repository a moment after the lab starts: the list fills in then.
   await app.waitUntil(() => app.enabled("label:Send notes"));
   await app.press("label:Send notes");
-  await app.waitUntil(() => Herdr.testRequests("pane.send_input").length === 1);
-  const [sent] = Herdr.testRequests("pane.send_input");
+  await app.waitUntil(() => Herdr.testRequests("agent.prompt").length === 1);
+  const [sent] = Herdr.testRequests("agent.prompt");
   // The checkout's name (`payments` once the board knows the project, else the folder's) is the one thing that may differ.
   const unnamed = (text: string) => text.replace(/ in \S+ \(2\)/, " (2)");
-  expect(sent.params).toMatchObject({ pane_id: "w1:p3", keys: ["enter"] });
+  expect(sent.params).toMatchObject({ target: "w1:p3" });
   const params = sent.params;
   const text = params && typeof params === "object" && "text" in params ? String(params.text) : "";
   expect(unnamed(text)).toBe(unnamed(message!));
@@ -265,7 +265,7 @@ test("with no agent in the folder the message can still be copied, and there is 
   expect(app.enabled("label:Send notes")).toBe(false);
   await app.press("Copy message");
   expect(app.clipboard()).toMatch(/^Notes on your changes in \S+ \(1\):\n\nsrc\/auth\.ts:/);
-  expect(Herdr.testRequests("pane.send_input")).toEqual([]);
+  expect(Herdr.testRequests("agent.prompt")).toEqual([]);
 });
 
 test("a note on a file that changed afterwards says so in the preview", async () => {

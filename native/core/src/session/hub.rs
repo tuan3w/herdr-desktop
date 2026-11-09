@@ -21,6 +21,7 @@ use super::host::KeeperHost;
 use super::records::{KeeperInfo, KeeperState, PastSessions, Route};
 use super::thread::{Opening, SessionHandle};
 use super::types::SessionPhase;
+use super::vendored::queue::Queued;
 use crate::board::{SessionRow, folder_name};
 use crate::cache::Cache;
 use crate::observed::kinds::ObservedKind;
@@ -157,6 +158,9 @@ struct Inner {
     /// Sessions the person left that are still attached, and since when. Lock order: this one first, then
     /// `attached` or `observed`, never the other way round.
     lingering: Mutex<HashMap<Slot, Instant>>,
+    /// What a session whose connection ended still had queued, held, until the person attaches to it again (the new
+    /// session starts with it) or the session is ended for good.
+    carried: Mutex<HashMap<(String, String), Vec<Queued>>>,
     owned: Mutex<BTreeSet<String>>,
     episodes: Mutex<Episodes>,
     background: AtomicBool,
@@ -184,6 +188,7 @@ impl SessionHub {
             attached: Mutex::new(HashMap::new()),
             observed: Mutex::new(HashMap::new()),
             lingering: Mutex::new(HashMap::new()),
+            carried: Mutex::new(HashMap::new()),
             owned: Mutex::new(owned),
             episodes: Mutex::new(Episodes::default()),
             background: AtomicBool::new(false),
@@ -269,6 +274,7 @@ impl SessionHub {
             .lingering
             .lock()
             .retain(|slot, _| slot.machine() != machine);
+        self.inner.carried.lock().retain(|(m, _), _| m != machine);
         let gone: Vec<SessionHandle> = {
             let mut attached = self.inner.attached.lock();
             let keys: Vec<_> = attached
@@ -414,17 +420,20 @@ impl SessionHub {
 
     /// The attached session, when it is attached and its connection is open.
     pub fn handle(&self, machine: &str, id: &str) -> Option<SessionHandle> {
-        let mut attached = self.inner.attached.lock();
         let key = (machine.to_owned(), id.to_owned());
-        match attached.get(&key) {
-            Some(h) if h.is_open() => Some(h.clone()),
-            Some(_) => {
+        let dead = {
+            let mut attached = self.inner.attached.lock();
+            match attached.get(&key) {
+                Some(h) if h.is_open() => return Some(h.clone()),
                 // A closed session is dropped from the table so a new attach can replace it.
-                attached.remove(&key);
-                None
+                Some(_) => attached.remove(&key),
+                None => None,
             }
-            None => None,
+        };
+        if let Some(dead) = dead {
+            self.inner.keep_queue(&dead);
         }
+        None
     }
 
     /// Closes the connection to a session now. The keeper and its agent keep running.
@@ -473,6 +482,10 @@ impl SessionHub {
             }
         }
         self.detach(machine, id);
+        self.inner
+            .carried
+            .lock()
+            .remove(&(machine.to_owned(), id.to_owned()));
         entry.host.kill(id)?;
         {
             let mut owned = self.inner.owned.lock();
@@ -597,8 +610,8 @@ impl SessionHub {
     fn check_room(&self, machine: &str, id: Option<&str>) -> Result<(), KeeperError> {
         loop {
             let open = {
-                let mut attached = self.inner.attached.lock();
-                attached.retain(|_, h| h.is_open());
+                self.inner.sweep_dead();
+                let attached = self.inner.attached.lock();
                 attached
                     .keys()
                     .filter(|(m, k)| m == machine && Some(k.as_str()) != id)
@@ -626,6 +639,14 @@ impl SessionHub {
     ) -> Result<SessionHandle, KeeperError> {
         let (listed, id_owned) = (entry.clone(), id.to_owned());
         let on_change = self.inner.config.on_change.clone();
+        let key = (machine.to_owned(), id.to_owned());
+        let carried = self
+            .inner
+            .carried
+            .lock()
+            .get(&key)
+            .cloned()
+            .unwrap_or_default();
         let handle = SessionHandle::open(Opening {
             host: &entry.host,
             machine,
@@ -636,7 +657,9 @@ impl SessionHub {
             listing: Arc::new(move || listed.listing_for(&id_owned)),
             on_change,
             cache: self.inner.config.cache.clone(),
+            carried,
         })?;
+        self.inner.carried.lock().remove(&key);
         self.inner
             .attached
             .lock()
@@ -678,6 +701,7 @@ impl SessionHub {
             handle.detach();
         }
         self.inner.lingering.lock().clear();
+        self.inner.carried.lock().clear();
     }
 }
 
@@ -713,12 +737,14 @@ impl Inner {
     /// Closes the session that has lingered longest on `machine` (an observed one when `observed`), on a thread of its
     /// own. False when none lingers there.
     fn evict_lingering(&self, machine: &str, observed: bool) -> bool {
-        let handle = {
+        let closing = {
             let mut lingering = self.lingering.lock();
             let Some(oldest) = lingering
                 .iter()
                 .filter(|(s, _)| {
-                    s.machine() == machine && matches!(s, Slot::Observed(..)) == observed
+                    s.machine() == machine
+                        && matches!(s, Slot::Observed(..)) == observed
+                        && !self.holds_queue(s)
                 })
                 .min_by_key(|(_, since)| **since)
                 .map(|(s, _)| s.clone())
@@ -728,13 +754,14 @@ impl Inner {
             lingering.remove(&oldest);
             self.take(&oldest)
         };
-        if let Some(handle) = handle {
-            handle.close();
+        if let Some(closing) = closing {
+            self.retire(closing);
         }
         true
     }
 
-    /// Closes every lingering session that has lingered past the limit (shorter while the window is hidden).
+    /// Closes every lingering session that has lingered past the limit (shorter while the window is hidden). One
+    /// that still has messages queued stays: they are the person's words, and closing the connection would lose them.
     fn reap(&self, now: Instant) {
         let limit = if self.background.load(Ordering::Relaxed) {
             self.config.linger_background
@@ -746,6 +773,7 @@ impl Inner {
             let expired: Vec<Slot> = lingering
                 .iter()
                 .filter(|(_, since)| now.saturating_duration_since(**since) >= limit)
+                .filter(|(slot, _)| !self.holds_queue(slot))
                 .map(|(s, _)| s.clone())
                 .collect();
             expired
@@ -756,8 +784,61 @@ impl Inner {
                 })
                 .collect()
         };
-        for handle in closing {
-            handle.close();
+        for closing in closing {
+            self.retire(closing);
+        }
+    }
+
+    /// Whether `slot` is a keeper whose connection is open and that still has messages queued (call with `lingering`
+    /// locked, like [`take`](Self::take)).
+    fn holds_queue(&self, slot: &Slot) -> bool {
+        let Slot::Keeper(m, id) = slot else {
+            return false;
+        };
+        self.attached
+            .lock()
+            .get(&(m.clone(), id.clone()))
+            .is_some_and(|h| h.is_open() && h.queued() > 0)
+    }
+
+    /// Closes a session on its way out. One whose connection had ended already hands what it still queued to the
+    /// next attach.
+    fn retire(&self, closing: Closing) {
+        if let Closing::Keeper(h) = &closing {
+            self.keep_queue(h);
+        }
+        closing.close();
+    }
+
+    /// Keeps the queue of a session whose connection ended, to be shown held in the session that replaces it. An
+    /// open session is left as it is.
+    fn keep_queue(&self, handle: &SessionHandle) {
+        if handle.is_open() {
+            return;
+        }
+        if let Ok(queued) = handle.take_queue()
+            && !queued.is_empty()
+        {
+            self.carried.lock().insert(
+                (handle.machine().to_owned(), handle.id().to_owned()),
+                queued,
+            );
+        }
+    }
+
+    /// Drops the sessions whose connection ended from the table (keeping what they still queued).
+    fn sweep_dead(&self) {
+        let dead: Vec<SessionHandle> = {
+            let mut attached = self.attached.lock();
+            let keys: Vec<_> = attached
+                .iter()
+                .filter(|(_, h)| !h.is_open())
+                .map(|(k, _)| k.clone())
+                .collect();
+            keys.iter().filter_map(|k| attached.remove(k)).collect()
+        };
+        for handle in dead {
+            self.keep_queue(&handle);
         }
     }
 

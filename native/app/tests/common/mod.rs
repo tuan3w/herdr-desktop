@@ -23,11 +23,21 @@ pub fn start(name: &str) -> Rig {
 
 /// [`start`] on an existing data directory (to see what survives a restart).
 pub fn start_in(name: &str, dir: tempfile::TempDir) -> Rig {
+    start_fixture(Fixture::load(name).expect("the fixture loads"), dir)
+}
+
+/// [`start`] on a fixture a test built itself (`Fixture::from_json`), for the answers one test needs.
+pub fn start_with(fixture: Value) -> Rig {
+    let fixture = Fixture::from_json(&fixture).expect("the fixture is valid");
+    start_fixture(fixture, tempfile::tempdir().expect("a temp dir"))
+}
+
+fn start_fixture(fixture: Fixture, dir: tempfile::TempDir) -> Rig {
     let ticks = Arc::new(AtomicUsize::new(0));
     let counter = ticks.clone();
     let engine = Engine::start(Config {
         data_dir: dir.path().to_path_buf(),
-        fixture: Some(Fixture::load(name).expect("the fixture loads")),
+        fixture: Some(fixture),
         on_tick: Arc::new(move || {
             counter.fetch_add(1, Ordering::Relaxed);
         }),

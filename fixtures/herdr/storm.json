@@ -88,7 +88,7 @@
         "tab_id": "w1:t1",
         "workspace_id": "w1",
         "number": 1,
-        "label": "main",
+        "label": "1",
         "focused": true,
         "pane_count": 4,
         "agent_status": "blocked"
@@ -97,7 +97,7 @@
         "tab_id": "w2:t1",
         "workspace_id": "w2",
         "number": 1,
-        "label": "main",
+        "label": "1",
         "focused": false,
         "pane_count": 4,
         "agent_status": "blocked"
@@ -106,7 +106,7 @@
         "tab_id": "w3:t1",
         "workspace_id": "w3",
         "number": 1,
-        "label": "main",
+        "label": "1",
         "focused": false,
         "pane_count": 4,
         "agent_status": "blocked"
@@ -115,7 +115,7 @@
         "tab_id": "w4:t1",
         "workspace_id": "w4",
         "number": 1,
-        "label": "main",
+        "label": "1",
         "focused": false,
         "pane_count": 4,
         "agent_status": "blocked"
@@ -124,7 +124,7 @@
         "tab_id": "w5:t1",
         "workspace_id": "w5",
         "number": 1,
-        "label": "main",
+        "label": "1",
         "focused": false,
         "pane_count": 4,
         "agent_status": "blocked"

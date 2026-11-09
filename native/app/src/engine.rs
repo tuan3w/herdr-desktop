@@ -29,7 +29,7 @@ mod sessions;
 mod words;
 mod worktrees;
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -65,6 +65,12 @@ pub use words::{compact, status_line, window_title};
 
 /// The setting that holds the pinned projects' keys.
 const PINNED_KEY: &str = "projects.pinned";
+
+/// The setting that holds the names the person gave chats: an object of `"<machine>/<session id>"` to a name.
+const CHAT_NAMES_KEY: &str = "chats.names";
+
+/// The longest chat name kept, in characters.
+const CHAT_NAME_CHARS: usize = 200;
 
 /// The setting that switches the cache of saved conversations and snapshots on (the default) or off.
 pub(crate) const CACHE_KEY: &str = "cache.enabled";
@@ -460,6 +466,12 @@ pub struct PaneSummary {
     pub workspace_label: String,
     /// The tab's name.
     pub tab_label: String,
+    /// The name the person gave the pane (`pane.rename`), trimmed; empty when none.
+    pub pane_label: String,
+    /// The tab's name was given by the person: not empty and not herdr's default (its number as text).
+    pub tab_named: bool,
+    /// The workspace's name was given by the person: not empty and not the folder or repository herdr names it by.
+    pub workspace_named: bool,
     /// The machine's name.
     pub machine_name: String,
     /// Whether what the pane shows can be trusted.
@@ -654,7 +666,8 @@ impl Fleet {
         let mut board = {
             let reviewed = self.reviewed.lock();
             let first_seen = self.first_seen.lock();
-            let sessions = self.sessions.rows();
+            let mut sessions = self.sessions.rows();
+            self.apply_chat_names(&mut sessions);
             let names = self.log_names.read();
             let pins = self.pinned_projects();
             Board::from(
@@ -775,12 +788,32 @@ impl Fleet {
             (None, Some(a)) => (a.workspace_id.as_str(), a.tab_id.as_str()),
             (None, None) => ("", ""),
         };
-        let tab_label = snapshot
-            .tabs
-            .iter()
-            .find(|t| t.tab_id == tab_id)
-            .map(|t| t.label.clone())
-            .unwrap_or_default();
+        let tab = snapshot.tabs.iter().find(|t| t.tab_id == tab_id);
+        let tab_label = tab.map(|t| t.label.clone()).unwrap_or_default();
+        // herdr labels a new tab with its number (`"1"`): only another label was given by the person.
+        let tab_named = tab.is_some_and(|t| {
+            let label = t.label.trim();
+            !label.is_empty() && label != t.number.to_string()
+        });
+        let workspace_named = snapshot.workspace(workspace_id).is_some_and(|w| {
+            // herdr labels a new workspace with its folder's name; a git workspace may also be named by the
+            // repository or the checkout.
+            let label = w.label.trim();
+            let (repo, checkout) = w.worktree.as_ref().map_or(("", String::new()), |t| {
+                (
+                    t.repo_name.as_str(),
+                    herdr_core::board::folder_name(Some(&t.checkout_path)),
+                )
+            });
+            let cwd_folder = herdr_core::board::folder_name(
+                pane.and_then(|p| p.cwd.as_deref())
+                    .or_else(|| agent.and_then(|a| a.cwd.as_deref())),
+            );
+            !label.is_empty()
+                && [cwd_folder.as_str(), repo, checkout.as_str()]
+                    .iter()
+                    .all(|default| default.is_empty() || label != *default)
+        });
 
         let mut meta = PaneSummary {
             name: pane_id.to_owned(),
@@ -791,6 +824,13 @@ impl Fleet {
             tab_id: tab_id.to_owned(),
             workspace_label: label(workspace_id),
             tab_label,
+            pane_label: pane
+                .and_then(|p| p.label.as_deref())
+                .map(str::trim)
+                .unwrap_or_default()
+                .to_owned(),
+            tab_named,
+            workspace_named,
             machine_name: info.name,
             feed,
             prompt: None,
@@ -885,6 +925,51 @@ impl Fleet {
         self.set_setting(PINNED_KEY, serde_json::json!(pins))
     }
 
+    /// The names the person gave chats, by `"<machine>/<session id>"`.
+    fn chat_names(&self) -> BTreeMap<String, String> {
+        self.setting(CHAT_NAMES_KEY)
+            .and_then(|v| serde_json::from_value(v).ok())
+            .unwrap_or_default()
+    }
+
+    /// The name the person gave a chat, when they did: it replaces the agent's own title everywhere the chat is named.
+    pub fn chat_name(&self, machine: &str, id: &str) -> Option<String> {
+        self.chat_names().remove(&format!("{machine}/{id}"))
+    }
+
+    /// Names the rows of chats the person renamed. No key is built when nothing was renamed.
+    fn apply_chat_names(&self, rows: &mut [herdr_core::board::SessionRow]) {
+        let names = self.chat_names();
+        if names.is_empty() {
+            return;
+        }
+        for row in rows {
+            if let Some(name) = names.get(&format!("{}/{}", row.machine, row.id)) {
+                row.name.clone_from(name);
+            }
+        }
+    }
+
+    /// Gives a chat a name of the person's own (trimmed, cut at 200 characters), or, when `name` is empty, takes theirs
+    /// back so the agent's title shows again. Kept on this computer only: the keeper's own title is not changed.
+    /// Persisted; the board is rebuilt.
+    pub fn rename_chat(&self, machine: &str, id: &str, name: &str) -> Result<(), String> {
+        let name: String = name.trim().chars().take(CHAT_NAME_CHARS).collect();
+        let key = format!("{machine}/{id}");
+        let mut names = self.chat_names();
+        if name.is_empty() {
+            names.remove(&key);
+        } else {
+            names.insert(key, name);
+        }
+        let value = if names.is_empty() {
+            Value::Null
+        } else {
+            serde_json::json!(names)
+        };
+        self.set_setting(CHAT_NAMES_KEY, value)
+    }
+
     /// A setting, or `None` when it was never set.
     pub fn setting(&self, key: &str) -> Option<Value> {
         self.settings.lock().get::<Value>(key)
@@ -975,15 +1060,20 @@ pub(crate) fn pane_feed_state(state: &LinkState, snapshot: &Snapshot, pane: &str
     }
 }
 
-/// What a plain terminal pane is called: the person's label, else its title, else its folder.
+/// What a plain terminal pane is called: the person's label, else herdr's hook title, else its terminal title, else its
+/// folder (the same order as the board's `name_of`).
 fn terminal_name(pane: &PaneInfo) -> String {
-    let given = pane
-        .label
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty());
-    if let Some(name) = given {
+    fn given(s: Option<&str>) -> Option<&str> {
+        s.map(str::trim).filter(|s| !s.is_empty())
+    }
+    if let Some(name) = given(pane.label.as_deref()) {
         return name.to_owned();
+    }
+    let hook = given(pane.title.as_deref())
+        .map(clean_terminal_title)
+        .unwrap_or_default();
+    if !hook.is_empty() {
+        return hook;
     }
     let title = pane
         .terminal_title_stripped

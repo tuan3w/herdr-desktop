@@ -1,5 +1,5 @@
 import { Herdr } from "herdr-desktop/native";
-import { mount, signal, Text, View } from "nsh";
+import { host, mount, signal, Text, View } from "nsh";
 
 import { NameDialog } from "#components/name-dialog";
 import { Settings } from "#components/settings";
@@ -23,14 +23,22 @@ import {
 
 /**
  * The entry of `machines.test.tsx`, `settings.test.tsx`, `start-agent.test.tsx` and `name-dialog.test.tsx`: the pages and dialogs of
- * this area over the `mixed` fixture's scripted herdr, one button to open each, and readouts of what they did. Not part of the app.
+ * this area over the `mixed` fixture's scripted herdr (`fixture` is a launch parameter), one button to open each, and readouts of
+ * what they did. Not part of the app.
  */
-startHerdr("", "mixed");
+startHerdr("", (host.params as { fixture?: string }).fixture ?? "mixed");
 void loadSettings();
 
 function Lab() {
   const start = signal(false);
-  const name = signal<{ open: boolean; initial?: string; confirm: string; title: string }>({
+  const name = signal<{
+    open: boolean;
+    initial?: string;
+    confirm: string;
+    title: string;
+    allowEmpty?: boolean;
+    helper?: string;
+  }>({
     open: false,
     confirm: "Create",
     title: "New workspace",
@@ -79,6 +87,19 @@ function Lab() {
               }
             />
             <Btn
+              label="Rename pane label"
+              onPress={() =>
+                name.set({
+                  open: true,
+                  initial: "release check",
+                  confirm: "Rename",
+                  title: "Rename pane",
+                  allowEmpty: true,
+                  helper: "Leave empty to show the program's own title",
+                })
+              }
+            />
+            <Btn
               label="New workspace"
               onPress={() => name.set({ open: true, confirm: "Create", title: "New workspace" })}
             />
@@ -107,8 +128,10 @@ function Lab() {
           title={name().title}
           initial={name().initial}
           confirm={name().confirm}
+          allowEmpty={name().allowEmpty}
+          helper={name().helper}
           onClose={() => name.set({ ...name(), open: false })}
-          onSubmit={(value) => named.set(`named ${value}`)}
+          onSubmit={(value) => named.set(value === "" ? "name cleared" : `named ${value}`)}
         />
       </PopupRoot>
     </ThemeRoot>

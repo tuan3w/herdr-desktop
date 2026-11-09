@@ -24,7 +24,8 @@ import { endSessions } from "./chat-parts-seam";
  * - `synthetic`: a made-up `SessionView` of a session that does not exist, to drive the dock through states the
  *   scripted agent cannot reach (a risky command, a standing grant, a queue); answering reaches no agent and is
  *   refused by the engine, which is exactly what the tests look for.
- * - `new-session`, `past`, `ghost` (the details of a session that is not this app's): the dialogs. Not part of the app.
+ * - `new-session`, `past`, `ghost` (the details of a session that is not this app's), `pane-chat` (the details of an agent
+ *   seen in a herdr pane of the `mixed` fixture: they name its workspace and tab): the dialogs. Not part of the app.
  * `endAfter` ends the live session that many milliseconds after it started, for runs that end the process early.
  */
 const params = host.params as {
@@ -36,7 +37,8 @@ const params = host.params as {
   quiet?: boolean;
   endAfter?: number;
 };
-startHerdr("", "empty");
+// `pane-chat` reads a herdr pane's names, so it needs a fixture that has panes.
+startHerdr("", params.part === "pane-chat" ? "mixed" : "empty");
 const MACHINE = "local";
 
 /** A command that does not fit the box: a hundred steps of one pipeline. */
@@ -333,6 +335,9 @@ function Dialogs() {
       </If>
       <If when={part === "ghost"}>
         <SessionOverview open={open()} onClose={() => open.set(false)} machine={MACHINE} id="ghost" />
+      </If>
+      <If when={part === "pane-chat"}>
+        <SessionOverview open={open()} onClose={() => open.set(false)} machine={MACHINE} id="pane:w1:p2" />
       </If>
     </View>
   );

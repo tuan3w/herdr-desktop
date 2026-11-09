@@ -339,7 +339,22 @@ impl Sessions {
     /// The session as it stands, without the rows of the conversation (see `items`); `undefined` when it
     /// is not attached. Cheap: pull it after every `Herdr.onChange`, and compare `revision`.
     pub fn view(machine: String, id: String) -> Result<Option<SessionView>, String> {
-        Ok(Chat::find(&machine, &id)?.map(|c| SessionView::from(&*c.snapshot())))
+        let Some(chat) = Chat::find(&machine, &id)? else {
+            return Ok(None);
+        };
+        let mut view = SessionView::from(&*chat.snapshot());
+        // The name the person gave the chat wins over the agent's title, so the header and the board agree.
+        if let Some(name) = engine()?.chat_name(&machine, &id) {
+            view.title = Some(name);
+        }
+        Ok(Some(view))
+    }
+
+    /// Names a chat, or with an empty `name` takes the name back so the agent's own title shows again. Trimmed, at most
+    /// 200 characters. Kept on this computer only: the agent's title is not changed, and `Herdr.board()` rows and
+    /// `view().title` show this name from the next change on.
+    pub async fn rename(machine: String, id: String, name: String) -> Result<(), String> {
+        run(move |engine| engine.rename_chat(&machine, &id, &name)).await
     }
 
     /// `count` rows of the conversation from row `start` (oldest first), as of now. A virtual list pulls

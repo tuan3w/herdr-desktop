@@ -176,6 +176,50 @@ fn a_herdr_without_worktrees_is_unsupported() {
             .problem,
         Problem::Unsupported
     );
+    assert_eq!(
+        worktree::remove(&wire, "w1", PATIENCE).unwrap_err().problem,
+        Problem::Unsupported
+    );
+}
+
+#[test]
+fn remove_sends_exactly_the_workspace_id_never_force_or_trust() {
+    let (_dir, herdr, _fake, wire) = served(vec![repo()]);
+    worktree::remove(&wire, "w21", PATIENCE).unwrap();
+    assert_eq!(
+        herdr.requests_of("worktree.remove")[0].params,
+        json!({"workspace_id": "w21"})
+    );
+}
+
+#[test]
+fn a_refused_removal_is_an_error_in_herdrs_words_and_a_gone_workspace_is_one_too() {
+    let dir = tempdir().unwrap();
+    let herdr = FakeHerdr::start(
+        dir.path(),
+        Script::new().on_with("worktree.remove", |p| match p["workspace_id"].as_str() {
+            Some("w-dirty") => Err((
+                "worktree_dirty".to_owned(),
+                "the worktree has uncommitted changes".to_owned(),
+            )),
+            _ => Err((
+                "workspace_not_found".to_owned(),
+                "no workspace w-gone".to_owned(),
+            )),
+        }),
+    )
+    .unwrap();
+    let wire = LocalWire::new(herdr.socket_path());
+    let dirty = worktree::remove(&wire, "w-dirty", PATIENCE).unwrap_err();
+    assert_eq!(dirty.problem, Problem::Refused);
+    assert_eq!(dirty.message, "the worktree has uncommitted changes");
+    let gone = worktree::remove(&wire, "w-gone", PATIENCE).unwrap_err();
+    assert_eq!(gone.message, "no workspace w-gone");
+    assert_eq!(
+        gone.problem,
+        Problem::Refused,
+        "a gone workspace removed nothing"
+    );
 }
 
 #[test]
