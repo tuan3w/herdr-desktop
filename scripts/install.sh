@@ -1,6 +1,6 @@
 #!/bin/sh
-# Install Herdr Desktop from a GitHub release: macOS (Apple silicon), or Linux (x86_64) when the release has a Linux build.
-# Linux builds are paused for now (the releases hold the macOS zip only); Linux builds from source: see the README.
+# Install Herdr Desktop from a GitHub release: macOS (Apple silicon), or Linux (x86_64) when the release has a Linux build
+# (0.1.0-alpha.1 to .3, and 0.1.0-alpha.5 on; 0.1.0-alpha.4 and the edge build hold the macOS zip only).
 #
 #   curl -fsSL https://raw.githubusercontent.com/tuan3w/herdr-desktop/main/scripts/install.sh | sh
 #   curl -fsSL https://raw.githubusercontent.com/tuan3w/herdr-desktop/main/scripts/install.sh | sh -s -- --version 0.1.0-alpha.2
@@ -51,14 +51,14 @@ done
 case "$(uname -s)" in
   Linux) os=linux ;;
   Darwin) os=macos ;;
-  *) die "unsupported system $(uname -s): Herdr Desktop has builds for macOS Apple silicon (Linux x86_64 is paused)" ;;
+  *) die "unsupported system $(uname -s): Herdr Desktop has builds for macOS Apple silicon and Linux x86_64" ;;
 esac
 arch="$(uname -m)"
 case "$os-$arch" in
   linux-x86_64|linux-amd64) target=linux-x86_64; ext=tar.gz ;;
   macos-arm64) target=macos-arm64; ext=zip ;;
   macos-x86_64) die "no Intel Mac build: nsh 0.4.0 publishes its macOS runtime for Apple silicon only" ;;
-  *) die "no build for $os on $arch (available: macos-arm64; linux-x86_64 is paused)" ;;
+  *) die "no build for $os on $arch (available: macos-arm64, linux-x86_64)" ;;
 esac
 
 prefix="${PREFIX:-$HOME/.local}"
@@ -103,7 +103,7 @@ work="$(mktemp -d "${TMPDIR:-/tmp}/herdr-desktop-install.XXXXXX")"
 trap 'rm -rf "$work"' EXIT INT TERM
 
 no_linux() {
-  die "no Linux build in this release: Linux builds are paused, build from source (README: https://github.com/$REPO#build)"
+  die "no Linux build in this release (0.1.0-alpha.4 and the edge build are macOS only): pick another with --version, or build from source (README: https://github.com/$REPO#build)"
 }
 
 tag=""

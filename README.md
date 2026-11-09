@@ -53,7 +53,7 @@ curl -fsSL .../scripts/install.sh | sh -s -- --uninstall               # remove 
 
 `APP_DIR=DIR` chooses another place. Prefer to read it first: [scripts/install.sh](scripts/install.sh). Archives, `SHA256SUMS` and release notes are on the [Releases page](https://github.com/tuan3w/herdr-desktop/releases).
 
-**Linux is paused.** The code still builds from source with GTK 4 (below), but no Linux package is built or tested on every change ([docs/RELEASING.md](docs/RELEASING.md), "Linux (paused)").
+**Linux** (x86_64, GTK 4.14 or newer, WebKitGTK 6.0, glibc 2.39: Ubuntu 24.04 and later): the same command installs the release's Linux archive, from 0.1.0-alpha.5 on. It is built on every release but not tested on every change ([docs/RELEASING.md](docs/RELEASING.md), "Linux").
 
 ## Status
 

@@ -24,7 +24,7 @@ The in-app update check (`lib/updates.ts`) reads the latest **non-pre-release** 
    git push origin main vX.Y.Z
    ```
 
-   The tag starts `release.yml`: `prepare` checks the tag against the three versions and extracts and checks the changelog section; `build-macos` runs on `macos-15` (verify for a stable release, package, sign, zip, checksum); `publish` creates the GitHub release (with `--prerelease` for a `-` version) with the zip, `SHA256SUMS` and those notes. No Linux archive: Linux is paused (below).
+   The tag starts `release.yml`: `prepare` checks the tag against the three versions and extracts and checks the changelog section; `build-macos` runs on `macos-15` (verify for a stable release, package, sign, zip, checksum) and `build-linux` on `ubuntu-24.04` (verify for a stable release, package); `publish` needs both and creates the GitHub release (with `--prerelease` for a `-` version) with the zip, the Linux archive, `SHA256SUMS` and those notes.
 7. Pictures, if the notes name any: render them into `local/release-media/X.Y.Z/` as `X.Y.Z-<slug>.png` (the skill, section 6), check them with `scripts/release-media.sh X.Y.Z`, and once the release is published run `scripts/release-media.sh X.Y.Z --upload` (`gh release upload vX.Y.Z local/release-media/X.Y.Z/*`, then an HTTP 200 check of every URL in the notes). They are never committed.
 8. Open the release page and read the notes once.
 
@@ -35,10 +35,11 @@ Never move or delete a published tag; fix forward with the next version.
 | File | Built on | For |
 |---|---|---|
 | `Herdr-Desktop-<version>-macos-arm64.zip` | `macos-15` | Apple silicon Macs, containing `Herdr Desktop.app` (made with `ditto -c -k --keepParent`, which keeps permissions and the signature) |
+| `Herdr-Desktop-<version>-linux-x86_64.tar.gz` | `ubuntu-24.04` | Linux x86_64 (GTK 4.14+, WebKitGTK 6.0, glibc 2.39+), unpacking to `Herdr Desktop/` |
 | `SHA256SUMS` | | `shasum -a 256 -c SHA256SUMS --ignore-missing` |
 | `<version>-<slug>.png` | | pictures the notes show (uploaded by hand, step 7) |
 
-Releases `0.1.0-alpha.1` to `alpha.3` also have `Herdr-Desktop-<version>-linux-x86_64.tar.gz`; later ones do not (see "Linux (paused)").
+`0.1.0-alpha.4` holds the macOS zip only (Linux was paused for it; see "Linux"); the edge build is macOS only.
 
 **No Intel Mac build.** nsh 0.4.0 publishes its macOS CLI and runtime for arm64 only (`nsh-macos-arm64.tar.gz` is the one macOS asset of its v0.4.0 release), so there is nothing to package an x86_64 app with, whatever the runner (`macos-15-intel` exists and starts).
 
@@ -48,9 +49,9 @@ Every push to `main` that packages (`macos-package` green) replaces the pre-rele
 
 ## Installing a release
 
-One command: `curl -fsSL https://raw.githubusercontent.com/tuan3w/herdr-desktop/main/scripts/install.sh | sh` (`scripts/install.sh`: downloads the newest release or `--version X` or the rolling `--edge` build, verifies `SHA256SUMS`, installs, `--uninstall` removes). On Linux it says `no Linux build in this release: Linux builds are paused, build from source (README)` when the release has no Linux archive. By hand:
+One command: `curl -fsSL https://raw.githubusercontent.com/tuan3w/herdr-desktop/main/scripts/install.sh | sh` (`scripts/install.sh`: downloads the newest release or `--version X` or the rolling `--edge` build, verifies `SHA256SUMS`, installs, `--uninstall` removes). On Linux it says there is no Linux build in this release when the release has no Linux archive (0.1.0-alpha.4, edge). By hand:
 
-Linux (only the alphas 1 to 3 have an archive):
+Linux (every release but `0.1.0-alpha.4`):
 
 ```sh
 tar -xzf Herdr-Desktop-X.Y.Z-linux-x86_64.tar.gz          # unpacks "Herdr Desktop/"
@@ -80,18 +81,18 @@ The app's declared reach is `nsh.json` `capabilities`: the clipboard, `openUrl` 
 
 `native/app` has a cargo feature `terminal` (the `Terminal` component, `docs/specs/terminal.md`), **on by default**: every build, including `make package` and the CI and release workflows, compiles libghostty-vt and therefore needs **zig 0.15.2 on `PATH`** and network access for the first compile (the crate clones ghostty at a pinned commit). Get zig from ziglang.org (`zig-aarch64-macos-0.15.2.tar.xz`, sha256 `3cc2bab367e185cdfb27501c4b30b1b0653c28d9f73df8dc91488e66ece5fa6b`; 51 MB) or let CI install it (`mlugg/setup-zig@v2`, `version: 0.15.2`, in `ci.yml`, `tests.yml`, `release.yml`, `ci-linux.yml`: **not run yet in CI, review before the first push**). Cold: about 70 s on an M-series Mac and 412 MB of build output per target; a build with the library installed (`PKG_CONFIG_PATH`) needs no zig. `LIBGHOSTTY_VT_SYS_CPU=baseline` is set by the Makefile. On macOS 26 zig 0.15.2 cannot read the new SDK: see `docs/DEVELOPMENT.md` "Building the terminal".
 
-## Linux (paused)
+## Linux
 
-The owner is focusing on macOS, so Linux is not built on a push and not in a release (`0.1.0-alpha.4` and later hold the macOS zip only). Nothing was deleted: the code, the `Makefile` targets and the jobs work and are run by hand.
+Every tagged release builds and publishes the Linux archive beside the macOS zip (back from `0.1.0-alpha.5`, owner 2026-11-09, after `0.1.0-alpha.4` shipped macOS only). Linux is still not built or tested on every push: `ci-linux.yml` runs by hand, and a release's `build-linux` runs `make verify` for a stable release only, so a pre-release's Linux archive is packaged untested by CI.
 
 ```sh
 gh workflow run ci-linux.yml --ref main        # the four Linux jobs: check, test, a11y (Xvfb + AT-SPI), package
-gh workflow run release.yml --ref main -f tag=vX.Y.Z -f linux=true   # a dry run that also builds the Linux archive (never published)
+gh workflow run release.yml --ref main -f tag=vX.Y.Z -f linux=true   # a dry run that also builds the Linux archive
 make verify                                    # on a Linux machine: check, test, core, docs, a11y
 make package                                   # .scratch/dist/Herdr Desktop.tar.gz
 ```
 
-To bring Linux back on every push, add `push: branches: [main]` under `on:` in `ci-linux.yml`; to ship it, make `build-linux` of `release.yml` run on a tag and list it in `publish`'s `needs`.
+To run Linux on every push, add `push: branches: [main]` under `on:` in `ci-linux.yml`.
 
 ## The tests, by hand
 

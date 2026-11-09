@@ -5,9 +5,8 @@ name: release
 # commit moves them together: docs/RELEASING.md), and CHANGELOG.md must have a non-empty `## [<version>]` section, which is
 # the release notes (scripts/release-notes.sh; the format is in `.agents/skills/herdr-changelog/SKILL.md`).
 #
-# macOS (Apple silicon) only for now: Linux is paused (the owner is focusing on macOS). The Linux job below still works; it
-# runs only on a manual run with `-f linux=true` and never publishes. A release therefore holds the macOS zip and SHA256SUMS,
-# and `scripts/install.sh` tells a Linux user that there is no Linux build in it.
+# macOS (Apple silicon) and Linux (x86_64). The Linux archive was paused for 0.1.0-alpha.4 and is back from 0.1.0-alpha.5
+# (owner, 2026-11-09); a release is published only when both builds pass. A manual run builds Linux with `-f linux=true`.
 #
 # Run it by hand (Actions > release > Run workflow, or `gh workflow run release.yml -f tag=v0.1.0-alpha.1`) for a DRY RUN:
 # it checks, packages, signs, zips and checksums, and keeps the files as workflow artifacts, but publishes nothing.
@@ -21,7 +20,7 @@ on:
         required: true
         default: "v0.1.0-alpha.1"
       linux:
-        description: "Also build the Linux package (paused: not part of a release)."
+        description: "Also build the Linux package in this dry run (a pushed tag always builds it)."
         type: boolean
         default: false
 
@@ -186,10 +185,9 @@ jobs:
           if-no-files-found: error
 
   build-linux:
-    # Paused (docs/RELEASING.md, "Linux"): a manual run with `linux: true` only, never part of a published release. The
-    # steps are the ones that built the Linux archive of 0.1.0-alpha.1 to .3.
-    name: build linux-x86_64 (paused)
-    if: github.event_name == 'workflow_dispatch' && inputs.linux
+    # The steps that built the Linux archive of 0.1.0-alpha.1 to .3: every pushed tag, or a manual run with `linux: true`.
+    name: build linux-x86_64
+    if: github.event_name == 'push' || inputs.linux
     needs: prepare
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -238,7 +236,7 @@ jobs:
   publish:
     # Only a pushed tag publishes; a manual run stops after the artifacts.
     if: github.event_name == 'push'
-    needs: [prepare, build-macos]
+    needs: [prepare, build-macos, build-linux]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
