@@ -1036,3 +1036,299 @@ fn lines_the_agent_writes_during_a_wider_read_arrive_once_and_in_order() {
             .collect::<Vec<_>>()
     );
 }
+
+// ---- slash commands and a new session in the same pane ----------------------------------------------
+
+/// Claude Code's own mapper behind the scripted pane: what a slash command and `/clear` write is Claude's.
+static CLAUDE: LazyLock<ObservedKind> = LazyLock::new(|| ObservedKind {
+    id: "claude",
+    label: "Claude Code",
+    new_mapper: herdr_core::observed::claude::new_mapper,
+    locator: &TOY_LOCATOR,
+    ask: None,
+    wakes_on_background: true,
+    integration: None,
+});
+
+/// Whether `condition` holds within `d`: a red run fails in seconds, not after the 30 s of [`eventually`].
+fn within(d: Duration, mut condition: impl FnMut() -> bool) -> bool {
+    let deadline = Instant::now() + d;
+    while Instant::now() < deadline {
+        if condition() {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    condition()
+}
+
+/// omp's own mapper behind the scripted pane.
+static OMP: LazyLock<ObservedKind> = LazyLock::new(|| ObservedKind {
+    id: "omp",
+    label: "omp",
+    new_mapper: herdr_core::observed::omp::new_mapper,
+    locator: &TOY_LOCATOR,
+    ask: None,
+    wakes_on_background: true,
+    integration: None,
+});
+
+fn c_prompt(uuid: &str, text: &str) -> Value {
+    json!({"type": "user", "uuid": uuid, "isSidechain": false, "origin": {"kind": "human"},
+        "message": {"role": "user", "content": text}})
+}
+
+fn c_say(uuid: &str, text: &str) -> Value {
+    json!({"type": "assistant", "uuid": uuid, "isSidechain": false, "apiBlockIndex": 0,
+        "message": {"id": format!("m-{uuid}"), "role": "assistant", "model": "claude-test-1",
+            "content": [{"type": "text", "text": text}], "stop_reason": "end_turn"}})
+}
+
+/// The record Claude writes for a slash command (a built-in writes `<command-name>` first).
+fn c_command(uuid: &str, name: &str, args: &str) -> Value {
+    let bare = name.trim_start_matches('/');
+    json!({"type": "user", "uuid": uuid, "isSidechain": false, "message": {"role": "user", "content":
+        format!("<command-name>{name}</command-name>\n<command-message>{bare}</command-message>\n<command-args>{args}</command-args>")}})
+}
+
+fn c_stdout(uuid: &str, text: &str) -> Value {
+    json!({"type": "user", "uuid": uuid, "isSidechain": false, "message": {"role": "user", "content":
+        format!("<local-command-stdout>{text}</local-command-stdout>")}})
+}
+
+/// The skills Claude lists once, near the top of a session's log.
+fn c_skills(skills: &[(&str, &str)]) -> Value {
+    let names: Vec<&str> = skills.iter().map(|s| s.0).collect();
+    let content: String = skills
+        .iter()
+        .map(|(n, d)| format!("- {n}: {d}\n"))
+        .collect();
+    json!({"type": "attachment", "uuid": "skills", "isSidechain": false,
+        "attachment": {"type": "skill_listing", "content": content, "isInitial": true, "names": names}})
+}
+
+fn write_log(path: &Path, lines: &[Value]) {
+    let body: String = lines.iter().map(|l| format!("{l}\n")).collect();
+    std::fs::write(path, body).expect("log");
+}
+
+fn command_names(s: &SessionSnapshot) -> Vec<String> {
+    s.commands.iter().map(|c| c.name.clone()).collect()
+}
+
+/// The problem the chat shows at any moment of a wait longer than `confirm_within` (600 ms in [`fast`]); a
+/// problem holds only 300 ms there, so one look at the end would miss it.
+fn alarm(chat: &herdr_core::observed::session::ObservedHandle) -> Option<String> {
+    let deadline = Instant::now() + Duration::from_millis(900);
+    while Instant::now() < deadline {
+        if let Some(p) = chat
+            .snapshot()
+            .observed
+            .as_ref()
+            .and_then(|o| o.problem.clone())
+        {
+            return Some(p);
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    None
+}
+
+#[test]
+fn a_new_log_for_the_pane_replaces_the_chat_while_the_old_one_is_still_followed() {
+    let rig = Rig::with(fast());
+    rig.append(&[user("u1", "old question"), agent("a1", "old answer")]);
+    let pane = Pane::new(rig.located());
+    let chat = rig
+        .hub
+        .observe(LOCAL, "w1:p1", kind(false), pane.clone())
+        .expect("observe");
+    eventually("the old chat", || {
+        (texts(&chat.snapshot(), herdr_core::session::Role::User) == ["old question"]).then_some(())
+    });
+
+    // The agent in the pane started another session (`/clear`, `/new`, `/resume`): another file.
+    let next = rig.log.with_file_name("next.jsonl");
+    write_log(&next, &[user("n1", "new start")]);
+    *pane.location.lock() = Location::Located(next.display().to_string());
+
+    assert!(
+        within(Duration::from_secs(5), || {
+            let s = chat.snapshot();
+            texts(&s, herdr_core::session::Role::User) == ["new start"]
+                && s.observed.as_ref().and_then(|o| o.log_path.as_deref()) == next.to_str()
+        }),
+        "the chat still shows {:?} from {:?}",
+        texts(&chat.snapshot(), herdr_core::session::Role::User),
+        chat.snapshot()
+            .observed
+            .as_ref()
+            .and_then(|o| o.log_path.clone())
+    );
+}
+
+#[test]
+fn clear_typed_from_the_box_moves_the_chat_to_the_new_session_with_one_note_and_no_alarm() {
+    let rig = Rig::with(fast());
+    rig.append(&[
+        c_skills(&[("review-pr", "Reviews a pull request")]),
+        c_prompt("u1", "first question"),
+        c_say("a1", "first answer"),
+    ]);
+    let pane = Pane::new(rig.located());
+    let chat = rig
+        .hub
+        .observe(LOCAL, "w1:p1", &CLAUDE, pane.clone())
+        .expect("observe");
+    eventually("the first turn", || {
+        (texts(&chat.snapshot(), herdr_core::session::Role::Agent) == ["first answer"])
+            .then_some(())
+    });
+    // What Claude Code does on `/clear`: a new session id, and a new file that opens with the command's echo.
+    let next = rig.log.with_file_name("cleared.jsonl");
+    let weak = Arc::downgrade(&pane);
+    let path = next.clone();
+    *pane.on_enter.lock() = Some(Box::new(move |_| {
+        write_log(&path, &[c_command("c1", "/clear", ""), c_stdout("c2", "")]);
+        if let Some(pane) = weak.upgrade() {
+            *pane.location.lock() = Location::Located(path.display().to_string());
+        }
+    }));
+
+    chat.send("/clear").expect("typed");
+
+    let agent_texts = || texts(&chat.snapshot(), herdr_core::session::Role::Agent);
+    let moved = within(Duration::from_secs(5), || {
+        chat.snapshot()
+            .observed
+            .as_ref()
+            .and_then(|o| o.log_path.as_deref())
+            == next.to_str()
+            && agent_texts() == ["The conversation was cleared"]
+    });
+    assert!(
+        moved,
+        "one honest line says why the chat is empty; it shows {:?} from {:?}",
+        agent_texts(),
+        chat.snapshot()
+            .observed
+            .as_ref()
+            .and_then(|o| o.log_path.clone())
+    );
+    assert!(texts(&chat.snapshot(), herdr_core::session::Role::User).is_empty());
+    // `/clear` never comes back as a message of the person, and is no alarm at any moment of the wait.
+    assert_eq!(alarm(&chat), None);
+}
+
+#[test]
+fn a_skill_or_built_in_command_typed_from_the_box_is_confirmed_by_its_record() {
+    let rig = Rig::with(fast());
+    rig.append(&[
+        c_skills(&[("review-pr", "Reviews a pull request")]),
+        c_say("a0", "ready"),
+    ]);
+    let pane = Pane::new(rig.located());
+    let chat = rig
+        .hub
+        .observe(LOCAL, "w1:p1", &CLAUDE, pane.clone())
+        .expect("observe");
+    eventually("the replay", || {
+        (texts(&chat.snapshot(), herdr_core::session::Role::Agent) == ["ready"]).then_some(())
+    });
+
+    chat.send("/review-pr 12").expect("typed");
+    chat.send("/context").expect("typed");
+    assert_eq!(
+        pane.inputs.lock().as_slice(),
+        [
+            ("/review-pr 12".to_owned(), vec!["enter".to_owned()]),
+            ("/context".to_owned(), vec!["enter".to_owned()]),
+        ]
+    );
+    rig.append(&[
+        json!({"type": "user", "uuid": "s1", "isSidechain": false, "message": {"role": "user", "content":
+            "<command-message>review-pr</command-message>\n<command-name>/review-pr</command-name>\n<command-args>12</command-args>"}}),
+        c_say("a1", "Reviewing #12"),
+        c_command("c1", "/context", ""),
+        c_stdout("c2", "Context Usage 12k/200k"),
+    ]);
+    eventually("the echoes", || {
+        (texts(&chat.snapshot(), herdr_core::session::Role::User) == ["/review-pr 12", "/context"])
+            .then_some(())
+    });
+    assert_eq!(alarm(&chat), None);
+}
+
+#[test]
+fn the_skills_of_a_claude_log_longer_than_the_first_read_are_still_its_slash_commands() {
+    let rig = Rig::with(ObservedConfig {
+        tail_start: 16 * 1024,
+        ..fast()
+    });
+    // Claude lists the skills once, at the top; a working session soon outgrows the tail read.
+    rig.append(&[c_skills(&[
+        ("review-pr", "Reviews a pull request"),
+        ("plugin:deploy", "Deploys"),
+    ])]);
+    let pad = "x".repeat(1000);
+    let turns: Vec<Value> = (0..40)
+        .flat_map(|i| {
+            [
+                c_prompt(&format!("u{i}"), &format!("q{i} {pad}")),
+                c_say(&format!("a{i}"), &format!("r{i} {pad}")),
+            ]
+        })
+        .collect();
+    rig.append(&turns);
+    let chat = rig
+        .hub
+        .observe(LOCAL, "w1:p1", &CLAUDE, Pane::new(rig.located()))
+        .expect("observe");
+    eventually("the tail", || {
+        texts(&chat.snapshot(), herdr_core::session::Role::Agent)
+            .last()
+            .filter(|t| t.starts_with("r39"))
+            .map(|_| ())
+    });
+    assert!(
+        within(Duration::from_secs(5), || command_names(&chat.snapshot())
+            == ["review-pr", "plugin:deploy"]),
+        "the `/` list has {:?}",
+        command_names(&chat.snapshot())
+    );
+}
+
+#[test]
+fn omp_commands_typed_from_the_box_are_confirmed_by_what_they_write_not_by_an_echo() {
+    let rig = Rig::with(fast());
+    let o_user = |id: &str, text: &str| json!({"type": "message", "id": id, "message": {"role": "user", "content": [{"type": "text", "text": text}]}});
+    rig.append(&[o_user("u1", "hello")]);
+    let pane = Pane::new(rig.located());
+    let chat = rig
+        .hub
+        .observe(LOCAL, "w1:p1", &OMP, pane.clone())
+        .expect("observe");
+    eventually("the replay", || {
+        (texts(&chat.snapshot(), herdr_core::session::Role::User) == ["hello"]).then_some(())
+    });
+
+    // A skill echoes as the person typed it.
+    chat.send("/skill:tdd the parser").expect("typed");
+    rig.append(&[
+        json!({"type": "custom_message", "id": "sk", "customType": "skill-prompt", "content": "go",
+        "display": true, "attribution": "user", "details": {"name": "tdd", "args": "the parser"}}),
+    ]);
+    assert_eq!(alarm(&chat), None, "a skill");
+
+    // omp runs `/compact` and `/clear` itself and writes what they did, never the line typed.
+    chat.send("/compact").expect("typed");
+    rig.append(&[json!({"type": "compaction", "id": "c1"})]);
+    assert_eq!(alarm(&chat), None, "/compact");
+    chat.send("/clear").expect("typed");
+    rig.append(&[json!({"type": "reset_boundary", "id": "x1"})]);
+    assert_eq!(alarm(&chat), None, "/clear");
+
+    // A command that writes nothing (a dialog opened in the terminal) is still called out: look there.
+    chat.send("/settings").expect("typed");
+    assert!(alarm(&chat).is_some_and(|p| p.contains("Check the terminal")));
+}

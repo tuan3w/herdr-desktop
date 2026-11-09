@@ -281,6 +281,14 @@ impl KeeperHost {
         self.channel(&args)
     }
 
+    /// Reads `[from, to)` of the log `path` once, to the end of the line that holds `to`, with
+    /// [`follow`](Self::follow)'s records, and ends after its `C`.
+    pub(crate) fn read_log(&self, path: &str, from: u64, to: u64) -> Result<Attach, KeeperError> {
+        validate_path("log path", path)?;
+        let (from, to) = (from.to_string(), to.to_string());
+        self.channel(&["follow", path, "--from", &from, "--to", &to])
+    }
+
     /// The bytes of a picture the follower left out of the log line that begins at byte `start` of `path`
     /// (its note said `ref=<start>.<hash>`): the host reads the line again and sends the payload that hashes
     /// to `hash`.

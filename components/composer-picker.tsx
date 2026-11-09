@@ -5,7 +5,7 @@ import type { MentionView, PeekView } from "herdr-desktop/native";
 import type { Bounds, ScrollRef, ViewRef } from "nsh/types";
 
 import { FileName } from "#components/file-row";
-import { Clipped, EDGE, FOCUS_RING_INSET, Keys, offsetsOf, revealOffset, Tipped } from "#kit";
+import { Clipped, FOCUS_RING_INSET, Keys, offsetsOf, revealOffset, Tipped } from "#kit";
 import {
   BUBBLE_GAP,
   bubbleBox,
@@ -33,15 +33,19 @@ const BUBBLE_DELAY = 150;
 const KEYS_ROW = 24;
 const PEEK_WIDTH = 360;
 const TIP_WIDTH = 280;
+/** The least the rows keep when the preview sits inside the list beside them: a file name and the start of its folder. */
+const ROWS_MIN = 320;
 
-const FADE = "from-popover/0 to-popover";
+/** What a cut name fades into: the list is the box's own top, so the box's card. */
+const FADE = "from-card/0 to-card";
 const FADE_SELECTED = "from-accent/0 to-accent";
 
 /**
  * The list that opens from the message box: `@` files, `/` commands. One shell, so both look and move the same
- * (`design/composer.md`). It is an `Overlay` hung above the caret (the input reports where it is), so it covers no layout
- * and the box does not jump when it opens; the box keeps the keyboard focus and moves `highlighted`, a press on a row picks
- * it too. `children` are rows, each `ROW` tall.
+ * (`design/composer.md`). It is an `Overlay` hung from the box's top edge at the box's width, drawn as the box's own top
+ * (the same card and ring, its corners curved on top only, while the box squares its top corners), so it covers no layout and the box
+ * does not jump when it opens; its rows start on the box's 12-pt text edge. The box keeps the keyboard focus and moves
+ * `highlighted`, a press on a row picks it too. `children` are rows, each `ROW` tall.
  *
  * Nothing in it changes size while the highlight moves: the list is whole rows (at most `MAX_ROWS`) and hangs from its
  * bottom edge, so a shorter list moves only its top; what is said about the highlighted row is `bubble`, a second overlay
@@ -61,8 +65,11 @@ export function ComposerPicker(props: {
   footer?: JSX.Element;
   /** Identifies what the bubble is about (the highlighted row's own key), or null for no bubble. */
   about?: string | null;
-  /** Drawn beside the list, given the list's own height (fixed while it is open) so a preview can fill exactly that. */
-  bubble?: (height: number) => JSX.Element;
+  /**
+   * The preview of the highlighted row, given the list's own height (fixed while it is open) so it can fill exactly that;
+   * `inline` when it is a column inside the list (it then draws no edge of its own), else a bubble beside it.
+   */
+  bubble?: (height: number, inline: boolean) => JSX.Element;
   /** The least the bubble is tall (a short list grows it upward from the list's bottom edge): omit for a bubble that sizes itself. */
   bubbleMin?: number;
   bubbleWidth?: number;
@@ -78,6 +85,10 @@ export function ComposerPicker(props: {
   const box = () => bubbleBox(listHeight(), props.bubbleMin);
   // From the rows, not measured: the same number the list has (rows, the keys row, the 1 pt edge twice), known before the first frame.
   const listHeight = () => viewport() + (props.footer === undefined ? 0 : KEYS_ROW) + 2;
+  // The preview fits inside when the rows keep at least `ROWS_MIN` beside it.
+  const inline = () => props.bubble !== undefined && props.width - (props.bubbleWidth ?? TIP_WIDTH) >= ROWS_MIN;
+  // The panel's height with the preview inside: the list's own, or the preview's least when that is taller.
+  const panelHeight = () => Math.max(listHeight(), props.bubbleMin ?? 0);
   // Move only when the highlighted row is out of view, and only as far as its edge.
   effect(() => {
     const rows = offsetsOf(Array.from({ length: props.count }, () => ROW));
@@ -105,7 +116,7 @@ export function ComposerPicker(props: {
         anchor={props.anchor}
         placement="top"
         align="start"
-        offset={8}
+        offset={0}
         margin={8}
         onPosition={(p) => {
           const was = untracked(frame);
@@ -120,23 +131,46 @@ export function ComposerPicker(props: {
             frame.set(b);
         }}
       >
-        <View style={{ width: props.width }} class={`overflow-hidden rounded-lg bg-popover ${EDGE.md}`}>
-          <View role="listbox" accessibilityLabel={props.label} style={{ height: viewport() }}>
-            <Scroll
-              ref={(node: ScrollRef) => {
-                scroll = node;
-              }}
-              onScroll={(e) => {
-                offset.set(e.offset.y);
-              }}
-            >
-              {props.children}
-            </Scroll>
+        {/*
+          A list as wide as the box has room for the preview inside it, a column beside the rows (one surface, no box
+          beside a box); a narrow one keeps it beside, as a bubble.
+        */}
+        <View
+          style={{ width: props.width }}
+          class={`overflow-hidden rounded-t-xl border border-b-0 border-ring bg-card ${inline() ? "flex-row" : ""}`}
+        >
+          {/* With the preview inside, the panel is at least the preview's least height; the keys stay at its foot. */}
+          <View
+            style={inline() ? { minHeight: panelHeight() - 2 } : undefined}
+            class={inline() ? "min-w-0 flex-1 justify-between" : ""}
+          >
+            <View role="listbox" accessibilityLabel={props.label} style={{ height: viewport() }}>
+              <Scroll
+                ref={(node: ScrollRef) => {
+                  scroll = node;
+                }}
+                onScroll={(e) => {
+                  offset.set(e.offset.y);
+                }}
+              >
+                {props.children}
+              </Scroll>
+            </View>
+            {props.footer}
           </View>
-          {props.footer}
+          <If when={inline()}>
+            <View
+              style={{ width: props.bubbleWidth ?? TIP_WIDTH }}
+              class="border-l border-border"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              <If when={props.about !== null && shown()}>{props.bubble?.(panelHeight() - 2, true)}</If>
+            </View>
+          </If>
         </View>
       </Overlay>
-      <If when={props.bubble !== undefined && props.about !== null && shown() && frame() !== null}>
+      <If when={!inline() && props.bubble !== undefined && props.about !== null && shown() && frame() !== null}>
         <Overlay
           anchor={frame()}
           placement="right"
@@ -150,7 +184,7 @@ export function ComposerPicker(props: {
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
           >
-            {props.bubble?.(box().height)}
+            {props.bubble?.(box().height, false)}
           </View>
         </Overlay>
       </If>
@@ -181,13 +215,15 @@ export const mentionLabel = (hit: MentionView): string =>
 /**
  * The files and folders a `@` can name: a shape for the kind, the name in medium weight with the letters the search matched
  * in bold, the folder after it (it fades first when the row is short of room, the name never), and a word (`changed`,
- * `recent`) where the list lifted a row: never a colour alone. The highlighted row's preview is a bubble beside the list;
- * the keys are the one fixed row under it.
+ * `recent`) where the list lifted a row: never a colour alone. The highlighted row's preview is a column inside a wide
+ * list, else a bubble beside it; the keys are the one fixed row under the rows.
  */
 export function MentionList(props: {
   hits: MentionView[];
   highlighted: number;
   anchor: Bounds | ViewRef | null;
+  /** The box's width, which the list takes; 0 before the box has been laid out. */
+  width: number;
   peek: PeekView | null;
   onPick: (index: number) => void;
 }) {
@@ -198,11 +234,11 @@ export function MentionList(props: {
       anchor={props.anchor}
       highlighted={props.highlighted}
       count={props.hits.length}
-      width={460}
+      width={props.width || 460}
       about={hit()?.path ?? null}
       bubbleWidth={PEEK_WIDTH}
       bubbleMin={PEEK_MIN}
-      bubble={(height) => <PeekBubble height={height} hit={hit()} peek={props.peek} />}
+      bubble={(height, inline) => <PeekBubble height={height} inline={inline} hit={hit()} peek={props.peek} />}
       footer={<KeysRow folder={hit()?.folder === true} />}
     >
       <Each of={props.hits} key="index">
@@ -240,15 +276,16 @@ export function MentionList(props: {
 /**
  * What the highlighted file looks like, in the list's own height: its name and size on one muted line, then as many whole
  * lines of mono 12 pt as fit (`peekLines`), each cut and faded at the edge. The size is the list's, so a late answer fills a
- * bubble that already has it and moves nothing; until then it is blank, with no spinner. A visible hairline is its edge
- * and its radius is the list's (`rounded-lg`); what sits inside it has no corner of its own to nest.
+ * bubble that already has it and moves nothing; until then it is blank, with no spinner. Beside the list a visible
+ * hairline is its edge and its radius is the list's (`rounded-lg`); inside the list (`inline`) the column's hairline is
+ * its edge and it draws none of its own.
  */
-function PeekBubble(props: { height: number; hit: MentionView | undefined; peek: PeekView | null }) {
+function PeekBubble(props: { height: number; inline: boolean; hit: MentionView | undefined; peek: PeekView | null }) {
   const kind = () => props.peek?.kind;
   return (
     <View
       style={{ height: props.height, padding: PEEK_PAD }}
-      class="overflow-hidden rounded-lg border border-border bg-popover"
+      class={`overflow-hidden ${props.inline ? "" : "rounded-lg border border-border bg-popover"}`}
     >
       <View style={{ height: PEEK_HEAD }} class="flex-row items-center gap-3">
         <Text class="min-w-0 flex-1 text-xs text-muted-foreground" style={{ numberOfLines: 1 }}>
@@ -321,73 +358,106 @@ function Hint(props: { keys: string; what: string }) {
 }
 
 /**
- * The agent's own commands: the name, then what it does in the muted colour on the same row, faded at the edge; no
- * bubble beside the list (a bubble that follows the highlight flickers as the keys run through rows). The pin lives in a slot at the
- * row's right that is always there: a pinned command shows its glyph at rest (a pinned command also sorts first), any
- * other shows it only with the pointer or the focus on the row, so nothing moves.
+ * The agent's own commands and its skills, apart under a muted heading each when both are there (`byKind` keeps the best
+ * match first, so a heading never takes the row Enter picks): the name, then what it does in the muted colour on the same
+ * row, faded at the edge; no bubble beside the list (a bubble that follows the highlight flickers as the keys run through
+ * rows). A heading is a row of its own height, so the list's rows stay whole. The pin lives in a slot at the row's right
+ * that is always there: a pinned command shows its glyph at rest (a pinned command also sorts first), any other shows it
+ * only with the pointer or the focus on the row, so nothing moves. The keys are one fixed row under the rows.
  */
 export function CommandList(props: {
   commands: SlashCommand[];
   highlighted: number;
   anchor: Bounds | ViewRef | null;
+  /** The box's width, which the list takes; 0 before the box has been laid out. */
+  width: number;
   pinned: (key: string) => boolean;
   onPick: (index: number) => void;
   onTogglePin: (command: SlashCommand) => void;
 }) {
+  type Entry = { head: string } | { command: SlashCommand; index: number };
+  const entries = (): Entry[] => {
+    const both = new Set(props.commands.map((c) => c.kind)).size > 1;
+    const out: Entry[] = [];
+    props.commands.forEach((command, index) => {
+      if (both && command.kind !== props.commands[index - 1]?.kind)
+        out.push({ head: command.kind === "skill" ? "Skills" : "Commands" });
+      out.push({ command, index });
+    });
+    return out;
+  };
+  const shownRow = () => entries().findIndex((e) => "command" in e && e.index === props.highlighted);
   return (
     <ComposerPicker
       label="Commands"
       anchor={props.anchor}
-      highlighted={props.highlighted}
-      count={props.commands.length}
-      width={COMMANDS_WIDTH}
+      highlighted={Math.max(0, shownRow())}
+      count={entries().length}
+      width={props.width || COMMANDS_WIDTH}
       about={null}
+      footer={
+        <View style={{ height: KEYS_ROW }} class="flex-row items-center gap-3 border-t border-border px-3">
+          <Hint keys="↑↓" what="move" />
+          <Hint keys="Tab" what="pick" />
+          <Hint keys="Esc" what="close" />
+        </View>
+      }
     >
-      <Each of={props.commands} key="index">
-        {(row, i) => (
-          <View
-            style={{ height: ROW }}
-            class={`group flex-row items-center pr-1 ${i() === props.highlighted ? "bg-accent" : ""}`}
-          >
-            <Button
-              role="option"
-              accessibilityLabel={`${commandText(row())}${row().description ? `, ${row().description}` : ""}`}
-              selected={i() === props.highlighted}
-              onPress={() => props.onPick(i())}
-              class={`h-full min-w-0 flex-1 flex-row items-center px-3 ${FOCUS_RING_INSET}`}
-            >
-              <Text class="shrink-0 text-sm font-medium text-popover-foreground" style={{ numberOfLines: 1 }}>
-                {commandText(row())}
-              </Text>
-              <Clipped
-                tip={false}
-                fade={[i() === props.highlighted ? FADE_SELECTED : FADE]}
-                boxClass="ml-3 min-w-0 flex-1"
-                class="text-sm text-muted-foreground"
-              >
-                {row().description ?? ""}
-              </Clipped>
-            </Button>
-            <Tipped label="Pin to the top">
+      {/* Keyed by what an entry is, so a row stays a row and a heading a heading; its place is read live (a pin reorders). */}
+      <Each of={entries()} key={(e: Entry) => ("head" in e ? `h:${e.head}` : `c:${usageKey(e.command)}`)}>
+        {(entry) => {
+          const first = entry();
+          if ("head" in first)
+            return (
+              <View style={{ height: ROW }} class="justify-end px-3 pb-1">
+                <Text class="text-xs text-muted-foreground">{first.head}</Text>
+              </View>
+            );
+          const e = () => entry() as { command: SlashCommand; index: number };
+          const row = () => e().command;
+          const on = () => e().index === props.highlighted;
+          return (
+            <View style={{ height: ROW }} class={`group flex-row items-center pr-1 ${on() ? "bg-accent" : ""}`}>
               <Button
-                accessibilityLabel={`${props.pinned(usageKey(row())) ? "Unpin" : "Pin"} ${commandText(row())}`}
-                onPress={() => props.onTogglePin(row())}
-                class={`size-7 items-center justify-center rounded-sm hover:bg-popover ${FOCUS_RING_INSET} ${
-                  props.pinned(usageKey(row()))
-                    ? "opacity-100"
-                    : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
-                }`}
+                role="option"
+                accessibilityLabel={`${commandText(row())}${row().description ? `, ${row().description}` : ""}${row().kind === "skill" ? ", skill" : ""}`}
+                selected={on()}
+                onPress={() => props.onPick(e().index)}
+                class={`h-full min-w-0 flex-1 flex-row items-center px-3 ${FOCUS_RING_INSET}`}
               >
-                <Image
-                  src={pinGlyph}
-                  accessibilityElementsHidden
-                  importantForAccessibility="no-hide-descendants"
-                  style={{ width: 14, height: 14, tintColor: token("muted-foreground") }}
-                />
+                <Text class="shrink-0 text-sm font-medium text-popover-foreground" style={{ numberOfLines: 1 }}>
+                  {commandText(row())}
+                </Text>
+                <Clipped
+                  tip={false}
+                  fade={[on() ? FADE_SELECTED : FADE]}
+                  boxClass="ml-3 min-w-0 flex-1"
+                  class="text-sm text-muted-foreground"
+                >
+                  {row().description ?? ""}
+                </Clipped>
               </Button>
-            </Tipped>
-          </View>
-        )}
+              <Tipped label="Pin to the top">
+                <Button
+                  accessibilityLabel={`${props.pinned(usageKey(row())) ? "Unpin" : "Pin"} ${commandText(row())}`}
+                  onPress={() => props.onTogglePin(row())}
+                  class={`size-7 items-center justify-center rounded-sm hover:bg-card ${FOCUS_RING_INSET} ${
+                    props.pinned(usageKey(row()))
+                      ? "opacity-100"
+                      : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+                  }`}
+                >
+                  <Image
+                    src={pinGlyph}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no-hide-descendants"
+                    style={{ width: 14, height: 14, tintColor: token("muted-foreground") }}
+                  />
+                </Button>
+              </Tipped>
+            </View>
+          );
+        }}
       </Each>
     </ComposerPicker>
   );

@@ -184,6 +184,17 @@ export function outgoing(text: string, known: readonly Ref[], attached: readonly
   return { text: words.trim(), files, pictures };
 }
 
+/**
+ * What a chat read from a terminal is sent: words only, as herdr-mobile does. The pane takes what is typed into it, so a
+ * mention is already `@path` in the words, a file from outside the project is named by its path at the end, and nothing
+ * goes as an attachment (attachments are an ACP session's: a terminal chat refused the message outright, "Attach files in
+ * the terminal", even when every path was in the words).
+ */
+export function forTerminal(out: Outgoing, attached: readonly string[]): Outgoing {
+  const named = attached.filter((p) => !out.text.includes(p)).map((p) => `@${p}`);
+  return { text: [out.text, ...named].filter(Boolean).join(" "), files: [], pictures: [] };
+}
+
 /** The message as history and a restored draft keep it: pastes in full (a picture is not text). */
 export const plainText = (text: string, known: readonly Ref[]): string => outgoing(text, known, []).text;
 

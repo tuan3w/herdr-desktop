@@ -23,11 +23,11 @@ use super::error::Refusal;
 use super::outgoing::{self, Outgoing, Pasted};
 use super::records::Route;
 use super::types::{
-    AcpInfo, Ask, AuthMethodView, DiffView, FieldAnswer, FieldChoice, FieldKind, ImageRef, Item,
-    ItemKind, Location, ModeRisk, ObservedInfo, OptionChoice, Part, PartKind, PermissionChoice,
-    PermissionView, PlanStatus, PlanStep, QuestionField, QuestionView, QueuedMessage, Role,
-    SessionOption, SessionPhase, SessionSnapshot, SlashCommand, ToolStatus, ToolView,
-    TurnUsageView, Unsent, UsageView, Waiting,
+    AcpInfo, Ask, AuthMethodView, CommandKind, DiffView, FieldAnswer, FieldChoice, FieldKind,
+    ImageRef, Item, ItemKind, Location, ModeRisk, ObservedInfo, OptionChoice, Part, PartKind,
+    PermissionChoice, PermissionView, PlanStatus, PlanStep, QuestionField, QuestionView,
+    QueuedMessage, Role, SessionOption, SessionPhase, SessionSnapshot, SlashCommand, ToolStatus,
+    ToolView, TurnUsageView, Unsent, UsageView, Waiting,
 };
 use crate::observed::model::{Block, PictureRef, Update};
 use crate::prompt;
@@ -658,6 +658,7 @@ impl Driver {
                     name: c.name.clone(),
                     description: c.description.clone(),
                     hint: c.hint.clone(),
+                    kind: CommandKind::Command,
                 })
                 .collect(),
             options: self.transcript.options().iter().map(option_view).collect(),
@@ -1309,6 +1310,8 @@ pub(crate) struct ObservedTranscript {
     /// that a wider read brings count down from it).
     next_key: u64,
     low_key: u64,
+    /// The agent's commands as its mapper said them, kind included (the reducer's ACP commands have none).
+    commands: Vec<SlashCommand>,
 }
 
 /// Where keys begin: far from 0 so older items can take keys below the first.
@@ -1324,6 +1327,7 @@ impl Default for ObservedTranscript {
             keys: HashMap::new(),
             next_key: KEY_BASE,
             low_key: KEY_BASE,
+            commands: Vec::new(),
         }
     }
 }
@@ -1403,6 +1407,7 @@ impl ObservedTranscript {
         }
         self.transcript = wide.transcript;
         self.images = wide.images;
+        self.commands = wide.commands;
         self.keys = keys;
         self.items = ItemCache::default();
     }
@@ -1460,20 +1465,7 @@ impl ObservedTranscript {
                     &serde_json::json!({"sessionUpdate": "session_info_update", "title": title}),
                 );
             }
-            Update::Commands(commands) => {
-                let list: Vec<_> = commands
-                    .iter()
-                    .map(|c| {
-                        let mut v =
-                            serde_json::json!({"name": c.name, "description": c.description});
-                        if let Some(hint) = &c.hint {
-                            v["input"] = serde_json::json!({"hint": hint});
-                        }
-                        v
-                    })
-                    .collect();
-                self.session_update(&serde_json::json!({"sessionUpdate": "available_commands_update", "availableCommands": list}));
-            }
+            Update::Commands(commands) => self.commands = commands,
             Update::Cleared => {
                 self.transcript.clear();
                 self.images.clear();
@@ -1533,16 +1525,7 @@ impl ObservedTranscript {
             earlier_notice: None,
             waiting: meta.waiting,
             queue: Vec::new(),
-            commands: self
-                .transcript
-                .commands()
-                .iter()
-                .map(|c| SlashCommand {
-                    name: c.name.clone(),
-                    description: c.description.clone(),
-                    hint: c.hint.clone(),
-                })
-                .collect(),
+            commands: self.commands.clone(),
             options: Vec::new(),
             plan: self
                 .transcript

@@ -18,7 +18,16 @@ export interface SlashCommand {
   hint?: string;
   /** `/`, or `$` for Codex's skills. */
   trigger: "/" | "$";
+  /** The agent's own command (`/clear`), or a skill or custom command someone added (Claude's skill listing). */
+  kind: "command" | "skill";
 }
+
+/**
+ * The kind of a name the person pinned or sent that the agent's table lacks: omp's `/skill:<name>` form and Codex's
+ * `$name` are skills; anything else is taken for the agent's own.
+ */
+const kindOfKey = (key: string): SlashCommand["kind"] =>
+  key.startsWith("$") || key.startsWith("skill:") ? "skill" : "command";
 
 /** What the composer holds once a command is picked: the command and one space, ready for its arguments. */
 export const commandText = (c: SlashCommand): string => `${c.trigger}${c.name}`;
@@ -151,7 +160,8 @@ function ordered(list: SlashCommand[], uses?: (c: SlashCommand) => number): Slas
  * `$word`): once there is a space the command is chosen and the rest is its arguments.
  *
  * A bare trigger lists the pinned commands, then the most recently sent, then the rest. A word lists names that start
- * with it, then names that contain it, then descriptions that do; within a group source order, then use; pinned commands lead them all. Names the
+ * with it, then names that contain it, then descriptions that do; within a group source order, then use; pinned commands
+ * lead them all, and the name typed in full leads the pinned ones. Names the
  * person pinned or sent that the table lacks are candidates too (an agent without a table lists only those).
  */
 export function matchCommands(
@@ -167,7 +177,13 @@ export function matchCommands(
   const remembered = [...new Set([...pinnedOf(memory, agent), ...usedOf(memory, agent)])];
   const extras: SlashCommand[] = remembered
     .filter((key) => !known.has(key) && triggerOf(key) === trigger)
-    .map((key) => ({ name: key.startsWith("$") ? key.slice(1) : key, description: "", source: "builtIn", trigger }));
+    .map((key) => ({
+      name: key.startsWith("$") ? key.slice(1) : key,
+      description: "",
+      source: "builtIn",
+      trigger,
+      kind: kindOfKey(key),
+    }));
   const query = input.slice(1).toLowerCase();
   const uses = (c: SlashCommand) => countOf(memory, agent, usageKey(c));
   if (query === "") {
@@ -194,8 +210,11 @@ export function matchCommands(
   if (starts.length === 1 && starts[0].name.toLowerCase() === query && inName.length === 0) return [];
   const found = [...ordered(starts, uses), ...ordered(inName, uses), ...ordered(inText, uses)];
   // A pinned command leads whatever the word matched, in the order it was pinned: pinning means "keep it at the top".
+  // The command whose whole name was typed leads even those: Enter on the open list picks the first row, and must keep
+  // `/review` rather than turn it into `/review-pr`.
   const pins = pinnedOf(memory, agent);
   const rank = (c: SlashCommand) => {
+    if (c.name.toLowerCase() === query) return -1;
     const at = pins.indexOf(usageKey(c));
     return at < 0 ? pins.length : at;
   };
@@ -222,4 +241,13 @@ export function hintFor(input: string, commands: readonly SlashCommand[]): strin
   if (!m) return null;
   const hint = commands.find((c) => c.trigger === m[1] && c.name === m[2])?.hint;
   return hint ? hint : null;
+}
+
+/**
+ * The list as the box shows it: the agent's commands and its skills apart, each in the order `matchCommands` ranked them,
+ * the group that holds the best match first, so the first row (what Enter picks) is still the best match.
+ */
+export function byKind(ranked: readonly SlashCommand[]): SlashCommand[] {
+  const first = ranked[0]?.kind;
+  return [...ranked.filter((c) => c.kind === first), ...ranked.filter((c) => c.kind !== first)];
 }

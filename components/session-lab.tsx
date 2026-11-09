@@ -428,8 +428,8 @@ function scene(name: string): Scene {
             { id: 2, text: "Then update the changelog", files: [`${tree}/README.md`], pictures: [] },
           ],
           commands: [
-            { name: "compact", description: "Summarise the conversation to free context" },
-            { name: "review", description: "Review the changes on this branch", hint: "<branch>" },
+            { name: "compact", description: "Summarise the conversation to free context", kind: "command" },
+            { name: "review", description: "Review the changes on this branch", hint: "<branch>", kind: "command" },
           ],
         },
         items: [
@@ -486,10 +486,12 @@ function scene(name: string): Scene {
         view: {
           phase: "idle",
           commands: [
-            { name: "compact", description: "Summarise the conversation to free context" },
-            { name: "review", description: "Review the changes on this branch", hint: "<branch>" },
-            { name: "init", description: "Write an AGENTS.md for this project" },
-            { name: "cost", description: "Show what this session has used" },
+            { name: "compact", description: "Summarise the conversation to free context", kind: "command" },
+            { name: "review", description: "Review the changes on this branch", hint: "<branch>", kind: "command" },
+            { name: "init", description: "Write an AGENTS.md for this project", kind: "command" },
+            { name: "cost", description: "Show what this session has used", kind: "command" },
+            { name: "review-pr", description: "Review a pull request by its number", hint: "<number>", kind: "skill" },
+            { name: "release-notes", description: "Write the notes for the next release", kind: "skill" },
           ],
         },
         items: [],
@@ -514,7 +516,7 @@ function scene(name: string): Scene {
             ["mcp", "Manage the servers the agent can reach"],
             ["plugin", "Install or remove plugins"],
             ["prewalk", "Walk the codebase before planning"],
-          ].map(([name, description]) => ({ name, description })),
+          ].map(([name, description]) => ({ name, description, kind: "command" as const })),
         },
         items: [],
       };

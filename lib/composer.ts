@@ -10,6 +10,7 @@ import {
   acceptMention,
   activeRefs,
   emptyHistory,
+  forTerminal,
   type History,
   insertToken,
   keepAtomic,
@@ -43,7 +44,7 @@ import type { SessionPort } from "#lib/session";
 import { MAX_FILES, restoreText } from "#lib/session-compose";
 import { composerOff } from "#lib/session-text";
 import { enterNewline, picturesOriginal } from "#lib/settings";
-import { hintFor, matchCommands, type SlashCommand } from "#lib/slash";
+import { byKind, hintFor, matchCommands, type SlashCommand } from "#lib/slash";
 import { draftOf, setDraft } from "#lib/view-state";
 
 /**
@@ -209,10 +210,11 @@ export function createComposer(props: {
       hint: c.hint ?? undefined,
       source: "builtIn",
       trigger: "/",
+      kind: c.kind,
     })),
   );
   const slash = computed<SlashCommand[]>(() =>
-    hidden() || off() !== null ? [] : matchCommands(value(), view().agent, commands(), slashMemory()),
+    hidden() || off() !== null ? [] : byKind(matchCommands(value(), view().agent, commands(), slashMemory())),
   );
   const ghost = (): string | null => hintFor(value(), commands());
   const mention = computed<Mention | null>(() => (focused() && off() === null ? mentionAt(value(), caret()) : null));
@@ -500,7 +502,8 @@ export function createComposer(props: {
     const raw = value();
     const refs = refsNow();
     const carried = attached();
-    const out = outgoing(raw, refs, carried);
+    const words = outgoing(raw, refs, carried);
+    const out = view().observed ? forTerminal(words, carried) : words;
     const sentIds = new Set(activeRefs(raw, refs).map(refKey));
     const sentPictures =
       out.pictures.length > 0 ? refs.filter((r) => r.kind === "picture" && sentIds.has(refKey(r))) : [];
@@ -516,7 +519,7 @@ export function createComposer(props: {
         value.update((now) => restoreText(now, raw));
         attached.update((now) => [...new Set([...carried, ...now])]);
         sentPictures.forEach(addRef);
-        error.set(`${r.message || "Not sent"}. Your message is still in the box.`);
+        error.set(`${(r.message || "Not sent").replace(/\.+$/, "")}. Your message is still in the box.`);
         announce("Message not sent");
         return;
       }

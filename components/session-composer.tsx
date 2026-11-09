@@ -19,10 +19,11 @@ import { GLOBAL, keysOf, keyText } from "#lib/shortcuts";
 import { isPinned, usageKey } from "#lib/slash";
 
 /**
- * Below this box width the long placeholder wraps to a second line the one-line field cuts (a pane at 960 split in two):
- * the box then says `Ask anything` alone; `@` and `/` are in the `+` menu and the keyboard sheet.
+ * Below this box width the long placeholder (about 290 pt of `text-sm`) does not fit the field, which is the box less its
+ * 12-pt edges: it wrapped to a second line the field cut (a pane at 960 split in two). The box then says `Ask anything`
+ * alone; `@` and `/` are in the `+` menu and the keyboard sheet.
  */
-const FULL_HINT_MIN = 400;
+const FULL_HINT_MIN = 320;
 
 /** What the chat does with its message box from outside: the open of a tab, `mod+2`, `Reply…`, a drop, a shortcut. */
 export interface SessionComposerHandle {
@@ -40,16 +41,16 @@ export interface SessionComposerHandle {
 }
 
 /**
- * The message box of a chat: a rounded card with the pictures and files of the message on top, the text, and under it `+`,
- * the session's mode and model, and one round button that is `Send` and, while a turn runs with nothing typed, `Stop`.
- * The model is `lib/composer.ts`; the rules and their reasons are `design/composer.md`. In short:
+ * The message box of a chat: one card in two tiers, the pictures, files and text of the message on top, then a row
+ * inside the card of `+`, the session's mode and model, and one round button that is `Send` and, while a turn runs with
+ * nothing typed, `Stop`. The model is `lib/composer.ts`; the rules and their reasons are `design/composer.md`. In short:
  *
  * - Enter sends, Shift+Enter is a new line (Settings turns it round: Enter a new line, `mod+Enter` sends). Never while an
  *   input method is composing. While the agent works a send goes to the queue; the queue shows above the box.
- * - `@` anywhere a word could start lists the project's files and folders in a list hung over the caret: typing narrows,
- *   Up and Down move, Tab or Enter add, Right opens a folder, Escape closes it and keeps what was typed. The choice
- *   is a chip above the box and `@path` in the words. `/` at the start lists the agent's commands in the same list.
- * - Pictures (`mod+v` with a picture on the clipboard, a drop, the file dialog) are thumbnails above the box and
+ * - `@` anywhere a word could start lists the project's files and folders in a list that is the card's own top: typing
+ *   narrows, Up and Down move, Tab or Enter add, Right opens a folder, Escape closes it and keeps what was typed. The choice
+ *   is a chip above the text and `@path` in the words. `/` at the start lists the agent's commands and skills in the same list.
+ * - Pictures (`mod+v` with a picture on the clipboard, a drop, the file dialog) are thumbnails above the text and
  *   nothing in the words (no `[Image #n]`); a long paste is a chip and goes out whole.
  * - Up in an empty box brings back the last message; Escape never clears the box.
  * - What was typed and attached survives a refusal, a tab switch and a project switch. Off, the box says why and takes nothing.
@@ -62,7 +63,6 @@ export function SessionComposer(props: {
   onHandle?: (handle: SessionComposerHandle) => void;
 }) {
   const c = createComposer(props);
-  const card = signal<ViewRef | null>(null);
   const height = signal<number>(COMPOSER_INPUT.min);
   // A press on a row of the list takes the keyboard from the box for a moment: the list stays until the press is over.
   let blurTimer: ReturnType<typeof setTimeout> | undefined;
@@ -78,9 +78,8 @@ export function SessionComposer(props: {
   });
 
   // The lists hang from the box, not the caret: a second line or a picture strip moves the caret, and a list that follows it
-  // would move under the pointer. Its bottom edge stays 8 pt over the box's top edge.
+  // would move under the pointer. They take the box's width (`boxWidth`) and sit on its top edge.
   const box = signal<ViewRef | null>(null);
-  const anchor = () => box() ?? card();
   // While the commands are listed the box says what typing does; while the agent works it says where a message goes, once,
   // instead of a note under the box (the keys of the list and the keyboard sheet say the rest).
   const boxWidth = signal(0);
@@ -95,7 +94,7 @@ export function SessionComposer(props: {
           : "Ask anything · @ for files · / for commands");
   const attachKey = () => keyText(keysOf(GLOBAL.attachFiles)[0]!);
 
-  /** What the line beside the mode and model under the box says: the failure, else what the typed command takes. Help is not here: the placeholder says how to start and where a message goes, the keyboard sheet lists the keys. */
+  /** What the line under the words, inside the box, says: the failure, else what the typed command takes. Help is not here: the placeholder says how to start and where a message goes, the keyboard sheet lists the keys. */
   const line = (): { text: string; alert: boolean } | null => {
     if (c.error() !== "") return { text: c.error(), alert: true };
     const ghost = c.ghost();
@@ -104,12 +103,7 @@ export function SessionComposer(props: {
   };
 
   return (
-    <View
-      class={`${CHAT_COLUMN} gap-1 pb-2 pt-2`}
-      ref={(node: ViewRef) => {
-        card.set(node);
-      }}
-    >
+    <View class={`${CHAT_COLUMN} gap-1 pb-4 pt-2`}>
       <If when={props.view().queue.length > 0}>
         <SessionQueue
           queue={props.view().queue}
@@ -117,11 +111,13 @@ export function SessionComposer(props: {
           onSendNow={() => void c.sendNow()}
         />
       </If>
+      {/* The lists hang from the box's top edge at its width: the box's own top while they are open (`ComposerPicker`). */}
       <If when={c.listed() === "slash"}>
         <CommandList
           commands={c.slash()}
           highlighted={c.highlighted()}
-          anchor={anchor()}
+          anchor={box()}
+          width={boxWidth()}
           pinned={(key) => isPinned(slashMemory(), props.view().agent, key)}
           onPick={(i) => c.pickRow(i)}
           onTogglePin={(command) => pinCommand(props.view().agent, usageKey(command))}
@@ -131,47 +127,28 @@ export function SessionComposer(props: {
         <MentionList
           hits={c.mentions()?.hits ?? []}
           highlighted={c.highlighted()}
-          anchor={anchor()}
+          anchor={box()}
+          width={boxWidth()}
           peek={c.peek()}
           onPick={(i) => c.pickMention(i)}
         />
       </If>
+      {/*
+        One surface, two tiers: the words (pictures, chips, the field and an alert, all on one 12-pt edge), then one row of
+        controls inside the box (attach, mode, model, send). Nothing hangs under the box.
+      */}
       <View
         ref={(node: ViewRef) => {
           box.set(node);
         }}
         onLayout={({ bounds }) => boxWidth.set(bounds.size.width)}
-        class="gap-1 rounded-xl border border-border bg-card px-2 py-2 focus-within:border-ring focus-within:outline-[0.5px] focus-within:outline-offset-0 focus-within:outline-ring"
+        class={`rounded-xl border border-border bg-card focus-within:border-ring focus-within:outline-[0.5px] focus-within:outline-offset-0 focus-within:outline-ring ${
+          c.listed() !== null ? "rounded-t-none" : ""
+        }`}
       >
-        <PictureStrip composer={c} />
-        <ChipRow composer={c} machine={props.machine} />
-        <View class="flex-row items-end gap-1">
-          <ActionMenu
-            label="Attach"
-            icon="plus"
-            disabled={c.off() !== null}
-            entries={[
-              {
-                label: "Add files or photos",
-                icon: "upload",
-                shortcut: attachKey(),
-                onSelect: () => void c.attachFromComputer(),
-              },
-              {
-                label: c.local() ? "Files in the project…" : "Files on the machine…",
-                icon: "folder",
-                onSelect: () => c.attaching.set(true),
-              },
-              { label: "Mention a file", icon: "file", onSelect: () => c.insert(startsWord(c.value()) ? "@" : " @") },
-              {
-                label: "Slash commands",
-                icon: "terminal",
-                // A command is only the first word of the message.
-                disabled: c.value() !== "",
-                onSelect: () => c.insert("/"),
-              },
-            ]}
-          />
+        <View class="gap-2 px-3 pt-3">
+          <PictureStrip composer={c} />
+          <ChipRow composer={c} machine={props.machine} />
           <Input
             ref={(node: InputRef) => c.setInput(node)}
             value={c.value()}
@@ -201,13 +178,8 @@ export function SessionComposer(props: {
               blurTimer = setTimeout(() => c.setFocused(false), 150);
             }}
             style={{ height: height() }}
-            class="min-w-0 flex-1 bg-transparent px-1 text-sm text-foreground placeholder:text-muted-foreground"
+            class="min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground"
           />
-          <SendButton c={c} />
-        </View>
-      </View>
-      <View class="min-h-8 flex-row items-center gap-1 px-1">
-        <View class="min-w-0 flex-1">
           <If when={line() !== null}>
             <Text
               role={line()?.alert ? "alert" : "text"}
@@ -218,8 +190,38 @@ export function SessionComposer(props: {
             </Text>
           </If>
         </View>
-        <SessionModeChip machine={props.machine} id={props.id} />
-        <SessionModelPicker machine={props.machine} id={props.id} />
+        <View class="flex-row items-center gap-1 px-2 pb-2 pt-1">
+          <ActionMenu
+            label="Attach"
+            icon="plus"
+            disabled={c.off() !== null}
+            entries={[
+              {
+                label: "Add files or photos",
+                icon: "upload",
+                shortcut: attachKey(),
+                onSelect: () => void c.attachFromComputer(),
+              },
+              {
+                label: c.local() ? "Files in the project…" : "Files on the machine…",
+                icon: "folder",
+                onSelect: () => c.attaching.set(true),
+              },
+              { label: "Mention a file", icon: "file", onSelect: () => c.insert(startsWord(c.value()) ? "@" : " @") },
+              {
+                label: "Slash commands",
+                icon: "terminal",
+                // A command is only the first word of the message.
+                disabled: c.value() !== "",
+                onSelect: () => c.insert("/"),
+              },
+            ]}
+          />
+          <SessionModeChip machine={props.machine} id={props.id} />
+          <SessionModelPicker machine={props.machine} id={props.id} />
+          <View class="flex-1" />
+          <SendButton c={c} />
+        </View>
       </View>
       <AttachPicker
         open={c.attaching()}

@@ -16,7 +16,7 @@ use std::collections::BTreeSet;
 
 use serde_json::{Map, Value, json};
 
-pub use crate::session::{PlanStatus, PlanStep, Role, SlashCommand};
+pub use crate::session::{CommandKind, PlanStatus, PlanStep, Role, SlashCommand};
 
 /// The longest text kept per field, in characters. The host already cuts a field to about 16 KB;
 /// anything longer than this gets a visible marker here.
@@ -535,6 +535,19 @@ pub trait LogMapper: Send {
 
     /// Drops everything learned (after a reset of the log).
     fn reset(&mut self);
+
+    /// The agent lists its commands once, near the top of the log (Claude's skills), so a log read from its
+    /// tail lacks them: the session then reads the head once, maps it with a fresh mapper and hands its last
+    /// [`Update::Commands`] to [`adopt_commands`](Self::adopt_commands).
+    fn lists_commands_at_head(&self) -> bool {
+        false
+    }
+
+    /// `commands` were listed before the part of the log this mapper read: the updates that make them the
+    /// session's commands, merged with any listing it read itself.
+    fn adopt_commands(&mut self, _commands: Vec<SlashCommand>) -> Vec<Update> {
+        Vec::new()
+    }
 }
 
 /// What to do next to answer an agent's question dialog from its pane.

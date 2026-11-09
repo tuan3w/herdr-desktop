@@ -22,7 +22,9 @@ use crossbeam_channel::{Receiver, RecvTimeoutError, Sender, unbounded};
 use parking_lot::{Condvar, Mutex};
 
 use super::kinds::ObservedKind;
-use super::model::{AskAnswer, Location, LogMapper, PendingAsk, SubagentInfo, Update};
+use super::model::{
+    AskAnswer, Location, LogMapper, PendingAsk, SlashCommand, SubagentInfo, Update,
+};
 use super::model::{BackgroundTask, StopRoute};
 use super::subagent::SubagentLocator;
 use crate::schema::AgentStatus;
@@ -43,6 +45,10 @@ const MAX_SUBAGENT_CHATS: usize = 2;
 /// What a subagent's chat answers to anything that would type into a terminal.
 const SUBAGENT_READ_ONLY: &str =
     "A subagent is steered through its parent agent: write to the parent, which relays it.";
+
+/// How much of the head of a log is read for the commands the agent lists there (Claude writes its skills with
+/// the session's first prompt): a first prompt longer than this hides them.
+const HEAD_COMMANDS_BYTES: u64 = 512 * 1024;
 
 /// What the pane is, as far as herdr says.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -128,10 +134,12 @@ impl Default for ObservedConfig {
 enum Input {
     /// A mapped log line (without its offset).
     Line(String),
-    /// The file shrank or was replaced: rebuild.
+    /// The file shrank or was replaced, or the pane's agent writes another file now: rebuild.
     Reset,
     /// Where the tail read began; more than 0 means earlier turns exist.
     Head(u64),
+    /// The commands listed at the head of the log, which a tail read did not reach.
+    HeadCommands(Vec<SlashCommand>),
     /// A wider read of the log begins (or begins again): its lines are mapped beside what is shown and
     /// replace it when the read is whole. `keep_head`: the read's `Head` came just before.
     WideStart {
@@ -308,6 +316,7 @@ impl ObservedHandle {
             arrived: HashMap::new(),
             last_state: None,
             read_only: subagent.is_some(),
+            head_commands: None,
         };
         let follower = Follower {
             kind,
@@ -909,6 +918,15 @@ fn tool_output(snapshot: &SessionSnapshot, tool_call_id: &str) -> Option<String>
     })
 }
 
+/// A line that runs one of the agent's slash commands (`/compact`, `/skill:tdd the parser`), not a path the
+/// person starts a sentence with (`/etc/hosts is wrong`).
+fn is_slash_command(text: &str) -> bool {
+    let word = text.split_whitespace().next().unwrap_or("");
+    word.strip_prefix('/').is_some_and(|name| {
+        name.chars().next().is_some_and(|c| c.is_alphanumeric()) && !name.contains('/')
+    })
+}
+
 // ---- the worker ---------------------------------------------------------------------------------
 
 struct Worker {
@@ -936,6 +954,9 @@ struct Worker {
     last_state: Option<PaneState>,
     /// A subagent's transcript: nothing in it can be stopped from here.
     read_only: bool,
+    /// The commands the head of the log listed (see [`LogMapper::adopt_commands`]), kept for a wider read's
+    /// fresh mapper.
+    head_commands: Option<Vec<SlashCommand>>,
 }
 
 /// A wider read of the log, mapped from scratch beside what is shown.
@@ -1001,8 +1022,17 @@ impl Worker {
                 false
             }
             Input::Line(line) => {
+                let mut wrote = false;
                 for update in self.mapper.map(&line) {
+                    wrote = true;
                     self.apply(update);
+                }
+                if wrote && self.caught_up {
+                    // A slash command is run by the agent's own program, which writes what it did (omp's
+                    // `/compact` a compaction, its `/clear` a reset) and often not the line typed: the log
+                    // moving on after it is the answer. A command that writes nothing (a dialog in the
+                    // terminal) is still called out.
+                    self.sent.retain(|(text, _)| !is_slash_command(text));
                 }
                 self.confirm_sent();
                 true
@@ -1012,6 +1042,17 @@ impl Worker {
                 self.transcript.apply(Update::Cleared);
                 self.caught_up = false;
                 self.wide = None;
+                self.head_commands = None;
+                // The log a typed message was to be checked against is gone; a new one is what the message did
+                // (`/clear`, `/new`, `/resume`), and nothing in it echoes the command.
+                self.sent.clear();
+                true
+            }
+            Input::HeadCommands(commands) => {
+                for update in self.mapper.adopt_commands(commands.clone()) {
+                    self.apply(update);
+                }
+                self.head_commands = Some(commands);
                 true
             }
             Input::Head(offset) => {
@@ -1041,6 +1082,11 @@ impl Worker {
                     // The older turns are shown when all of them are there.
                     self.mapper = wide.mapper;
                     self.transcript.adopt(wide.transcript);
+                    if let Some(commands) = self.head_commands.clone() {
+                        for update in self.mapper.adopt_commands(commands) {
+                            self.apply(update);
+                        }
+                    }
                     if let Some(head) = wide.head {
                         self.shared.head.store(head, Ordering::Release);
                     }
@@ -1324,6 +1370,8 @@ struct Follower {
 enum Followed {
     /// The session was stopped.
     Stopped,
+    /// The pane's agent writes another log now: this follow was ended for it.
+    Moved,
     /// The connection ended; whether any record came through, and what the command said when it said.
     Ended {
         got_records: bool,
@@ -1346,6 +1394,8 @@ impl Follower {
         let mut locate_delay = self.config.locate_every;
         let mut followed: Option<String> = None;
         let mut offset: Option<u64> = None;
+        // The head of the followed log was looked at for the commands it lists (once per log).
+        let mut head_listed = false;
         loop {
             match self.io.locate(self.kind.locator) {
                 Location::Unlinked(why) => {
@@ -1378,6 +1428,7 @@ impl Follower {
                         }
                         followed = Some(path.clone());
                         offset = None;
+                        head_listed = false;
                         *self.shared.log_path.lock() = Some(path.clone());
                     }
                     if self.shared.restart.swap(false, Ordering::AcqRel) {
@@ -1385,8 +1436,13 @@ impl Follower {
                         offset = None;
                     }
                     self.say(ObservedLink::Following);
-                    match self.follow_once(&path, &mut offset) {
+                    match self.follow_once(&path, &mut offset, &mut head_listed) {
                         Followed::Stopped => return,
+                        // The next look finds the other file and opens it.
+                        Followed::Moved => {
+                            attempt = 0;
+                            continue;
+                        }
                         Followed::Ended { got_records, fatal } => {
                             if let Some(why) = fatal {
                                 let _ = self.inputs.send(Input::FollowFailed(why));
@@ -1423,8 +1479,14 @@ impl Follower {
         }
     }
 
-    /// One `follow` command, read to its end.
-    fn follow_once(&self, path: &str, offset: &mut Option<u64>) -> Followed {
+    /// One `follow` command, read to its end; meanwhile the pane's log is looked for again
+    /// ([`watch`](Self::watch)).
+    fn follow_once(
+        &self,
+        path: &str,
+        offset: &mut Option<u64>,
+        head_listed: &mut bool,
+    ) -> Followed {
         // A read from the end that is a wider one (or the retry of one) is mapped from scratch beside what is
         // shown; one that resumes goes on where it was.
         let tail = offset
@@ -1460,48 +1522,28 @@ impl Follower {
             };
         };
         let mut lines = AttachLines::new(BufReader::new(stdout), conn.zipped);
-        let mut got_records = false;
-        while let Ok(Some(line)) = lines.next_line() {
-            got_records = true;
-            match record(&line) {
-                Record::Data { end, json } => {
-                    *offset = Some(end);
-                    if self.inputs.send(Input::Line(json.to_owned())).is_err() {
-                        return Followed::Stopped;
-                    }
-                }
-                Record::Head(at) => {
-                    let _ = self.inputs.send(Input::Head(at));
-                }
-                Record::Reset(at) => {
-                    *offset = Some(at);
-                    // `S` came just before: a wider read keeps the head it said.
-                    let _ = self
-                        .inputs
-                        .send(if self.shared.widening.load(Ordering::Acquire) {
-                            Input::WideStart { keep_head: true }
-                        } else {
-                            Input::Reset
-                        });
-                }
-                Record::CaughtUp => {
-                    let _ = self.inputs.send(Input::CaughtUp);
-                }
-                Record::Failed(why) => {
-                    let _ = self
-                        .inputs
-                        .send(Input::Problem(format!("The log could not be read: {why}")));
-                }
-                Record::Other => {}
-            }
-        }
+        let moved = AtomicBool::new(false);
+        let (done, quit) = crossbeam_channel::bounded::<()>(0);
+        let proc = conn.proc.clone();
+        let read = std::thread::scope(|scope| {
+            scope.spawn(|| self.watch(path, &proc, &quit, &moved));
+            // Dropped when the read ends, however it ends: the watcher stops looking.
+            let _done = done;
+            self.read_records(&mut lines, path, offset, head_listed)
+        });
         *self.shared.child.lock() = None;
+        let Some(got_records) = read else {
+            return Followed::Stopped;
+        };
         if self.stop.try_recv().is_ok() {
             conn.close();
             return Followed::Stopped;
         }
         let exit = conn.proc.wait_exit(Duration::from_secs(3));
         conn.close();
+        if moved.load(Ordering::Acquire) {
+            return Followed::Moved;
+        }
         // 66: not a log under the home folder, or unreadable; 65, 78: no keeper here. None of these gets
         // better by trying again.
         let fatal = exit.as_ref().and_then(|e| match e.code {
@@ -1511,6 +1553,104 @@ impl Follower {
             _ => None,
         });
         Followed::Ended { got_records, fatal }
+    }
+
+    /// Hands the records of one `follow` to the worker until the command ends: whether any came, or `None`
+    /// when the worker is gone.
+    fn read_records<R: std::io::BufRead>(
+        &self,
+        lines: &mut AttachLines<R>,
+        path: &str,
+        offset: &mut Option<u64>,
+        head_listed: &mut bool,
+    ) -> Option<bool> {
+        let mut got_records = false;
+        // Where this read's tail began, when it began past the start of the file.
+        let mut head_at: Option<u64> = None;
+        while let Ok(Some(line)) = lines.next_line() {
+            got_records = true;
+            match record(&line) {
+                Record::Data { end, json } => {
+                    *offset = Some(end);
+                    self.inputs.send(Input::Line(json.to_owned())).ok()?;
+                }
+                Record::Head(at) => {
+                    head_at = Some(at).filter(|&at| at > 0);
+                    let _ = self.inputs.send(Input::Head(at));
+                }
+                Record::Reset(at) => {
+                    *offset = Some(at);
+                    // `S` came just before: a wider read keeps the head it said.
+                    let widening = self.shared.widening.load(Ordering::Acquire);
+                    if !widening {
+                        head_at = None;
+                    }
+                    let _ = self.inputs.send(if widening {
+                        Input::WideStart { keep_head: true }
+                    } else {
+                        Input::Reset
+                    });
+                }
+                Record::CaughtUp => {
+                    let _ = self.inputs.send(Input::CaughtUp);
+                    if let Some(at) = head_at.take()
+                        && !std::mem::replace(head_listed, true)
+                        && let Some(commands) = self.head_commands(path, at)
+                    {
+                        let _ = self.inputs.send(Input::HeadCommands(commands));
+                    }
+                }
+                Record::Failed(why) => {
+                    let _ = self
+                        .inputs
+                        .send(Input::Problem(format!("The log could not be read: {why}")));
+                }
+                Record::Other => {}
+            }
+        }
+        Some(got_records)
+    }
+
+    /// Looks for the pane's log again while one is followed, every `locate_every`: the agent in the pane may
+    /// write another file now (`/clear`, `/new` and `/resume` start another session) while the followed one
+    /// only stops growing. Ends the follow when it does; a look that finds nothing changes nothing.
+    fn watch(&self, path: &str, proc: &crate::ssh::Proc, quit: &Receiver<()>, moved: &AtomicBool) {
+        while let Err(RecvTimeoutError::Timeout) = quit.recv_timeout(self.config.locate_every) {
+            if matches!(self.io.locate(self.kind.locator), Location::Located(now) if now != path) {
+                moved.store(true, Ordering::Release);
+                proc.kill();
+                return;
+            }
+        }
+    }
+
+    /// The commands the agent listed in the first [`HEAD_COMMANDS_BYTES`] of the log (everything before
+    /// `before`, where the tail read began), mapped by a mapper of their own; `None` for an agent that lists
+    /// none there, a head that lists none, or a read that failed (the list stays what the tail said).
+    fn head_commands(&self, path: &str, before: u64) -> Option<Vec<SlashCommand>> {
+        let mut mapper = (self.kind.new_mapper)();
+        if !mapper.lists_commands_at_head() {
+            return None;
+        }
+        let mut conn = self
+            .host
+            .read_log(path, 0, before.min(HEAD_COMMANDS_BYTES))
+            .ok()?;
+        let stdout = conn.stdout.take()?;
+        let mut lines = AttachLines::new(BufReader::new(stdout), conn.zipped);
+        let mut found = None;
+        while let Ok(Some(line)) = lines.next_line() {
+            if let Record::Data { json, .. } = record(&line) {
+                for update in mapper.map(json) {
+                    if let Update::Commands(commands) = update {
+                        found = Some(commands);
+                    }
+                }
+            }
+        }
+        let _ = conn.proc.wait_exit(Duration::from_secs(3));
+        conn.close();
+        found
     }
 }
 
@@ -1567,5 +1707,27 @@ mod tests {
         assert!(matches!(record("E\tboom"), Record::Failed("boom")));
         assert!(matches!(record("garbage"), Record::Other));
         assert!(matches!(record("x\t1"), Record::Other));
+    }
+
+    #[test]
+    fn a_slash_command_is_a_first_word_of_slash_and_name_never_a_path() {
+        for yes in [
+            "/compact",
+            "/skill:tdd the parser",
+            "  /model sonnet",
+            "/review-pr 12",
+        ] {
+            assert!(is_slash_command(yes), "{yes}");
+        }
+        for no in [
+            "/etc/hosts is wrong",
+            "/",
+            "/ alone",
+            "fix /compact",
+            "hello",
+            "",
+        ] {
+            assert!(!is_slash_command(no), "{no}");
+        }
     }
 }

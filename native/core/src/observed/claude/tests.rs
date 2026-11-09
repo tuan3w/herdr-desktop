@@ -1165,10 +1165,11 @@ mod a_turn {
     }
 
     #[test]
-    fn clear_is_not_a_message_of_the_chat_every_fresh_session_file_opens_with_it() {
+    fn clear_is_not_a_message_of_the_person_but_one_note_that_says_why_the_new_chat_is_empty() {
         let (sim, _) = run(&clear_new());
         assert!(!sim.texts(Role::User).contains(&"/clear".to_owned()));
         assert_eq!(sim.texts(Role::User), ["hello again"]);
+        assert_eq!(sim.texts(Role::Agent), ["The conversation was cleared"]);
     }
 
     #[test]
@@ -2060,6 +2061,7 @@ mod the_skills_claude_lists {
     fn the_captured_listing_becomes_the_sessions_commands_with_their_descriptions() {
         let (sim, _) = run(&image_paste());
         assert_eq!(sim.commands.len(), 70);
+        assert!(sim.commands.iter().all(|c| c.kind == CommandKind::Skill));
         let first = &sim.commands[0];
         assert_eq!(first.name, "skill-00");
         assert!(first.description.starts_with("Query the project profile"));
@@ -2157,6 +2159,47 @@ mod the_skills_claude_lists {
             .map(|c| (c.name.as_str(), c.description.as_str()))
             .collect();
         assert_eq!(pairs, [("one", "First"), ("three", "Third")]);
+    }
+
+    #[test]
+    fn a_listing_from_the_head_of_the_log_comes_first_and_one_whole_listing_read_here_wins() {
+        let head = |names: &[&str]| {
+            names
+                .iter()
+                .map(|n| SlashCommand {
+                    name: (*n).to_owned(),
+                    description: String::new(),
+                    hint: None,
+                    kind: CommandKind::Skill,
+                })
+                .collect::<Vec<_>>()
+        };
+        // The tail read only a later listing: the head's set is the base, the later one adds to it.
+        let mut mapper = ClaudeMapper::default();
+        let mut sim = Sim::default();
+        feed(
+            &mut sim,
+            &mut mapper,
+            &[listing(Some(&["c"]), None, Some(false))],
+        );
+        for u in mapper.adopt_commands(head(&["a", "b"])) {
+            sim.apply(u);
+        }
+        assert_eq!(names(&sim), ["a", "b", "c"]);
+
+        // The tail read a whole listing (a resumed session lists again): the head says nothing newer.
+        let mut mapper = ClaudeMapper::default();
+        let mut sim = Sim::default();
+        feed(
+            &mut sim,
+            &mut mapper,
+            &[listing(Some(&["d"]), None, Some(true))],
+        );
+        assert!(mapper.adopt_commands(head(&["a"])).is_empty());
+        assert_eq!(names(&sim), ["d"]);
+
+        // A subagent's transcript lists nothing: its head is never read.
+        assert!(!ClaudeMapper::new(true).lists_commands_at_head());
     }
 }
 

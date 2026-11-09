@@ -38,10 +38,10 @@ use regex::Regex;
 use serde_json::{Map, Value, json};
 
 use super::model::{
-    AskOption, AskQuestion, BackgroundKind, BackgroundStatus, BackgroundTask, LogImage, LogMapper,
-    PendingAsk, PlanStatus, PlanStep, ProposedPlan, Role, SlashCommand, StopRoute, SubagentInfo,
-    Update, cancelled_patch, cap_json, cap_text, cut_text, first_line, fnv, message,
-    parse_keeper_marker, parse_stamp, user_message, with_image_markers,
+    AskOption, AskQuestion, BackgroundKind, BackgroundStatus, BackgroundTask, CommandKind,
+    LogImage, LogMapper, PendingAsk, PlanStatus, PlanStep, ProposedPlan, Role, SlashCommand,
+    StopRoute, SubagentInfo, Update, cancelled_patch, cap_json, cap_text, cut_text, first_line,
+    fnv, message, parse_keeper_marker, parse_stamp, user_message, with_image_markers,
 };
 
 mod subagents;
@@ -57,9 +57,10 @@ const TITLE_CHARS: usize = 120;
 const ASSIGNMENT_CHARS: usize = 400;
 const FINISHED_KEPT: usize = 30;
 
-/// The slash commands whose echo says nothing the chat does not show better: `/clear` starts a new session
-/// (its file opens with this echo, so every fresh chat would begin with "/clear"); `/rename` is the title.
-const HOUSEKEEPING: [&str; 2] = ["/clear", "/rename"];
+/// What a session that `/clear` started says instead of the command's echo: its file opens with that echo, so
+/// every fresh chat would begin with "/clear"; this note says why the chat is empty. (`/rename`'s echo says
+/// nothing either: the title shows it.)
+const CLEARED: &str = "The conversation was cleared";
 
 static TEAMMATE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"^<teammate-message\s+teammate_id="([^"]+)"([^>]*)>([\s\S]*?)</teammate-message>"#)
@@ -108,6 +109,8 @@ pub struct ClaudeMapper {
     /// The skills Claude lists for the session (user, project, plugin and bundled ones), by name, in the
     /// order listed.
     skills: Ordered<SlashCommand>,
+    /// A listing that is the whole set (`isInitial`) was read: a listing from the head of the log adds nothing.
+    skills_whole: bool,
 }
 
 impl ClaudeMapper {
@@ -129,6 +132,7 @@ impl ClaudeMapper {
             subagents: Ordered::new(),
             tasks: Ordered::new(),
             skills: Ordered::new(),
+            skills_whole: false,
         }
     }
 }
@@ -736,6 +740,7 @@ impl ClaudeMapper {
         }
         if a.get("isInitial") != Some(&Value::Bool(false)) {
             self.skills.clear();
+            self.skills_whole = true;
         }
         for name in listed {
             let description = described.get(&name).cloned().unwrap_or_default();
@@ -745,6 +750,7 @@ impl ClaudeMapper {
                     name,
                     description,
                     hint: None,
+                    kind: CommandKind::Skill,
                 },
             );
         }
@@ -946,7 +952,12 @@ impl ClaudeMapper {
                 self.last_typed = None;
                 return Vec::new();
             }
-            if HOUSEKEEPING.contains(&name.as_str()) {
+            if name == "/clear" {
+                let mut out = self.user_clears();
+                out.push(message(Role::Agent, key, CLEARED));
+                return out;
+            }
+            if name == "/rename" {
                 return self.user_clears();
             }
             self.turn_ended = false;
@@ -1625,5 +1636,25 @@ impl LogMapper for ClaudeMapper {
 
     fn reset(&mut self) {
         *self = Self::new(self.sidechain);
+    }
+
+    fn lists_commands_at_head(&self) -> bool {
+        !self.sidechain
+    }
+
+    /// The head's listing comes first; a later listing read here (`isInitial: false`) adds to it.
+    fn adopt_commands(&mut self, commands: Vec<SlashCommand>) -> Vec<Update> {
+        if self.skills_whole || commands.is_empty() {
+            return Vec::new();
+        }
+        let later = std::mem::replace(&mut self.skills, Ordered::new());
+        for c in commands {
+            self.skills.insert(c.name.clone(), c);
+        }
+        for c in later.values() {
+            self.skills.insert(c.name.clone(), c.clone());
+        }
+        self.skills_whole = true;
+        vec![Update::Commands(self.skills.values().cloned().collect())]
     }
 }

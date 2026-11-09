@@ -3,9 +3,9 @@
 
 use herdr_core::prompt::{EffectKind, ToolEffect, tool_effect};
 use herdr_core::session::{
-    self as core, Ask, EarlierHistory, FieldKind, ItemKind, KeeperInfo, KeeperState, ModeRisk,
-    ObservedInfo, ObservedLink, PastSession, PastSessions, PlanStatus, Refusal, Role, Route,
-    SessionPhase, SessionSnapshot, ToolStatus,
+    self as core, Ask, CommandKind, EarlierHistory, FieldKind, ItemKind, KeeperInfo, KeeperState,
+    ModeRisk, ObservedInfo, ObservedLink, PastSession, PastSessions, PlanStatus, Refusal, Role,
+    Route, SessionPhase, SessionSnapshot, ToolStatus,
 };
 use nsh_core::prelude::*;
 
@@ -762,6 +762,17 @@ pub struct CommandView {
     /// What follows it (`<file>`), when the agent says.
     #[prop(skip_none)]
     pub hint: Option<String>,
+    /// The agent's own command or a skill (an ACP session's are all `command`: ACP does not say).
+    pub kind: CommandKindName,
+}
+
+/// What a slash command is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PropEnum)]
+pub enum CommandKindName {
+    /// Built into the agent.
+    Command,
+    /// A skill or a custom command.
+    Skill,
 }
 
 /// How much a session mode lowers the guard.
@@ -1119,6 +1130,10 @@ impl From<&SessionSnapshot> for SessionView {
                     name: c.name.clone(),
                     description: c.description.clone(),
                     hint: c.hint.clone(),
+                    kind: match c.kind {
+                        CommandKind::Command => CommandKindName::Command,
+                        CommandKind::Skill => CommandKindName::Skill,
+                    },
                 })
                 .collect(),
             options: s

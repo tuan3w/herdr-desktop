@@ -227,6 +227,18 @@ pub struct SlashCommand {
     pub description: String,
     /// What follows it (`<file>`), when the agent says.
     pub hint: Option<String>,
+    /// The agent's own command or a skill.
+    pub kind: CommandKind,
+}
+
+/// What a slash command is, where the agent says.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandKind {
+    /// Built into the agent (`/clear`, `/compact`). Also every command of an ACP session: ACP's
+    /// `available_commands_update` does not tell a skill from a built-in.
+    Command,
+    /// A skill or a custom command the person or a plugin added (Claude's `skill_listing`).
+    Skill,
 }
 
 /// How much a session mode lowers the guard between the agent and the machine.

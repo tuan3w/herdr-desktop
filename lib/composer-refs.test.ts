@@ -4,6 +4,7 @@ import {
   acceptMention,
   activeRefs,
   emptyHistory,
+  forTerminal,
   insertToken,
   keepAtomic,
   looksBinary,
@@ -136,6 +137,20 @@ test("a message goes out with its mentions in the words, its pastes in full and 
   expect(sent.files).toEqual(["/w/extra.png", "/w/src/a.rs", "/w/docs"]);
   expect(sent.pictures.map((p) => p.number)).toEqual([1, 2]);
   expect(sent.files).not.toContain("/w/gone.rs");
+});
+
+test("a chat read from a terminal is sent words only: mentions stay @paths, an outside file is named, nothing attached", () => {
+  // The picture saved into the project became a mention; a file from outside the project is only in `attached`.
+  const known = [file(".herdr-desktop/attachments/image-2.png")];
+  const text = "it creates big gaps @.herdr-desktop/attachments/image-2.png";
+  const sent = forTerminal(outgoing(text, known, ["/tmp/log.txt"]), ["/tmp/log.txt"]);
+  expect(sent.files).toEqual([]);
+  expect(sent.pictures).toEqual([]);
+  expect(sent.text).toBe("it creates big gaps @.herdr-desktop/attachments/image-2.png @/tmp/log.txt");
+  // A file already named in the words is not named twice.
+  expect(forTerminal(outgoing("see /tmp/log.txt", [], ["/tmp/log.txt"]), ["/tmp/log.txt"]).text).toBe(
+    "see /tmp/log.txt",
+  );
 });
 
 test("pictures go out in the order they were taken, whatever the words say or the box holds them in", () => {

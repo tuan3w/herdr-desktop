@@ -274,19 +274,24 @@ test("a command list opens at a slash in the same list as files", async () => {
 
 const DESCRIPTION = /^(Summarise|Review|Write|Show) /;
 /** The command names drawn in the list. */
-const names = (app: App) => app.texts().filter((t) => /^\/(compact|review|init|cost)$/.test(t));
+const names = (app: App) => app.texts().filter((t) => /^\/(compact|review|init|cost|review-pr|release-notes)$/.test(t));
 
-test("each command row says what it does, at once and on the row itself, and moving the highlight changes nothing on screen", async () => {
+test("each command row says what it does on the row itself, skills apart under their heading, and moving the highlight changes nothing on screen", async () => {
   const app = await chat("commands");
   await app.type(BOX, "/");
   await app.waitFor("label:Commands");
-  await app.waitUntil(() => names(app).length === 4);
+  await app.waitUntil(() => names(app).length === 6);
   // Every description is on its row from the start: there is no bubble that waits for the highlight to rest.
-  await app.waitUntil(() => app.texts().filter((t) => DESCRIPTION.test(t)).length === 4);
+  await app.waitUntil(() => app.texts().filter((t) => DESCRIPTION.test(t)).length === 6);
   const before = app.texts().filter((t) => DESCRIPTION.test(t));
   await app.keyboard.press("down");
   expect(app.texts().filter((t) => DESCRIPTION.test(t))).toEqual(before);
-  expect(names(app)).toEqual(["/compact", "/review", "/init", "/cost"]);
+  expect(names(app)).toEqual(["/compact", "/review", "/init", "/cost", "/review-pr", "/release-notes"]);
+  // The two groups are told apart by a heading each, the skills' after the commands.
+  const at = (t: string) => app.texts().indexOf(t);
+  expect(at("Commands")).toBeLessThan(at("/compact"));
+  expect(at("/cost")).toBeLessThan(at("Skills"));
+  expect(at("Skills")).toBeLessThan(at("/review-pr"));
 });
 
 test("Escape closes the command list and keeps the slash", async () => {
@@ -307,7 +312,7 @@ test("a pinned command keeps its pin visible and leads the list", async () => {
   await app.waitUntil(() => names(app)[0] === "/cost");
 });
 
-test("the file list's preview is a bubble beside it, the keys are one row of the list that is there from the start", async () => {
+test("the file list's preview shows once the highlight rests, the keys are one row of the list that is there from the start", async () => {
   const app = await chat();
   await app.type(BOX, "@read");
   await app.waitFor("label:README.md");

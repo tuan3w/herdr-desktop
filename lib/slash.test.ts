@@ -1,6 +1,7 @@
 import { expect, test } from "nsh/test";
 
 import {
+  byKind,
   emptyMemory,
   hintFor,
   matchCommands,
@@ -71,12 +72,24 @@ test("names that start with the word come first, then names that hold it, then d
     "context",
   ]);
   // "files" is only in a description.
-  const project: SlashCommand = { name: "compare", description: "Compare two files", source: "project", trigger: "/" };
+  const project: SlashCommand = {
+    name: "compare",
+    description: "Compare two files",
+    source: "project",
+    trigger: "/",
+    kind: "skill",
+  };
   expect(names(matchCommands("/files", "claude", [project, ...claude], emptyMemory()))[0]).toBe("compare");
 });
 
 test("a project command comes before a built-in one in its group, however much the built-in was used", () => {
-  const project: SlashCommand = { name: "cleanup", description: "Tidy", source: "project", trigger: "/" };
+  const project: SlashCommand = {
+    name: "cleanup",
+    description: "Tidy",
+    source: "project",
+    trigger: "/",
+    kind: "skill",
+  };
   const memory = used("claude", Array(10).fill("clear"));
   expect(names(matchCommands("/cl", "claude", [project, ...claude], memory)).slice(0, 2)).toEqual(["cleanup", "clear"]);
 });
@@ -110,9 +123,18 @@ test("a name pinned or sent that the table lacks still completes, with no descri
   const memory = togglePin(used("claude", ["mine"]), "claude", "ghost");
   expect(names(matchCommands("/", "claude", claude, memory)).slice(0, 2)).toEqual(["ghost", "mine"]);
   expect(matchCommands("/gh", "claude", claude, memory)).toEqual([
-    { name: "ghost", description: "", source: "builtIn", trigger: "/" },
+    { name: "ghost", description: "", source: "builtIn", trigger: "/", kind: "command" },
   ]);
   expect(names(matchCommands("/min", "claude", claude, memory))).toEqual(["mine"]);
+});
+
+test("a remembered name the table lacks is a skill when its form says so: omp's skill:name, Codex's $name", () => {
+  const memory = used("omp", ["skill:tdd", "compact"]);
+  const kinds = matchCommands("/", "omp", [], memory).map((c) => [c.name, c.kind]);
+  expect(kinds).toEqual([
+    ["compact", "command"],
+    ["skill:tdd", "skill"],
+  ]);
 });
 
 test("pins and use belong to the agent, whatever the case of its label", () => {
@@ -199,7 +221,7 @@ test("a sent line is remembered under its command, and a path, text or a lone sl
 });
 
 test("a skill is remembered with its dollar, and a shell variable is a sentence, not a skill nobody has", () => {
-  const skill: SlashCommand = { name: "review", description: "Review", source: "project", trigger: "$" };
+  const skill: SlashCommand = { name: "review", description: "Review", source: "project", trigger: "$", kind: "skill" };
   expect(sentKey("$review the diff", "codex", [skill])).toBe("$review");
   expect(sentKey("$PATH is wrong on this box", "codex", [skill])).toBeNull();
   expect(sentKey("$HOME", "codex", [skill])).toBeNull();
@@ -221,8 +243,17 @@ test("what a picked command takes shows after it until the first character", () 
 });
 
 function commandOf(name: string, hint?: string): SlashCommand {
-  return { name, description: "", source: "builtIn", trigger: "/", ...(hint ? { hint } : {}) };
+  return { name, description: "", source: "builtIn", trigger: "/", kind: "command", ...(hint ? { hint } : {}) };
 }
+
+test("commands and skills are shown apart, the group of the best match first, each in its ranked order", () => {
+  const skill = (name: string): SlashCommand => ({ ...commandOf(name), kind: "skill" });
+  const ranked = [skill("review-pr"), commandOf("review"), skill("release-notes"), commandOf("resume")];
+  expect(byKind(ranked).map((c) => c.name)).toEqual(["review-pr", "release-notes", "review", "resume"]);
+  const commandFirst = [commandOf("review"), skill("review-pr"), commandOf("resume")];
+  expect(byKind(commandFirst).map((c) => c.name)).toEqual(["review", "resume", "review-pr"]);
+  expect(byKind([])).toEqual([]);
+});
 
 test("a pinned command leads the matches of a word too, in the order it was pinned, then the rest as they were", () => {
   const memory = togglePin(togglePin(emptyMemory(), "claude", "context"), "claude", "config");
@@ -230,4 +261,14 @@ test("a pinned command leads the matches of a word too, in the order it was pinn
   expect(got.slice(0, 2)).toEqual(["context", "config"]);
   expect(new Set(got).size).toBe(got.length);
   expect(got.length).toBe(names(matchCommands("/co", "claude", claude, emptyMemory())).length);
+});
+
+test("a word that is a whole command's name puts that command first, so Enter keeps what was typed", () => {
+  // Claude lists `review-pr` before `review`; the person typed `/review` and presses Enter on the open list.
+  const skills = [commandOf("review-pr"), commandOf("review")];
+  let memory = used("claude", ["review-pr", "review-pr"]);
+  expect(names(matchCommands("/review", "claude", skills, memory))[0]).toBe("review");
+  // Not even a pin moves a longer name above the one typed in full.
+  memory = togglePin(memory, "claude", "review-pr");
+  expect(names(matchCommands("/review", "claude", skills, memory))).toEqual(["review", "review-pr"]);
 });
