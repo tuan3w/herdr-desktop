@@ -966,38 +966,48 @@ SCENARIOS["inspector-needs"] = inspector({ fails: true });
 SCENARIOS["inspector-drill"] = inspector({ drill: true });
 SCENARIOS["inspector-notimes"] = inspector({ open: true, notimes: true });
 
-// The README's three pictures (`.scratch/readme-shots/build.sh` makes them) over the synthetic `showcase` fixture. Its
-// Claude Code logs are generated beside a copy of it (`.scratch/readme-shots/gen.py`) and must lie under the keeper's home
-// of the run, which exists only once the app started: build.sh copies them there (without it the chats say they are not
-// linked). Presses rarely land in the Mac host, so states are reached by keys (`meta`, not `mod`: these are Mac-only):
-// `⌘J` (the agent that waits), the palette's rows (`⌘P`, then down to the agent: the waiting one, the finished ones, the
-// working ones, by name), `⌘⇧I` (the inspector), `⌘⇧G` (the project's changes, beside the chat), `⌘B` (the sidebar folds to its rail); three `Tab`s reach the
-// inspector's first row and `Enter` opens that subagent's conversation.
+// The README's three pictures (`scripts/readme-shots/build.sh` makes them, through `.shots/readme.test.tsx`) over the
+// synthetic `showcase` fixture. build.sh runs a copy of it whose folders are synthetic git repositories, and writes the
+// agents' Claude Code logs into the keeper's home of the run, which exists only once the app started (without it the
+// chats say they are not linked). Presses rarely land in the Mac host, so states are reached by keys (`mod`: Ctrl on
+// Linux, Cmd on a Mac): `mod+j` (the agent that waits), the palette's rows (`mod+p`, then down to the agent: the waiting
+// one, the finished ones, the working ones, by name), `mod+shift+i` (the inspector), `mod+shift+g` (the project's changes,
+// beside the chat), `mod+b` (the sidebar folds to its rail). The README's night picture opens the inspector's subagent by
+// pressing its row (a press lands in the GTK host); the video's footage, taken on a Mac, reaches the row with three `Tab`s
+// and opens it with `Enter`.
 const readme = (keys: string[]): Scenario => ({
   fixture: "showcase",
   params: { sidebarWidth: 304 },
   steps: async (app) => {
     await app.wait(1500);
     for (const k of keys) {
-      if (k.startsWith("label:")) await app.press(k);
-      else await app.keyboard.press(k);
-      await app.wait(k === "down" || k === "tab" ? 300 : k === "meta+p" ? 600 : 3000);
+      // `make shots` and `make a11y` run these without the synthetic logs: a row that is not there is skipped.
+      if (k.startsWith("label:")) {
+        if (app.shows(k)) await app.press(k);
+      } else await app.keyboard.press(k);
+      await app.wait(k === "down" || k === "tab" ? 300 : k === "mod+p" ? 600 : 3000);
     }
   },
 });
 const down = (n: number) => Array.from({ length: n }, () => "down");
-SCENARIOS["readme-glance"] = readme(["meta+j", "meta+shift+i"]);
-SCENARIOS["readme-review"] = readme(["meta+p", ...down(2), "enter", "meta+shift+g", "meta+b"]);
-SCENARIOS["readme-night"] = readme(["meta+p", ...down(4), "enter", "meta+shift+i", "tab", "tab", "tab", "enter"]);
+SCENARIOS["readme-glance"] = readme(["mod+j", "mod+shift+i"]);
+SCENARIOS["readme-review"] = readme(["mod+p", ...down(2), "enter", "mod+shift+g", "mod+b"]);
+SCENARIOS["readme-night"] = readme([
+  "mod+p",
+  ...down(4),
+  "enter",
+  "mod+shift+i",
+  "label:/^Move refs to plain props in components.forms, .*Open its conversation$/",
+]);
 
 // The intro video's footage (`local/video/intro/capture.sh` makes it) over the same `showcase` data and keys as the
-// README's pictures: the window as it opens, `⌘J` to the agent that waits, a finished turn (the palette's third row), its
+// README's pictures: the window as it opens, `mod+j` to the agent that waits, a finished turn (the palette's third row), its
 // changes beside it, the same with the file marked reviewed (`x`), and the working agent's inspector before a subagent opens.
 SCENARIOS["video-start"] = readme([]);
-SCENARIOS["video-jump"] = readme(["meta+j"]);
-SCENARIOS["video-chat"] = readme(["meta+p", ...down(2), "enter"]);
-SCENARIOS["video-review"] = readme(["meta+p", ...down(2), "enter", "meta+shift+g", "meta+b"]);
-SCENARIOS["video-marked"] = readme(["meta+p", ...down(2), "enter", "meta+shift+g", "meta+b", "x"]);
-SCENARIOS["video-activity"] = readme(["meta+p", ...down(4), "enter", "meta+shift+i"]);
-SCENARIOS["video-subagent"] = SCENARIOS["readme-night"];
-SCENARIOS["video-sidebar"] = readme(["meta+b"]);
+SCENARIOS["video-jump"] = readme(["mod+j"]);
+SCENARIOS["video-chat"] = readme(["mod+p", ...down(2), "enter"]);
+SCENARIOS["video-review"] = readme(["mod+p", ...down(2), "enter", "mod+shift+g", "mod+b"]);
+SCENARIOS["video-marked"] = readme(["mod+p", ...down(2), "enter", "mod+shift+g", "mod+b", "x"]);
+SCENARIOS["video-activity"] = readme(["mod+p", ...down(4), "enter", "mod+shift+i"]);
+SCENARIOS["video-subagent"] = readme(["mod+p", ...down(4), "enter", "mod+shift+i", "tab", "tab", "tab", "enter"]);
+SCENARIOS["video-sidebar"] = readme(["mod+b"]);
