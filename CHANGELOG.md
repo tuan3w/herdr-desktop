@@ -4,14 +4,78 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+## [0.1.0-alpha.11] - 2026-11-09
+
+### A message never lands on a question by mistake
+
+Messages to an agent now go through herdr's own check that the agent is
+at its prompt. If it is waiting for an answer, nothing is typed and the
+message says why.
+
+> [!TIP]
+> Try it: in the palette, run `Install herdr hook for Claude Code…`, then
+> pick two agents on the board and press `Message`.
+
+- A chat, the board's `Message` and a background stop all use it. A herdr
+  too old to know it gets the text and Enter as before, and says nothing.
+- The refusal reads as a sentence (`The agent is waiting for an answer, so
+  the message wasn't sent. Answer it first.`), never a code.
+- Closing a pane, tab or workspace that herdr no longer has counts as
+  closed instead of failing.
+- Starting a workspace or tab in a folder that does not exist on that
+  machine now says so and starts nothing. herdr used to open its own home
+  folder and say nothing.
+- The palette installs herdr's hook for omp, Claude Code or Codex on a
+  machine, after asking: it changes that agent's own settings.
+
+### Name anything, and see what subagents do
+
+A pane, a chat, a tab and a workspace can be renamed, and an empty name
+gives the program's own title back. An omp task shows one line for each
+of its subagents while they work.
+
+> [!TIP]
+> Try it: in a chat that runs several subagents, watch the card.
+
+- A pane's rename dialog says `Leave empty to show the program's own
+  title`; the `Rename…` action of a chat names it on this computer only.
+- A terminal tab is titled by the pane's name, else a tab you named, else
+  the program's own; the tooltip adds the workspace and tab you named.
+- Starting an agent has an optional `Name`; left empty, herdr names it by
+  its kind. A machine whose herdr lists the agents it can start offers
+  only those.
+- A hook's title names an agent on the board, after a name you gave it
+  and before the terminal's title.
+- Each subagent line has a mark, its name, the tool it is in, its tool
+  count and its time. When all are done the card folds to
+  `3 subagents, 2m 10s`.
+- The palette's `Remove worktree…` closes a linked worktree's workspace
+  after asking; it never forces and never touches a main checkout.
+- A chat read from a terminal has no queue: the box says `Send to the
+  terminal`.
+- Messages waiting behind a turn are kept when the connection drops,
+  held with `The connection dropped`; `Send now` lets them go. A chat
+  with messages waiting is no longer closed for lingering.
+- A popup's scroll bar no longer covers a field at its right edge.
+
+**Fixed**
+
 - The install command installs the highest release again. After
   `0.1.0-alpha.10` it installed `0.1.0-alpha.9`, because GitHub lists
-  `alpha.10` after `alpha.5`. Until you update the script, install it with
-  `--version 0.1.0-alpha.10`.
+  `alpha.10` after `alpha.5`.
 - On Ubuntu (Yaru theme), the window's title bar no longer loses its
   background: its title and window buttons floated over whatever was behind
   the window, and the menu row looked empty. The app now names your GTK theme
   itself at start, so GTK keeps it. A `GTK_THEME` you set is left alone.
+
+**Not checked**
+
+- Never run against a live herdr: messages, hooks, closing and worktree
+  removal are tested against a scripted herdr only.
+- Not run on a Mac. On Linux the new screens were drawn in light and dark
+  at 1280, 960 and 760 px; large text and reduced motion were not.
+- Not built yet: a hook's state label and tokens on the board, and a
+  `Not running` row for a pane herdr could not restore.
 
 ## [0.1.0-alpha.10] - 2026-11-09
 
