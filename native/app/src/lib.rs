@@ -18,6 +18,7 @@
 //! * [`fixture`] is the scripted herdr the tests run against.
 //! * `preload_guard` (Linux, glibc) starts the process again without an `LD_PRELOAD` allocator that breaks GTK 4.22 (before `main`).
 //! * `webkit_env` (Linux) turns off WebKitGTK's DMA-BUF renderer, which aborts the app on a GPU without GBM (before `main`).
+//! * `gtk_theme` (Linux) names the current GTK theme in `GTK_THEME` when it is a resource that GTK 4.22 empties at start, which left the title bar bare (before `main`).
 
 use nsh_core::prelude::*;
 
@@ -29,6 +30,8 @@ pub mod feed;
 pub mod files;
 pub mod fixture;
 pub mod git;
+#[cfg(target_os = "linux")]
+pub mod gtk_theme;
 pub mod highlight;
 pub mod media;
 pub mod metrics;
@@ -47,6 +50,8 @@ fn native(registry: &mut Registry) {
     // Names the guards' constructors so that the linker keeps their object files.
     #[cfg(all(target_os = "linux", target_env = "gnu"))]
     std::hint::black_box(&preload_guard::INIT);
+    #[cfg(target_os = "linux")]
+    std::hint::black_box(&gtk_theme::INIT);
     #[cfg(target_os = "linux")]
     std::hint::black_box(&webkit_env::INIT);
     registry

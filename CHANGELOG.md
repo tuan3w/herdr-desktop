@@ -8,6 +8,10 @@ What changed for the person using Herdr Desktop, newest first. The format follow
   `0.1.0-alpha.10` it installed `0.1.0-alpha.9`, because GitHub lists
   `alpha.10` after `alpha.5`. Until you update the script, install it with
   `--version 0.1.0-alpha.10`.
+- On Ubuntu (Yaru theme), the window's title bar no longer loses its
+  background: its title and window buttons floated over whatever was behind
+  the window, and the menu row looked empty. The app now names your GTK theme
+  itself at start, so GTK keeps it. A `GTK_THEME` you set is left alone.
 
 ## [0.1.0-alpha.10] - 2026-11-09
 
