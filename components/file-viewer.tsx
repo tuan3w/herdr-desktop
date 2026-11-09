@@ -25,6 +25,8 @@ const CARD = "from-card/0 to-card";
 
 /** The height of the content in the preview beside a folder's list. */
 const QUICK_BODY = 300;
+/** The view switch's row and the gap under it, taken from the content's height in the side panel. */
+const SWITCH_ROW = 44;
 
 /** Where the viewer steps from this file: the files of the folder it came from (the pictures, for a picture). */
 export interface ViewerNav {
@@ -41,6 +43,8 @@ export interface ViewerNav {
  * archive as a list, anything else as a hex peek. Above the content, what can be done with the file (`FileActions`).
  * Each of the views with two ways to read (a document and its source, a table and its text, formatted and as written) has
  * a switch. `quick` is the preview beside a folder's list: smaller, nothing plays, nothing is copied from another machine.
+ * `panelHeight` is the side panel a link opened (`components/link-panel.tsx`): the content alone at that height, as
+ * still as `quick` (the panel's header names the file and offers its tab), the switch kept.
  */
 export function FileViewer(props: {
   machine: string;
@@ -50,14 +54,22 @@ export function FileViewer(props: {
   onBack: () => void;
   nav?: ViewerNav;
   quick?: boolean;
+  panelHeight?: number;
 }) {
   const data = held(() => props.data);
   const mode = signal<"rich" | "source">("rich");
   const finding = signal(false);
   // The line shown marked and scrolled to: the one a link named, then each match of the find bar.
   const line = signal(props.line ?? 0);
-  const body = props.quick ? QUICK_BODY : BODY;
-
+  // In the panel nothing plays and nothing registers for the global keys: those stay the chat's beside it.
+  const still = props.quick || props.panelHeight !== undefined;
+  // In the panel the content takes the panel's height, less the view switch's row when the file has one.
+  const body = () =>
+    props.panelHeight !== undefined
+      ? props.panelHeight - (switchable() !== null ? SWITCH_ROW : 0)
+      : props.quick
+        ? QUICK_BODY
+        : BODY;
   // Another file in the same viewer: its own switch and find bar.
   effect(() => {
     void data().path;
@@ -103,7 +115,7 @@ export function FileViewer(props: {
   // `mod+f` finds in the file while it is open: the newest registration is the one the global shortcut asks (`lib/pane-input.ts`),
   // so the pane behind the dialog does not open its own find bar too.
   effect(() => {
-    if (props.quick) return;
+    if (still) return;
     return registerPane({ focusComposer: () => {}, searchInPane: () => finding.set(true) });
   });
 
@@ -135,7 +147,7 @@ export function FileViewer(props: {
     if (!props.quick && props.nav) announce([place(), name()].filter(Boolean).join(", "));
   });
   // A picture is not a step of this view: it opens in the lightbox over it, and closing that returns to the folder.
-  const lightboxed = () => !props.quick && kind() === "image";
+  const lightboxed = () => !still && kind() === "image";
   const pictureMenu = computed(() =>
     fileMenu({
       machine: props.machine,
@@ -149,7 +161,7 @@ export function FileViewer(props: {
 
   const textBody = () => (
     <View class="gap-2">
-      <If when={finding() && !props.quick}>
+      <If when={finding() && !still}>
         <PaneFind
           what="file"
           rows={async () => lines()}
@@ -165,7 +177,7 @@ export function FileViewer(props: {
               if (props.line) editor.goToLine(props.line);
             }}
             readOnly
-            autoFocus={!props.quick}
+            autoFocus={!still}
             language={name()}
             value={showsText() ?? ""}
             lineNumbers
@@ -174,17 +186,17 @@ export function FileViewer(props: {
             fontSize={13}
             accessibilityLabel={`${name()}, read only`}
             class="w-full rounded-md border border-border bg-card"
-            style={{ height: body }}
+            style={{ height: body() }}
           />
         }
       >
-        <View role="group" accessibilityLabel={`${name()}, read only`} style={{ height: body }}>
+        <View role="group" accessibilityLabel={`${name()}, read only`} style={{ height: body() }}>
           <CodeBlock
             code={showsText() ?? ""}
             path={name()}
             lineNumbers
             collapsedLines={0}
-            maxHeight={body - 32}
+            maxHeight={body() - 32}
             marks={line() > 0 ? String(line()) : undefined}
             goTo={line() > 0 ? line() : undefined}
             goToNonce={request()}
@@ -196,7 +208,7 @@ export function FileViewer(props: {
 
   const isKind = (...kinds: string[]) => kinds.includes(kind());
   const large = () => data().large && kind() === "text";
-  const markdownHeight = props.quick ? "h-[300px]" : "h-[400px]";
+  const markdownHeight = () => (props.quick ? 300 : props.panelHeight !== undefined ? body() : 400);
 
   // One branch per kind, each reading only what decides it: a switch of the find bar or the view must not rebuild a player.
   const content = () => (
@@ -206,16 +218,16 @@ export function FileViewer(props: {
           machine={props.machine}
           path={data().path}
           name={name()}
-          height={body - 40}
-          finding={finding() && !props.quick}
+          height={body() - 40}
+          finding={finding() && !still}
           onCloseFind={() => finding.set(false)}
         />
       </If>
       <If when={isKind("video", "audio")}>
         <If
-          when={!props.quick}
+          when={!still}
           else={
-            <PlayCard name={name()} kind={kind() === "video" ? "video" : "audio"} size={data().size} height={body} />
+            <PlayCard name={name()} kind={kind() === "video" ? "video" : "audio"} size={data().size} height={body()} />
           }
         >
           <Each of={[data().path]} key={(path: string) => path}>
@@ -232,11 +244,11 @@ export function FileViewer(props: {
           </Each>
         </If>
       </If>
-      <If when={props.quick && isKind("image")}>
+      <If when={still && isKind("image")}>
         <If
           when={data().image}
           else={
-            <View style={{ height: body }} class="items-center justify-center">
+            <View style={{ height: body() }} class="items-center justify-center">
               <Empty
                 fill
                 icon="image"
@@ -246,7 +258,7 @@ export function FileViewer(props: {
             </View>
           }
         >
-          {(url) => <ImageView url={url()} name={name()} height={body} />}
+          {(url) => <ImageView url={url()} name={name()} height={body()} />}
         </If>
       </If>
       <If when={isKind("pdf")}>
@@ -256,22 +268,24 @@ export function FileViewer(props: {
           path={data().path}
           name={name()}
           size={data().size}
-          height={body}
+          height={body()}
         />
       </If>
       <If when={isKind("archive")}>
-        <ArchiveView machine={props.machine} path={data().path} name={name()} height={body} quick={props.quick} />
+        <ArchiveView machine={props.machine} path={data().path} name={name()} height={body()} quick={still} />
       </If>
       <If when={isKind("csv") && asDocument() ? data().text : undefined}>
-        {(text) => <CsvView text={text()} name={name()} height={body} />}
+        {(text) => <CsvView text={text()} name={name()} height={body()} />}
       </If>
       <If when={isKind("markdown") && asDocument()}>
-        <Markdown
-          source={data().text ?? ""}
-          machine={props.machine}
-          folder={parentOf(data().path) ?? "/"}
-          class={`${markdownHeight} rounded-md border border-border bg-card`}
-        />
+        <View style={{ height: markdownHeight() }}>
+          <Markdown
+            source={data().text ?? ""}
+            machine={props.machine}
+            folder={parentOf(data().path) ?? "/"}
+            class="flex-1 rounded-md border border-border bg-card"
+          />
+        </View>
       </If>
       <If when={!large() && ((isKind("text") && true) || (isKind("markdown", "csv") && !asDocument()))}>
         {textBody()}
@@ -283,8 +297,8 @@ export function FileViewer(props: {
           name={name()}
           size={data().size}
           local={data().local}
-          height={body}
-          quick={props.quick}
+          height={body()}
+          quick={still}
         />
       </If>
     </>
@@ -292,39 +306,43 @@ export function FileViewer(props: {
 
   const page = () => (
     <View class="gap-3">
-      <View class="flex-row items-center gap-2">
-        <If when={!props.quick}>
-          <Btn small icon="arrow-left" label="Files" name="Back to the folder" onPress={props.onBack} />
-        </If>
-        <View class="min-w-0 flex-1 gap-1">
-          <Clipped fade={[CARD]} class="text-sm font-medium text-foreground">
-            {name()}
-          </Clipped>
-          <Clipped fade={[CARD]} class="text-xs text-muted-foreground">
-            {meta()}
-          </Clipped>
+      <If when={props.panelHeight === undefined || switchable() !== null}>
+        <View class="flex-row items-center gap-2">
+          <If when={!props.quick && props.panelHeight === undefined}>
+            <Btn small icon="arrow-left" label="Files" name="Back to the folder" onPress={props.onBack} />
+          </If>
+          <If when={props.panelHeight === undefined} else={<View class="flex-1" />}>
+            <View class="min-w-0 flex-1 gap-1">
+              <Clipped fade={[CARD]} class="text-sm font-medium text-foreground">
+                {name()}
+              </Clipped>
+              <Clipped fade={[CARD]} class="text-xs text-muted-foreground">
+                {meta()}
+              </Clipped>
+            </View>
+          </If>
+          <If when={switchable() !== null && !props.quick}>
+            <Segmented
+              label={`${name()} view`}
+              value={mode()}
+              onChange={(next) => mode.set(next)}
+              options={[
+                { value: "rich", label: switchable()?.rich ?? "" },
+                { value: "source", label: switchable()?.source ?? "" },
+              ]}
+            />
+          </If>
+          <If when={props.nav && !still}>
+            <If when={canStep(-1)}>
+              <IconButton icon="chevron-left" label="Previous file" shortcut="[" onPress={() => stepTo(-1)} />
+            </If>
+            <If when={canStep(1)}>
+              <IconButton icon="chevron-right" label="Next file" shortcut="]" onPress={() => stepTo(1)} />
+            </If>
+          </If>
         </View>
-        <If when={switchable() !== null && !props.quick}>
-          <Segmented
-            label={`${name()} view`}
-            value={mode()}
-            onChange={(next) => mode.set(next)}
-            options={[
-              { value: "rich", label: switchable()?.rich ?? "" },
-              { value: "source", label: switchable()?.source ?? "" },
-            ]}
-          />
-        </If>
-        <If when={props.nav && !props.quick}>
-          <If when={canStep(-1)}>
-            <IconButton icon="chevron-left" label="Previous file" shortcut="[" onPress={() => stepTo(-1)} />
-          </If>
-          <If when={canStep(1)}>
-            <IconButton icon="chevron-right" label="Next file" shortcut="]" onPress={() => stepTo(1)} />
-          </If>
-        </If>
-      </View>
-      <If when={!props.quick}>
+      </If>
+      <If when={!still}>
         <FileActions
           machine={props.machine}
           path={data().path}

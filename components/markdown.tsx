@@ -1,10 +1,13 @@
-import { computed, openUrl, Scroll, Text, View } from "nsh";
-import { Button, TextView, type TextViewCodeBlock, type TextViewCustomNode, type TextViewImage } from "nsh/base";
+import { computed, Scroll, Text, View } from "nsh";
+import { TextView, type TextViewCodeBlock, type TextViewCustomNode, type TextViewImage } from "nsh/base";
 
+import { ChatPicture, modHeld } from "#components/chat-picture";
 import { CodeBlock, inlineCodeClasses } from "#components/code-block";
 import { MermaidBlock } from "#components/mermaid-block";
 import { openLink } from "#components/open-link";
-import { type CopyEntry, copyMenu, copyText, Icon, notify } from "#kit";
+import { type CopyEntry, copyMenu, copyText, Icon } from "#kit";
+import type { LinkPanel } from "#lib/link-panel";
+import { chatMarkdown, isPath, MARK, MENTION, pathLink } from "#lib/links";
 import {
   fenceLanguage,
   type FenceSegment,
@@ -31,8 +34,8 @@ const WRITTEN_LINES = 12;
  * (emil-surfaces: one edge, never two).
  */
 const TABLE_CLASSES = {
-  paragraph: "text-base",
-  listMarker: "text-base",
+  // Links read in the text's colour with the text view's light underline: colour stays for what needs the person.
+  link: "text-foreground",
   table: "overflow-hidden",
   tableScroll: "-ml-px -mt-px",
   tableHead: "bg-transparent",
@@ -40,8 +43,19 @@ const TABLE_CLASSES = {
   tableHeaderCell: "font-medium",
 };
 
+/**
+ * The parts the text view sizes on its own, at the message's size (`size`): the page's 14 pt, or 13 inside a bubble. The
+ * rest of a short link's path (`small`, `lib/links.ts`) is muted at the text's size, not underlined.
+ */
+const TEXT_PARTS = {
+  base: { paragraph: "text-base", listMarker: "text-base", small: "text-base text-muted-foreground no-underline" },
+  sm: { paragraph: "text-sm", listMarker: "text-sm", small: "text-sm text-muted-foreground no-underline" },
+};
+
 /** The parts of messages read lately, by their text: a recycled cell shown a message again does not split it again. */
 const PARTS = new Lru<string, Segment[]>(MARKDOWN_ENTRIES);
+/** Prose as drawn (`chatMarkdown`: short links, named pictures), by its text, for the same reason. */
+const SHOWN = new Lru<string, string>(MARKDOWN_ENTRIES);
 
 /**
  * Where the open or folded state of a message's code blocks lives, when the caller keeps it (a chat's recycled list cell
@@ -58,9 +72,12 @@ export interface Folds {
  * `Copy code`, folding; a fence without a language is read from its text) and ```` ```mermaid ```` blocks as diagrams
  * (`MermaidBlock`). A fence inside a list item or a quote is drawn by `TextView`'s code-block hook, also as a `CodeBlock`
  * (its fold state is its own: the hook makes it again whenever its text view's text changes). Inline code is a neutral
- * chip, never a colour (`inlineCodeClasses`). Only `http` and `https` links open, in the browser; a relative path opens in the file
- * viewer, looked for in `folder` and the two above it on `machine`; anchors and anything else do nothing. An image is
- * never fetched: it is a chip `Image: <alt>` that opens the picture when its address is a path.
+ * chip, never a colour (`inlineCodeClasses`).
+ *
+ * Links and pictures (`design/chat.md`, "Links and pictures"): a link whose text is its own address is drawn short
+ * (`chatMarkdown`); a press goes through `openLink`, into `links` (the side panel) when there is one and `mod` is not
+ * held, else the old way; a relative path is looked for in `folder` and the two above it on `machine`; anchors and other
+ * schemes do nothing. A picture of the machine is a thumbnail (`ChatPicture`), a web picture a chip that is never fetched.
  *
  * `streaming` is for text still arriving: the unfinished end of the last prose part (`**bold`) is drawn as if closed, and
  * an open fence is a block that follows its end and is highlighted as it stands. Each part keeps its place while the text
@@ -78,34 +95,48 @@ export function MarkdownText(props: {
   class?: string;
   folds?: Folds;
   foldKey?: string;
+  /** The side panel a pressed link or picture opens in; without one, links open the old way. */
+  links?: LinkPanel;
   /** What the right-click menu offers; by default `Copy text` and `Copy as Markdown`. */
   entries?: () => readonly CopyEntry[];
+  /** The text's size: the page's (`base`, the default) or a bubble's (`sm`). */
+  size?: "base" | "sm";
 }) {
+  // `TextView` reports a link without the keys held: the pointer's last move over the text says whether `mod` is down
+  // (a move is also reported when a modifier changes under a still pointer).
+  let external = false;
+  const at = () => ({ machine: props.machine, cwd: props.folder, panel: props.links, external });
   const press = (target: string) => {
-    const path = target.split("#")[0];
     if (/^https?:\/\//i.test(target)) {
-      void openUrl(target).then(
-        ({ opened }) => {
-          if (!opened) notify("Nothing on this computer opens that address", { type: "error" });
-        },
-        (e) => notify(`Could not open the address: ${e instanceof Error ? e.message : String(e)}`, { type: "error" }),
-      );
-    } else if (path !== "" && !/^[a-z][a-z0-9+.-]*:/i.test(path)) {
-      void openLink("path", decodeURI(path), null, null, { machine: props.machine, cwd: props.folder });
+      void openLink("url", target, null, null, at());
+      return;
     }
+    if (!isPath(target)) return;
+    let decoded = target;
+    try {
+      decoded = decodeURI(target);
+    } catch {
+      // A malformed escape is looked for as written.
+    }
+    const { path, line, col } = pathLink(decoded);
+    void openLink("path", path, line, col, at());
   };
   const image = (img: TextViewImage) => {
-    const local = !/^[a-z][a-z0-9+.-]*:/i.test(img.src);
-    const name = img.alt || img.src.split("/").pop() || "image";
+    // The mark before a short link: the text view wraps it in the link, named by the whole address. Its gap is padding,
+    // not a space, so no underline runs under it.
+    if (img.src.startsWith(MARK))
+      return (
+        <View class="pr-1">
+          <Icon name={img.src === `${MARK}file` ? "file" : "link"} size={12} tone="muted-foreground" />
+        </View>
+      );
     return (
-      <Button
-        accessibilityLabel={`Image: ${name}`}
-        onPress={() => (local ? press(img.src) : notify(`${img.src} is on the web and is not loaded`))}
-        class="my-1 flex-row items-center gap-2 self-start rounded-md border border-border bg-muted px-2 py-1 hover:bg-accent"
-      >
-        <Icon name="image" size={14} tone="muted-foreground" />
-        <Text class="text-sm text-foreground">{`Image: ${name}`}</Text>
-      </Button>
+      <ChatPicture
+        src={img.src}
+        alt={img.alt ?? ""}
+        mention={img.title === MENTION}
+        at={{ machine: props.machine, folder: props.folder, links: props.links }}
+      />
     );
   };
   const custom = (node: TextViewCustomNode) =>
@@ -132,6 +163,8 @@ export function MarkdownText(props: {
     <View
       selectable
       class="gap-3"
+      onMouseMove={(e) => (external = modHeld(e))}
+      onMouseLeave={() => (external = false)}
       onContextMenu={copyMenu(
         props.entries ??
           (() => [
@@ -163,10 +196,14 @@ export function MarkdownText(props: {
               <If when={prose()}>
                 {(text) => (
                   <TextView
-                    markdown={text().text}
+                    markdown={
+                      streaming() && part().key === last()
+                        ? chatMarkdown(text().text)
+                        : SHOWN.get(text().text, () => chatMarkdown(text().text))
+                    }
                     options={{ streaming: streaming() && part().key === last() }}
-                    class={`text-base text-foreground ${props.class ?? ""}`}
-                    classes={{ code: inlineCodeClasses, ...TABLE_CLASSES }}
+                    class={`${props.size === "sm" ? "text-sm" : "text-base"} text-foreground ${props.class ?? ""}`}
+                    classes={{ code: inlineCodeClasses, ...TABLE_CLASSES, ...TEXT_PARTS[props.size ?? "base"] }}
                     selectable
                     extensions={EXTENSIONS}
                     renderCustom={custom}

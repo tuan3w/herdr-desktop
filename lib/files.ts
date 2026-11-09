@@ -14,13 +14,6 @@ import { ageText } from "#lib/sidebar";
  * `lib/file-table.ts`. Reading and writing files is Rust (`Files`, `Pages`).
  */
 
-/** A page on a remote machine's localhost is open in `WebPage`. `url` is as the machine knows it (`http://localhost:5173/`). */
-export interface PageRequest {
-  machine: string;
-  url: string;
-}
-export const pageRequest = signal<PageRequest | null>(null);
-
 /** Files were dropped on a pane: `paths` (local) are to be sent into `folder` on `machine`. */
 export interface SendRequest {
   machine: string;
@@ -33,23 +26,27 @@ export const sending = signal<SendRequest | null>(null);
 export const fileSort = signal<FileSort>(DEFAULT_SORT);
 export const showHidden = signal(false);
 
-/** What a pressed link in a pane does. */
-export type LinkRoute = "browser" | "page" | "file" | "address";
+/** What a pressed link does. */
+export type LinkRoute = "browser" | "panel" | "page" | "file" | "address";
 
 /**
- * Where a link goes. A file path opens in the file viewer, on the pane's machine. A web address on a machine's own
- * `localhost` is a page of that machine: on a remote one it is tunnelled and shown here, on this computer it is the
- * browser's (nothing to tunnel). Any other http or https address opens in the browser. Anything else (a `file:` or
- * `javascript:` address) is only copied, never opened.
+ * Where a link goes. A file path opens on the link's machine (in the side panel or the viewer: the caller decides). A web
+ * address on a remote machine's own `localhost` is a page of that machine, tunnelled and shown in the side panel. With a
+ * side panel (`panel`: the surface has one and the person did not ask for the old way with `mod`), an https address and
+ * this computer's own `localhost` open in it; a plain http address of another host, and everything without a panel, opens
+ * in the browser. Anything else (a `file:` or `javascript:` address) is only copied, never opened.
  */
 export function routeLink(
   kind: "url" | "path",
   target: string,
-  where: { local: boolean; loopback: boolean },
+  where: { local: boolean; loopback: boolean; panel: boolean },
 ): LinkRoute {
   if (kind === "path") return "file";
   if (where.loopback && !where.local) return "page";
-  return /^https?:\/\//i.test(target) ? "browser" : "address";
+  if (!/^https?:\/\//i.test(target)) return "address";
+  // Plain http to another host is the browser's: the panel shows what travels encrypted, or never leaves this computer.
+  if (where.panel && (/^https:\/\//i.test(target) || where.loopback)) return "panel";
+  return "browser";
 }
 
 /** The folder part of an absolute path; `/` has none. */

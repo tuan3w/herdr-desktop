@@ -69,6 +69,9 @@ test("a subagent opens its own conversation, read-only, and Back returns to the 
   await app.waitFor("label:Subagent conversation: Audit auth module");
   await app.waitFor(label("^You: Audit the auth module for session fixation"));
   expect(app.shows(label("^Agent: Reading"))).toBe(true);
+  // The assignment its parent wrote is Markdown in the bubble: its marks are drawn, not shown.
+  expect(texts(app).some((t) => t.includes("change any file"))).toBe(true);
+  expect(texts(app).some((t) => t.includes("**not**") || t.includes("`src/auth"))).toBe(false);
   expect(texts(app)).toContain("Read only. Messages go to Harden the session handling, which relays them.");
   expect(texts(app)).toContain("Running · 4m");
   expect(logged(app, "open Audit auth module")).toBe(true);

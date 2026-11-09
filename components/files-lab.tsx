@@ -2,21 +2,22 @@ import { Files as MachineFiles } from "herdr-desktop/native";
 import { host, keymap, mount, signal, Text, View } from "nsh";
 
 import { FilesTab } from "#components/files";
+import { LinkPanelView } from "#components/link-panel";
 import { openLink } from "#components/open-link";
 import { SendFiles } from "#components/send-files";
-import { WebPage } from "#components/web-page";
 import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
-import { pageRequest, sending } from "#lib/files";
+import { sending } from "#lib/files";
 import { startHerdr } from "#lib/herdr";
+import { createLinkPanel } from "#lib/link-panel";
 import { browseFiles, lastAsked, viewFile } from "#lib/open-files";
 import { searchInPane } from "#lib/pane-input";
 import { GLOBAL, keysOf } from "#lib/shortcuts";
 
 /**
  * The entry of the file tests and of the files screenshots: the scripted herdr, a synthetic folder the test seam copied
- * into the data directory (`Files.testTree`), and buttons that open the browser, the viewer, a link and the send dialog
- * on it. `host.params.dir` opens another folder (a test of an error); `host.params.open` opens a folder of the tree at
- * once. Not part of the app.
+ * into the data directory (`Files.testTree`), and buttons that open the browser, the viewer, a link, a page in the side
+ * panel and the send dialog on it. `host.params.dir` opens another folder (a test of an error); `host.params.open` opens a
+ * folder of the tree at once. Not part of the app.
  */
 startHerdr("", "mixed");
 const tree = MachineFiles.testTree();
@@ -26,6 +27,7 @@ if (typeof host.params.open === "string") browseFiles("local", `${tree}/${host.p
 
 function Lab() {
   const said = signal("nothing yet");
+  const links = createLinkPanel();
   // The app binds its global shortcuts in `App.tsx`; the one a viewer answers is bound here the same way.
   keymap.bind({ [keysOf(GLOBAL.search)[0]]: searchInPane });
   return (
@@ -55,16 +57,16 @@ function Lab() {
               onPress={() => sending.set({ machine: "local", folder: `${tree}/docs`, paths: [`${tree}/data.bin`] })}
             />
             <Btn
-              label="Open a page of this computer"
-              onPress={() => pageRequest.set({ machine: "local", url: "http://localhost:5173/" })}
+              label="Open a page of this computer through a tunnel"
+              onPress={() => links.show({ kind: "web", url: "http://localhost:5173/", machine: "local" })}
             />
             <Text>{said()}</Text>
           </View>
           {/* The tab area is the app's; the lab draws the Files tab asked for beside its buttons. */}
           <If when={lastAsked()}>{(id) => <FilesTab id={id()} active />}</If>
+          <LinkPanelView panel={links} cwd={tree} active />
         </View>
         <SendFiles />
-        <WebPage />
         <ToastHost />
       </PopupRoot>
     </ThemeRoot>

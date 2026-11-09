@@ -275,14 +275,15 @@ test("sending into something that is not a folder asks again instead of sending"
   expect(app.shows("Stop and close")).toBe(false);
 });
 
-test("a page of this computer is not tunnelled: the dialog says so and offers to try again", async () => {
+test("a page that cannot be reached says what happened in the side panel, offers to try again, and Close shuts it", async () => {
   const app = await lab();
-  await app.press("Open a page of this computer");
-  await app.waitFor("Couldn't open this page");
+  // This computer's pages need no tunnel, so asking for one fails: the failure the person reads for an unreachable machine.
+  await app.press("Open a page of this computer through a tunnel");
+  await app.waitFor("Couldn't load localhost:5173");
   expect(said(app, "open in the browser")).toBe(true);
   expect(app.shows("Try again")).toBe(true);
-  await app.press("Close");
-  await app.waitFor("Couldn't open this page", { state: "gone" });
+  await app.press("label:Close");
+  await app.waitFor("Couldn't load localhost:5173", { state: "gone" });
 });
 
 test("the send dialog's folder is a path field that lists folders as it is typed", async () => {

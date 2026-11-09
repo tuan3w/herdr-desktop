@@ -11,6 +11,8 @@ import {
   CONTEXT_REPEAT_MS,
   hoverTransition,
   KEY_WINDOW_MS,
+  LIVE_TURN_TICKS,
+  liveTurn,
   markKeyboard,
   motionClock,
   motionReady,
@@ -74,6 +76,18 @@ test("reduced motion removes every transition and every arrival", () => {
   expect(trackTransition()).toBeUndefined();
   expect(toastLook()).toEqual({});
   expect(appear("reduced-key")).toBeUndefined();
+  reduceMotionOverride.set(false);
+});
+
+test("the live glyph turns an eighth every LIVE_TURN_TICKS ticker steps, all the way round, and not at all under reduced motion", () => {
+  setup();
+  const turns = Array.from({ length: 8 * LIVE_TURN_TICKS + 1 }, (_, tick) => liveTurn(tick));
+  expect(new Set(turns).size).toBe(8);
+  expect(turns[LIVE_TURN_TICKS - 1]).toBe(turns[0]);
+  expect(turns[LIVE_TURN_TICKS]).not.toBe(turns[0]);
+  expect(turns.at(-1)).toBe(turns[0]);
+  reduceMotionOverride.set(true);
+  expect(turns.map((_, tick) => liveTurn(tick)).every((c) => c === "")).toBe(true);
   reduceMotionOverride.set(false);
 });
 

@@ -14,8 +14,6 @@
   "bare-rounded\tcomponents/kit/surface.tsx\t/** A status tag: a word or a date, tinted by tone, in a small rounded rectangle. Not pressable. */": 1,
   "bare-rounded\tcomponents/kit/surface.tsx\t<View class={`self-start rounded px-2 py-px ${PILL[props.tone ?? \"neutral\"]}`}>": 1,
   "bare-rounded\tcomponents/pick-box.tsx\tclass={`size-5 items-center justify-center rounded border ${checked() ? \"border-primary bg-primary\" : \"border-input bg-card\"}`}": 1,
-  "bare-rounded\tcomponents/session-composer.tsx\t* The message box of a chat: a rounded card with the pictures and files of the message on top, the text, and under it `+`,": 1,
-  "bare-rounded\tcomponents/session-item.tsx\t/** What the person wrote: a rounded bubble on the right; the agent's words are on the page, not in a bubble. */": 1,
   "infinite-motion\tcomponents/kit/ticker.ts\t* Why not a native loop (`iterations: \"infinite\"`): nsh issue 958, an endless native animation keeps the frame clock": 1,
   "pressable-height\tcomponents/kit/combo.tsx\tclass=\"size-5 items-center justify-center rounded hover:bg-accent\"": 1,
   "pressable-height\tcomponents/palette.tsx\titemClass=\"group min-h-10 flex-row items-center rounded-md px-3 focus:bg-accent hover:bg-accent\"": 1,

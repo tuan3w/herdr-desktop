@@ -103,7 +103,7 @@ All of it is `herdr_core::files` (pure Rust, `cargo test` alone) behind the `Fil
 
 **Test seam.** `Files.testTree` (only with `HERDR_DESKTOP_TEST=1`) copies `fixtures/files/project` into `<dataDir>/test-tree`. A real remote check: `HERDR_DESKTOP_SSH_TEST=localhost cargo test --manifest-path native/core/Cargo.toml --test files -- --ignored` lists, uploads 5 MB and forwards a port over real `ssh`.
 
-**Unverified.** `WebPage` against a real remote dev server in a GTK window (the tunnel itself is verified over real ssh to this machine, the dialog is not); the `Open in browser` button; Orca on the diagram web view.
+**Unverified.** The side panel (`LinkPanelView`) against a real remote dev server in a GTK window (the tunnel itself is verified over real ssh to this machine, the panel is not); its `Open in browser` for a tunnelled page; Orca on the diagram web view.
 
 ## 7. Projects and the home (decision record)
 

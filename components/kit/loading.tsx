@@ -1,21 +1,9 @@
 import { View } from "nsh";
 
-import { reducedMotion } from "#lib/motion";
+import { reducedMotion, turnClass } from "#lib/motion";
 
 import { Icon, type IconTone } from "./icon";
 import { useTicker } from "./ticker";
-
-// Whole class names, so the class scanner sees them.
-const TURNS = [
-  "",
-  "rotate-45",
-  "rotate-90",
-  "rotate-[135deg]",
-  "rotate-180",
-  "rotate-[225deg]",
-  "rotate-[270deg]",
-  "rotate-[315deg]",
-];
 
 /**
  * Work is in progress and there is no way to tell how long: the loader turns in eighths, 8 steps a second from the
@@ -27,7 +15,7 @@ export function Spinner(props: { size?: 12 | 14 | 16 | 20; tone?: IconTone }) {
   const tick = useTicker();
   const motionless = reducedMotion();
   return (
-    <View class={motionless ? "" : TURNS[tick() % TURNS.length]}>
+    <View class={motionless ? "" : turnClass(tick())}>
       <Icon name="loader" size={props.size} tone={props.tone} />
     </View>
   );

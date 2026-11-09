@@ -3,6 +3,7 @@ import { expect, test } from "nsh/test";
 import type { SessionItem, ToolItem } from "herdr-desktop/native";
 
 import {
+  clockText,
   composerOff,
   durationText,
   itemLabel,
@@ -12,6 +13,7 @@ import {
   tailText,
   toolLine,
   visibleText,
+  liveCount,
   liveLine,
   workLine,
 } from "#lib/session-text";
@@ -144,6 +146,18 @@ test("the live line says what the open call does, and Thinking when none is open
   expect(liveLine([read(1), read(2), read(3)])).toBe("Reading 3 files");
   expect(liveLine([read(1), run])).toBe("Running pnpm test");
   expect(liveLine([])).toBe("Thinking");
+  // The clock counts what the line names: every read of `Reading 3 files`, else only the newest call.
+  expect(liveCount([read(1), read(2), read(3)])).toBe(3);
+  expect(liveCount([read(1), run])).toBe(1);
+  expect(liveCount([])).toBe(0);
+});
+
+test("the live line's clock ticks by the second and keeps its width past a minute", () => {
+  expect(clockText(0)).toBe("0s");
+  expect(clockText(12.9)).toBe("12s");
+  expect(clockText(64)).toBe("1m 04s");
+  expect(clockText(600)).toBe("10m 00s");
+  expect(clockText(3725)).toBe("1h 02m");
 });
 
 test("a command to paste into a terminal never lets an argument become a second command", () => {

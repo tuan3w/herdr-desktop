@@ -3,6 +3,7 @@ import { announce, Clipboard, effect, keymap, signal, Text, View } from "nsh";
 
 import type { TerminalRef } from "herdr-desktop/native";
 
+import { LinkPanelView } from "#components/link-panel";
 import { openLink } from "#components/open-link";
 import { TerminalHeader } from "#components/terminal-header";
 import { TerminalOff } from "#components/terminal-off";
@@ -10,6 +11,7 @@ import { Btn, Empty, notify } from "#kit";
 import { arm, isArmed, takePointing, terminalKey } from "#lib/dock";
 import { sending } from "#lib/files";
 import { meta } from "#lib/herdr";
+import { createLinkPanel } from "#lib/link-panel";
 import { canShowChat, showChat } from "#lib/open-agent";
 import { browseFiles } from "#lib/open-files";
 import { registerPane } from "#lib/pane-input";
@@ -67,12 +69,14 @@ export function TerminalTab(props: TerminalTabProps) {
  *
  * While `active` the tab is the pane `lib/pane-input.ts` acts on (`Reply…` puts the keyboard in the terminal). `onOpenPane`
  * is how `Duplicate` shows the new tab; a host that omits it gets a toast instead. Files dropped on the tab are offered to
- * the machine's folder (`SendFiles`).
+ * the machine's folder (`SendFiles`). A link the program prints opens in the tab's side panel (`LinkPanelView`), as a
+ * chat's does.
  */
 function LiveTerminal(props: TerminalTabProps) {
   const info = meta(props.machine, props.pane);
   const key = terminalKey(props.machine, props.pane);
   let term: TerminalRef | undefined;
+  const links = createLinkPanel();
   let zoomed = false;
   // `starting`: herdr is being pointed at the pane; `restored`: waits for the person; `running`: the client is attached.
   const phase = signal<"restored" | "starting" | "running">(isArmed(key) ? "starting" : "restored");
@@ -186,72 +190,80 @@ function LiveTerminal(props: TerminalTabProps) {
         }
       >
         {(i) => (
-          <>
-            <TerminalHeader
-              info={i()}
-              pane={props.pane}
-              onShowChat={
-                canShowChat(props.machine, props.pane) ? () => void showChat(props.machine, props.pane) : undefined
-              }
-              onBrowse={() => browseFiles(props.machine, i().cwd ?? "~")}
-              onDuplicate={() => void duplicate()}
-              onCopyTitle={() => copy(i().name, "Title copied")}
-              onCopyPaneId={() => copy(props.pane, "Pane id copied")}
-            />
-            <If when={i().feedState === "stale"}>
-              <View role="alert" class="border-b border-border bg-muted px-3 py-2">
-                <Text class="text-xs text-foreground">{`${i().machineName} is not connected. The terminal reconnects with it.`}</Text>
-              </View>
-            </If>
-            <If
-              when={phase() !== "restored"}
-              else={
-                <Empty
-                  fill
-                  icon="terminal"
-                  title="Press Return to reconnect"
-                  hint={`This tab was restored. Reconnecting attaches herdr to ${i().name}.`}
-                >
-                  <Btn label="Reconnect" name={`Reconnect to ${i().name}`} onPress={reconnect} />
-                </Empty>
-              }
-            >
-              <If when={phase() === "running"}>
-                <If
-                  when={command()}
-                  else={<Empty fill icon="alert" title="Could not start the terminal" hint={failure()} />}
-                >
-                  {(line) => (
-                    <Terminal
-                      ref={(ref: TerminalRef) => {
-                        term = ref;
-                      }}
-                      class="min-h-0 flex-1"
-                      label={`${i().name} on ${i().machineName}`}
-                      command={line()}
-                      fontSize={terminalFontSize()}
-                      optionAsMeta={terminalOptionAsMeta()}
-                      minContrast={minContrast()}
-                      onExited={(e) => announce(`${name()}: ${e.words}`)}
-                      onLink={(e) =>
-                        void openLink(e.kind, e.target, null, null, { machine: props.machine, cwd: i().cwd })
-                      }
-                    />
-                  )}
-                </If>
+          <View class="min-h-0 flex-1 flex-row">
+            <View class="min-h-0 flex-1">
+              <TerminalHeader
+                info={i()}
+                pane={props.pane}
+                onShowChat={
+                  canShowChat(props.machine, props.pane) ? () => void showChat(props.machine, props.pane) : undefined
+                }
+                onBrowse={() => browseFiles(props.machine, i().cwd ?? "~")}
+                onDuplicate={() => void duplicate()}
+                onCopyTitle={() => copy(i().name, "Title copied")}
+                onCopyPaneId={() => copy(props.pane, "Pane id copied")}
+              />
+              <If when={i().feedState === "stale"}>
+                <View role="alert" class="border-b border-border bg-muted px-3 py-2">
+                  <Text class="text-xs text-foreground">{`${i().machineName} is not connected. The terminal reconnects with it.`}</Text>
+                </View>
               </If>
-              <Text class="px-6 py-1 text-xs text-muted-foreground">{`Keys go to the program · ${paletteFromTerminalKey()}: palette`}</Text>
-            </If>
-            <If when={dropping()}>
-              <View
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-                class="absolute inset-0 items-center justify-center border-2 border-dashed border-primary bg-background/80"
+              <If
+                when={phase() !== "restored"}
+                else={
+                  <Empty
+                    fill
+                    icon="terminal"
+                    title="Press Return to reconnect"
+                    hint={`This tab was restored. Reconnecting attaches herdr to ${i().name}.`}
+                  >
+                    <Btn label="Reconnect" name={`Reconnect to ${i().name}`} onPress={reconnect} />
+                  </Empty>
+                }
               >
-                <Text class="text-sm font-medium text-foreground">{`Drop to send to ${i().machineName}: ${i().cwd ?? "its home folder"}`}</Text>
-              </View>
-            </If>
-          </>
+                <If when={phase() === "running"}>
+                  <If
+                    when={command()}
+                    else={<Empty fill icon="alert" title="Could not start the terminal" hint={failure()} />}
+                  >
+                    {(line) => (
+                      <Terminal
+                        ref={(ref: TerminalRef) => {
+                          term = ref;
+                        }}
+                        class="min-h-0 flex-1"
+                        label={`${i().name} on ${i().machineName}`}
+                        command={line()}
+                        fontSize={terminalFontSize()}
+                        optionAsMeta={terminalOptionAsMeta()}
+                        minContrast={minContrast()}
+                        onExited={(e) => announce(`${name()}: ${e.words}`)}
+                        onLink={(e) =>
+                          void openLink(e.kind, e.target, null, null, {
+                            machine: props.machine,
+                            cwd: i().cwd,
+                            panel: links,
+                          })
+                        }
+                      />
+                    )}
+                  </If>
+                </If>
+                <Text class="px-6 py-1 text-xs text-muted-foreground">{`Keys go to the program · ${paletteFromTerminalKey()}: palette`}</Text>
+              </If>
+              <If when={dropping()}>
+                <View
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  class="absolute inset-0 items-center justify-center border-2 border-dashed border-primary bg-background/80"
+                >
+                  <Text class="text-sm font-medium text-foreground">{`Drop to send to ${i().machineName}: ${i().cwd ?? "its home folder"}`}</Text>
+                </View>
+              </If>
+            </View>
+            {/* Escape belongs to the program in a terminal: the panel closes with its button only. */}
+            <LinkPanelView panel={links} cwd={i().cwd ?? ""} active={props.active} escape={false} />
+          </View>
         )}
       </If>
     </View>

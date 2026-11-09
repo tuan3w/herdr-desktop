@@ -8,6 +8,7 @@ import { DiffBlock } from "#components/diff-block";
 import { openLink } from "#components/open-link";
 import { StatusGlyph } from "#components/status-glyph";
 import { Clipped, FOCUS_RING, FOCUS_RING_INSET, Icon } from "#kit";
+import type { LinkPanel } from "#lib/link-panel";
 import { hoverTransition } from "#lib/motion";
 import { viewFile } from "#lib/open-files";
 import { pictureSize } from "#lib/session-pictures";
@@ -153,10 +154,11 @@ const pathOf = (uri: string | null | undefined): string | null => {
 
 /**
  * What a message or a tool call carries besides text: a small picture is drawn (at most 220 pt tall), a bigger one, a
- * sound and a file are a chip with the name and size. A file on the machine opens in the viewer, a web address in the
- * browser; nothing is fetched on its own. The agent's sound is not played: nothing in this app plays sound unasked.
+ * sound and a file are a chip with the name and size. A file on the machine and a web address open in the chat's side
+ * panel (`links`), else the viewer and the browser; nothing is fetched on its own. The agent's sound is not played:
+ * nothing in this app plays sound unasked.
  */
-export function PartChips(props: { parts: readonly PartView[]; machine: string; cwd: string }) {
+export function PartChips(props: { parts: readonly PartView[]; machine: string; cwd: string; links?: LinkPanel }) {
   return (
     <Each of={props.parts as PartView[]} key="index">
       {(part) => {
@@ -174,9 +176,9 @@ export function PartChips(props: { parts: readonly PartView[]; machine: string; 
             .join(" · ");
         const press = () => {
           const p = path();
-          if (p) viewFile(props.machine, p);
-          else if (part().uri && /^https?:\/\//i.test(part().uri!))
-            void openLink("url", part().uri!, null, null, { machine: props.machine, cwd: props.cwd });
+          const at = { machine: props.machine, cwd: props.cwd, panel: props.links };
+          if (p) void (props.links ? openLink("path", p, null, null, at) : viewFile(props.machine, p));
+          else if (part().uri && /^https?:\/\//i.test(part().uri!)) void openLink("url", part().uri!, null, null, at);
         };
         return (
           <View class="items-start py-1">

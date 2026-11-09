@@ -1,6 +1,6 @@
 # Motion
 
-Motion explains a change: something arrives, folds, finishes, moves. It is short, eased out, never decorative, and never between the person's key and the result of the key. Everything is `lib/motion.ts`; do not write a duration, easing or `transition*` anywhere else. An app at rest draws no frames: nothing here loops except `Spinner` and `Skeleton` while they are on screen, and everything honours `reducedMotion()`.
+Motion explains a change: something arrives, folds, finishes, moves. It is short, eased out, never decorative, and never between the person's key and the result of the key. Everything is `lib/motion.ts`; do not write a duration, easing or `transition*` anywhere else. An app at rest draws no frames: nothing here loops except `Spinner` and `Skeleton` while they are on screen and the chat's live glyph while its turn runs, and everything honours `reducedMotion()`.
 
 ## The frequency rule
 
@@ -27,6 +27,7 @@ Ask how often it happens before how it moves. A keyboard action, or anything don
 | `Switch` | knob slides on `transform`, track colour with it | `pop` 160, `EASE_MOVE` | `moveTransition()`, `trackTransition()` | none |
 | `Collapsible` chevron | turns | `pop` 160, `EASE_MOVE` | `moveTransition()` | none |
 | `Spinner`, `Skeleton` | endless turn / breath while mounted | 800 linear / 1400 ease-in-out | `createMotion` | still |
+| The live line's half ring, at the end of a running turn (`design/chat.md`) | turns an eighth at a time, one turn in 2 s, while the agent was heard from within a minute, nothing waits for the person and the tab is in front; still otherwise; gone with the turn | ticker steps (every second step), no easing | `liveTurn()`, `turnClass()` | still (the ticker is not held), the clock still ticks |
 | A project is shown in place of another by the pointer | the incoming workspace fades from 0.88 to 1; skipped when repeated within 400 ms or after a key | `context` 120, `EASE_OUT` | `contextEnter()` | none |
 
 `motionReady` is set 600 ms after the app's first screen. What is on screen when the window opens, and what a restored layout builds, does not move: only what arrives afterwards does. The first look at a conversation settles for `SETTLE_MS` before `arrivals` lets a line move.
@@ -42,7 +43,7 @@ Ask how often it happens before how it moves. A keyboard action, or anything don
 | The live pane mirror (`PaneScreen`) | it is data, drawn as it comes |
 | The sidebar's own fold, its rows | a virtual list whose cells are recycled: animating them fights recycling |
 | Streaming text in a message | only the line's first arrival moves, so growing text never replays |
-| The working glyph | an endless turn would keep the app drawing every frame for hours |
+| The working glyph of the sidebar, tabs and headers | an endless turn would keep the app drawing every frame for as long as any agent works, all day; only the chat's live line turns, in the one chat in front |
 | Progress width, the focus ring, row actions that appear on hover | layout, and feedback that must be instant |
 | Switching theme | a whole-window repaint at once is not a change worth watching |
 

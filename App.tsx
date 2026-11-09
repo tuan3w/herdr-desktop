@@ -22,7 +22,6 @@ import { Sidebar } from "#components/sidebar";
 import { StartAgent } from "#components/start-agent";
 import { StatusBar } from "#components/status-bar";
 import { Switcher } from "#components/switcher";
-import { WebPage } from "#components/web-page";
 import { Workspace } from "#components/workspace";
 import { notify, PopupRoot, rail, Skeleton, snug, ThemeRoot, ToastHost } from "#kit";
 import {
@@ -199,7 +198,6 @@ function App() {
         <Palette open={palette()} onClose={() => palette.set(false)} />
         <Switcher open={switcherOpen()} onClose={() => switcherOpen.set(false)} />
         <Shortcuts open={shortcutsOpen()} onClose={() => shortcutsOpen.set(false)} />
-        <WebPage />
         <SendFiles />
         <StartAgent
           open={newAgentOpen()}

@@ -46,7 +46,7 @@ One row per mobile feature (`herdr-mobile/docs/GUIDE.md` sections 3-9 and `docs/
 | `Show chat` / `Show terminal` for observed omp, Claude Code, Codex | GUIDE 6 | done | `native/core/src/observed/`, `lib/open-agent.ts` | `native/app/tests/observed.rs`, `components/workspace.test.tsx` |
 | Files: browse, view text, images, markdown, binary | GUIDE 7 | done | `native/core/src/files/`, `components/files.tsx`, `components/file-viewer.tsx` | `native/core/tests/files.rs`, `components/files.test.tsx` |
 | Send a file to the machine | GUIDE 7 | changed: drag and drop onto the pane tab | phase 7.1 | |
-| Pages from a machine in a web view | docs/screens/web.md | done | `components/web-page.tsx`, `native/app/src/files.rs` | `native/core/tests/files.rs` |
+| Pages from a machine in a web view | docs/screens/web.md | changed: in the side panel beside the chat or terminal | `components/link-panel.tsx`, `native/app/src/files.rs` | `native/core/tests/files.rs`, `components/files.test.tsx` |
 | Mermaid diagrams, photo viewer | docs/screens/markdown.md, photos.md | done | `components/mermaid-block.tsx`, `components/photo-viewer.tsx` | `lib/mermaid.test.ts`, `components/files.test.tsx` |
 | Notifications when an agent needs you, with safe action buttons | GUIDE 8, docs/ALERTS.md | done | `native/app/src/notify/` | `native/app/tests/notify.rs`, `native/app/tests/notify_dbus.rs` |
 | Android foreground service, Doze, battery profiles | GUIDE 8 | not applicable: no battery or process-killing constraints; only a hidden-window slow profile | | |

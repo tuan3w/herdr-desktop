@@ -480,6 +480,34 @@ export function glyphChanged() {
   };
 }
 
+// Whole class names, so the class scanner sees them.
+const EIGHTHS = [
+  "",
+  "rotate-45",
+  "rotate-90",
+  "rotate-[135deg]",
+  "rotate-180",
+  "rotate-[225deg]",
+  "rotate-[270deg]",
+  "rotate-[315deg]",
+];
+
+/**
+ * The class that turns a round glyph `step` eighths of a turn, no easing: a looping indicator steps through them on the
+ * shared ticker (`useTicker`, 8 steps a second) and never runs a native loop (rule 5 of `design/motion.md`).
+ */
+export const turnClass = (step: number): string => EIGHTHS[step % EIGHTHS.length]!;
+
+/**
+ * Ticker steps per eighth of the chat's live glyph: one turn in 2 s and a frame every 250 ms, half a `Spinner`'s rate,
+ * because it says "still at it" beside a line the person reads, not "wait for this".
+ */
+export const LIVE_TURN_TICKS = 2;
+
+/** The live line's working glyph at ticker step `tick`: an eighth of a turn every `LIVE_TURN_TICKS`; still under reduced motion. */
+export const liveTurn = (tick: number): string =>
+  reducedMotion() ? "" : turnClass(Math.floor(tick / LIVE_TURN_TICKS));
+
 /** Opacity a project's workspace starts from when it is shown in place of another: a hint of arrival, never a dip to nothing. */
 export const CONTEXT_FROM = 0.88;
 /** Two switches closer than this are one gesture (a key held): the second does not replay the entrance. */

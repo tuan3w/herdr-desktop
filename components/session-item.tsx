@@ -9,6 +9,7 @@ import { TurnPictures } from "#components/turn-pictures";
 import { ActionMenu, type CopyEntry, copyMenu, copyText, FOCUS_RING, Icon, type IconName, IconButton } from "#kit";
 import { openChanges } from "#lib/changes";
 import { CHAT_COLUMN } from "#lib/layout";
+import type { LinkPanel } from "#lib/link-panel";
 import { ofKind } from "#lib/list-item";
 import { type Arrivals, arrivals, arriving } from "#lib/motion";
 import { tally } from "#lib/perf-counts";
@@ -28,17 +29,28 @@ export interface RowContext {
   id: string;
   cwd: string;
   model: SessionModel;
+  /** The chat's side panel: where a pressed link or picture of the agent's words opens. */
+  links?: LinkPanel;
+  /**
+   * The "you" of this transcript is an agent: a subagent's assignment and what its parent relays, written in Markdown.
+   * The person's own messages stay their typed words (Markdown would eat the `*` of a glob, a `<Tag>` and line breaks).
+   */
+  fromAgent?: boolean;
 }
 
 function Line(props: { children: JSX.Element; class?: string }) {
   return <View class={`${COLUMN} ${props.class ?? ""}`}>{props.children}</View>;
 }
 
-/** What the person wrote: a rounded bubble on the right; the agent's words are on the page, not in a bubble. */
+/**
+ * What the person wrote: a bubble on the right; the agent's words are on the page, not in a bubble. A message an agent
+ * wrote (`RowContext.fromAgent`) is Markdown in the same bubble, at the bubble's size.
+ */
 function UserRow(props: { row: Extract<Row, { kind: "user" }>; ctx: RowContext }) {
   tally("row.mount");
   // The pictures stand where the agent's `[Image #55]` placeholders named them.
   const text = () => visibleText(withoutPlaceholders(props.row.item.text ?? "", props.row.item.images.length));
+  const copy = (): CopyEntry[] => [{ label: "Copy message", onSelect: () => void copyText(text(), "Message") }];
   return (
     <Line class="items-end pt-3">
       <View
@@ -47,20 +59,38 @@ function UserRow(props: { row: Extract<Row, { kind: "user" }>; ctx: RowContext }
         class="max-w-[85%] rounded-2xl bg-muted px-4 py-2"
       >
         <If when={text()}>
-          <Text
-            style={{ userSelect: "text" }}
-            class="text-sm text-foreground"
-            onContextMenu={copyMenu(() => [
-              { label: "Copy message", onSelect: () => void copyText(text(), "Message") },
-            ])}
+          <If
+            when={props.ctx.fromAgent}
+            else={
+              <Text style={{ userSelect: "text" }} class="text-sm text-foreground" onContextMenu={copyMenu(copy)}>
+                {text()}
+              </Text>
+            }
           >
-            {text()}
-          </Text>
+            <MarkdownText
+              source={text()}
+              machine={props.ctx.machine}
+              folder={props.ctx.cwd}
+              links={props.ctx.links}
+              size="sm"
+              folds={foldsOf(props.ctx.model)}
+              foldKey={props.row.key}
+              entries={() => [
+                ...copy(),
+                { label: "Copy as Markdown", onSelect: () => void copyText(text(), "Markdown") },
+              ]}
+            />
+          </If>
         </If>
         <If when={props.row.item.images.length > 0}>
           <TurnPictures images={props.row.item.images} machine={props.ctx.machine} id={props.ctx.id} />
         </If>
-        <PartChips parts={props.row.item.parts} machine={props.ctx.machine} cwd={props.ctx.cwd} />
+        <PartChips
+          parts={props.row.item.parts}
+          machine={props.ctx.machine}
+          cwd={props.ctx.cwd}
+          links={props.ctx.links}
+        />
       </View>
     </Line>
   );
@@ -88,6 +118,7 @@ function AgentRow(props: { row: Extract<Row, { kind: "agent" }>; ctx: RowContext
           source={source()}
           machine={props.ctx.machine}
           folder={props.ctx.cwd}
+          links={props.ctx.links}
           streaming={props.row.live}
           folds={folds}
           foldKey={props.row.key}
@@ -96,7 +127,12 @@ function AgentRow(props: { row: Extract<Row, { kind: "agent" }>; ctx: RowContext
         <If when={props.row.item.images.length > 0}>
           <TurnPictures images={props.row.item.images} machine={props.ctx.machine} id={props.ctx.id} />
         </If>
-        <PartChips parts={props.row.item.parts} machine={props.ctx.machine} cwd={props.ctx.cwd} />
+        <PartChips
+          parts={props.row.item.parts}
+          machine={props.ctx.machine}
+          cwd={props.ctx.cwd}
+          links={props.ctx.links}
+        />
       </View>
       <If when={!props.row.live}>
         {/* In the row's own flow and reserved at rest, so it never overlaps the row above or shifts the text on hover. */}
@@ -147,6 +183,7 @@ function NarrationRow(props: { row: Extract<Row, { kind: "narration" }>; ctx: Ro
         source={props.row.item.text ?? ""}
         machine={props.ctx.machine}
         folder={props.ctx.cwd}
+        links={props.ctx.links}
         class="text-muted-foreground"
         folds={foldsOf(props.ctx.model)}
         foldKey={props.row.key}

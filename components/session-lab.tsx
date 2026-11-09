@@ -1,4 +1,4 @@
-import { Files as MachineFiles, Sessions } from "herdr-desktop/native";
+import { Files as MachineFiles, Media, Sessions } from "herdr-desktop/native";
 import { cleanup, host, keymap, mount, signal, Text, View } from "nsh";
 
 import type {
@@ -14,7 +14,7 @@ import type {
 } from "herdr-desktop/native";
 
 import { SessionChat, SessionTab } from "#components/session-tab";
-import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
+import { Btn, PopupRoot, ThemeRoot, tickerRunning, ToastHost } from "#kit";
 import { startHerdr } from "#lib/herdr";
 import { warmCode } from "#lib/highlight";
 import { attachFiles, copyCode, copyReply } from "#lib/pane-input";
@@ -48,6 +48,8 @@ const params = host.params as {
   instant?: boolean;
   fences?: boolean;
   lines?: number;
+  /** Shows whether the shared ticker runs (`Ticker on` / `Ticker off`), for the live line's tests. */
+  ticker?: boolean;
 };
 startHerdr("", "empty");
 void loadSettings();
@@ -455,6 +457,32 @@ function scene(name: string): Scene {
         ],
       };
     }
+    case "links":
+      // Links and pictures in an agent's words (`design/chat.md`): a picture of the session's folder, one over the cap (a
+      // sparse file of the test seam), a web picture that is never fetched, a picture only named, a file link, a bare
+      // address, a long one and this computer's localhost. Every word and file is synthetic.
+      return {
+        view: { running: false, phase: "idle" },
+        items: [
+          say("user", "Did the redirect fix work? Show me."),
+          say(
+            "agent",
+            [
+              "It works: after sign-in the app lands on the page that was asked for. Here is the screen after the change:",
+              "",
+              "![The account page after sign-in](assets/shot-1.png)",
+              "",
+              "The check is in [src/main.rs:12](src/main.rs:12) and the pull request is https://github.com/acme/payments-api/pull/128. The dev server runs at http://localhost:5173/account.",
+              "",
+              "The screen before the change is `assets/shot-2.png`. The full capture is too big to show here:",
+              "",
+              `![full capture](${Media.testBigPicture()})`,
+              "",
+              "The build badge stays a link until you open it: ![build status](https://img.shields.io/badge/build-passing-green), and the retry settings are documented at https://docs.example.com/guides/payments/webhooks/retries/backoff/settings.",
+            ].join("\n"),
+          ),
+        ],
+      };
     case "long":
       return {
         view: { running: false, phase: "idle", earlierNotice: "Earlier messages are no longer kept" },
@@ -716,6 +744,30 @@ function Scripted() {
     const timer = setInterval(() => (piece < upTo ? writeMore() : clearInterval(timer)), params.autostream);
     cleanup(() => clearInterval(timer));
   }
+  // `working`: the finished chat, then a turn that starts once the chat has shown, so the window watches it start and the
+  // live line has a clock: two calls done, `pnpm test promo-eu` running.
+  if (params.scene === "working") {
+    const start = setTimeout(() => {
+      lab.add(say("user", "Split the promo tests off and run them."));
+      lab.add(call("Read src/tax/rules.ts", { toolKind: "read", subject: `${tree}/src/tax/rules.ts` }));
+      lab.add(call("Edit src/auth.ts", { toolKind: "edit", subject: `${tree}/src/auth.ts`, diffs: [EDIT] }));
+      lab.add(
+        call("Running pnpm test promo-eu", {
+          toolKind: "execute",
+          subject: "pnpm test promo-eu",
+          status: "inProgress",
+        }),
+      );
+      lab.set({ running: true, phase: "working" });
+    }, 300);
+    cleanup(() => clearTimeout(start));
+  }
+  // The shared ticker lives outside the render: polled on the (test) clock, only when asked, so other runs are not woken.
+  const ticking = signal(false);
+  if (params.ticker) {
+    const poll = setInterval(() => ticking.set(tickerRunning()), 10);
+    cleanup(() => clearInterval(poll));
+  }
   // The chat unmounted and mounted again, as a project switch does: where it was left comes back (`lib/view-state.ts`).
   const away = signal(false);
   return (
@@ -790,6 +842,9 @@ function Scripted() {
         </View>
         <Text class="px-3 text-xs text-muted-foreground">{`Tree: ${tree}`}</Text>
         <Text class="px-3 py-1 text-xs text-muted-foreground">{`Log: ${lab.log().join(" | ") || "nothing yet"}`}</Text>
+        <If when={params.ticker}>
+          <Text class="px-3 text-xs text-muted-foreground">{`Ticker ${ticking() ? "on" : "off"}`}</Text>
+        </If>
       </If>
       <If when={!away()}>
         <SessionChat machine="local" id="scripted" active port={lab.port} open={false} />

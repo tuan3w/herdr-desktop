@@ -571,6 +571,13 @@ export const SCENARIOS: Record<string, Scenario> = {
     params: { mode: "scripted", scene: "code-stream", quiet: true, autostream: 40, upTo: 6 },
     steps: (app) => app.wait(1200),
   },
+  // A turn this window watched start, a call running for about 4 s: the live line with its clock (`Running … · 4s`).
+  "chat-working": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "working", quiet: true },
+    steps: (app) => app.wait(4500),
+  },
   // The top of that answer with the pointer over its first block (the tools show), after `Copy code`, and with line numbers and
   // wrapping switched on from the tools.
   ...Object.fromEntries(
@@ -615,6 +622,35 @@ export const SCENARIOS: Record<string, Scenario> = {
       await app.wait(600);
     },
   },
+  // Links and pictures in an agent's words (the `links` scene, synthetic): thumbnails, chips, short links; then the side
+  // panel on a picture, on a file at its line, and on a web page (on a host without network it shows its failure).
+  "chat-links": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "links", quiet: true },
+    steps: (app) => app.wait(900),
+  },
+  ...Object.fromEntries(
+    (
+      [
+        ["picture", "label:/^Picture shot-1\\.png/"],
+        ["file", "label:src/main.rs:12"],
+        ["page", "label:https://github.com/acme/payments-api/pull/128"],
+      ] as const
+    ).map(([name, link]): [string, Scenario] => [
+      `chat-links-${name}`,
+      {
+        fixture: "empty",
+        entry: "../components/session-lab.tsx",
+        params: { mode: "scripted", scene: "links", quiet: true },
+        steps: async (app) => {
+          await app.waitFor(link);
+          await app.press(link);
+          await app.wait(name === "page" ? 3000 : 900);
+        },
+      },
+    ]),
+  ),
 };
 
 // The code labs (`components/code-lab.tsx`; `docs/specs/chat-craft.md`, "Code"). Synthetic samples in every language, a fence

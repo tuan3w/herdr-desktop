@@ -19,7 +19,7 @@ export { Skeleton, Spinner } from "./loading";
 export { NumberField, type NumberFieldProps } from "./number-field";
 export { offsetsOf, revealOffset } from "./navigation";
 export { Progress } from "./progress";
-export { tickerRunning } from "./ticker";
+export { tickerRunning, useTicker } from "./ticker";
 export { RadioGroup, RadioItem } from "./radio-group";
 export { ActionMenu, type MenuAction, type MenuEntry, type MenuGroup, MenuPreview, RowMenu } from "./menu";
 export { Icon, type IconName, type IconTone } from "./icon";

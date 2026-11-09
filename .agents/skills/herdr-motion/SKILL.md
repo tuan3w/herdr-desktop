@@ -15,7 +15,7 @@ Answer first. Often the answer is no and you write no motion code.
 
 | How often the person sees it | Decision | Examples here |
 |---|---|---|
-| Continuously, or driven by the agent rather than the person | Never animate. At most one settle when it changes on screen | streaming text, the pane mirror, elapsed times, board refresh, the working glyph (no endless turn) |
+| Continuously, or driven by the agent rather than the person | Never animate. At most one settle when it changes on screen | streaming text, the pane mirror, elapsed times, board refresh, the working glyph (no endless turn; the one exception is the chat's live line, ticker-stepped and only while heard from: `design/motion.md`) |
 | From the keyboard, or 100+ times a day | None, or a very short fade | tab switch, `mod+j`, `mod+e` switcher, menus, selects, tooltips, comboboxes (open and close at once) |
 | Tens of times a day, by pointer | Fast and subtle | press feedback, hover fills, a project switched by pointer (`contextEnter`), the palette (120 ms, opens only) |
 | Occasionally, by pointer | Standard, under 240 ms, exit about a quarter quicker | popover, dialog, toast, a card arriving, a fold, the answer dock arriving |

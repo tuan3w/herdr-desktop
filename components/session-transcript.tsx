@@ -8,13 +8,13 @@ import { EarlierRow } from "#components/earlier-row";
 import type { RowContext } from "#components/session-item";
 import { SessionRow } from "#components/session-item";
 import { StatusGlyph } from "#components/status-glyph";
-import { FOCUS_RING, Icon } from "#kit";
+import { Clipped, FOCUS_RING, Icon, NUM, useTicker } from "#kit";
 import { createAutoLoad, type Earlier } from "#lib/earlier";
 import { CHAT_COLUMN } from "#lib/layout";
-import { leaving, reducedMotion } from "#lib/motion";
+import { leaving, liveTurn, reducedMotion } from "#lib/motion";
 import { tally } from "#lib/perf-counts";
 import type { Row } from "#lib/session-rows";
-import { visibleText } from "#lib/session-text";
+import { clockText, visibleText } from "#lib/session-text";
 import { DEFAULT_ROW_PT, estimateRowPt, FOLLOW_PT, isAtEnd, pageOffset } from "#lib/transcript-scroll";
 import { anchorOf, setAnchor } from "#lib/view-state";
 
@@ -24,14 +24,33 @@ const PLACE_MS = 1500;
 /** How long a page key's target outlives its press: past nsh's eased scroll (300 ms on macOS), so a held key pages on from it. */
 const PAGE_AIM_MS = 400;
 
+/** What a cut live line fades into: the page. */
+const LINE_FADE = "from-background/0 to-background";
+
 /** What the transcript lets the tab do: jump to the newest row; and where it is scrolled (a lab reads it). */
 export interface TranscriptHandle {
   jump(): void;
   where(): { offset: number; content: number; size: number };
 }
 
-/** What closes the list: that the session ended and why, or the one live line (what the agent does now, and how quiet). */
-function Footer(props: { ctx: RowContext }) {
+/** The live line's half ring, turning an eighth at a time on the shared ticker while it is mounted (`liveTurn`). */
+function TurningGlyph() {
+  const tick = useTicker();
+  return (
+    <View class={liveTurn(tick())}>
+      <StatusGlyph status="working" size={12} />
+    </View>
+  );
+}
+
+/**
+ * What closes the list: that the session ended and why, or the one live line: what the agent does now, how long that
+ * step has run (`Running pnpm test · 12s`, only when this window saw it start) and, after a minute with nothing from the
+ * agent, `Quiet for 2m`. The half ring turns while the agent is heard from and the tab is in front, and stands still when
+ * it goes quiet, waits for the person, or motion is reduced: the turn says "still at it", so it never turns for an agent
+ * that has gone silent. It is the one loop of a chat, and stops with the turn (the line goes).
+ */
+function Footer(props: { ctx: RowContext; active: boolean }) {
   const working = () => props.ctx.model.working();
   const ended = (): string | null => {
     const v = props.ctx.model.view();
@@ -49,12 +68,30 @@ function Footer(props: { ctx: RowContext }) {
       </If>
       <If when={working()}>
         {(w) => (
-          <View role="timer" accessibilityLabel={w().toolLine} class="flex-row items-center gap-2">
+          <View
+            role="timer"
+            accessibilityLabel={
+              w().quietMinutes === null
+                ? w().toolLine
+                : `${w().toolLine}, quiet for ${w().quietMinutes} ${w().quietMinutes === 1 ? "minute" : "minutes"}`
+            }
+            class="flex-row items-center gap-1"
+          >
             {/* The same half ring a running call wears, so the line reads as the next row of the run above it. */}
-            <StatusGlyph status="working" size={12} />
-            <Text class="text-sm text-muted-foreground">{w().toolLine}</Text>
+            <View class="mr-1">
+              <If when={props.active && w().live && !reducedMotion()} else={<StatusGlyph status="working" size={12} />}>
+                <TurningGlyph />
+              </If>
+            </View>
+            <Clipped fade={[LINE_FADE]} boxClass="min-w-0 shrink" class="text-sm text-muted-foreground">
+              {w().toolLine}
+            </Clipped>
+            <If when={w().seconds !== null}>
+              <Text style={NUM} class="shrink-0 text-sm text-muted-foreground">{`· ${clockText(w().seconds!)}`}</Text>
+            </If>
             <If when={w().quietMinutes !== null}>
-              <Text class="text-sm font-medium text-foreground">{`Quiet for ${w().quietMinutes}m`}</Text>
+              <Text class="shrink-0 text-sm text-muted-foreground">·</Text>
+              <Text class="shrink-0 text-sm font-medium text-foreground">{`Quiet for ${w().quietMinutes}m`}</Text>
             </If>
           </View>
         )}
@@ -225,7 +262,7 @@ export function SessionTranscript(props: {
         class="min-h-0 flex-1"
         contentClass="gap-2 pb-6 pt-4"
         header={() => <EarlierRow earlier={earlier()} onLoad={() => props.ctx.model.loadEarlier()} />}
-        footer={() => <Footer ctx={props.ctx} />}
+        footer={() => <Footer ctx={props.ctx} active={props.active} />}
         empty={() => (
           <View class={`py-8 ${CHAT_COLUMN}`}>
             <Text class="text-sm text-muted-foreground">

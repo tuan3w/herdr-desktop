@@ -64,6 +64,8 @@ export function SubagentChat(props: {
       return model.view()?.cwd ?? "";
     },
     model,
+    // Its first message is the assignment its parent wrote, in Markdown.
+    fromAgent: true,
   };
   const linkText = () => {
     const o = model.view()?.observed;

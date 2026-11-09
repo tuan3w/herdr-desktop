@@ -4,6 +4,7 @@ import { announce, cleanup, Clipboard, computed, effect, keymap, signal, Text, u
 import type { SessionInfo, SessionView } from "herdr-desktop/native";
 
 import { AnswerDock, focusAnswers } from "#components/answer-dock";
+import { LinkPanelView } from "#components/link-panel";
 import { SessionComposer, type SessionComposerHandle } from "#components/session-composer";
 import { SessionHeader } from "#components/session-header";
 import { ActivityLine, createActivity, SessionInspector } from "#components/session-inspector";
@@ -18,6 +19,7 @@ import { touched } from "#lib/code-blocks";
 import { openSession, removePanel, sessionKey } from "#lib/dock";
 import { sending } from "#lib/files";
 import { board, meta } from "#lib/herdr";
+import { createLinkPanel } from "#lib/link-panel";
 import { showTerminal } from "#lib/open-agent";
 import { registerPane } from "#lib/pane-input";
 import { createSessionModel, latest, type SessionPort, sessionPort } from "#lib/session";
@@ -248,6 +250,8 @@ export function SessionChat(props: {
     else sending.set({ machine: props.machine, folder: model.view()?.cwd ?? "~", paths: [] });
   };
 
+  // What a pressed link of this chat opens in: one panel, replaced by the next link, gone with the chat.
+  const links = createLinkPanel();
   const ctx = {
     machine: props.machine,
     id: props.id,
@@ -255,6 +259,7 @@ export function SessionChat(props: {
       return model.view()?.cwd ?? "";
     },
     model,
+    links,
   };
 
   const waiting = (v: SessionView) => v.waiting.length > 0;
@@ -396,7 +401,9 @@ export function SessionChat(props: {
                     </If>
                   </If>
                 </View>
-                <If when={inspectorOpen() && activity.any()}>
+                {/* One right region: a pressed link takes it while open, and the inspector comes back when it closes. */}
+                <LinkPanelView panel={links} cwd={view().cwd ?? ""} active={props.active} />
+                <If when={inspectorOpen() && activity.any() && links.link() === null}>
                   <SessionInspector
                     activity={activity}
                     port={props.port}

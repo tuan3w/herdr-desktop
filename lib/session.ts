@@ -13,7 +13,7 @@ import type { Accessor } from "nsh";
 
 import { revision } from "#lib/herdr";
 import { buildRows, type Row, type TurnCarry, unitStart } from "#lib/session-rows";
-import { liveLine } from "#lib/session-text";
+import { liveCount, liveLine } from "#lib/session-text";
 
 /**
  * One chat's data for a screen. The Rust side holds the conversation; this file pulls it the way `docs/ARCHITECTURE.md`
@@ -121,8 +121,16 @@ export interface SessionHooks {
 export interface Working {
   /** What it does now, as the one live line says it: `Running pnpm test`, `Reading 3 files`, `Thinking`. */
   toolLine: string;
+  /**
+   * Whole seconds the step the line names has run: the open call since this window saw it start, `Thinking` since the
+   * last call ended or the turn began. `null` when that happened before the window looked: a time it did not watch
+   * would be invented.
+   */
+  seconds: number | null;
   /** Whole minutes without any event from the agent, once it is a minute or more: the honest stuck signal. */
   quietMinutes: number | null;
+  /** The agent was heard from within the last minute and nothing waits for the person: the line may show it moving. */
+  live: boolean;
 }
 
 /** One chat as rows. */
@@ -195,6 +203,10 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
   let arrived = 0;
   /** Lowest index whose row changed since the committed rows were built. */
   let changedFrom = Infinity;
+  /** When this window saw each open call arrive (wall clock); a call it found already open has none. */
+  const seenAt = new Map<number, number>();
+  /** When the thinking the live line names began: the turn's start or the last call's end, as watched; `null` unknown. */
+  let thinkingSince: number | null = null;
 
   const viewSignal = signal<SessionView | null>(null);
   const version = signal(0);
@@ -204,15 +216,21 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
   const store = (item: SessionItem, index: number, now: number): void => {
     const old = entries.get(item.id);
     if (old && old.rev === item.rev) return;
-    if (!old && loaded && item.id > newest) {
+    const live = !old && loaded && item.id > newest;
+    if (live) {
       // A row that arrives live was started a moment ago: that pairs the session's clock with ours.
       if (item.startedMs != null) offset = now - item.startedMs;
       if (item.kind === "message" && item.role === "agent") arrived += 1;
     }
     entries.set(item.id, item);
     if (list[index]?.id === item.id) list[index] = item;
-    if (item.tool && (item.tool.status === "pending" || item.tool.status === "inProgress")) unfinished.add(item.id);
-    else unfinished.delete(item.id);
+    if (item.tool && (item.tool.status === "pending" || item.tool.status === "inProgress")) {
+      unfinished.add(item.id);
+      if (live) seenAt.set(item.id, now);
+    } else {
+      unfinished.delete(item.id);
+      seenAt.delete(item.id);
+    }
     changedFrom = Math.min(changedFrom, index);
   };
 
@@ -226,6 +244,7 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
     const now = Date.now();
     let reshaped = false;
     newest = ids.at(-1) ?? -1;
+    const hadOpen = unfinished.size > 0;
     if (v.itemCount !== ids.length || v.droppedItems !== dropped) {
       const fresh = port.itemIds();
       if (v.droppedItems !== dropped) {
@@ -275,6 +294,9 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
       if (text !== "") hooks.answered(text);
     }
     if (loaded && !wasRunning && v.running && v.acp.turnStartedMs != null) offset = now - v.acp.turnStartedMs;
+    // Thinking starts when a watched turn starts or its last open call ends; a turn found running has no start.
+    if (!v.running) thinkingSince = null;
+    else if (loaded && (!wasRunning || (hadOpen && unfinished.size === 0))) thinkingSince = now;
     wasRunning = v.running;
     // Rows that arrived while the session was still replaying are history: they have no time, and no sound.
     if (v.phase !== "connecting") loaded = true;
@@ -286,6 +308,8 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
       if (lastView) {
         entries.clear();
         unfinished.clear();
+        seenAt.clear();
+        thinkingSince = null;
         list = [];
         ids = [];
         dropped = -1;
@@ -391,13 +415,22 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
     if (!v?.running) return null;
     const quiet = v.waiting.length === 0 ? Math.floor((now - lastEventAt) / 1000) : 0;
     const open: ToolItem[] = [];
+    const seen: (number | undefined)[] = [];
     for (const id of [...unfinished].sort((x, y) => x - y)) {
       const tool = entries.get(id)?.tool;
-      if (tool) open.push(tool);
+      if (!tool) continue;
+      open.push(tool);
+      seen.push(seenAt.get(id));
     }
+    // The clock counts what the line names: the calls it names, all of whose starts this window saw, or the thinking.
+    const named = seen.slice(seen.length - liveCount(open));
+    const since =
+      open.length === 0 ? thinkingSince : named.some((t) => t === undefined) ? null : Math.min(...(named as number[]));
     return {
       toolLine: liveLine(open, v.cwd),
+      seconds: since === null ? null : Math.max(0, Math.floor((now - since) / 1000)),
       quietMinutes: quiet >= QUIET_AFTER ? Math.floor(quiet / 60) : null,
+      live: v.waiting.length === 0 && quiet < QUIET_AFTER,
     };
   });
 

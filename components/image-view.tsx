@@ -5,10 +5,11 @@ import { fitScale } from "#lib/image-view";
 import type { Size } from "#lib/image-view";
 
 /**
- * The preview of a picture beside a folder's list: fitted to its box, no tools and no keys. The picture itself opens in the
- * lightbox (`components/lightbox-view.tsx`). The file name is the alt text, as a file has no other description.
+ * The preview of a picture beside a folder's list, and a picture in the side panel: fitted to its box, no tools and no
+ * keys. The picture itself opens in the lightbox (`components/lightbox-view.tsx`). The file name is the alt text, as a
+ * file has no other description. `onSize` hears its pixel size once it is drawn.
  */
-export function ImageView(props: { url: string; name: string; height: number }) {
+export function ImageView(props: { url: string; name: string; height: number; onSize?: (size: Size) => void }) {
   const natural = signal<Size>({ width: 0, height: 0 });
   const box = signal<Size>({ width: 0, height: 0 });
   const failure = signal<string | null>(null);
@@ -28,7 +29,10 @@ export function ImageView(props: { url: string; name: string; height: number }) 
           <Image
             src={props.url}
             accessibilityLabel={props.name}
-            onLoad={({ size }) => natural.set({ width: size.width, height: size.height })}
+            onLoad={({ size }) => {
+              natural.set({ width: size.width, height: size.height });
+              props.onSize?.({ width: size.width, height: size.height });
+            }}
             onError={({ message }) => failure.set(message)}
             style={{
               width: Math.max(1, natural().width * scale()),

@@ -55,8 +55,16 @@ const say = (role: "user" | "agent", text: string): SessionItem => ({
   parts: [],
 });
 
-const AUDIT_PROMPT =
-  "Audit the auth module for session fixation. Read src/auth/*.ts and the middleware, list every place a session id is issued or rotated, and report which of them keep the old id after login.\n\nDo not change any file. Report in a table: file, line, what happens, risk.";
+// Markdown, as a lead agent writes an assignment: its conversation shows it formatted in the first bubble.
+const AUDIT_PROMPT = [
+  "Audit the auth module for session fixation.",
+  "",
+  "1. Read `src/auth/*.ts` and the middleware.",
+  "2. List every place a session id is issued or rotated.",
+  "3. Say which of them keep the old id after login.",
+  "",
+  "Do **not** change any file. Report in a table: file, line, what happens, risk.",
+].join("\n");
 
 function subagents(failed: boolean): SubagentRow[] {
   return [

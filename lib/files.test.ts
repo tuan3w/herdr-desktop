@@ -24,13 +24,18 @@ const entry = (name: string, patch: Partial<EntryView> = {}): EntryView => ({
   ...patch,
 });
 
-test("a link goes where it belongs: files to the viewer, a remote machine's localhost to a page, the rest to the browser", () => {
-  const remote = { local: false, loopback: false };
+test("a link goes where it belongs: files to the viewer, pages and https to the side panel, the rest to the browser", () => {
+  const remote = { local: false, loopback: false, panel: true };
   expect(routeLink("path", "src/main.rs", remote)).toBe("file");
-  expect(routeLink("url", "https://example.com/x", remote)).toBe("browser");
-  expect(routeLink("url", "http://localhost:5173/", { local: false, loopback: true })).toBe("page");
-  // this computer's own localhost is the browser's: there is nothing to tunnel
-  expect(routeLink("url", "http://localhost:5173/", { local: true, loopback: true })).toBe("browser");
+  expect(routeLink("url", "https://example.com/x", remote)).toBe("panel");
+  // plain http to another host, `mod` held (no panel) and a surface without a panel: the browser, as before
+  expect(routeLink("url", "http://example.com/x", remote)).toBe("browser");
+  expect(routeLink("url", "https://example.com/x", { ...remote, panel: false })).toBe("browser");
+  // a remote machine's localhost is tunnelled whatever the panel says: the browser cannot reach it
+  expect(routeLink("url", "http://localhost:5173/", { local: false, loopback: true, panel: false })).toBe("page");
+  // this computer's own localhost needs no tunnel: the panel loads it, `mod` gives it to the browser
+  expect(routeLink("url", "http://localhost:5173/", { local: true, loopback: true, panel: true })).toBe("panel");
+  expect(routeLink("url", "http://localhost:5173/", { local: true, loopback: true, panel: false })).toBe("browser");
   // an address that is not http or https is never opened, only copied
   expect(routeLink("url", "javascript:alert(1)", remote)).toBe("address");
   expect(routeLink("url", "file:///etc/passwd", remote)).toBe("address");

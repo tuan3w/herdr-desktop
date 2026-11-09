@@ -290,6 +290,11 @@ export function workLine(s: {
   return line.charAt(0).toUpperCase() + line.slice(1);
 }
 
+/** How many of the newest open calls the live line names: all of them when every one reads a file, else the newest. */
+export function liveCount(open: readonly ToolItem[]): number {
+  return open.length > 1 && open.every((t) => toolKindOf(t) === "read") ? open.length : Math.min(1, open.length);
+}
+
 /**
  * The live line of a running turn: what its open calls are doing now (`Running pnpm test`, `Editing lib/ask.ts`,
  * `Reading 3 files` when several reads run together), or `Thinking` while nothing is open.
@@ -297,9 +302,21 @@ export function workLine(s: {
 export function liveLine(open: readonly ToolItem[], cwd?: string | null): string {
   const last = open.at(-1);
   if (!last) return "Thinking";
-  if (open.length > 1 && open.every((t) => toolKindOf(t) === "read")) return `Reading ${open.length} files`;
+  if (liveCount(open) > 1) return `Reading ${open.length} files`;
   const line = toolLine(last, cwd);
   return [line.verb, line.object].filter(Boolean).join(" ");
+}
+
+/**
+ * `12s`, `1m 04s`, `1h 02m`: a clock that ticks. Seconds are two digits past a minute so the line keeps its width while
+ * they move; past an hour it moves by the minute.
+ */
+export function clockText(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${String(s % 60).padStart(2, "0")}s`;
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
 }
 
 /** The tab's name for a session: the agent's own title once it has one, else the agent. */
