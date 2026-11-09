@@ -1,6 +1,6 @@
 import type { EffectKindName, SessionItem } from "herdr-desktop/native";
 
-import { diffStat, isSubagent, oneLine, toolKindOf, toolLine, visibleText } from "#lib/session-text";
+import { diffStat, isSubagent, oneLine, stepWords, toolKindOf, toolLine, visibleText } from "#lib/session-text";
 
 /**
  * The transcript as the rows of one virtual list. The agent's items are a flat run of messages, tool calls and thoughts;
@@ -88,18 +88,33 @@ export interface TurnCarry {
   groups: Contribution[];
 }
 
-/** One call of a run, and what the person chose for it. */
+/** One call of a step, and what the person chose for it. */
 export interface Call {
   item: SessionItem;
-  open: boolean;
   /** Every kept line of its output, not the first lines. */
   all: boolean;
   /** It failed and the agent ran the same call again later in its group: shown as `Retried`, never as a failure. */
   retried: boolean;
 }
 
-/** The key of the run of calls that starts at item `id`. */
+/** The key of the step that starts at item `id`. */
 export const callsKey = (id: number): string => `c:${id}`;
+
+/** The calls between two of the agent's words, what it thought just before, and whether the person opened it. */
+export interface Step {
+  /** `callsKey` of its first call: what the person's choice to open it is kept under. */
+  key: string;
+  calls: Call[];
+  thoughts: Thought[];
+  open: boolean;
+}
+
+/** What the agent thought just before a step: shown inside the step once it is open, never as a row of its own. */
+export interface Thought {
+  item: SessionItem;
+  open: boolean;
+  seconds: number | null;
+}
 
 /** One line of the transcript's list. */
 export type Row =
@@ -109,9 +124,8 @@ export type Row =
   | { kind: "work"; key: string; sig: string; work: Work }
   | { kind: "effects"; key: string; sig: string; effects: TurnEffects }
   | { kind: "narration"; key: string; sig: string; item: SessionItem }
-  | { kind: "calls"; key: string; sig: string; calls: Call[] }
+  | { kind: "steps"; key: string; sig: string; steps: Step[] }
   | { kind: "subagent"; key: string; sig: string; item: SessionItem; open: boolean; all: boolean }
-  | { kind: "thought"; key: string; sig: string; item: SessionItem; open: boolean; seconds: number | null }
   | { kind: "note"; key: string; sig: string; item: SessionItem }
   | { kind: "other"; key: string; sig: string; item: SessionItem };
 
@@ -234,6 +248,16 @@ function summarize(group: readonly SessionItem[], retried: ReadonlySet<number>):
   return out;
 }
 
+/**
+ * A line of output that says what failed (`FAIL src/a.test.ts`, `1 failed, 39 passed`, `error: unused variable`,
+ * `Traceback`), not one that says the run ended (`Ran all test suites.`) or that nothing went wrong (`0 errors`). A
+ * failure is shown with the last such line, else the last line: the exit code is never made up.
+ */
+function namesAFailure(line: string): boolean {
+  if (/\b0 (?:failed|failures?|errors?)\b/i.test(line)) return false;
+  return /\b(?:FAIL|FAILED|failed|failures?|error:|Error|panicked|Traceback|exception)\b/.test(line);
+}
+
 function contribute(
   group: readonly SessionItem[],
   cwd: string | null | undefined,
@@ -245,11 +269,11 @@ function contribute(
     const tool = item.tool;
     if (!tool) continue;
     if (tool.status === "failed" && !retried.has(item.id)) {
-      const line = toolLine(tool, cwd);
-      const last = [...tool.head, ...tool.tail].reverse().find((l) => l.trim() !== "");
+      const printed = [...tool.head, ...tool.tail].filter((l) => l.trim() !== "");
+      const last = printed.findLast(namesAFailure) ?? printed.at(-1);
       out.failures.push({
         id: item.id,
-        text: [line.verb, line.object].filter(Boolean).join(" "),
+        text: stepWords(tool, cwd).words,
         result: last === undefined ? null : oneLine(visibleText(last), 160),
       });
     }
@@ -337,47 +361,62 @@ export function buildRows(
         work: { id: item.id, open, summary },
       });
       if (open) {
-        // Calls with no narration or thought between them are one row, drawn as one hairline box: a box is one view, so
-        // it cannot be split across the list's rows.
+        // Calls with no narration or thought between them are one step. The steps between two of the agent's sentences are
+        // one row, one card: a box cannot be cut across the list's rows, so the card is a row. A thought belongs to the
+        // step after it: it is not a row (a `Thought ›` line that says nothing until opened is noise), it is inside the step.
         let run: Call[] = [];
+        let pending: Thought[] = [];
+        let before: Thought[] = [];
+        let card: Step[] = [];
         const endRun = (): void => {
           if (run.length === 0) return;
-          keep({
-            kind: "calls",
-            key: callsKey(run[0]!.item.id),
-            sig: run.map((c) => `${c.item.rev}|${c.open}|${c.all}|${c.retried}`).join(";"),
-            calls: run,
-          });
+          const key = callsKey(run[0]!.item.id);
+          card.push({ key, calls: run, thoughts: before, open: input.open.get(key) ?? false });
           run = [];
+          before = [];
+        };
+        const endCard = (): void => {
+          endRun();
+          if (card.length === 0) return;
+          keep({
+            kind: "steps",
+            key: card[0]!.key,
+            sig: card
+              .map(
+                (st) =>
+                  `${st.open}|${st.calls.map((c) => `${c.item.rev}|${c.all}|${c.retried}`).join(";")}|${st.thoughts.map((t) => `${t.item.rev}|${t.open}|${t.seconds}`).join(";")}`,
+              )
+              .join("||"),
+            steps: card,
+          });
+          card = [];
         };
         group.forEach((member, at) => {
           const mkey = itemKey(member.id);
-          const mopen = input.open.get(mkey) ?? false;
           if (member.kind === "message" && member.role !== "thought") {
-            endRun();
+            endCard();
             if ((member.text ?? "").trim() !== "")
               keep({ kind: "narration", key: mkey, sig: `${member.rev}`, item: member });
           } else if (member.kind === "message") {
             endRun();
-            const secs = spanSeconds(member, member, group[at + 1] ?? after, input.nowMs);
-            keep({
-              kind: "thought",
-              key: mkey,
-              sig: `${member.rev}|${mopen}|${secs}`,
+            pending.push({
               item: member,
-              open: mopen,
-              seconds: secs,
+              open: input.open.get(mkey) ?? false,
+              seconds: spanSeconds(member, member, group[at + 1] ?? after, input.nowMs),
             });
           } else {
+            if (run.length === 0) {
+              before = pending;
+              pending = [];
+            }
             run.push({
               item: member,
-              open: mopen,
               all: input.open.get(moreKey(member.id)) ?? false,
               retried: retried.has(member.id),
             });
           }
         });
-        endRun();
+        endCard();
       }
       i = end;
       continue;

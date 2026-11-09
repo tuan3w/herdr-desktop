@@ -1331,6 +1331,7 @@ fn item_view(item: &transcript::Item) -> Item {
                 },
                 subject: t.subject.clone(),
                 input: t.input.clone(),
+                intent: t.intent.clone(),
                 locations: t
                     .locations
                     .iter()

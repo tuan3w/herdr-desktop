@@ -1031,7 +1031,7 @@
  
  /// What a turn did, counted from its tool calls.
  #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-@@ -84,16 +95,86 @@
+@@ -84,16 +95,89 @@
      pub new: String,
  }
  
@@ -1067,6 +1067,9 @@
      pub subject: Option<String>,
 +    /// The raw input as text, cut at [`INPUT_MAX`] bytes.
 +    pub input: Option<String>,
++    /// What the agent says the call is for, in its own words (omp's `i`, Claude Code's `description`), as one safe
++    /// line. Read from the raw input before it is cut, so a long command does not lose it.
++    pub intent: Option<String>,
 +    /// The files it touches.
 +    pub locations: Vec<Location>,
      pub output: Output,
@@ -1118,7 +1121,7 @@
  }
  
  #[derive(Clone, Debug, PartialEq)]
-@@ -102,9 +183,17 @@
+@@ -102,9 +186,17 @@
          role: Role,
          message_id: Option<String>,
          text: String,
@@ -1136,7 +1139,7 @@
      /// The end of a turn, said once: how long, and what changed.
      Done {
          text: String,
-@@ -132,6 +221,11 @@
+@@ -132,6 +224,11 @@
      title: Option<String>,
      mode: Option<String>,
      context: Option<u8>,
@@ -1148,7 +1151,7 @@
      config: Vec<crate::session::vendored::acp::ConfigOption>,
      commands: Vec<crate::session::vendored::acp::Command>,
      plan: Vec<crate::session::vendored::acp::PlanEntry>,
-@@ -139,6 +233,8 @@
+@@ -139,6 +236,8 @@
      tool_at: HashMap<String, u64>,
      /// Items whose tool call has not finished: the ones a turn's end must close.
      open_tools: BTreeSet<u64>,
@@ -1157,7 +1160,7 @@
      /// Why the last turn stopped (`cancelled`, `error`, ...), until it is read with
      /// [`Transcript::take_stop`]. `turn_end` runs twice per turn (the state update and the prompt's
      /// response) and again during a replay: reading and clearing at the observed end keeps a
-@@ -165,11 +261,16 @@
+@@ -165,11 +264,16 @@
              title: None,
              mode: None,
              context: None,
@@ -1174,7 +1177,7 @@
              stop: None,
          }
      }
-@@ -242,7 +343,11 @@
+@@ -242,7 +346,11 @@
      /// Records the choice of option `id` before the agent has repeated its options.
      pub fn set_current(&mut self, id: &str, value: &str) {
          if let Some(o) = self.config.iter_mut().find(|o| o.id == id) {
@@ -1187,7 +1190,7 @@
          }
      }
      fn config_value(&self, what: &str) -> Option<&str> {
-@@ -256,6 +361,36 @@
+@@ -256,6 +364,36 @@
      pub fn context(&self) -> Option<u8> {
          self.context
      }
@@ -1224,7 +1227,7 @@
      #[must_use]
      pub fn title(&self) -> Option<&str> {
          self.title.as_deref()
-@@ -309,15 +444,63 @@
+@@ -309,15 +447,63 @@
      /// The person's own message, shown at once (the keeper does not echo a
      /// prompt back to the client that sent it).
      pub fn user(&mut self, text: impl Into<String>) {
@@ -1288,7 +1291,7 @@
      pub fn apply(&mut self, update: SessionUpdate) {
          match update {
              SessionUpdate::AgentMessage(c) => self.chunk(Role::Agent, c),
-@@ -335,19 +518,72 @@
+@@ -335,19 +521,72 @@
                  state: AgentState::Idle,
                  stop_reason,
              } => self.turn_end(stop_reason.as_deref()),
@@ -1365,7 +1368,7 @@
              }
          }
      }
-@@ -358,6 +594,13 @@
+@@ -358,6 +597,13 @@
              self.stop = Some(r.to_string());
          }
          self.running = false;
@@ -1379,7 +1382,7 @@
          // A call still open will never finish. Items are found by id each time: closing one can
          // drop others off the front to stay in budget, so positions do not hold still.
          let open: Vec<u64> = std::mem::take(&mut self.open_tools).into_iter().collect();
-@@ -365,7 +608,7 @@
+@@ -365,7 +611,7 @@
              let Some(i) = self.index_of(id) else { continue };
              if let Entry::Tool(t) = &mut self.items[i].entry {
                  t.status = ToolStatus::Failed;
@@ -1388,7 +1391,7 @@
              }
              self.touch(i);
          }
-@@ -383,9 +626,12 @@
+@@ -383,9 +629,12 @@
      }
  
      fn chunk(&mut self, role: Role, c: Chunk) {
@@ -1404,7 +1407,7 @@
          };
          // With an id the chunk continues the latest message of that role and id, wherever the
          // agent left off; without one it continues the message just before it, if that is its role.
-@@ -409,8 +655,16 @@
+@@ -409,8 +658,16 @@
              ),
          };
          if let Some(i) = target {
@@ -1422,7 +1425,7 @@
              }
              self.touch(i);
              return;
-@@ -419,6 +673,7 @@
+@@ -419,6 +676,7 @@
              role,
              message_id: c.message_id,
              text,
@@ -1430,7 +1433,7 @@
          });
      }
  
-@@ -439,11 +694,24 @@
+@@ -439,11 +697,25 @@
                  let mut t = Tool {
                      id: call.id.clone(),
                      title: String::new(),
@@ -1439,6 +1442,7 @@
                      status: ToolStatus::Pending,
                      subject: None,
 +                    input: None,
++                    intent: None,
 +                    locations: Vec::new(),
                      output: Output::default(),
                      diffs: Vec::new(),
@@ -1455,7 +1459,7 @@
                  };
                  merge_tool(&mut t, call);
                  if t.title.is_empty() {
-@@ -504,6 +772,9 @@
+@@ -504,6 +776,9 @@
      if let Some(title) = &call.title {
          t.title.clone_from(title);
      }
@@ -1465,12 +1469,15 @@
      if call.kind.is_some() {
          t.kind.clone_from(&call.kind);
      }
-@@ -516,6 +787,37 @@
+@@ -516,6 +791,40 @@
      if let Some(subject) = call.subject() {
          t.subject = Some(subject);
      }
 +    if let Some(input) = call.raw_input.as_ref().and_then(input_text) {
 +        t.input = Some(input);
++    }
++    if let Some(intent) = call.raw_input.as_ref().and_then(intent_of) {
++        t.intent = Some(intent);
 +    }
 +    if !call.locations.is_empty() {
 +        t.locations.clone_from(&call.locations);
@@ -1503,7 +1510,7 @@
      if !call.content.is_empty() {
          let text: Vec<&str> = call
              .content
-@@ -529,7 +831,7 @@
+@@ -529,7 +838,7 @@
              })
              .collect();
          if !text.is_empty() {
@@ -1512,7 +1519,7 @@
          }
          let diffs: Vec<Diff> = call
              .content
-@@ -544,13 +846,120 @@
+@@ -544,13 +853,138 @@
                      old: old_text.as_deref().map(|s| cut(s, DIFF_SIDE_MAX)),
                      new: cut(new_text, DIFF_SIDE_MAX),
                  }),
@@ -1558,6 +1565,24 @@
 +}
 +
 +/// A raw input as text for the person to open: a string as it is, anything else as indented JSON.
++/// The longest intent kept, in bytes.
++const INTENT_MAX: usize = 160;
++
++/// What the agent says a call is for: omp sends `i` (a short intent) with every tool call and Claude Code sends
++/// `description` with `Bash` and `Task`. One line: bidi controls could reorder the words around it and a newline would
++/// break a one-line row. `None` when the input has neither or says nothing.
++fn intent_of(v: &Value) -> Option<String> {
++    let said = ["i", "description"]
++        .iter()
++        .find_map(|key| v.get(key).and_then(Value::as_str))?;
++    let kept: String = said
++        .chars()
++        .filter(|c| !matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'))
++        .collect();
++    let line = kept.split_whitespace().collect::<Vec<_>>().join(" ");
++    (!line.is_empty()).then(|| cut(&line, INTENT_MAX))
++}
++
 +fn input_text(v: &Value) -> Option<String> {
 +    let text = match v {
 +        Value::Null => return None,
@@ -1634,7 +1659,7 @@
      }
  }
  
-@@ -590,14 +999,43 @@
+@@ -590,14 +1024,43 @@
  }
  
  fn size_of(entry: &Entry) -> usize {
@@ -1679,6 +1704,70 @@
                      + t.output
                          .head
                          .iter()
+@@ -723,6 +1186,63 @@
+         );
+     }
+ 
++    fn intent_of_call(raw: serde_json::Value) -> Option<String> {
++        let mut t = Transcript::default();
++        t.apply(update(
++            json!({"sessionUpdate": "tool_call", "toolCallId": "1", "title": "Run", "rawInput": raw}),
++        ));
++        let Entry::Tool(x) = &t.items()[0].entry else {
++            panic!("not a tool")
++        };
++        x.intent.clone()
++    }
++
++    #[test]
++    fn what_the_agent_says_a_call_is_for_is_its_intent() {
++        // omp sends `i` with every tool call, Claude Code a `description` with Bash and Task.
++        assert_eq!(
++            intent_of_call(json!({"command": "make test", "i": "Running the whole suite", "timeout": 600})).as_deref(),
++            Some("Running the whole suite")
++        );
++        assert_eq!(
++            intent_of_call(json!({"command": "ls", "description": "List the files"})).as_deref(),
++            Some("List the files")
++        );
++        assert_eq!(intent_of_call(json!({"command": "ls"})), None);
++        assert_eq!(intent_of_call(json!({"command": "ls", "i": "   "})), None);
++        assert_eq!(intent_of_call(json!({"i": 3})), None, "only text is an intent");
++    }
++
++    #[test]
++    fn an_intent_is_one_safe_line_and_survives_a_command_too_long_to_keep() {
++        let said = intent_of_call(json!({"i": "Checking\n  the \u{202e}menus"}));
++        assert_eq!(said.as_deref(), Some("Checking the menus"), "no newline, no direction override");
++        // The input text is cut at INPUT_MAX; the intent is read before that, so a long script keeps it.
++        let long = "x".repeat(20_000);
++        let mut t = Transcript::default();
++        t.apply(update(json!({"sessionUpdate": "tool_call", "toolCallId": "1", "title": "Run",
++            "rawInput": {"command": long, "i": "Rewriting the fixture"}})));
++        let Entry::Tool(x) = &t.items()[0].entry else {
++            panic!("not a tool")
++        };
++        assert_eq!(x.intent.as_deref(), Some("Rewriting the fixture"));
++        assert!(x.input.as_ref().is_some_and(|i| !i.contains("Rewriting")), "the input text lost it");
++        let capped = intent_of_call(json!({"i": "y".repeat(500)}));
++        assert_eq!(capped.map(|c| c.len()), Some(INTENT_MAX));
++    }
++
++    #[test]
++    fn a_later_update_without_an_input_keeps_the_intent() {
++        let mut t = Transcript::default();
++        t.apply(update(json!({"sessionUpdate": "tool_call", "toolCallId": "1", "title": "Run",
++            "rawInput": {"command": "ls", "i": "Listing"}})));
++        t.apply(tool("1", "completed"));
++        let Entry::Tool(x) = &t.items()[0].entry else {
++            panic!("not a tool")
++        };
++        assert_eq!(x.intent.as_deref(), Some("Listing"));
++    }
++
+     #[test]
+     fn an_update_that_only_changes_the_status_keeps_the_output() {
+         let mut t = Transcript::default();
 --- a/acp/config.rs
 +++ a/acp/config.rs
 @@ -4,20 +4,29 @@

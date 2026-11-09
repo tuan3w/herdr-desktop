@@ -127,6 +127,9 @@ pub struct Tool {
     pub subject: Option<String>,
     /// The raw input as text, cut at [`INPUT_MAX`] bytes.
     pub input: Option<String>,
+    /// What the agent says the call is for, in its own words (omp's `i`, Claude Code's `description`), as one safe
+    /// line. Read from the raw input before it is cut, so a long command does not lose it.
+    pub intent: Option<String>,
     /// The files it touches.
     pub locations: Vec<Location>,
     pub output: Output,
@@ -699,6 +702,7 @@ impl Transcript {
                     status: ToolStatus::Pending,
                     subject: None,
                     input: None,
+                    intent: None,
                     locations: Vec::new(),
                     output: Output::default(),
                     diffs: Vec::new(),
@@ -789,6 +793,9 @@ fn merge_tool(t: &mut Tool, call: &ToolCall) {
     }
     if let Some(input) = call.raw_input.as_ref().and_then(input_text) {
         t.input = Some(input);
+    }
+    if let Some(intent) = call.raw_input.as_ref().and_then(intent_of) {
+        t.intent = Some(intent);
     }
     if !call.locations.is_empty() {
         t.locations.clone_from(&call.locations);
@@ -887,6 +894,24 @@ fn merge_tool(t: &mut Tool, call: &ToolCall) {
 }
 
 /// A raw input as text for the person to open: a string as it is, anything else as indented JSON.
+/// The longest intent kept, in bytes.
+const INTENT_MAX: usize = 160;
+
+/// What the agent says a call is for: omp sends `i` (a short intent) with every tool call and Claude Code sends
+/// `description` with `Bash` and `Task`. One line: bidi controls could reorder the words around it and a newline would
+/// break a one-line row. `None` when the input has neither or says nothing.
+fn intent_of(v: &Value) -> Option<String> {
+    let said = ["i", "description"]
+        .iter()
+        .find_map(|key| v.get(key).and_then(Value::as_str))?;
+    let kept: String = said
+        .chars()
+        .filter(|c| !matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'))
+        .collect();
+    let line = kept.split_whitespace().collect::<Vec<_>>().join(" ");
+    (!line.is_empty()).then(|| cut(&line, INTENT_MAX))
+}
+
 fn input_text(v: &Value) -> Option<String> {
     let text = match v {
         Value::Null => return None,
@@ -1159,6 +1184,63 @@ mod tests {
             "the full output is not held: {}",
             t.bytes()
         );
+    }
+
+    fn intent_of_call(raw: serde_json::Value) -> Option<String> {
+        let mut t = Transcript::default();
+        t.apply(update(
+            json!({"sessionUpdate": "tool_call", "toolCallId": "1", "title": "Run", "rawInput": raw}),
+        ));
+        let Entry::Tool(x) = &t.items()[0].entry else {
+            panic!("not a tool")
+        };
+        x.intent.clone()
+    }
+
+    #[test]
+    fn what_the_agent_says_a_call_is_for_is_its_intent() {
+        // omp sends `i` with every tool call, Claude Code a `description` with Bash and Task.
+        assert_eq!(
+            intent_of_call(json!({"command": "make test", "i": "Running the whole suite", "timeout": 600})).as_deref(),
+            Some("Running the whole suite")
+        );
+        assert_eq!(
+            intent_of_call(json!({"command": "ls", "description": "List the files"})).as_deref(),
+            Some("List the files")
+        );
+        assert_eq!(intent_of_call(json!({"command": "ls"})), None);
+        assert_eq!(intent_of_call(json!({"command": "ls", "i": "   "})), None);
+        assert_eq!(intent_of_call(json!({"i": 3})), None, "only text is an intent");
+    }
+
+    #[test]
+    fn an_intent_is_one_safe_line_and_survives_a_command_too_long_to_keep() {
+        let said = intent_of_call(json!({"i": "Checking\n  the \u{202e}menus"}));
+        assert_eq!(said.as_deref(), Some("Checking the menus"), "no newline, no direction override");
+        // The input text is cut at INPUT_MAX; the intent is read before that, so a long script keeps it.
+        let long = "x".repeat(20_000);
+        let mut t = Transcript::default();
+        t.apply(update(json!({"sessionUpdate": "tool_call", "toolCallId": "1", "title": "Run",
+            "rawInput": {"command": long, "i": "Rewriting the fixture"}})));
+        let Entry::Tool(x) = &t.items()[0].entry else {
+            panic!("not a tool")
+        };
+        assert_eq!(x.intent.as_deref(), Some("Rewriting the fixture"));
+        assert!(x.input.as_ref().is_some_and(|i| !i.contains("Rewriting")), "the input text lost it");
+        let capped = intent_of_call(json!({"i": "y".repeat(500)}));
+        assert_eq!(capped.map(|c| c.len()), Some(INTENT_MAX));
+    }
+
+    #[test]
+    fn a_later_update_without_an_input_keeps_the_intent() {
+        let mut t = Transcript::default();
+        t.apply(update(json!({"sessionUpdate": "tool_call", "toolCallId": "1", "title": "Run",
+            "rawInput": {"command": "ls", "i": "Listing"}})));
+        t.apply(tool("1", "completed"));
+        let Entry::Tool(x) = &t.items()[0].entry else {
+            panic!("not a tool")
+        };
+        assert_eq!(x.intent.as_deref(), Some("Listing"));
     }
 
     #[test]

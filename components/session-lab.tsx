@@ -170,6 +170,17 @@ const timed = (item: SessionItem, startedMs: number, endedMs?: number): SessionI
   endedMs,
 });
 
+/** A script an agent wrote into its command: seven lines, the kind a row can only call `python3 script`. */
+const SCRIPT = [
+  "python3 - <<'EOF'",
+  "p='components/sidebar.test.tsx'",
+  "s=open(p).read()",
+  "s=s.replace('await app.press(\"label:Options for payments review\");',",
+  '  \'await pressSettled(app, "label:Options for payments review", "Pick for a bulk action");\', 1)',
+  "open(p,'w').write(s)",
+  "EOF",
+].join("\n");
+
 const EDIT: DiffItem = {
   path: `${tree}/src/auth.ts`,
   old: 'export function login(user) {\n  redirect("/callback");\n}\n',
@@ -432,6 +443,158 @@ function scene(name: string): Scene {
           say("agent", "All three are done: no session fixation, the promo tests pass, and the diff reads clean."),
         ],
       };
+    case "steps":
+      // A running turn as an agent's work really reads: scripts with an intent each, a failure the agent got past, its
+      // own words between steps, and the step that runs now printing. The fold is opened by the scenario.
+      return {
+        view: { running: true, phase: "working" },
+        items: [
+          say("user", "The sidebar, terminal-off and answer-dock tests still flake. Fix them and show me."),
+          timed(say("thought", "The menus open a frame after the press; the tests press too early."), 0, 4000),
+          call("Run: grep", {
+            toolKind: "execute",
+            subject: 'grep -n "Pick for a bulk action" components/sidebar.test.tsx',
+            intent: "Finding the failing sidebar menus",
+            head: [
+              '254:  await app.press("label:Options for payments review");',
+              '255:  await app.press("Pick for a bulk action");',
+            ],
+          }),
+          timed(say("thought", "Press until the menu row shows, then press the row."), 4000, 6500),
+          call("Run: python3", {
+            toolKind: "execute",
+            subject: SCRIPT,
+            intent: "Opening the sidebar menus with pressSettled",
+            head: ["(no output)"],
+          }),
+          say("agent", "The sidebar is fixed. Now the two terminal-off tests, which open the wrong chat under load."),
+          call("Run: grep", {
+            toolKind: "execute",
+            subject: "grep -n 'openAgents(app, FIRST);' components/*.tsx",
+            intent: "Finding the other chat opens",
+            head: ["components/terminal-off.test.tsx:82", "components/terminal-off.test.tsx:101"],
+          }),
+          call("Run: python3", {
+            toolKind: "execute",
+            subject: SCRIPT,
+            status: "failed",
+            intent: "Pressing until the right chat shows",
+            tail: [
+              "Traceback (most recent call last):",
+              '  File "<stdin>", line 3, in <module>',
+              "AssertionError: pattern not found",
+            ],
+          }),
+          call("Run: python3", {
+            toolKind: "execute",
+            subject: SCRIPT,
+            intent: "Pressing until the right chat shows",
+            head: ["(no output)"],
+          }),
+          say("agent", "The fixes are in. Running the whole suite."),
+          call("Run: make", {
+            toolKind: "execute",
+            subject: ". .scratch/sysroot/env.sh; make test",
+            status: "inProgress",
+            intent: "Running the whole suite",
+            tail: [
+              "✓ components/answer-dock.test.tsx › the digits answer only while an answer has the focus (188ms)",
+              "✓ components/bulk-answer.test.tsx › a ticked row whose question changes (161ms)",
+            ],
+          }),
+        ],
+      };
+    case "steps-failed":
+      // The same work, over, with a failure that stands: its step says so on its line, and the run is under the answer.
+      return {
+        view: { running: false, phase: "idle" },
+        items: [
+          say("user", "Run the whole suite and tell me what is left."),
+          call("Run: make", {
+            toolKind: "execute",
+            subject: ". .scratch/sysroot/env.sh; make test",
+            status: "failed",
+            intent: "Running the whole suite",
+            head: OUTPUT.slice(0, 6),
+            tail: ["FAIL components/changes.test.tsx", "1 failed, 1628 passed", "", "Ran all test suites."],
+            omitted: 20,
+            exitCode: 2,
+          }),
+          call("Run: grep", {
+            toolKind: "execute",
+            subject: "grep -n 'header says what is reviewed' components/changes.test.tsx",
+            intent: "Finding the failing test",
+            head: ["components/changes.test.tsx:386"],
+          }),
+          say(
+            "agent",
+            "One test still fails: the changes header. It waits for the project name before the board has loaded.",
+          ),
+        ],
+      };
+    case "steps-files": {
+      // An edit that is long enough to scroll and a new file, in one step: the diff is the box, the new file reads as all added.
+      const body = (n: number, tag: string) =>
+        Array.from({ length: n }, (_, i) => `  const step${i} = retry(${tag}, ${i}); // keeps the last error`).join(
+          "\n",
+        );
+      return {
+        view: { running: false, phase: "idle" },
+        items: [
+          say("user", "Add retry to the client and a test for it."),
+          call("Edit src/client.ts", {
+            toolKind: "edit",
+            subject: `${tree}/src/client.ts`,
+            intent: "Adding retry to the client",
+            diffs: [
+              {
+                path: `${tree}/src/client.ts`,
+                old: `export function send() {\n${body(40, "a")}\n}\n`,
+                new: `export function send() {\n${body(40, "a")}\n  return withRetry(step0);\n}\n`,
+                added: 1,
+                removed: 0,
+              },
+            ],
+          }),
+          call("Write src/client.test.ts", {
+            toolKind: "edit",
+            subject: `${tree}/src/client.test.ts`,
+            intent: "Writing a test for the retry",
+            diffs: [
+              {
+                path: `${tree}/src/client.test.ts`,
+                new: `import { send } from "./client";\n\ntest("send retries", () => {\n${body(30, "t")}\n  expect(send()).toBe(true);\n});\n`,
+                added: 35,
+                removed: 0,
+              },
+            ],
+          }),
+          say("agent", "The client retries three times, and the new test covers it. I have not run it."),
+        ],
+      };
+    }
+    case "steps-long": {
+      // A hundred steps, an intent each, a few failures that were run again and one that stands.
+      const items: SessionItem[] = [say("user", "Go through every package and fix what the linter says.")];
+      for (let n = 1; n <= 100; n++) {
+        if (n % 10 === 1)
+          items.push(say("agent", `Package ${Math.ceil(n / 10)} of 10: the linter says ${n % 20} things.`));
+        const failed = n % 25 === 0;
+        items.push(
+          call(`Run: lint ${n}`, {
+            toolKind: "execute",
+            subject: `pnpm lint packages/p${n}`,
+            status: failed ? "failed" : "completed",
+            intent: `Linting package ${n}`,
+            head: [failed ? "error: unused variable" : "ok"],
+          }),
+        );
+      }
+      return {
+        view: { running: false, phase: "idle" },
+        items: [...items, say("agent", "Ten packages are clean; four lines still fail.")],
+      };
+    }
     case "retried":
       // A turn where the agent got past two failures (a count on the fold line, `Retried` on the rows, nothing under the
       // answer), then a turn whose failure stands (a line under the answer).

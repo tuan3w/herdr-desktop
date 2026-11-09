@@ -8,9 +8,12 @@ import {
   durationText,
   itemLabel,
   oneLine,
+  outputFromEnd,
   outputView,
+  pastTense,
   savedAtText,
   shellLine,
+  stepWords,
   tailText,
   toolLine,
   visibleText,
@@ -110,19 +113,13 @@ test("the composer says why it is off", () => {
   expect(composerOff({ phase: "authRequired", connectionLost: false })).toMatch(/Sign in/);
 });
 
-test("a command's output shows how it ended, a read's shows what it found, and Show all brings the rest", () => {
+test("an output is all of what the agent kept: a command's is read from its end, a read's from its top", () => {
   const lines = Array.from({ length: 20 }, (_, i) => `line ${i + 1}`);
   const run = tool({ toolKind: "execute", head: lines.slice(0, 10), tail: lines.slice(10), omitted: 0 });
-  expect(outputView(run, false).lines[0]).toBe("line 13");
-  expect(outputView(run, false).hidden).toBe(12);
-  const read = tool({ toolKind: "read", head: lines });
-  expect(outputView(read, false).lines[0]).toBe("line 1");
-  expect(outputView(read, true)).toMatchObject({ hidden: 0 });
-  expect(outputView(read, true).lines).toHaveLength(20);
-  expect(outputView(tool({ head: ["a"], tail: ["z"], omitted: 4 }), false)).toMatchObject({
-    lines: ["a", "z"],
-    omitted: 4,
-  });
+  expect(outputView(run).lines).toEqual(lines);
+  expect(outputFromEnd(run)).toBe(true);
+  expect(outputFromEnd(tool({ toolKind: "read", head: lines }))).toBe(false);
+  expect(outputView(tool({ head: ["a"], tail: ["z"], omitted: 4 }))).toEqual({ lines: ["a", "z"], omitted: 4 });
 });
 
 test("a folded group is one sentence of counts: zero counts and times are left out, singular is singular", () => {
@@ -174,4 +171,37 @@ test("a command to paste into a terminal never lets an argument become a second 
   expect(shellLine(["; rm -rf ~", "$(id)", "`id`", "it's", ""])).toBe(`'; rm -rf ~' '$(id)' '\`id\`' 'it'\\''s' ''`);
   // What is copied is what is read: a hidden direction override is shown, not passed on.
   expect(shellLine(["a\u202eb"])).toContain("‹U+202E›");
+});
+
+test("an intent is put in the past once its step is over: only a listed gerund, only its first word", () => {
+  expect(pastTense("Checking the sidebar tests")).toBe("Checked the sidebar tests");
+  expect(pastTense("running make test")).toBe("Ran make test");
+  expect(pastTense("Finding every StatusGlyph use")).toBe("Found every StatusGlyph use");
+  // An imperative, or a verb nobody listed, is left as written.
+  expect(pastTense("List the files")).toBe("List the files");
+  expect(pastTense("Triaging flakes")).toBe("Triaging flakes");
+  expect(pastTense("")).toBe("");
+});
+
+test("a step is called what the agent said it was for, else what the call is", () => {
+  const said = tool({ toolKind: "execute", subject: "python3 - <<'E'\nx\nE", intent: "Checking the menus" });
+  expect(stepWords({ ...said, status: "completed" })).toEqual({ words: "Checked the menus", own: true });
+  expect(stepWords({ ...said, status: "failed" }).words).toBe("Checked the menus");
+  // While it runs the agent's own present tense is right.
+  expect(stepWords({ ...said, status: "inProgress" }).words).toBe("Checking the menus");
+  // No intent: the line a row says today, never the agent's raw heredoc.
+  const bare = tool({ toolKind: "execute", subject: "make test" });
+  expect(stepWords(bare)).toEqual({ words: "Ran make test", own: false });
+  expect(stepWords(tool({ toolKind: "execute", subject: "make test", intent: "   " })).own).toBe(false);
+});
+
+test("the live line is the agent's own words for the call it runs, in the tense it wrote them", () => {
+  const running = tool({
+    toolKind: "execute",
+    subject: "make test",
+    status: "inProgress",
+    intent: "Running the whole suite",
+  });
+  expect(liveLine([running])).toBe("Running the whole suite");
+  expect(liveLine([{ ...running, intent: undefined }])).toBe("Running make test");
 });

@@ -1,18 +1,28 @@
-import { Image, type JSX, Text, View } from "nsh";
+import { Image, type JSX, Scroll, Text, View } from "nsh";
 import { Button } from "nsh/base";
 
 import type { DiffItem, LocationView, PartView, ToolItem, ToolStatusName } from "herdr-desktop/native";
+import type { ScrollRef } from "nsh/types";
 
 import { CodeBlock } from "#components/code-block";
 import { DiffBlock } from "#components/diff-block";
 import { openLink } from "#components/open-link";
 import { StatusGlyph } from "#components/status-glyph";
-import { Clipped, FOCUS_RING, FOCUS_RING_INSET, Icon } from "#kit";
+import { FOCUS_RING, FOCUS_RING_INSET, Icon } from "#kit";
 import type { LinkPanel } from "#lib/link-panel";
 import { pathOfUri } from "#lib/message-files";
 import { hoverTransition } from "#lib/motion";
 import { pictureSize } from "#lib/session-pictures";
-import { outputView, shortPath, toolKindOf, toolLine, toolStatusText, visibleText } from "#lib/session-text";
+import {
+  OUTPUT_LINES,
+  outputFromEnd,
+  outputView,
+  shortPath,
+  toolKindOf,
+  toolLine,
+  visibleText,
+} from "#lib/session-text";
+import { OUT_LINE_PT } from "#lib/transcript-scroll";
 
 /** Where a call's paths are and where a press on one opens: found as a message's link is, in the chat's side panel. */
 interface PathContext {
@@ -24,10 +34,6 @@ interface PathContext {
 /** Opens a path a call named, relative or not, at its line: the side panel when the chat has one, else the viewer. */
 const openPath = (at: PathContext, path: string, line?: number | null): void =>
   void openLink("path", path, line, null, { machine: at.machine, cwd: at.cwd, panel: at.links });
-
-/** What a cut subject fades into: the page, then the row's hover tint. */
-const ROW_FADE = "from-background/0 to-background";
-const ROW_FADE_HOVER = "from-accent/0 to-accent opacity-0 group-hover/row:opacity-100";
 
 /** Lines of a call's input shown before it is cut. */
 const INPUT_LINES = 12;
@@ -62,18 +68,14 @@ export function Disclosure(props: {
 
 /**
  * A call's state, said only when it is an exception: waiting is a dashed ring, running a half ring, failed the word
- * `Failed` in red. A failure the agent ran again (`retried`) is the muted word `Retried`: it went on, so it is not
- * red. A call that finished well draws nothing: success is silence, and the folded line already counts it.
+ * `Failed` in red. A call that finished well draws nothing: success is silence, and the folded line already counts it.
  */
-export function ToolStatus(props: { status: ToolStatusName; retried?: boolean }) {
+export function ToolStatus(props: { status: ToolStatusName }) {
   return (
     <>
       <If when={props.status === "failed"}>
-        <Text
-          accessibilityElementsHidden
-          class={`shrink-0 text-sm ${props.retried ? "text-muted-foreground" : "text-destructive"}`}
-        >
-          {props.retried ? "Retried" : "Failed"}
+        <Text accessibilityElementsHidden class="shrink-0 text-sm text-destructive">
+          Failed
         </Text>
       </If>
       <If when={props.status === "inProgress" || props.status === "pending"}>
@@ -106,43 +108,6 @@ export function DiffStat(props: { added: number; removed: number }) {
   );
 }
 
-/**
- * One tool call as one muted line: a muted verb, what it acted on, the size of an edit, `Failed` when it failed (`Retried`
- * when the agent ran it again), a chevron. No icon and no check: success is silence. A press opens its details
- * (`ToolDetails`) under it, in place. The row is a button named by what it says and whether it is open; a tooltip
- * carries the whole subject.
- */
-export function ToolRow(props: { tool: ToolItem; cwd: string; open: boolean; retried: boolean; onToggle: () => void }) {
-  const line = () => toolLine(props.tool, props.cwd);
-  const said = () => [line().verb, line().object].filter(Boolean).join(" ");
-  return (
-    <Disclosure
-      onPress={props.onToggle}
-      label={`Tool: ${said()}, ${toolStatusText(props.tool.status, props.retried)}`}
-      open={props.open}
-      class="group/row min-h-8 flex-row items-center gap-2 px-3"
-    >
-      {/* A subject too long for the row fades out whole-or-not (never a hard cut) and the whole one is the pointer's tip. */}
-      <Clipped
-        label={said()}
-        fade={[ROW_FADE, ROW_FADE_HOVER]}
-        boxClass="min-w-0 flex-1"
-        class="text-sm text-muted-foreground"
-      >
-        <If when={line().verb}>
-          <Text class="text-muted-foreground">{`${line().verb} `}</Text>
-        </If>
-        <Text class={line().verb ? "font-mono text-xs text-foreground" : "text-sm text-foreground"}>
-          {line().object}
-        </Text>
-      </Clipped>
-      <DiffStat added={line().added} removed={line().removed} />
-      <ToolStatus status={props.tool.status} retried={props.retried} />
-      <Icon name={props.open ? "chevron-down" : "chevron-right"} size={12} tone="muted-foreground" />
-    </Disclosure>
-  );
-}
-
 /** What one edit looks like: the file's change as a diff, its name a link to the file (the side panel, else the viewer). */
 function Edit(props: { diff: DiffItem; at: PathContext }) {
   return (
@@ -151,6 +116,7 @@ function Edit(props: { diff: DiffItem; at: PathContext }) {
       oldText={props.diff.old ?? ""}
       newText={props.diff.new}
       created={props.diff.old == null}
+      flat
       context={3}
       maxHeight={TOOL_BLOCK_HEIGHT}
       onOpenFile={() => openPath(props.at, props.diff.path)}
@@ -246,9 +212,46 @@ function Locations(props: { locations: readonly LocationView[]; at: PathContext;
 }
 
 /**
+ * What a call printed, as plain mono lines, never boxed. Past `OUTPUT_LINES` it scrolls inside itself: it is cut a
+ * half line past the eighth, so the part of a line at the edge says there is more, and it starts at the end for a
+ * command (how it ended is at the bottom) and at the top for a read.
+ */
+function Output(props: { text: string; lines: number; fromEnd: boolean }) {
+  let scroll: ScrollRef | undefined;
+  let placed = false;
+  const body = (
+    <Text class="font-mono text-xs text-muted-foreground" style={{ userSelect: "text" }}>
+      {props.text}
+    </Text>
+  );
+  return (
+    <If when={props.lines > OUTPUT_LINES} else={body}>
+      <Scroll
+        ref={(node: ScrollRef) => {
+          scroll = node;
+        }}
+        accessibilityLabel={`Output, ${props.lines} lines`}
+        style={{ maxHeight: (OUTPUT_LINES + 0.5) * OUT_LINE_PT }}
+      >
+        <View
+          onLayout={({ bounds }) => {
+            // Once: a later layout is the output growing under a person who may be reading its top.
+            if (placed || !props.fromEnd) return;
+            placed = true;
+            scroll?.scrollTo({ y: bounds.size.height, animated: false });
+          }}
+        >
+          {body}
+        </View>
+      </Scroll>
+    </If>
+  );
+}
+
+/**
  * Behind a tool row: the command whole (what the agent ran is read in full, never cut), the edits as diffs, and the
- * output, a few lines first and `Show all N lines` for the rest. The agent keeps the first and the last lines of an
- * output; a gap between them says `N lines not kept`. A path it names opens as a message's link does, in `links`.
+ * output (`Output`). The agent keeps the first and the last lines of an output; a gap between them says
+ * `N lines not kept`. A path it names opens as a message's link does, in `links`.
  */
 export function ToolDetails(props: {
   tool: ToolItem;
@@ -258,7 +261,7 @@ export function ToolDetails(props: {
   all: boolean;
   onMore: () => void;
 }) {
-  const output = () => outputView(props.tool, props.all);
+  const output = () => outputView(props.tool);
   const text = () => {
     const o = output();
     return o.omitted > 0 && o.lines.length > 1
@@ -270,14 +273,17 @@ export function ToolDetails(props: {
       : o.lines.join("\n");
   };
   const subject = () => visibleText(props.tool.subject ?? "");
-  // The row already says a one-line command; the block is for one the row had to cut or fold.
+  // The step line says what the call was for, not what it ran: a command is always shown whole when its step is open.
   const showSubject = () =>
-    props.tool.diffs.length === 0 && (subject().includes("\n") || subject() !== toolLine(props.tool).object);
-  const total = () => output().lines.length + output().hidden;
-  // The row shows a short path; the whole one is a caption under it, only for a call that acted on a file.
+    props.tool.diffs.length === 0 &&
+    subject() !== "" &&
+    (toolKindOf(props.tool) === "execute" || subject().includes("\n") || subject() !== toolLine(props.tool).object);
+  // The row shows a short path; the whole one is a caption under it, only for a call that acted on a file and shows no
+  // diff (a diff carries its own path as its header).
   const fullPath = () => {
     const kind = toolKindOf(props.tool);
-    const path = props.tool.diffs[0]?.path ?? (kind === "read" || kind === "edit" ? subject() : "");
+    if (props.tool.diffs.length > 0) return "";
+    const path = kind === "read" || kind === "edit" ? subject() : "";
     return path && path !== toolLine(props.tool, props.cwd).object ? path : "";
   };
   // What the agent sent the tool, for a call whose subject does not already say it (a command's input is the command).
@@ -295,7 +301,7 @@ export function ToolDetails(props: {
     return [cwd && cwd !== props.cwd ? `In ${cwd}` : "", how].filter(Boolean).join(" · ");
   };
   return (
-    <View class="gap-2 px-3 pb-2 pt-1">
+    <View class="gap-2">
       <If when={fullPath()}>
         <Text
           class="font-mono text-xs text-muted-foreground"
@@ -305,7 +311,7 @@ export function ToolDetails(props: {
         </Text>
       </If>
       <If when={showSubject()}>
-        <CodeBlock code={subject()} language="bash" compact collapsedLines={0} maxHeight={TOOL_BLOCK_HEIGHT} />
+        <CodeBlock code={subject()} language="bash" compact flat collapsedLines={0} maxHeight={TOOL_BLOCK_HEIGHT} />
       </If>
       <If when={props.tool.locations.length > 0 && props.tool.diffs.length === 0}>
         <Locations
@@ -318,27 +324,23 @@ export function ToolDetails(props: {
         {(diff) => <Edit diff={diff()} at={{ machine: props.machine, cwd: props.cwd, links: props.links }} />}
       </Each>
       <If when={inputText() !== ""}>
-        <CodeBlock code={inputText()} compact collapsedLines={0} maxHeight={TOOL_BLOCK_HEIGHT} />
+        <CodeBlock code={inputText()} compact flat collapsedLines={0} maxHeight={TOOL_BLOCK_HEIGHT} />
       </If>
       <PartChips parts={props.tool.parts} machine={props.machine} cwd={props.cwd} links={props.links} />
-      <If when={output().lines.length > 0}>
-        <CodeBlock code={text()} compact collapsedLines={0} maxHeight={TOOL_BLOCK_HEIGHT} />
-        <If when={output().hidden > 0}>
-          <Button
-            onPress={props.onMore}
-            accessibilityLabel={`Show all ${total()} lines of output`}
-            class={`self-start rounded-md px-2 py-1 hover:bg-accent ${FOCUS_RING}`}
-          >
-            <Text class="text-xs text-muted-foreground">{`Show all ${total()} lines`}</Text>
-          </Button>
-        </If>
-      </If>
+      {/* How it ended sits under what ran and above what it printed, so it is read as that command's. */}
       <If when={ended()}>
         <Text
-          class={`font-mono text-xs ${props.tool.exitCode || props.tool.exitSignal ? "text-destructive" : "text-muted-foreground"}`}
+          class={`font-mono text-xs ${props.tool.exitCode || props.tool.exitSignal ? "text-warning" : "text-muted-foreground"}`}
         >
           {ended()}
         </Text>
+      </If>
+      <If when={output().lines.length > 0}>
+        <Output
+          text={text()}
+          lines={output().lines.length + (output().omitted > 0 ? 1 : 0)}
+          fromEnd={outputFromEnd(props.tool)}
+        />
       </If>
       <If when={output().lines.length === 0 && props.tool.diffs.length === 0 && !showSubject() && inputText() === ""}>
         <Text class="text-xs text-muted-foreground">

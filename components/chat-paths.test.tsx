@@ -45,14 +45,13 @@ test("a relative path in a tool row opens in the side panel at its line, and ../
   const app = await attached();
   await app.waitFor("label:/^Read 2 files/");
   await app.press("label:/^Read 2 files/");
-  await app.press("label:/^Tool: Read main\\.rs, done/");
+  await app.press("label:/^Step: Read main\\.rs/");
   await app.press("label:Open main.rs at line 3");
   await app.waitFor(PANEL);
   const tree = treeOf(app);
   await app.waitFor(`label:main.rs:3, ${tree}/src/main.rs:3`);
   expect(app.shows("label:main.rs, read only")).toBe(true);
 
-  await app.press("label:/^Tool: Read \\.\\.\\/notes\\.txt, done/");
   await app.press("label:Open ../notes.txt");
   await app.waitFor(`label:notes.txt, ${tree}/notes.txt`);
   expect(said(app, "A path must start")).toBe(false);

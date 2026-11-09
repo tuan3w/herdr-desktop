@@ -634,6 +634,58 @@ export const SCENARIOS: Record<string, Scenario> = {
       await app.wait(600);
     },
   },
+  "steps-open": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "steps", quiet: true },
+    steps: async (app) => {
+      await app.wait(2500);
+      await app.press("label:/^Ran \\d+ commands/");
+      await app.wait(500);
+      await app.press("label:/^Step: Opened the sidebar menus with pressSettled/");
+      await app.wait(600);
+    },
+  },
+  "steps-folded-running": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "steps", quiet: true },
+    steps: (app) => app.wait(3000),
+  },
+  "steps-failed": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "steps-failed", quiet: true },
+    steps: async (app) => {
+      await app.wait(2500);
+      await app.press("label:/^Ran 2 commands/");
+      await app.wait(500);
+      await app.press("label:/^Step: Ran the whole suite/");
+      await app.wait(600);
+    },
+  },
+  "steps-files": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "steps-files", quiet: true },
+    steps: async (app) => {
+      await app.wait(2500);
+      await app.press("label:/^Edited 2 files$/");
+      await app.wait(500);
+      await app.press("label:/^Step: Added retry to the client/");
+      await app.wait(800);
+    },
+  },
+  "steps-long": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "steps-long", quiet: true },
+    steps: async (app) => {
+      await app.wait(2500);
+      await app.press("label:/^Ran 100 commands/");
+      await app.wait(800);
+    },
+  },
   // A chat read from a terminal agent while it works: no queue, the box says where a message goes.
   "chat-terminal-working": {
     fixture: "empty",

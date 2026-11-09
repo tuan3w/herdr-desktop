@@ -370,6 +370,9 @@ pub struct ToolItem {
     /// The command or path, whole.
     #[prop(skip_none)]
     pub subject: Option<String>,
+    /// What the agent says the call is for, in its own words, as one line; absent when it said none.
+    #[prop(skip_none)]
+    pub intent: Option<String>,
     /// The first lines of the output.
     pub head: Vec<String>,
     /// The last lines of the output.
@@ -552,6 +555,7 @@ impl From<&core::Item> for SessionItem {
                         .collect(),
                     name: t.name.clone(),
                     input: t.input.clone(),
+                    intent: t.intent.clone(),
                     locations: t.locations.iter().map(Into::into).collect(),
                     parts: t.parts.iter().map(Into::into).collect(),
                     terminal: t.terminal,

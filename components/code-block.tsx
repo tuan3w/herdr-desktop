@@ -72,6 +72,8 @@ export function CodeBlock(props: {
   maxHeight?: number;
   /** No header row and no surface: the block is only its code, flat under the row that says what it is, and the tools float over its corner on hover. */
   compact?: boolean;
+  /** On the page's colour inside a hairline box, not on the code surface: for a block in a card (a step), as the Claude app draws it. */
+  flat?: boolean;
   /** Show the header's tools (default true). Off where the card around the block has its own `Copy`. */
   tools?: boolean;
   /** Line numbers fixed on or off (a file viewer needs them); without it the person's choice, with its `Lines` tool. */
@@ -145,6 +147,7 @@ export function CodeBlock(props: {
       marks={props.marks}
       visibleLines={shown()}
       maxHeight={props.maxHeight ?? CODE_MAX_HEIGHT}
+      flat={props.flat}
       follow={props.streaming ?? false}
       label={codeLabel(info().language, lines())}
     />
@@ -152,8 +155,8 @@ export function CodeBlock(props: {
 
   return (
     <View
-      class={`group relative w-full overflow-hidden ${props.compact ? "" : "rounded-md"}`}
-      style={props.compact ? undefined : { backgroundColor: token("code-bg") }}
+      class={`group relative w-full overflow-hidden ${props.flat ? "rounded-md border border-border" : props.compact ? "" : "rounded-md"}`}
+      style={props.compact || props.flat ? undefined : { backgroundColor: token("code-bg") }}
       onContextMenu={copyMenu(() => [{ label: "Copy code", onSelect: copy }])}
       onMouseEnter={() => touched.set(mine)}
       onMouseLeave={() => touched.release(mine)}

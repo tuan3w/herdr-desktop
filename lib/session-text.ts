@@ -102,8 +102,8 @@ export function diffStat(tool: ToolItem): { added: number; removed: number } {
   return { added, removed };
 }
 
-/** The words a status has for a person and for a screen reader; a failed call the agent ran again says so. */
-export function toolStatusText(status: ToolStatusName, retried = false): string {
+/** The words a status has for a person and for a screen reader. */
+export function toolStatusText(status: ToolStatusName): string {
   switch (status) {
     case "pending":
       return "waiting";
@@ -112,7 +112,7 @@ export function toolStatusText(status: ToolStatusName, retried = false): string 
     case "completed":
       return "done";
     case "failed":
-      return retried ? "failed, then retried" : "failed";
+      return "failed";
   }
 }
 
@@ -246,30 +246,27 @@ export function tailText(text: string, max: number): string {
   return space > 0 ? cut.slice(space + 1) : cut;
 }
 
-/** Lines of a tool's output shown before `Show all`. */
+/** Lines of a tool's output in view before the output scrolls inside itself. */
 export const OUTPUT_LINES = 8;
 
 /** What a tool's output panel shows. */
 export interface OutputView {
   /** The lines to draw, safe to show. */
   lines: string[];
-  /** Kept lines the panel is not showing yet (`Show all` brings them). */
-  hidden: number;
-  /** Lines the machine did not keep between the first and the last ones; said in the panel when it shows everything. */
+  /** Lines the machine did not keep between the first and the last ones; the panel says so where they would be. */
   omitted: number;
 }
 
 /**
- * The output of a call: the first lines of a read or a search (what it found is at the top), the last of a command (how
- * it ended is at the bottom), all of what is kept once the person asks. The agent keeps a head and a tail only; the
- * lines between are `omitted` and the panel says so rather than splice them.
+ * The output of a call, all of what the agent kept (a head and a tail; the lines between are `omitted` and the panel says
+ * so rather than splice them). A long one scrolls inside itself (`OUTPUT_LINES` in view), from the end for a command (how
+ * it ended is at the bottom, `outputFromEnd`) and from the top for a read or a search (what it found is at the top).
  */
-export function outputView(tool: ToolItem, all: boolean): OutputView {
-  const kept = [...tool.head, ...tool.tail].map(visibleText);
-  if (all || kept.length <= OUTPUT_LINES) return { lines: kept, hidden: 0, omitted: tool.omitted };
-  const lines = toolKindOf(tool) === "execute" ? kept.slice(kept.length - OUTPUT_LINES) : kept.slice(0, OUTPUT_LINES);
-  return { lines, hidden: kept.length - OUTPUT_LINES, omitted: 0 };
+export function outputView(tool: ToolItem): OutputView {
+  return { lines: [...tool.head, ...tool.tail].map(visibleText), omitted: tool.omitted };
 }
+
+export const outputFromEnd = (tool: ToolItem): boolean => toolKindOf(tool) === "execute";
 
 /**
  * What a folded work group says in one muted line, as a sentence: `Read 8 files, ran 4 commands, edited 3 files`, and
@@ -311,8 +308,8 @@ export function liveLine(open: readonly ToolItem[], cwd?: string | null): string
   const last = open.at(-1);
   if (!last) return "Thinking";
   if (liveCount(open) > 1) return `Reading ${open.length} files`;
-  const line = toolLine(last, cwd);
-  return [line.verb, line.object].filter(Boolean).join(" ");
+  // The agent's own words while it runs are in the present tense it wrote them in (`Running the whole suite`).
+  return stepWords(last, cwd).words;
 }
 
 /**
@@ -340,4 +337,82 @@ export function savedAtText(ms: number): string {
 export function sessionTitle(view: Pick<SessionView, "title"> | null, agent: string): string {
   const title = view?.title?.trim();
   return title ? title : agentName(agent);
+}
+
+/**
+ * The past of the verb an agent's intent opens with. omp writes an intent as it starts a call (`Checking the sidebar
+ * tests`, median 34 characters in its own logs), and in a list of finished steps that reads as if it still ran. Only the
+ * first word, only a verb listed here: an unlisted word, or an intent that is not a gerund (Claude Code's `List the
+ * files`), stays as it was written, because a wrong guess at an irregular verb is worse than the wrong tense.
+ */
+const PAST: Record<string, string> = {
+  adding: "Added",
+  applying: "Applied",
+  building: "Built",
+  checking: "Checked",
+  comparing: "Compared",
+  confirming: "Confirmed",
+  counting: "Counted",
+  creating: "Created",
+  deleting: "Deleted",
+  editing: "Edited",
+  fetching: "Fetched",
+  finding: "Found",
+  fixing: "Fixed",
+  formatting: "Formatted",
+  getting: "Got",
+  inspecting: "Inspected",
+  installing: "Installed",
+  investigating: "Investigated",
+  linting: "Linted",
+  listing: "Listed",
+  locating: "Located",
+  looking: "Looked",
+  making: "Made",
+  measuring: "Measured",
+  opening: "Opened",
+  reading: "Read",
+  rebuilding: "Rebuilt",
+  removing: "Removed",
+  rendering: "Rendered",
+  replacing: "Replaced",
+  reviewing: "Reviewed",
+  rewriting: "Rewrote",
+  running: "Ran",
+  searching: "Searched",
+  showing: "Showed",
+  starting: "Started",
+  stopping: "Stopped",
+  testing: "Tested",
+  tracing: "Traced",
+  updating: "Updated",
+  verifying: "Verified",
+  waiting: "Waited",
+  writing: "Wrote",
+};
+
+export function pastTense(intent: string): string {
+  const [first = "", ...rest] = intent.split(" ");
+  const past = PAST[first.toLowerCase()];
+  return past ? [past, ...rest].join(" ") : intent;
+}
+
+/**
+ * What a step is called in the list: the agent's own words for it (past tense once it is over) or, when it said none,
+ * what the call is (`Ran make test`, as a row says today). `words` is the line; `own` says whether they are the agent's.
+ */
+export function stepWords(tool: ToolItem, cwd?: string | null): { words: string; own: boolean } {
+  const intent = tool.intent?.trim();
+  if (intent) {
+    const over = tool.status === "completed" || tool.status === "failed";
+    return { words: over ? pastTense(intent) : intent, own: true };
+  }
+  const line = toolLine(tool, cwd);
+  return { words: [line.verb, line.object].filter(Boolean).join(" "), own: false };
+}
+
+/** The last `count` lines a running call has printed, one line each: what a step shows under its line while it runs. */
+export function liveTail(tool: ToolItem, count = 2): string[] {
+  const lines = [...tool.head, ...tool.tail].map((l) => oneLine(visibleText(l), 160)).filter((l) => l.trim() !== "");
+  return lines.slice(Math.max(0, lines.length - count));
 }

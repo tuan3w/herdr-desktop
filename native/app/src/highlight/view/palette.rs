@@ -39,11 +39,16 @@ impl Colours {
     }
 }
 
-/// The colours of the theme now (read inside a memo: a theme switch or an appearance flip re-runs it).
-pub fn palette() -> PaletteRef {
+/// The colours of the theme now (read inside a memo: a theme switch or an appearance flip re-runs it). `flat`
+/// draws on the page's colour instead of the code surface, and the fades at the edges follow it.
+pub fn palette(flat: bool) -> PaletteRef {
     let theme = theme();
     let get = |name: &str| theme.color(name).unwrap_or(theme.foreground);
-    let bg = theme.color("code-bg").unwrap_or(theme.background);
+    let bg = if flat {
+        theme.background
+    } else {
+        theme.color("code-bg").unwrap_or(theme.background)
+    };
     PaletteRef(Rc::new(Colours {
         roles: Role::ALL
             .iter()

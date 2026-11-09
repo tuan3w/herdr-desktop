@@ -5,7 +5,8 @@ import type { EffectKindName } from "herdr-desktop/native";
 
 import { type Folds, MarkdownText } from "#components/markdown";
 import { MessageFiles } from "#components/message-files";
-import { DiffStat, Disclosure, PartChips, ToolDetails, ToolRow, ToolStatus } from "#components/session-tool";
+import { DiffStat, Disclosure, PartChips, ToolDetails, ToolStatus } from "#components/session-tool";
+import { StatusGlyph } from "#components/status-glyph";
 import { SubagentLines } from "#components/subagent-lines";
 import { TurnPictures } from "#components/turn-pictures";
 import { ActionMenu, type CopyEntry, copyMenu, copyText, FOCUS_RING, Icon, type IconName, IconButton, NUM } from "#kit";
@@ -19,9 +20,29 @@ import { tally } from "#lib/perf-counts";
 import { plainText } from "#lib/plain-text";
 import type { SessionModel } from "#lib/session";
 import { withoutPlaceholders } from "#lib/session-pictures";
-import { type Call, type External, type Failure, itemKey, moreKey, type Row } from "#lib/session-rows";
+import {
+  type Call,
+  type External,
+  type Failure,
+  itemKey,
+  moreKey,
+  type Row,
+  type Step,
+  type Thought,
+} from "#lib/session-rows";
 import { linesShown, subagentsOf, subagentSummary } from "#lib/session-subagents";
-import { durationText, itemLabel, toolLine, toolStatusText, visibleText, workLine } from "#lib/session-text";
+import {
+  clockText,
+  diffStat,
+  durationText,
+  itemLabel,
+  liveTail,
+  stepWords,
+  toolLine,
+  toolStatusText,
+  visibleText,
+  workLine,
+} from "#lib/session-text";
 
 /** The widest a line of the conversation is: past this, text is hard to follow and the window is better left calm. */
 const COLUMN = CHAT_COLUMN;
@@ -181,15 +202,15 @@ function WorkRow(props: { row: Extract<Row, { kind: "work" }>; model: SessionMod
         open={work().open}
         class="-ml-2 min-h-9 flex-row items-center gap-2 self-start rounded-md px-2"
       >
-        <Text class="text-sm text-muted-foreground">{line()}</Text>
+        <Text class="text-base text-muted-foreground">{line()}</Text>
         {/* No +N −N here: the turn's effects row says the lines changed once, as the way into Changes. */}
-        <Icon name={work().open ? "chevron-down" : "chevron-right"} size={12} tone="muted-foreground" />
+        <Icon name={work().open ? "chevron-down" : "chevron-right"} size={14} tone="muted-foreground" />
       </Disclosure>
     </Line>
   );
 }
 
-/** What the agent said between two calls: muted, inside the fold, so the turn's last message is the only one on the page. */
+/** What the agent said between two calls: inside the fold, so the turn's last message is the only one on the page; in the page's own colour, because it is the best answer to what the agent is doing. */
 function NarrationRow(props: { row: Extract<Row, { kind: "narration" }>; ctx: RowContext }) {
   tally("row.mount");
   return (
@@ -199,7 +220,7 @@ function NarrationRow(props: { row: Extract<Row, { kind: "narration" }>; ctx: Ro
         machine={props.ctx.machine}
         folder={props.ctx.cwd}
         links={props.ctx.links}
-        class="text-muted-foreground"
+        class="text-foreground"
         folds={foldsOf(props.ctx.model)}
         foldKey={props.row.key}
       />
@@ -271,32 +292,59 @@ function EffectsRow(props: { row: Extract<Row, { kind: "effects" }>; ctx: RowCon
   );
 }
 
-/** One thought, a line that opens to what the agent reasoned. */
-function ThoughtRow(props: { row: Extract<Row, { kind: "thought" }>; ctx: RowContext }) {
-  tally("row.mount");
-  const label = () => (props.row.seconds === null ? "Thought" : `Thought for ${durationText(props.row.seconds)}`);
+/**
+ * What the agent thought just before a step: a muted line inside the open step (`Thought for 12s ›`) that opens to the
+ * thought. It is never a row of the conversation: a collapsed line that says nothing until pressed is noise.
+ */
+function ThoughtLine(props: { thought: Thought; ctx: RowContext }) {
+  const label = () =>
+    props.thought.seconds === null ? "Thought" : `Thought for ${durationText(props.thought.seconds)}`;
   return (
-    <Line>
+    <View>
       <Disclosure
-        onPress={() => props.ctx.model.toggle(props.row)}
+        onPress={() => props.ctx.model.choose(itemKey(props.thought.item.id), props.thought.open)}
         label={label()}
-        open={props.row.open}
+        open={props.thought.open}
         class="-ml-2 min-h-8 flex-row items-center gap-2 self-start rounded-md px-2"
       >
-        <Icon name="lightbulb" size={14} tone="muted-foreground" />
         <Text class="text-sm text-muted-foreground">{label()}</Text>
-        <Icon name={props.row.open ? "chevron-down" : "chevron-right"} size={12} tone="muted-foreground" />
+        <Icon name={props.thought.open ? "chevron-down" : "chevron-right"} size={12} tone="muted-foreground" />
       </Disclosure>
-      <If when={props.row.open}>
+      <If when={props.thought.open}>
         <View class="pb-1 pt-1">
           <MarkdownText
-            source={props.row.item.text ?? ""}
+            source={props.thought.item.text ?? ""}
             machine={props.ctx.machine}
             folder={props.ctx.cwd}
             class="text-muted-foreground"
             folds={foldsOf(props.ctx.model)}
-            foldKey={props.row.key}
+            foldKey={itemKey(props.thought.item.id)}
           />
+        </View>
+      </If>
+    </View>
+  );
+}
+
+/**
+ * The steps between two of the agent's sentences: one hairline card (radius xl), the steps its rows. A box is one view
+ * because a box cannot be cut across the list's rows, which is why a card is a row. Every title starts at the card's
+ * padding and sits at the size of the prose, muted by colour alone (the Claude desktop app's shape, which the owner
+ * prefers); the only boxes inside are text you can copy (the command, a diff).
+ */
+function StepsCard(props: { row: Extract<Row, { kind: "steps" }>; ctx: RowContext }) {
+  tally("row.mount");
+  return (
+    <Line class="py-1">
+      <If when={props.row.steps.length > 1} else={<StepBlock step={props.row.steps[0]!} ctx={props.ctx} alone />}>
+        <View role="group" accessibilityLabel="Steps" class="overflow-hidden rounded-xl border border-border">
+          <Each of={props.row.steps} key={(st: Step) => st.key}>
+            {(step, i) => (
+              <View class={i() === 0 ? "" : "border-t border-border"}>
+                <StepBlock step={step()} ctx={props.ctx} />
+              </View>
+            )}
+          </Each>
         </View>
       </If>
     </Line>
@@ -304,27 +352,122 @@ function ThoughtRow(props: { row: Extract<Row, { kind: "thought" }>; ctx: RowCon
 }
 
 /**
- * A run of calls: one hairline box (radius lg), its rows split by single hairlines, no card per row. It is one view
- * because a box cannot be cut across the list's rows: every row's corners, sides and joins are this one outline, and a
- * row that opens grows the box. Each row opens to its details in place.
+ * One step of the card: what it was for in the agent's own words (`Checked the sidebar tests`, past tense once it is
+ * over), else the command as a row said it before, `and 2 more` when it had several calls, `· 1 retried` for a failure
+ * the agent got past, then a chevron. At the row's right end, so the words keep one edge: the size of its edits, and the
+ * only shapes a step has, the half ring with the clock (and `Quiet for 3m`) while a call runs and the alert for a
+ * failure that stands. While a call runs, the last two lines it printed sit under the line (a peek, not an unfold).
+ * A press opens the step: a thought before it as a muted line, then each call, the command whole in one code block
+ * (always for a command: the line says what it was for, not what it ran), the edit as a `DiffBlock`, and what it printed
+ * as plain mono lines.
  */
-function CallsBox(props: { row: Extract<Row, { kind: "calls" }>; ctx: RowContext }) {
-  tally("row.mount");
-  const first = () => props.row.calls[0]!.item.id;
+function StepBlock(props: { step: Step; ctx: RowContext; alone?: boolean }) {
+  const tools = () => props.step.calls.map((c) => c.item.tool!);
+  const running = () => tools().filter((t) => t.status === "pending" || t.status === "inProgress");
+  const standing = () => props.step.calls.filter((c) => c.item.tool?.status === "failed" && !c.retried).length;
+  const retried = () => props.step.calls.filter((c) => c.retried).length;
+  // Named by its last call while it runs (what it does now), else by the call that failed and stands (so a ten-call step
+  // with one failure says which), else by its first (what it set out to do).
+  const named = () =>
+    running().length > 0
+      ? running().at(-1)!
+      : (props.step.calls.find((c) => c.item.tool?.status === "failed" && !c.retried)?.item.tool ?? tools()[0]!);
+  const words = () => stepWords(named(), props.ctx.cwd);
+  const more = () => (tools().length > 1 ? ` and ${tools().length - 1} more` : "");
+  const said = () => `${words().words}${more()}${retried() > 0 ? ` · ${retried()} retried` : ""}`;
+  const seconds = () => (running().length > 0 ? props.ctx.model.working()?.seconds : undefined);
+  const quiet = () => (running().length > 0 ? props.ctx.model.working()?.quietMinutes : null);
+  const edits = () =>
+    tools().reduce(
+      (n, t) => {
+        const d = diffStat(t);
+        return { added: n.added + d.added, removed: n.removed + d.removed };
+      },
+      { added: 0, removed: 0 },
+    );
+  const label = () =>
+    [
+      `Step: ${words().words}${more()}`,
+      running().length > 0 ? "running" : standing() > 0 ? "failed" : "",
+      retried() > 0 ? `${retried()} retried` : "",
+      seconds() != null ? clockText(seconds()!) : "",
+      quiet() != null ? `Quiet for ${quiet()}m` : "",
+    ]
+      .filter(Boolean)
+      .join(", ");
   return (
-    <Line class="py-1">
-      <View role="group" accessibilityLabel="Calls" class="overflow-hidden rounded-lg border border-border">
-        <Each of={props.row.calls} key={(c: Call) => c.item.id}>
-          {(call) => (
-            <View class={call().item.id === first() ? "" : "border-t border-border"}>
-              <ToolRow
-                tool={call().item.tool!}
-                cwd={props.ctx.cwd}
-                open={call().open}
-                retried={call().retried}
-                onToggle={() => props.ctx.model.choose(itemKey(call().item.id), call().open)}
-              />
-              <If when={call().open}>
+    <View>
+      <Disclosure
+        onPress={() => props.ctx.model.choose(props.step.key, props.step.open)}
+        label={label()}
+        open={props.step.open}
+        class={
+          props.alone
+            ? "-ml-2 min-h-9 flex-row items-center gap-2 self-start rounded-md px-2"
+            : "min-h-11 flex-row items-center gap-2 px-4"
+        }
+      >
+        <Text
+          class="min-w-0 shrink text-base text-muted-foreground"
+          style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
+        >
+          <If
+            when={words().own}
+            else={
+              <>
+                <Text class="font-mono text-sm text-foreground">{words().words}</Text>
+                {`${more()}${retried() > 0 ? ` · ${retried()} retried` : ""}`}
+              </>
+            }
+          >
+            {said()}
+          </If>
+        </Text>
+        <DiffStat added={edits().added} removed={edits().removed} />
+        <Icon name={props.step.open ? "chevron-down" : "chevron-right"} size={14} tone="muted-foreground" />
+        <If when={!props.alone}>
+          <View class="flex-1" />
+        </If>
+        <If when={running().length > 0}>
+          <StatusGlyph status="working" size={12} />
+          <If when={seconds() != null}>
+            <Text class="shrink-0 text-sm text-muted-foreground" style={NUM}>
+              {clockText(seconds()!)}
+            </Text>
+          </If>
+          <If when={quiet() != null}>
+            <Text class="shrink-0 text-sm font-medium text-foreground">{`Quiet for ${quiet()}m`}</Text>
+          </If>
+        </If>
+        <If when={running().length === 0 && standing() > 0}>
+          <Icon name="alert" size={14} tone="warning" />
+        </If>
+      </Disclosure>
+      <If when={!props.step.open && running().length > 0}>
+        <View class={props.alone ? "gap-0.5 pb-2" : "gap-0.5 px-4 pb-3"}>
+          <Each of={liveTail(running().at(-1)!)}>
+            {(line) => (
+              <Text
+                class="font-mono text-xs text-muted-foreground"
+                style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
+              >
+                {line()}
+              </Text>
+            )}
+          </Each>
+        </View>
+      </If>
+      <If when={props.step.open}>
+        <View class={props.alone ? "gap-3 rounded-xl border border-border px-4 py-3" : "gap-3 px-4 pb-3"}>
+          <Each of={props.step.thoughts} key={(t: Thought) => t.item.id}>
+            {(thought) => <ThoughtLine thought={thought()} ctx={props.ctx} />}
+          </Each>
+          <Each of={props.step.calls} key={(c: Call) => c.item.id}>
+            {(call) => (
+              <View class="gap-1">
+                <If when={tools().length > 1 && call().item.id !== props.step.calls[0]!.item.id}>
+                  <Text class="text-xs text-muted-foreground">{stepWords(call().item.tool!, props.ctx.cwd).words}</Text>
+                </If>
                 <ToolDetails
                   tool={call().item.tool!}
                   machine={props.ctx.machine}
@@ -333,12 +476,12 @@ function CallsBox(props: { row: Extract<Row, { kind: "calls" }>; ctx: RowContext
                   all={call().all}
                   onMore={() => props.ctx.model.choose(moreKey(call().item.id), call().all)}
                 />
-              </If>
-            </View>
-          )}
-        </Each>
-      </View>
-    </Line>
+              </View>
+            )}
+          </Each>
+        </View>
+      </If>
+    </View>
   );
 }
 
@@ -456,8 +599,7 @@ export function SessionRow(props: { row: () => Row; index?: () => number; ctx: R
   const user = ofKind(props.row, "user");
   const agent = ofKind(props.row, "agent");
   const work = ofKind(props.row, "work");
-  const calls = ofKind(props.row, "calls");
-  const thought = ofKind(props.row, "thought");
+  const steps = ofKind(props.row, "steps");
   const subagent = ofKind(props.row, "subagent");
   const note = ofKind(props.row, "note");
   const effects = ofKind(props.row, "effects");
@@ -496,11 +638,8 @@ export function SessionRow(props: { row: () => Row; index?: () => number; ctx: R
       <If when={kind() === "effects"}>
         <EffectsRow row={effects()} ctx={props.ctx} />
       </If>
-      <If when={kind() === "calls"}>
-        <CallsBox row={calls()} ctx={props.ctx} />
-      </If>
-      <If when={kind() === "thought"}>
-        <ThoughtRow row={thought()} ctx={props.ctx} />
+      <If when={kind() === "steps"}>
+        <StepsCard row={steps()} ctx={props.ctx} />
       </If>
       <If when={kind() === "subagent"}>
         <SubagentRow row={subagent()} ctx={props.ctx} />

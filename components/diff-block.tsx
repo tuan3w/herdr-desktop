@@ -37,6 +37,8 @@ export function DiffBlock(props: {
   /** Unchanged lines kept around a change (default 3). */
   context?: number;
   maxHeight?: number;
+  /** On the page's colour inside a hairline box, not on the code surface: for a diff in a card (a step). */
+  flat?: boolean;
   /** Force a layout; by default the person's choice (`diffSplit`). */
   split?: boolean;
   /** Force wrapping on or off; by default the person's choice (`codeWrap`). A narrow pane turns it off so the code scrolls sideways. */
@@ -62,8 +64,8 @@ export function DiffBlock(props: {
 
   return (
     <View
-      class="group w-full overflow-hidden rounded-md"
-      style={{ backgroundColor: token("code-bg") }}
+      class={`group w-full overflow-hidden rounded-md ${props.flat ? "border border-border" : ""}`}
+      style={props.flat ? undefined : { backgroundColor: token("code-bg") }}
       onContextMenu={copyMenu(() =>
         [
           props.patch ? { label: "Copy patch", onSelect: () => void copyText(props.patch ?? "", "Patch") } : undefined,
@@ -164,6 +166,7 @@ export function DiffBlock(props: {
         wrap={props.wrap ?? codeWrap()}
         whitespace={codeWhitespace()}
         maxHeight={props.maxHeight ?? CODE_MAX_HEIGHT}
+        flat={props.flat}
         label={label()}
         onCounts={(e: { added: number; removed: number; changes: number }) => counts.set(e)}
         onChange={(e: { index: number }) => {

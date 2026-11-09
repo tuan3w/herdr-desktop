@@ -49,6 +49,17 @@ function TurningGlyph() {
  */
 function Footer(props: { ctx: RowContext; active: boolean }) {
   const working = () => props.ctx.model.working();
+  // A step that runs under an opened fold is the live line already (its shape, its words, its clock): saying it again
+  // under it would be the same fact twice.
+  const covered = () => {
+    const last = props.ctx.model.rows().at(-1);
+    return (
+      last?.kind === "steps" &&
+      last.steps.some((st) =>
+        st.calls.some((c) => c.item.tool?.status === "pending" || c.item.tool?.status === "inProgress"),
+      )
+    );
+  };
   const ended = (): string | null => {
     const v = props.ctx.model.view();
     if (v?.phase !== "ended") return null;
@@ -63,7 +74,7 @@ function Footer(props: { ctx: RowContext; active: boolean }) {
           </View>
         )}
       </If>
-      <If when={working()}>
+      <If when={!covered() ? working() : null}>
         {(w) => (
           <View
             role="timer"
@@ -82,7 +93,7 @@ function Footer(props: { ctx: RowContext; active: boolean }) {
             </View>
             {/* An ellipsis, not a fade: GTK cuts one clipped line at a word, so a long command left a gap before the clock
                 and its fade fell on the empty end (owner, 2026-11-09, "not well aligned"). */}
-            <Clipped boxClass="min-w-0 shrink" class="text-sm text-muted-foreground">
+            <Clipped boxClass="min-w-0 shrink" class="text-base text-muted-foreground">
               {w().toolLine}
             </Clipped>
             <If when={w().seconds !== null}>
@@ -94,6 +105,20 @@ function Footer(props: { ctx: RowContext; active: boolean }) {
             </If>
           </View>
         )}
+      </If>
+      <If when={!covered() && (working()?.tail.length ?? 0) > 0}>
+        <View class="gap-0.5 pl-5 pt-1">
+          <Each of={working()!.tail}>
+            {(line) => (
+              <Text
+                class="font-mono text-xs text-muted-foreground"
+                style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
+              >
+                {line()}
+              </Text>
+            )}
+          </Each>
+        </View>
       </If>
     </View>
   );

@@ -1,5 +1,6 @@
 import type { Row } from "#lib/session-rows";
 import { linesShown, subagentLinesPt, subagentsOf } from "#lib/session-subagents";
+import { OUTPUT_LINES } from "#lib/session-text";
 
 /**
  * How far from the end the list still pulls the view down as rows grow (`autoscrollToBottomThreshold`). Small on purpose:
@@ -68,6 +69,32 @@ function markdownPt(text: string): number {
   return pt;
 }
 
+/** A line of a step's plain output, and of the live tail under a running step. */
+export const OUT_LINE_PT = 16;
+
+/**
+ * A step: its line, and while one of its calls runs the two-line tail of what it prints. Open, each call is its command in
+ * one code block (header, then its lines up to what the block shows folded) and its output as plain lines, and a thought
+ * before the step is a line of its own.
+ */
+function stepsPt(row: Extract<Row, { kind: "steps" }>): number {
+  let pt = 8;
+  for (const step of row.steps) {
+    const running = step.calls.some((c) => c.item.tool?.status === "pending" || c.item.tool?.status === "inProgress");
+    pt += 44 + (running ? 2 * OUT_LINE_PT + 12 : 0);
+    if (!step.open) continue;
+    pt += 32 * step.thoughts.length + 12;
+    for (const call of step.calls) {
+      const tool = call.item.tool;
+      if (!tool) continue;
+      const command = (tool.subject ?? "").split("\n").length;
+      const output = Math.min(tool.head.length + tool.tail.length, OUTPUT_LINES) + 0.5;
+      pt += 16 + CODE_HEAD_PT + CODE_LINE_PT * Math.min(command, CODE_SHOWN) + OUT_LINE_PT * output;
+    }
+  }
+  return pt;
+}
+
 /** How tall one row draws, roughly, from what it holds: the measured heights of each kind on macOS (`docs/PERFORMANCE.md`). */
 export function rowPt(row: Row): number {
   switch (row.kind) {
@@ -76,8 +103,8 @@ export function rowPt(row: Row): number {
     case "agent":
       // The row's padding and the copy bar under it.
       return 40 + markdownPt(row.item.text ?? "");
-    case "calls":
-      return 10 + 30 * row.calls.length;
+    case "steps":
+      return stepsPt(row);
     case "work":
       return 52;
     case "effects":
@@ -85,8 +112,6 @@ export function rowPt(row: Row): number {
     case "subagent":
       // The card's header, and while one works (or the card is open) a line of `SUBAGENT_LINE_PT` for each subagent.
       return 48 + subagentLinesPt(row.item.tool ? linesShown(subagentsOf(row.item.tool), row.open) : 0);
-    case "thought":
-      return 36;
     default:
       return 32;
   }

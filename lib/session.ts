@@ -13,7 +13,7 @@ import type { Accessor } from "nsh";
 
 import { revision } from "#lib/herdr";
 import { buildRows, type Row, type TurnCarry, unitStart } from "#lib/session-rows";
-import { liveCount, liveLine } from "#lib/session-text";
+import { liveCount, liveLine, liveTail } from "#lib/session-text";
 
 /**
  * One chat's data for a screen. The Rust side holds the conversation; this file pulls it the way `docs/ARCHITECTURE.md`
@@ -127,6 +127,8 @@ export interface Working {
    * would be invented.
    */
   seconds: number | null;
+  /** The last lines the call it names has printed, at most two: a peek at what it is doing, empty while it thinks. */
+  tail: string[];
   /** Whole minutes without any event from the agent, once it is a minute or more: the honest stuck signal. */
   quietMinutes: number | null;
   /** The agent was heard from within the last minute and nothing waits for the person: the line may show it moving. */
@@ -428,14 +430,14 @@ export function createSessionModel(port: SessionPort, hooks: SessionHooks): Sess
       open.length === 0 ? thinkingSince : named.some((t) => t === undefined) ? null : Math.min(...(named as number[]));
     return {
       toolLine: liveLine(open, v.cwd),
+      tail: open.length > 0 ? liveTail(open.at(-1)!) : [],
       seconds: since === null ? null : Math.max(0, Math.floor((now - since) / 1000)),
       quietMinutes: quiet >= QUIET_AFTER ? Math.floor(quiet / 60) : null,
       live: v.waiting.length === 0 && quiet < QUIET_AFTER,
     };
   });
 
-  const toggle = (row: Row): void =>
-    choose(row.key, row.kind === "work" ? row.work.open : row.kind === "thought" ? row.open : false);
+  const toggle = (row: Row): void => choose(row.key, row.kind === "work" ? row.work.open : false);
 
   const choose = (key: string, now: boolean): void => choices.update((m) => new Map(m).set(key, !now));
 

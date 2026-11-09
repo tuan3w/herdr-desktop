@@ -68,6 +68,9 @@ pub struct CodeViewProps {
     /// The font family (default the theme's `font-mono`).
     #[prop(default)]
     pub font_family: Prop<Option<SharedString>>,
+    /// Draw on the page's own colour, not on the code surface: for a block inside a card that has its own hairline (a step).
+    #[prop(default)]
+    pub flat: Prop<bool>,
 }
 
 /// A diff of two texts or a unified patch, syntax-highlighted on both sides, with the words that
@@ -114,6 +117,9 @@ pub struct CodeDiffProps {
     /// The font family (default the theme's `font-mono`).
     #[prop(default)]
     pub font_family: Prop<Option<SharedString>>,
+    /// Draw on the page's own colour, not on the code surface: for a block inside a card that has its own hairline (a step).
+    #[prop(default)]
+    pub flat: Prop<bool>,
 }
 
 /// How a diff's two sides sit.
@@ -411,7 +417,7 @@ pub fn CodeView(props: CodeViewProps, cx: Scope<NoEvent>) -> impl IntoElement {
     render::body(Body {
         rows,
         geometry,
-        palette: computed(palette),
+        palette: computed(move || palette(props.flat.get())),
         family,
         label: props.label,
         line_numbers: computed(move || props.line_numbers.get()),
@@ -553,7 +559,7 @@ pub fn CodeDiff(props: CodeDiffProps, cx: Scope<CodeDiffEvent>) -> impl IntoElem
     render::body(Body {
         rows,
         geometry,
-        palette: computed(palette),
+        palette: computed(move || palette(props.flat.get())),
         family,
         label: props.label,
         line_numbers: computed(|| true),

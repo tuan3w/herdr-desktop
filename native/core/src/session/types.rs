@@ -138,6 +138,8 @@ pub struct ToolView {
     /// What the agent sent the tool, as text (a string as it is, anything else as indented JSON), cut at
     /// 4 KiB.
     pub input: Option<String>,
+    /// What the agent says the call is for (omp's `i`, Claude Code's `description`), one safe line.
+    pub intent: Option<String>,
     /// The files it touches.
     pub locations: Vec<Location>,
     /// The first lines of its output.

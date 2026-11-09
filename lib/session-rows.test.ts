@@ -2,7 +2,16 @@ import { expect, test } from "nsh/test";
 
 import type { SessionItem, ToolItem, ToolStatusName } from "herdr-desktop/native";
 
-import { buildRows, itemKey, type Row, type RowInput, spanSeconds, type TurnCarry, unitStart } from "#lib/session-rows";
+import {
+  buildRows,
+  callsKey,
+  itemKey,
+  type Row,
+  type RowInput,
+  spanSeconds,
+  type TurnCarry,
+  unitStart,
+} from "#lib/session-rows";
 
 let next = 1;
 const say = (role: "user" | "agent" | "thought", text: string): SessionItem => ({
@@ -78,13 +87,13 @@ test("a choice of the person beats the default either way", () => {
   const items = [say("user", "go"), tool("ls"), say("agent", "ok")];
   const group = buildRows(input(items))[1]!;
   const opened = buildRows(input(items, { open: new Map([[group.key, true]]) }));
-  expect(kinds(opened)).toEqual(["user", "work", "calls", "agent"]);
+  expect(kinds(opened)).toEqual(["user", "work", "steps", "agent"]);
   const live = [say("user", "go"), tool("ls", "inProgress")];
   const key = buildRows(input(live, { running: true }))[1]!.key;
   expect(kinds(buildRows(input(live, { running: true, open: new Map([[key, true]]) })))).toEqual([
     "user",
     "work",
-    "calls",
+    "steps",
   ]);
 });
 
@@ -93,10 +102,10 @@ test("narration between calls folds with them: only the turn's last message stay
   const rows = buildRows(input(items));
   expect(kinds(rows)).toEqual(["user", "work", "agent"]);
   const open = buildRows(input(items, { open: new Map([[rows[1]!.key, true]]) }));
-  expect(kinds(open)).toEqual(["user", "work", "calls", "narration", "calls", "agent"]);
+  expect(kinds(open)).toEqual(["user", "work", "steps", "narration", "steps", "agent"]);
 });
 
-test("calls with nothing between them are one row, so they draw as one box; narration or a thought splits the run", () => {
+test("calls with nothing between them are one step; the steps between two sentences of the agent are one row, one card", () => {
   const items = [
     say("user", "go"),
     tool("a"),
@@ -108,22 +117,65 @@ test("calls with nothing between them are one row, so they draw as one box; narr
   ];
   const group = buildRows(input(items))[1]!;
   const rows = buildRows(input(items, { open: new Map([[group.key, true]]) }));
-  const runs = rows.flatMap((r) => (r.kind === "calls" ? [r.calls.length] : []));
+  const runs = rows.flatMap((r) => (r.kind === "steps" ? r.steps.map((st) => st.calls.length) : []));
   expect(runs).toEqual([3, 1]);
 });
 
-test("a call's own open choice changes its run's row and no other", () => {
+test("a step's own open choice changes its row and no other", () => {
   const items = [say("user", "go"), tool("a"), tool("b"), say("agent", "ok"), tool("c"), say("agent", "done")];
   const group = buildRows(input(items))[1]!;
   const base = new Map([[group.key, true]]);
   const before = buildRows(input(items, { open: base }));
   const after = buildRows(
-    input(items, { open: new Map([...base, [itemKey(items[2]!.id), true]]) }),
+    input(items, { open: new Map([...base, [callsKey(items[1]!.id), true]]) }),
     new Map(before.map((r) => [r.key, r])),
   );
-  const calls = (rows: Row[]) => rows.filter((r) => r.kind === "calls");
-  expect(calls(after)[0]).not.toBe(calls(before)[0]);
-  expect(calls(after)[1]).toBe(calls(before)[1]);
+  const cards = (rows: Row[]) => rows.filter((r) => r.kind === "steps");
+  expect(cards(after)[0]).not.toBe(cards(before)[0]);
+  expect(cards(after)[0]).toMatchObject({ steps: [{ open: true }] });
+  expect(cards(after)[1]).toBe(cards(before)[1]);
+});
+
+test("a thought is not a row: it belongs to the step after it, and one with no step after it is not drawn", () => {
+  const thinks = (text: string, startedMs: number, endedMs: number): SessionItem => ({
+    ...say("thought", text),
+    startedMs,
+    endedMs,
+  });
+  const items = [
+    say("user", "go"),
+    thinks("first", 0, 3000),
+    tool("a"),
+    thinks("second", 3000, 4500),
+    thinks("third", 4500, 9000),
+    tool("b"),
+    thinks("last, with nothing after it", 9000, 9500),
+    say("agent", "done"),
+  ];
+  const group = buildRows(input(items))[1]!;
+  const rows = buildRows(input(items, { open: new Map([[group.key, true]]) }));
+  // A thought splits the steps but not the card: only the agent's words end a card.
+  expect(kinds(rows)).toEqual(["user", "work", "steps", "agent"]);
+  const [card] = rows.flatMap((r) => (r.kind === "steps" ? [r] : []));
+  const steps = card!.steps;
+  expect(steps).toHaveLength(2);
+  expect(steps[0]!.thoughts.map((t) => t.item.text)).toEqual(["first"]);
+  expect(steps[1]!.thoughts.map((t) => t.item.text)).toEqual(["second", "third"]);
+  expect(steps[0]!.thoughts[0]).toMatchObject({ open: false, seconds: 3 });
+  // Opening one thought changes its step's row and nothing else.
+  const opened = buildRows(
+    input(items, {
+      open: new Map([
+        [group.key, true],
+        [itemKey(items[3]!.id), true],
+      ]),
+    }),
+    new Map(rows.map((r) => [r.key, r])),
+  );
+  const [again] = opened.flatMap((r) => (r.kind === "steps" ? [r] : []));
+  expect(again).not.toBe(card);
+  expect(again!.steps[0]).toEqual(steps[0]);
+  expect(again!.steps[1]!.thoughts[0]).toMatchObject({ open: true });
 });
 
 test("the unit a streaming message belongs to becomes a group when a call follows it", () => {
@@ -337,9 +389,9 @@ test("a failure the agent ran again is a count on the group and a muted mark on 
   expect(worked(rows).work.summary.retried).toBe(1);
   expect(effectsOf(rows)?.failures ?? []).toEqual([]);
   const open = buildRows(input(items, { open: new Map([[worked(rows).key, true]]) }));
-  const calls = open.find((r) => r.kind === "calls");
-  if (calls?.kind !== "calls") throw new Error("no calls");
-  expect(calls.calls.map((c) => c.retried)).toEqual([true, false, false]);
+  const card = open.find((r) => r.kind === "steps");
+  if (card?.kind !== "steps") throw new Error("no steps");
+  expect(card.steps[0]!.calls.map((c) => c.retried)).toEqual([true, false, false]);
 });
 
 test("a failure nothing ran again stands, with the last line it printed", () => {
