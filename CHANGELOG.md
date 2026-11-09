@@ -4,15 +4,36 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
-### Changed
+## [0.1.0-alpha.5] - 2026-11-09
 
-- The window has one line of chrome at the top: on macOS the system title bar is gone and the traffic lights sit in
-  the sidebar's first line; the tabs, the sidebar's top and a chat's header share that line's height and centre.
-- Under a row of tabs, a chat's header no longer repeats its title; `Changes` shows once, as a tab or a button.
-- The sidebar is quieter and lines up: no app name row or keycaps, search opens from an icon, idle agents carry no
-  mark, a worktree is one label (its branch), and every title, label and sub-line starts on one edge.
-- While an agent works the message box says `Queue a message` instead of a help line under it, and Stop is a quiet
-  ring rather than the loudest button on screen.
+### A quieter window, everything on one edge
+
+On macOS the system title bar is gone and the traffic lights sit in the
+sidebar's first line; that line, the tabs and a chat's header share one
+height and centre. Titles, labels and messages start on the same edges, so
+the window reads as one page.
+
+> [!TIP]
+> Try it: in the sidebar, click `Search` (the magnifier at the top) or press
+> `Cmd+0` (`Ctrl+0` on Linux) and type part of a project or agent name.
+
+- Under a row of tabs, a chat's header no longer repeats its title; its
+  details open from `...` at the end, and `Changes` shows once, as a tab or
+  a button.
+- The sidebar is quieter: no app name row or key hints, idle agents carry no
+  mark, and a worktree is one label, its branch.
+- While an agent works, the message box says `Queue a message` instead of a
+  help line under it, and Stop is a quiet ring, so the agent that waits for
+  you stays the one loud thing on screen.
+- A tab can be wider before its title is cut.
+- Linux builds are back: the release has a Linux x86_64 archive again, and
+  the install command picks it on Linux.
+
+**Not checked**
+
+- Seen on Linux only. On macOS the room left for the traffic lights and
+  dragging the window by its top line have not been looked at.
+- The Linux archive is built by the release, not tested by it.
 
 ## [0.1.0-alpha.4] - 2026-11-08
 
