@@ -6,14 +6,14 @@ import type { NotificationSupport } from "herdr-desktop/native";
 
 import { Machines, machineForm } from "#components/machines";
 import { LookPage } from "#components/settings-look";
-import { Btn, FOCUS_RING, Modal, notify, SettingRow, Switch } from "#kit";
+import { Btn, copyText, FOCUS_RING, Modal, notify, SettingRow, Switch } from "#kit";
 import { closeSettings, settingsPage } from "#lib/actions";
 import type { SettingsPage } from "#lib/actions";
 import { revision } from "#lib/herdr";
 import { DIALOG_LARGE } from "#lib/layout";
 import { hoverTransition } from "#lib/motion";
 import { announceOutput, checkUpdates, largeTargets, reduceMotionOverride, settingsReady } from "#lib/settings";
-import { availableUpdate, checkForUpdate } from "#lib/updates";
+import { checkForUpdate, UPDATE_COMMAND, updateCheck } from "#lib/updates";
 
 import app from "../nsh.json";
 
@@ -160,14 +160,66 @@ function AboutPage() {
         description="When this page opens, asks api.github.com for the newest release of Herdr Desktop. Nothing else is sent and nothing is installed."
         control={<Switch label="Check for updates" checked={checkUpdates()} onChange={(v) => checkUpdates.set(v)} />}
       />
-      <If when={checkUpdates() && availableUpdate() !== null}>
-        <SettingRow
-          label="Update available"
-          description={`Version ${availableUpdate()?.version} is out. This is ${app.version}.`}
-          control={<Btn small label="Open release page" onPress={() => void openUrl(availableUpdate()?.url ?? "")} />}
-        />
+      <If when={checkUpdates()}>
+        <UpdateRow />
       </If>
     </View>
+  );
+}
+
+/**
+ * What the update check found, said either way (honest: silence would read as up to date): checking, up to date, why it
+ * could not tell with a retry, or the newer version with how to get it. Updating is the install script run again, so the
+ * row copies that line; the release page has the notes.
+ */
+function UpdateRow() {
+  const check = updateCheck;
+  return (
+    <If
+      when={check().kind === "newer"}
+      else={
+        <If
+          when={check().kind === "failed"}
+          else={
+            <SettingRow
+              label={check().kind === "current" ? "Up to date" : "Checking for updates…"}
+              description={check().kind === "current" ? `${app.version} is the newest release.` : undefined}
+            />
+          }
+        >
+          <SettingRow
+            label="Could not check for updates"
+            description={(() => {
+              const c = check();
+              return c.kind === "failed" ? `${c.reason}.` : "";
+            })()}
+            control={<Btn small label="Try again" onPress={() => void checkForUpdate(app.version)} />}
+          />
+        </If>
+      }
+    >
+      <SettingRow
+        label="Update available"
+        description={(() => {
+          const c = check();
+          const version = c.kind === "newer" ? c.version : "";
+          return `Version ${version} is out; this is ${app.version}. To update, run the install command again in a terminal, then restart the app.`;
+        })()}
+        control={
+          <View class="flex-row gap-2">
+            <Btn small label="Copy install command" onPress={() => void copyText(UPDATE_COMMAND, "Install command")} />
+            <Btn
+              small
+              label="Open release page"
+              onPress={() => {
+                const c = check();
+                if (c.kind === "newer") void openUrl(c.url);
+              }}
+            />
+          </View>
+        }
+      />
+    </If>
   );
 }
 

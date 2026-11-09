@@ -4,9 +4,9 @@ import { Clipboard, openUrl } from "nsh";
 import { notify } from "#kit";
 import { isImageName, routeLink } from "#lib/files";
 import type { LinkPanel } from "#lib/link-panel";
-import { browseFiles, viewFile } from "#lib/open-files";
+import { browseFiles, searchFolders, viewFile } from "#lib/open-files";
 
-/** Where a pressed link is: the pane's machine, the folder a relative path is looked for in, and its surface's side panel. */
+/** Where a pressed link is: the pane's machine, the folder a relative path is looked for in first, and its surface's side panel. */
 export interface LinkContext {
   machine: string;
   cwd?: string | null;
@@ -19,12 +19,13 @@ export interface LinkContext {
 const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 /**
- * What a pressed link does, for the terminal, Markdown and tool output alike (`routeLink` decides). With a side panel, a
- * file opens in it at its line (a picture fitted) and so does a web page: an https address, this computer's own
- * `localhost`, and a remote machine's `localhost` through a tunnel. `mod` held, or no panel, is the old way: a file opens
- * in the file viewer's tab and an address in the browser. A folder always opens in the browser of files. A path is found
- * in the pane's folder or the two above it on the pane's machine. Anything else is copied, never opened. A failure says
- * what happened in a toast (which screen readers hear too).
+ * What a pressed link does, for the terminal, Markdown, tool rows and the person's own message alike (`routeLink`
+ * decides). With a side panel, a file opens in it at its line (a picture fitted) and so does a web page: an https
+ * address, this computer's own `localhost`, and a remote machine's `localhost` through a tunnel. `mod` held, or no panel,
+ * is the old way: a file opens in the file viewer's tab and an address in the browser. A folder always opens in the
+ * browser of files. A relative path (`./` and `../` too) is found on the pane's machine in its folder and the two above
+ * it, then in the checkout and the project that folder belongs to (`searchFolders`); a miss says which folder it is not
+ * in. Anything else is copied, never opened. A failure says what happened in a toast (which screen readers hear too).
  */
 export async function openLink(
   kind: "url" | "path",
@@ -41,13 +42,8 @@ export async function openLink(
     panel: panel !== undefined,
   });
   if (route === "file" && at) {
-    const folder = at.cwd ?? (/^(\/|~)/.test(target) ? "/" : null);
-    if (folder === null) {
-      notify("Cannot tell which folder that path is relative to", { type: "error" });
-      return;
-    }
     try {
-      const found = await Files.find(at.machine, folder, target);
+      const found = await Files.find(at.machine, searchFolders(at.machine, at.cwd), target);
       if (found.kind === "dir") browseFiles(at.machine, found.path);
       else if (!panel) viewFile(at.machine, found.path, line);
       else if (isImageName(found.path)) panel.show({ kind: "picture", machine: at.machine, path: found.path });

@@ -2,6 +2,7 @@ import { Files } from "herdr-desktop/native";
 import { signal } from "nsh";
 
 import { isPath } from "#lib/links";
+import { searchFolders } from "#lib/open-files";
 
 /**
  * Pictures an agent's Markdown names by path (`![after](./after.png)`), shown as thumbnails (`components/chat-picture.tsx`).
@@ -79,14 +80,13 @@ async function find(key: string, machine: string, folder: string, src: string, f
   } catch {
     // A malformed escape is looked for as written.
   }
-  const absolute = /^(\/|~)/.test(target);
-  if (!isPath(target) || (folder === "" && !absolute)) {
+  if (!isPath(target)) {
     set(key, { state: "missing", message: "Not a path on the agent's machine", at: Date.now() });
     return;
   }
   let path: string;
   try {
-    const found = await Files.find(machine, folder === "" ? "/" : folder, target);
+    const found = await Files.find(machine, searchFolders(machine, folder), target);
     if (found.kind !== "file") throw new Error(`${target} is not a file`);
     path = found.path;
   } catch (e) {

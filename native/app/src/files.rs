@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 
 use herdr_core::files::{
     self, EntryKind, FileView, Files as MachineFiles, Quick, QuickSearch, Tunnel, UploadError,
-    ViewKind, candidates,
+    ViewKind,
 };
 use nsh_core::prelude::*;
 use parking_lot::Mutex;
@@ -398,37 +398,25 @@ impl Files {
         .await
     }
 
-    /// Finds what an agent's output named: a path is looked for in `cwd` and the two folders above it
-    /// (an absolute path only where it says), and git's `a/` and `b/` prefixes are tried without.
+    /// Finds what an agent's output named: a relative path is looked for in each of `folders` in turn (the
+    /// session's folder, then its checkout and its project) and the two folders above each, `./` and `../`
+    /// folded, git's `a/` and `b/` prefixes tried without; an absolute or `~/` path only where it says.
     /// Resolves with the first match and whether it is a folder or a file; throws `<path> isn't in
-    /// <cwd>` when there is none, which is also what a person reads.
-    pub async fn find(machine: String, cwd: String, target: String) -> Result<Found, String> {
+    /// <first folder>` when there is none, which is also what a person reads.
+    pub async fn find(
+        machine: String,
+        folders: Vec<String>,
+        target: String,
+    ) -> Result<Found, String> {
         let engine = engine()?;
         run(move || {
             let files = engine.files_of(&machine)?;
-            let tries = candidates(&cwd, &target);
-            let mut denied = None;
-            for path in &tries {
-                match files.stat(path) {
-                    Ok(stat) => {
-                        return Ok(Found {
-                            path: path.clone(),
-                            kind: stat.kind.into(),
-                        });
-                    }
-                    Err(e) if e.kind == files::FileErrorKind::NotFound => {}
-                    // A path that exists but cannot be read is the answer, not a reason to look elsewhere.
-                    Err(e) if e.kind == files::FileErrorKind::Denied => denied = Some(e.message),
-                    Err(e) => return Err(e.message),
-                }
-            }
-            Err(denied.unwrap_or_else(|| {
-                if tries.len() > 1 {
-                    format!("{target} isn't in {cwd} or the folders above it")
-                } else {
-                    format!("{target} does not exist")
-                }
-            }))
+            let (path, stat) =
+                files::find_path(files.as_ref(), &folders, &target).map_err(|e| e.message)?;
+            Ok(Found {
+                path,
+                kind: stat.kind.into(),
+            })
         })
         .await
     }

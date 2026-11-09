@@ -9,10 +9,21 @@ import { openLink } from "#components/open-link";
 import { StatusGlyph } from "#components/status-glyph";
 import { Clipped, FOCUS_RING, FOCUS_RING_INSET, Icon } from "#kit";
 import type { LinkPanel } from "#lib/link-panel";
+import { pathOfUri } from "#lib/message-files";
 import { hoverTransition } from "#lib/motion";
-import { viewFile } from "#lib/open-files";
 import { pictureSize } from "#lib/session-pictures";
 import { outputView, shortPath, toolKindOf, toolLine, toolStatusText, visibleText } from "#lib/session-text";
+
+/** Where a call's paths are and where a press on one opens: found as a message's link is, in the chat's side panel. */
+interface PathContext {
+  machine: string;
+  cwd: string;
+  links?: LinkPanel;
+}
+
+/** Opens a path a call named, relative or not, at its line: the side panel when the chat has one, else the viewer. */
+const openPath = (at: PathContext, path: string, line?: number | null): void =>
+  void openLink("path", path, line, null, { machine: at.machine, cwd: at.cwd, panel: at.links });
 
 /** What a cut subject fades into: the page, then the row's hover tint. */
 const ROW_FADE = "from-background/0 to-background";
@@ -127,30 +138,20 @@ export function ToolRow(props: { tool: ToolItem; cwd: string; open: boolean; onT
   );
 }
 
-/** What one edit looks like: the file's change as a diff, its name a link to the file in the viewer. */
-function Edit(props: { diff: DiffItem; machine: string; cwd: string }) {
+/** What one edit looks like: the file's change as a diff, its name a link to the file (the side panel, else the viewer). */
+function Edit(props: { diff: DiffItem; at: PathContext }) {
   return (
     <DiffBlock
-      path={shortPath(props.diff.path, props.cwd)}
+      path={shortPath(props.diff.path, props.at.cwd)}
       oldText={props.diff.old ?? ""}
       newText={props.diff.new}
       created={props.diff.old == null}
       context={3}
       maxHeight={TOOL_BLOCK_HEIGHT}
-      onOpenFile={() => viewFile(props.machine, props.diff.path)}
+      onOpenFile={() => openPath(props.at, props.diff.path)}
     />
   );
 }
-
-/** The path a `file:` address names on the agent's machine, or `null` for any other address. */
-const pathOf = (uri: string | null | undefined): string | null => {
-  if (!uri || !uri.startsWith("file://")) return null;
-  try {
-    return decodeURIComponent(uri.slice("file://".length));
-  } catch {
-    return null;
-  }
-};
 
 /**
  * What a message or a tool call carries besides text: a small picture is drawn (at most 220 pt tall), a bigger one, a
@@ -162,7 +163,7 @@ export function PartChips(props: { parts: readonly PartView[]; machine: string; 
   return (
     <Each of={props.parts as PartView[]} key="index">
       {(part) => {
-        const path = () => pathOf(part().uri);
+        const path = () => pathOfUri(part().uri);
         const drawn = () =>
           part().partKind === "image" && part().data
             ? `data:${part().mime ?? "image/png"};base64,${part().data}`
@@ -176,9 +177,9 @@ export function PartChips(props: { parts: readonly PartView[]; machine: string; 
             .join(" · ");
         const press = () => {
           const p = path();
-          const at = { machine: props.machine, cwd: props.cwd, panel: props.links };
-          if (p) void (props.links ? openLink("path", p, null, null, at) : viewFile(props.machine, p));
-          else if (part().uri && /^https?:\/\//i.test(part().uri!)) void openLink("url", part().uri!, null, null, at);
+          if (p) openPath(props, p);
+          else if (part().uri && /^https?:\/\//i.test(part().uri!))
+            void openLink("url", part().uri!, null, null, { machine: props.machine, panel: props.links });
         };
         return (
           <View class="items-start py-1">
@@ -216,19 +217,19 @@ export function PartChips(props: { parts: readonly PartView[]; machine: string; 
 }
 
 /** The files a call touched as `path:line`, four of them and then `+N more`; a press opens the file at the line. */
-function Locations(props: { locations: readonly LocationView[]; machine: string; cwd: string; all: boolean }) {
+function Locations(props: { locations: readonly LocationView[]; at: PathContext; all: boolean }) {
   const shown = () => (props.all ? props.locations : props.locations.slice(0, 4));
   return (
     <View role="list" accessibilityLabel="Files it touched" class="gap-1">
       <Each of={shown() as LocationView[]} key="index">
         {(loc) => (
           <Button
-            onPress={() => viewFile(props.machine, loc().path, loc().line)}
-            accessibilityLabel={`Open ${shortPath(loc().path, props.cwd)}${loc().line ? ` at line ${loc().line}` : ""}`}
+            onPress={() => openPath(props.at, loc().path, loc().line)}
+            accessibilityLabel={`Open ${shortPath(loc().path, props.at.cwd)}${loc().line ? ` at line ${loc().line}` : ""}`}
             class={`flex-row items-center gap-2 self-start rounded-md py-1 ${FOCUS_RING}`}
           >
             <Icon name="file" size={12} tone="muted-foreground" />
-            <Text class="font-mono text-xs text-foreground underline">{`${shortPath(loc().path, props.cwd)}${loc().line ? `:${loc().line}` : ""}`}</Text>
+            <Text class="font-mono text-xs text-foreground underline">{`${shortPath(loc().path, props.at.cwd)}${loc().line ? `:${loc().line}` : ""}`}</Text>
           </Button>
         )}
       </Each>
@@ -242,9 +243,16 @@ function Locations(props: { locations: readonly LocationView[]; machine: string;
 /**
  * Behind a tool row: the command whole (what the agent ran is read in full, never cut), the edits as diffs, and the
  * output, a few lines first and `Show all N lines` for the rest. The agent keeps the first and the last lines of an
- * output; a gap between them says `N lines not kept`.
+ * output; a gap between them says `N lines not kept`. A path it names opens as a message's link does, in `links`.
  */
-export function ToolDetails(props: { tool: ToolItem; machine: string; cwd: string; all: boolean; onMore: () => void }) {
+export function ToolDetails(props: {
+  tool: ToolItem;
+  machine: string;
+  cwd: string;
+  links?: LinkPanel;
+  all: boolean;
+  onMore: () => void;
+}) {
   const output = () => outputView(props.tool, props.all);
   const text = () => {
     const o = output();
@@ -295,15 +303,19 @@ export function ToolDetails(props: { tool: ToolItem; machine: string; cwd: strin
         <CodeBlock code={subject()} language="bash" compact collapsedLines={0} maxHeight={TOOL_BLOCK_HEIGHT} />
       </If>
       <If when={props.tool.locations.length > 0 && props.tool.diffs.length === 0}>
-        <Locations locations={props.tool.locations} machine={props.machine} cwd={props.cwd} all={props.all} />
+        <Locations
+          locations={props.tool.locations}
+          at={{ machine: props.machine, cwd: props.cwd, links: props.links }}
+          all={props.all}
+        />
       </If>
       <Each of={props.tool.diffs} key="index">
-        {(diff) => <Edit diff={diff()} machine={props.machine} cwd={props.cwd} />}
+        {(diff) => <Edit diff={diff()} at={{ machine: props.machine, cwd: props.cwd, links: props.links }} />}
       </Each>
       <If when={inputText() !== ""}>
         <CodeBlock code={inputText()} compact collapsedLines={0} maxHeight={TOOL_BLOCK_HEIGHT} />
       </If>
-      <PartChips parts={props.tool.parts} machine={props.machine} cwd={props.cwd} />
+      <PartChips parts={props.tool.parts} machine={props.machine} cwd={props.cwd} links={props.links} />
       <If when={output().lines.length > 0}>
         <CodeBlock code={text()} compact collapsedLines={0} maxHeight={TOOL_BLOCK_HEIGHT} />
         <If when={output().hidden > 0}>

@@ -209,6 +209,8 @@ struct Pane {
     reads: AtomicUsize,
     /// What a `send_input` of keys does to the log: appended when `enter` goes in.
     on_enter: Mutex<Option<OnEnter>>,
+    /// The machine's files (a temporary home), for the agent's skill folders; `None`: not read.
+    files: Mutex<Option<Arc<dyn herdr_core::files::Files>>>,
 }
 
 impl Pane {
@@ -225,6 +227,7 @@ impl Pane {
             keys: Mutex::new(Vec::new()),
             reads: AtomicUsize::new(0),
             on_enter: Mutex::new(None),
+            files: Mutex::new(None),
         })
     }
 
@@ -261,6 +264,9 @@ impl PaneIo for Pane {
     }
     fn read_file(&self, _: &str, _: usize) -> Result<Option<Vec<u8>>, String> {
         Ok(None)
+    }
+    fn files(&self) -> Option<Arc<dyn herdr_core::files::Files>> {
+        self.files.lock().clone()
     }
 }
 
@@ -326,6 +332,7 @@ fn fast() -> ObservedConfig {
         max_ask_steps: 6,
         tail_start: 192 * 1024,
         tail_max: 64 * 1024 * 1024,
+        skills_every: Duration::from_millis(50),
     }
 }
 
@@ -1331,4 +1338,123 @@ fn omp_commands_typed_from_the_box_are_confirmed_by_what_they_write_not_by_an_ec
     // A command that writes nothing (a dialog opened in the terminal) is still called out: look there.
     chat.send("/settings").expect("typed");
     assert!(alarm(&chat).is_some_and(|p| p.contains("Check the terminal")));
+}
+
+// ---- the skills in the agent's folders -----------------------------------------------------------------------
+
+fn skill(dir: &Path, folder: &str, front: &str) {
+    let d = dir.join(folder);
+    std::fs::create_dir_all(&d).expect("mkdir");
+    std::fs::write(d.join("SKILL.md"), format!("---\n{front}\n---\n# Body\n")).expect("skill");
+}
+
+/// A project under the rig's home with skills where omp and Claude Code look, and one above the repository's root.
+fn skilled_pane(rig: &Rig, location: Location) -> (Arc<Pane>, PathBuf) {
+    let work = rig.home.join("work");
+    let project = work.join("app");
+    std::fs::create_dir_all(project.join(".git")).expect("git");
+    skill(
+        &project.join(".claude/skills"),
+        "herdr-design",
+        "name: herdr-design\ndescription: Design the window",
+    );
+    skill(
+        &project.join(".claude/skills"),
+        "review-pr",
+        "description: Reviews it the disk's way",
+    );
+    skill(
+        &project.join(".agents/skills"),
+        "tdd",
+        "description: Test first",
+    );
+    // omp's own folders need a description.
+    skill(&project.join(".omp/skills"), "nodesc", "name: nodesc");
+    skill(
+        &rig.home.join(".omp/agent/skills"),
+        "mine",
+        "description: My own",
+    );
+    // Above the repository's root: no agent reads it.
+    skill(
+        &work.join(".claude/skills"),
+        "above",
+        "description: Not this project's",
+    );
+    let pane = Pane::new(location);
+    *pane.state.lock() = PaneState::Agent {
+        status: AgentStatus::Idle,
+        cwd: Some(project.display().to_string()),
+        title: None,
+    };
+    *pane.files.lock() = Some(Arc::new(herdr_core::files::LocalFiles::with_home(
+        &rig.home,
+    )));
+    (pane, project)
+}
+
+#[test]
+fn an_omp_chat_offers_the_skills_omp_reads_from_its_folders_typed_as_omp_takes_them() {
+    let rig = Rig::with(fast());
+    rig.append(&[json!({"type": "message", "id": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "hi"}]}})]);
+    let (pane, project) = skilled_pane(&rig, rig.located());
+    let chat = rig
+        .hub
+        .observe(LOCAL, "w1:p1", &OMP, pane)
+        .expect("observe");
+    let want = [
+        "skill:mine",
+        "skill:herdr-design",
+        "skill:review-pr",
+        "skill:tdd",
+    ];
+    assert!(
+        within(Duration::from_secs(5), || command_names(&chat.snapshot())
+            == want),
+        "the `/` list has {:?}",
+        command_names(&chat.snapshot())
+    );
+    let s = chat.snapshot();
+    let design = s
+        .commands
+        .iter()
+        .find(|c| c.name == "skill:herdr-design")
+        .expect("design");
+    assert_eq!(design.description, "Design the window");
+    assert!(
+        s.commands
+            .iter()
+            .all(|c| c.kind == herdr_core::session::CommandKind::Skill)
+    );
+
+    // A skill added while the chat is open shows on the next look.
+    skill(&project.join(".claude/skills"), "fresh", "description: New");
+    assert!(within(Duration::from_secs(5), || command_names(
+        &chat.snapshot()
+    )
+    .contains(&"skill:fresh".to_owned())));
+}
+
+#[test]
+fn a_claude_chat_offers_its_project_skills_before_the_log_lists_them_and_the_logs_entry_wins() {
+    let rig = Rig::with(fast());
+    rig.append(&[
+        c_skills(&[("review-pr", "Reviews a pull request")]),
+        c_say("a0", "ready"),
+    ]);
+    let (pane, _) = skilled_pane(&rig, rig.located());
+    let chat = rig
+        .hub
+        .observe(LOCAL, "w1:p1", &CLAUDE, pane)
+        .expect("observe");
+    assert!(
+        within(Duration::from_secs(5), || command_names(&chat.snapshot())
+            == ["review-pr", "herdr-design"]),
+        "the `/` list has {:?}",
+        command_names(&chat.snapshot())
+    );
+    assert_eq!(
+        chat.snapshot().commands[0].description,
+        "Reviews a pull request"
+    );
 }

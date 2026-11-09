@@ -249,15 +249,21 @@ test("the top buttons open what they say: new agent session, settings", async ()
   expect(app.shows("settings page look")).toBe(true);
 });
 
-test("agents are picked with the box at the row's right end, and Shift picks everything from the last pick", async () => {
+test("rows carry no pick boxes: an agent is picked from its menu or with Ctrl+press, Shift+press picks a range", async () => {
   const app = await ready();
-  await app.press("label:Select payments review");
+  expect(app.shows("label:Select payments review")).toBe(false);
+  await app.press("label:Options for payments review");
+  await app.press("Pick for a bulk action");
   expect(picked(app)).toBe("picked 1");
-  await app.press("label:Select payments review");
+  await app.keyboard.down("control");
+  await app.press(row("payments review"));
+  await app.keyboard.up("control");
   expect(picked(app)).toBe("picked 0");
-  await app.press("label:Select payments review");
+  await app.keyboard.down("control");
+  await app.press(row("payments review"));
+  await app.keyboard.up("control");
   await app.keyboard.down("shift");
-  await app.press("label:Select Fix login flow");
+  await app.press(row("Fix login flow"));
   await app.keyboard.up("shift");
   // payments review, auth (needs you) and Fix login flow (to review): the rows between the two picks.
   expect(picked(app)).toBe("picked 3");

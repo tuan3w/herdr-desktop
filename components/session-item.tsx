@@ -1,9 +1,10 @@
-import { effect, type JSX, Text, untracked, View } from "nsh";
+import { computed, effect, type JSX, Text, untracked, View } from "nsh";
 import { Button } from "nsh/base";
 
 import type { EffectKindName } from "herdr-desktop/native";
 
 import { type Folds, MarkdownText } from "#components/markdown";
+import { MessageFiles } from "#components/message-files";
 import { DiffStat, Disclosure, PartChips, ToolDetails, ToolRow, ToolStatus } from "#components/session-tool";
 import { TurnPictures } from "#components/turn-pictures";
 import { ActionMenu, type CopyEntry, copyMenu, copyText, FOCUS_RING, Icon, type IconName, IconButton } from "#kit";
@@ -11,6 +12,7 @@ import { openChanges } from "#lib/changes";
 import { CHAT_COLUMN } from "#lib/layout";
 import type { LinkPanel } from "#lib/link-panel";
 import { ofKind } from "#lib/list-item";
+import { filesLabel, messageFiles } from "#lib/message-files";
 import { type Arrivals, arrivals, arriving } from "#lib/motion";
 import { tally } from "#lib/perf-counts";
 import { plainText } from "#lib/plain-text";
@@ -43,27 +45,36 @@ function Line(props: { children: JSX.Element; class?: string }) {
 }
 
 /**
- * What the person wrote: a bubble on the right; the agent's words are on the page, not in a bubble. A message an agent
- * wrote (`RowContext.fromAgent`) is Markdown in the same bubble, at the bubble's size.
+ * What the person wrote: a bubble on the right; the agent's words are on the page, not in a bubble. The files it carries
+ * (`messageFiles`: a terminal chat's `@path`, a keeper's attachments) are tiles and chips under the words, and their tokens
+ * leave the words. A message an agent wrote (`RowContext.fromAgent`) is Markdown in the same bubble, at the bubble's size.
  */
 function UserRow(props: { row: Extract<Row, { kind: "user" }>; ctx: RowContext }) {
   tally("row.mount");
   // The pictures stand where the agent's `[Image #55]` placeholders named them.
   const text = () => visibleText(withoutPlaceholders(props.row.item.text ?? "", props.row.item.images.length));
+  const split = computed(() =>
+    props.ctx.fromAgent
+      ? { text: text(), files: [], rest: props.row.item.parts }
+      : messageFiles(text(), props.row.item.parts),
+  );
+  const label = () => {
+    const { text: words, files } = split();
+    const said = itemLabel({ ...props.row.item, text: words });
+    return files.length === 0
+      ? said
+      : `${said}${words === "" ? "" : /[.!?]$/.test(said) ? " " : ". "}${filesLabel(files)}`;
+  };
   const copy = (): CopyEntry[] => [{ label: "Copy message", onSelect: () => void copyText(text(), "Message") }];
   return (
     <Line class="items-end pt-3">
-      <View
-        role="group"
-        accessibilityLabel={itemLabel(props.row.item)}
-        class="max-w-[85%] rounded-2xl bg-muted px-4 py-2"
-      >
-        <If when={text()}>
+      <View role="group" accessibilityLabel={label()} class="max-w-[85%] rounded-2xl bg-muted px-4 py-2">
+        <If when={split().text}>
           <If
             when={props.ctx.fromAgent}
             else={
               <Text style={{ userSelect: "text" }} class="text-sm text-foreground" onContextMenu={copyMenu(copy)}>
-                {text()}
+                {split().text}
               </Text>
             }
           >
@@ -82,15 +93,17 @@ function UserRow(props: { row: Extract<Row, { kind: "user" }>; ctx: RowContext }
             />
           </If>
         </If>
+        <If when={split().files.length > 0}>
+          <MessageFiles
+            under={split().text !== ""}
+            files={split().files}
+            at={{ machine: props.ctx.machine, folder: props.ctx.cwd, links: props.ctx.links }}
+          />
+        </If>
         <If when={props.row.item.images.length > 0}>
           <TurnPictures images={props.row.item.images} machine={props.ctx.machine} id={props.ctx.id} />
         </If>
-        <PartChips
-          parts={props.row.item.parts}
-          machine={props.ctx.machine}
-          cwd={props.ctx.cwd}
-          links={props.ctx.links}
-        />
+        <PartChips parts={split().rest} machine={props.ctx.machine} cwd={props.ctx.cwd} links={props.ctx.links} />
       </View>
     </Line>
   );
@@ -313,6 +326,7 @@ function CallsBox(props: { row: Extract<Row, { kind: "calls" }>; ctx: RowContext
                   tool={call().item.tool!}
                   machine={props.ctx.machine}
                   cwd={props.ctx.cwd}
+                  links={props.ctx.links}
                   all={call().all}
                   onMore={() => props.ctx.model.choose(moreKey(call().item.id), call().all)}
                 />
@@ -356,6 +370,7 @@ function SubagentRow(props: { row: Extract<Row, { kind: "subagent" }>; ctx: RowC
               tool={tool()}
               machine={props.ctx.machine}
               cwd={props.ctx.cwd}
+              links={props.ctx.links}
               all={props.row.all}
               onMore={() => props.ctx.model.choose(`more:${props.row.item.id}`, props.row.all)}
             />

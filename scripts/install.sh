@@ -88,7 +88,9 @@ if [ "$uninstall" = 1 ]; then
 fi
 
 fetch() { # fetch URL FILE
-  if command -v curl >/dev/null 2>&1; then curl -fsSL --retry 3 -o "$2" "$1"
+  # GitHub's asset host answers 502/504 for a minute at times (owner, 2026-11-09: four 504s in a row with --retry 3,
+  # about 7 s); curl retries 5xx by itself, so a longer fixed delay rides it out.
+  if command -v curl >/dev/null 2>&1; then curl -fsSL --retry 6 --retry-delay 5 --connect-timeout 20 -o "$2" "$1"
   elif command -v wget >/dev/null 2>&1; then wget -q -O "$2" "$1"
   else die "needs curl or wget"; fi
 }

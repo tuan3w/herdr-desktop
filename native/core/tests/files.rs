@@ -10,8 +10,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use herdr_core::files::{
     EntryKind, FileError, FileErrorKind, Files, IMAGE_CAP, LocalFiles, PICTURE_DATA_CAP,
-    RemoteFiles, TEXT_CAP, Tunnel, UploadError, ViewKind, candidates, join, localhost_port, open,
-    parent, path_from_uri, upload, uri_from_path, validate_path,
+    RemoteFiles, TEXT_CAP, Tunnel, UploadError, ViewKind, candidates, find_path, join,
+    localhost_port, open, parent, path_from_uri, upload, uri_from_path, validate_path,
 };
 use herdr_core::files::{
     FetchError, LineIndex, MEDIA_CHUNK, MediaCache, fetch, find_line, list_archive, peek,
@@ -771,7 +771,19 @@ fn a_relative_path_is_looked_for_in_the_pane_folder_and_two_above_it() {
         "git's a/ prefix is a second try in each folder"
     );
     assert_eq!(candidates("/", "x"), ["/x"]);
-    assert_eq!(candidates("/w", "./x"), ["/w/x", "/x"]);
+    // `./` and `../` name their place from the pane's folder: only there, `..` folded.
+    assert_eq!(candidates("/w", "./x"), ["/w/x"]);
+    assert_eq!(
+        candidates("/w/proj/sub", "../docs/x.md"),
+        ["/w/proj/docs/x.md"]
+    );
+    assert_eq!(
+        candidates("/w", "../../x"),
+        ["/x"],
+        "above the root is the root"
+    );
+    assert_eq!(candidates("~/proj", "../x"), ["~/x"]);
+    assert_eq!(candidates("/w/proj", ".."), ["/w"]);
     for own in ["/etc/hosts", "~/notes.md", "~"] {
         assert_eq!(
             candidates("/w/proj", own),
@@ -780,6 +792,56 @@ fn a_relative_path_is_looked_for_in_the_pane_folder_and_two_above_it() {
         );
     }
     assert!(candidates("/w", "").is_empty() && candidates("/w", "a\0b").is_empty());
+}
+
+#[test]
+fn a_relative_path_is_found_in_the_session_folder_then_the_project_and_a_miss_names_the_folder() {
+    let work = tempfile::tempdir().unwrap();
+    let root = work.path().join("proj");
+    let sub = root.join("deep/er/sub");
+    std::fs::create_dir_all(&sub).unwrap();
+    std::fs::create_dir_all(root.join(".scratch/shots")).unwrap();
+    std::fs::write(root.join(".scratch/shots/a.png"), b"png").unwrap();
+    std::fs::write(sub.join("here.md"), b"x").unwrap();
+    std::fs::write(root.join("deep/up.md"), b"x").unwrap();
+    let files = LocalFiles::new();
+    let s = |p: &Path| p.to_str().unwrap().to_owned();
+    let folders = [s(&sub), s(&root)];
+
+    // Three folders below the project: not within the two above the session's folder, found in the project.
+    let (path, stat) = find_path(&files, &folders, ".scratch/shots/a.png").unwrap();
+    assert_eq!(path, s(&root.join(".scratch/shots/a.png")));
+    assert_eq!(stat.kind, EntryKind::File);
+    // The session's folder wins, `./` and `../` are its own.
+    assert_eq!(
+        find_path(&files, &folders, "./here.md").unwrap().0,
+        s(&sub.join("here.md"))
+    );
+    assert_eq!(
+        find_path(&files, &folders, "../../up.md").unwrap().0,
+        s(&root.join("deep/up.md"))
+    );
+    let (dir, stat) = find_path(&files, &folders, "../../er").unwrap();
+    assert_eq!((dir, stat.kind), (s(&root.join("deep/er")), EntryKind::Dir));
+    // `./` is the session's folder only: the project's copy is not what it names.
+    assert_eq!(
+        find_path(&files, &folders, "./.scratch/shots/a.png")
+            .unwrap_err()
+            .kind,
+        FileErrorKind::NotFound
+    );
+
+    let miss = find_path(&files, &folders, ".scratch/x.png").unwrap_err();
+    assert_eq!(miss.kind, FileErrorKind::NotFound);
+    assert_eq!(miss.message, format!(".scratch/x.png isn't in {}", s(&sub)));
+    let gone = find_path(&files, &folders, "/nowhere/x.png").unwrap_err();
+    assert_eq!(gone.message, "/nowhere/x.png does not exist");
+    // Without a folder a relative path is not guessed at: never a validation error about its shape.
+    let lost = find_path(&files, &[], "x.png").unwrap_err();
+    assert_eq!(lost.kind, FileErrorKind::Invalid);
+    assert_eq!(lost.message, "Cannot tell which folder x.png is in");
+    // What reaches the machine is still checked: a NUL is never a path.
+    assert!(find_path(&files, &folders, "a\0b").is_err());
 }
 
 #[test]

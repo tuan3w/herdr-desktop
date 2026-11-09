@@ -1,7 +1,7 @@
 import { computed, Scroll, Text, View } from "nsh";
 import { TextView, type TextViewCodeBlock, type TextViewCustomNode, type TextViewImage } from "nsh/base";
 
-import { ChatPicture, modHeld } from "#components/chat-picture";
+import { ChatPicture } from "#components/chat-picture";
 import { CodeBlock, inlineCodeClasses } from "#components/code-block";
 import { MermaidBlock } from "#components/mermaid-block";
 import { openLink } from "#components/open-link";
@@ -19,6 +19,7 @@ import {
 import { tally } from "#lib/perf-counts";
 import { plainText } from "#lib/plain-text";
 import { Lru, MARKDOWN_ENTRIES } from "#lib/render-cache";
+import { modHeld } from "#lib/shortcuts";
 import { safeCode } from "#lib/visible-text";
 
 /** A mermaid fence inside a list item or a quote is a custom node: the diagram, not a block of code. (Top-level ones are split out by `splitFences`.) */

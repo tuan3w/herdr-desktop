@@ -5,7 +5,7 @@ import { Button } from "nsh/base";
 import type { BoardProject, BoardRow, MachineStatus } from "herdr-desktop/native";
 import type { InputRef, ListRef } from "nsh/types";
 
-import { PickBox, useRowKeys } from "#components/pick-box";
+import { useRowKeys } from "#components/pick-box";
 import { Monogram, ProjectMark } from "#components/project-parts";
 import { SidebarFooter } from "#components/sidebar-footer";
 import { StatusGlyph } from "#components/status-glyph";
@@ -41,9 +41,9 @@ import { linkGlyph, linkText } from "#lib/machine-state";
 import { hoverTransition, moveTransition } from "#lib/motion";
 import { openProject } from "#lib/nav";
 import { openAgent } from "#lib/open-agent";
-import { selected } from "#lib/selection";
+import { isSelected, rangeTo, toggle } from "#lib/selection";
 import { largeTargets, setSidebarCollapsed } from "#lib/settings";
-import { keyLabel, keyText, MOVE_DOWN_KEY, MOVE_UP_KEY } from "#lib/shortcuts";
+import { keyLabel, keyText, modHeld, MOVE_DOWN_KEY, MOVE_UP_KEY } from "#lib/shortcuts";
 import {
   ageText,
   foldedProjects,
@@ -240,9 +240,18 @@ const sideEntry = (row: BoardRow | undefined, offline: boolean) => ({
   disabled: offline || !row,
 });
 
-/** What an agent row's menu offers: show it beside the focused tab, then the copies. */
+/**
+ * A row's menu (and right-click): show it beside, pick it for a bulk action, copy. Picking lives here, not as a box on the
+ * row (owner, 2026-11-09, on a column of boxes cutting every title: "not like this, maybe just hide in menu"); mod+press
+ * and Space pick from the row too, Shift+press and Shift+Space a range.
+ */
 const rowEntries = (row: BoardRow) => [
   sideEntry(row, row.offline),
+  {
+    label: isSelected(row.key) ? "Unpick" : "Pick for a bulk action",
+    accelerator: "P",
+    onSelect: () => toggle(row.key),
+  },
   ...copyEntries("Name", row.name, "Folder", row.cwd),
 ];
 
@@ -610,8 +619,8 @@ const ON_ROW = "opacity-0 group-hover/row:opacity-100 group-focus-within/row:opa
  * An agent in one line: its name from the row's padding (the project header's text edge) and its state as a quiet shape at
  * the right end (none while idle). A stale machine's agent is a dashed ring, no word (`rowLabel` still says `offline`); the
  * program, machine and age are in the bubble and in the accessible name. On hover or focus the `...` comes over the
- * glyph's place on a backing of the row's own fill (the glyph is covered, nothing moves), with the box that picks the
- * agent for a bulk action just before it; once anything is picked, every row shows its box there (the glyph stays).
+ * glyph's place on a backing of the row's own fill (the glyph is covered, nothing moves). A picked agent shows a check in
+ * the glyph's place: picking costs no width on any row.
  */
 function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
   const row = () => props.item().row;
@@ -623,29 +632,6 @@ function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
         <AgentButton item={props.item} />
       </Tipped>
       <View class="absolute inset-y-0 right-0 flex-row">
-        <View class={`flex-row ${menuOpen() || selected().length > 0 ? "opacity-100" : ON_ROW}`}>
-          <View
-            class="pointer-events-none w-3"
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-          >
-            <Each of={isOpen(row()) ? [FADE, FADE_OPEN] : [FADE, FADE_HOVER]} key="index">
-              {(layer) => <View class={`absolute inset-0 bg-linear-to-r ${layer()}`} />}
-            </Each>
-          </View>
-          <View class="items-center justify-center">
-            <View
-              class="pointer-events-none absolute inset-0"
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-            >
-              <Each of={backs()} key="index">
-                {(layer) => <View class={`absolute inset-0 ${layer()}`} />}
-              </Each>
-            </View>
-            <PickBox rowKey={row().key} name={row().name} order={rowKeys} />
-          </View>
-        </View>
         <View class={`w-10 items-center justify-center ${menuOpen() ? "opacity-100" : ON_ROW}`}>
           <View
             class="pointer-events-none absolute inset-0"
@@ -680,10 +666,14 @@ function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> 
   return (
     <View
       role="button"
-      onPress={() => void openAgent(row())}
+      onPress={(e) => {
+        if (e?.modifiers.shift) rangeTo(row().key, rowKeys());
+        else if (e && modHeld(e)) toggle(row().key);
+        else void openAgent(row());
+      }}
       onContextMenu={copyMenu(() => rowEntries(row()))}
       accessibilityState={{ selected: isOpen(row()) }}
-      accessibilityLabel={rowLabel(row(), nameOf(props.item().project))}
+      accessibilityLabel={`${rowLabel(row(), nameOf(props.item().project))}${isSelected(row().key) ? ", picked" : ""}`}
       onFocus={() => {
         keys.onFocus();
         tip.onFocus?.();
@@ -705,7 +695,12 @@ function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> 
       {/* The one signal mark of an agent that waits, in this view (`design/attention.md`, rule 4), centred where the `...`
           comes on hover, so the one replaces the other in place. */}
       <View class="size-4 items-center justify-center">
-        <StatusGlyph status={row().offline ? "unknown" : row().status} id={row().key} loud />
+        <If
+          when={isSelected(row().key)}
+          else={<StatusGlyph status={row().offline ? "unknown" : row().status} id={row().key} loud />}
+        >
+          <Icon name="check" size={14} tone="primary" />
+        </If>
       </View>
     </View>
   );

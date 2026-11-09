@@ -578,6 +578,26 @@ export const SCENARIOS: Record<string, Scenario> = {
     params: { mode: "scripted", scene: "working", quiet: true },
     steps: (app) => app.wait(4500),
   },
+  // The same with a command longer than the column (owner, 2026-11-09: the live line ran past the conversation's edge).
+  "chat-working-long": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: {
+      mode: "scripted",
+      scene: "working",
+      quiet: true,
+      command:
+        "for i in 1 2 3; do curl -sS -o /dev/null -w '%{http_code} %{url_effective}\\n' -L https://github.com/acme/payments-api/releases/download/v0.1.0/SHA256SUMS; done",
+    },
+    steps: (app) => app.wait(4500),
+  },
+  // The person's message with a picture and a file attached, and tool rows naming relative paths (`attached` scene).
+  "chat-attached": {
+    fixture: "empty",
+    entry: "../components/session-lab.tsx",
+    params: { mode: "scripted", scene: "attached", quiet: true },
+    steps: (app) => app.wait(3000),
+  },
   // The top of that answer with the pointer over its first block (the tools show), after `Copy code`, and with line numbers and
   // wrapping switched on from the tools.
   ...Object.fromEntries(
@@ -623,7 +643,10 @@ export const SCENARIOS: Record<string, Scenario> = {
     },
   },
   // Links and pictures in an agent's words (the `links` scene, synthetic): thumbnails, chips, short links; then the side
-  // panel on a picture, on a file at its line, and on a web page (on a host without network it shows its failure).
+  // panel on a picture, on a file at its line, and on a web page in the browser (on a host without network it shows its
+  // failure); `page-address` with the address field taking the keyboard, `page-failed` on a reserved `.invalid` host that
+  // never resolves (never a localhost port, where a real dev server of this computer may answer), so the browser says
+  // what happened.
   "chat-links": {
     fixture: "empty",
     entry: "../components/session-lab.tsx",
@@ -636,6 +659,8 @@ export const SCENARIOS: Record<string, Scenario> = {
         ["picture", "label:/^Picture shot-1\\.png/"],
         ["file", "label:src/main.rs:12"],
         ["page", "label:https://github.com/acme/payments-api/pull/128"],
+        ["page-address", "label:https://github.com/acme/payments-api/pull/128"],
+        ["page-failed", "label:https://github.com/acme/payments-api/pull/128"],
       ] as const
     ).map(([name, link]): [string, Scenario] => [
       `chat-links-${name}`,
@@ -646,7 +671,19 @@ export const SCENARIOS: Record<string, Scenario> = {
         steps: async (app) => {
           await app.waitFor(link);
           await app.press(link);
-          await app.wait(name === "page" ? 3000 : 900);
+          await app.wait(name.startsWith("page") ? 3000 : 900);
+          if (name === "page-address") {
+            // `mod+L` is the browser's while the pointer is over it.
+            await app.hover("label:Opened link");
+            await app.keyboard.press("mod+l");
+            await app.wait(300);
+          }
+          if (name === "page-failed") {
+            await app.clear("label:Address");
+            await app.type("label:Address", "herdr-desktop.invalid");
+            await app.submit("label:Address");
+            await app.wait(2000);
+          }
         },
       },
     ]),

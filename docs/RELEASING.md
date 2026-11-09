@@ -8,7 +8,7 @@
 
 Why a pre-release string is allowed in `nsh.json`: `nsh package` takes `version` as an opaque string (`crates/nsh-cli/src/package.rs` copies it into `app.json` and, on macOS, `CFBundleShortVersionString`; nothing parses it), and `nsh check` and Cargo accept it. The release workflow's dry run builds both packages with it.
 
-The in-app update check (`lib/updates.ts`) reads the latest **non-pre-release** and compares `x.y.z`; a pre-release build never parses, so an alpha is not told about a newer alpha or about the stable release. That is deliberate for now: alpha testers update by hand.
+The in-app update check (`lib/updates.ts`) reads the releases list (not `releases/latest`, which skips pre-releases: every alpha is one, so an alpha was never told of the next; owner, 2026-11-09) and offers the highest version above the running one, semver order (`alpha.6` after `alpha.5`, `0.1.0` after every alpha). A stable build is never offered a pre-release. It says up to date, or why it could not check, and offers to copy the install command, which installs the newest release.
 
 ## Steps
 
@@ -75,7 +75,7 @@ xattr -dr com.apple.quarantine "Herdr Desktop.app"
 - **Linux:** a directory `Herdr Desktop/` with the executable `HerdrDesktop`, `nsh/` (the bundle, assets, `app.json`, `capabilities.json`), `dev.herdrmobile.herdr_desktop.desktop` and `.png` (the icon, `icon.png` named in `nsh.json`), and the same as `Herdr Desktop.tar.gz`. `icon.svg` is the vector source of the icon; `local/install.sh` also installs it as the scalable icon.
 - **macOS:** `Herdr Desktop.app`, signed ad hoc by nsh and then with the project's self-signed identity by `scripts/sign-macos.sh` (secrets `HERDR_SIGN_P12`, `HERDR_SIGN_PASSWORD`; `docs/MACOS.md`, "Signing", has rotation and notarization). `release.yml` refuses to build the macOS app without the secrets and fails if the result is ad hoc. Compare `designated =>` in the job summaries of two releases: it must be identical.
 
-The app's declared reach is `nsh.json` `capabilities`: the clipboard, `openUrl` for `https`, `http` and `mailto`, one network rule (GET `https://api.github.com/repos/tuan3w/herdr-desktop/releases/latest`, for the update check) and a web view for every host (`*`, since 2026-11-09: a pressed link opens its page in the side panel, `design/files.md`; nsh matches web view hosts, not schemes, so the app itself opens only https there, or http on a loopback address, and the web view gets no input, messages or downloads). Rust code (ssh, sockets, files) runs with the process's own permissions and needs no capability. Adding a capability is a change to the app's audit surface: say why in the commit.
+The app's declared reach is `nsh.json` `capabilities`: the clipboard, `openUrl` for `https`, `http` and `mailto`, one network rule (GET `https://api.github.com/repos/tuan3w/herdr-desktop/releases`, for the update check) and a web view for every host (`*`, since 2026-11-09: a pressed link opens its page in the side panel, `design/files.md`; nsh matches web view hosts, not schemes, so the app itself opens only https there, or http on a loopback address, and the web view gets no input, messages or downloads). Rust code (ssh, sockets, files) runs with the process's own permissions and needs no capability. Adding a capability is a change to the app's audit surface: say why in the commit.
 
 ## The terminal needs zig in every build
 

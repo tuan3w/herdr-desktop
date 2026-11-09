@@ -1,4 +1,4 @@
-import { Files as MachineFiles, Media, Sessions } from "herdr-desktop/native";
+import { Compose, Files as MachineFiles, Media, Sessions } from "herdr-desktop/native";
 import { cleanup, host, keymap, mount, signal, Text, View } from "nsh";
 
 import type {
@@ -40,6 +40,8 @@ import { GLOBAL, keysOf } from "#lib/shortcuts";
 const params = host.params as {
   mode?: "keeper" | "scripted" | "model";
   scene?: string;
+  /** `working`: the running command (default `pnpm test promo-eu`). */
+  command?: string;
   quiet?: boolean;
   rows?: number;
   only?: "user" | "agent";
@@ -483,6 +485,11 @@ function scene(name: string): Scene {
           ),
         ],
       };
+    case "attached":
+      // The person's message with a picture a terminal chat sent as `@path` and a file, then a turn whose calls and words
+      // name files relative to the session's folder (`src` of the tree): `main.rs:3`, `../notes.txt`, and one that is not
+      // there. The rows arrive once the picture is saved (`Scripted`). Every word and file is synthetic.
+      return { view: { running: false, phase: "idle", cwd: `${tree}/src` }, items: [] };
     case "long":
       return {
         view: { running: false, phase: "idle", earlierNotice: "Earlier messages are no longer kept" },
@@ -747,20 +754,43 @@ function Scripted() {
   // `working`: the finished chat, then a turn that starts once the chat has shown, so the window watches it start and the
   // live line has a clock: two calls done, `pnpm test promo-eu` running.
   if (params.scene === "working") {
+    const command = typeof params.command === "string" ? params.command : "pnpm test promo-eu";
     const start = setTimeout(() => {
       lab.add(say("user", "Split the promo tests off and run them."));
       lab.add(call("Read src/tax/rules.ts", { toolKind: "read", subject: `${tree}/src/tax/rules.ts` }));
       lab.add(call("Edit src/auth.ts", { toolKind: "edit", subject: `${tree}/src/auth.ts`, diffs: [EDIT] }));
       lab.add(
-        call("Running pnpm test promo-eu", {
+        call(`Running ${command}`, {
           toolKind: "execute",
-          subject: "pnpm test promo-eu",
+          subject: command,
           status: "inProgress",
         }),
       );
       lab.set({ running: true, phase: "working" });
     }, 300);
     cleanup(() => clearTimeout(start));
+  }
+  // `attached`: the picture is saved into the session's folder as the message box saves one for a terminal chat, then the
+  // conversation names it the way that chat's log does.
+  if (params.scene === "attached") {
+    const folder = `${tree}/src`;
+    void Compose.saveToProject("local", folder, `${tree}/assets/shot-1.png`, "image-4.png").then((saved) => {
+      const picture = saved.path.slice(folder.length + 1);
+      lab.add(say("user", `not well aligned, the tiles sit 4 pt low. @${picture} @ledger.py`));
+      lab.add(say("thought", "The offset is in the layout constants."));
+      lab.add(
+        call("Read main.rs", { toolKind: "read", subject: "main.rs", locations: [{ path: "main.rs", line: 3 }] }),
+      );
+      lab.add(
+        call("Read ../notes.txt", { toolKind: "read", subject: "../notes.txt", locations: [{ path: "../notes.txt" }] }),
+      );
+      lab.add(
+        say(
+          "agent",
+          "The tiles take their offset from [main.rs:3](main.rs:3); the old spacing is written down in [../notes.txt](../notes.txt). The plan I mentioned is [.scratch/notes/plan.md](.scratch/notes/plan.md).",
+        ),
+      );
+    });
   }
   // The shared ticker lives outside the render: polled on the (test) clock, only when asked, so other runs are not woken.
   const ticking = signal(false);

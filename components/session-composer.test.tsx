@@ -118,8 +118,8 @@ test("a mention goes to the agent with its words: the file is sent with the mess
   await app.submit(BOX);
   await app.waitUntil(() => logged(app, "send fix @notes.txt please"));
   expect(logged(app, `${tree(app)}/notes.txt`)).toBe(true);
-  // What was sent is no longer a chip.
-  expect(app.shows("label:File notes.txt")).toBe(false);
+  // What was sent is no longer a chip of the box (the sent message shows its own file chip).
+  expect(app.shows("label:Remove notes.txt")).toBe(false);
   expect(box(app)).toBe("");
 });
 

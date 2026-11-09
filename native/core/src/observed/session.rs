@@ -11,7 +11,7 @@
 //! terminal's own prompts and are answered through the pane (`Herdr.answer`), not here. Nothing is sent on a
 //! timer or by default.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::BufReader;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -87,6 +87,12 @@ pub trait PaneIo: Send + Sync {
 
     /// Up to `limit` bytes of a file on the pane's machine (an omp picture), `None` when it is not there.
     fn read_file(&self, path: &str, limit: usize) -> Result<Option<Vec<u8>>, String>;
+
+    /// The pane's machine's files, for the skills the agent reads from its folders; `None` where they cannot be
+    /// read (a subagent's transcript, a test pane).
+    fn files(&self) -> Option<Arc<dyn crate::files::Files>> {
+        None
+    }
 }
 
 /// Timing and limits. The defaults are herdr-mobile's; tests shorten them.
@@ -112,6 +118,8 @@ pub struct ObservedConfig {
     pub tail_start: u64,
     /// The most of it a read takes after "load earlier" (the keeper's ceiling).
     pub tail_max: u64,
+    /// How often the agent's skill folders are listed again (see [`super::skills`]).
+    pub skills_every: Duration,
 }
 
 impl Default for ObservedConfig {
@@ -127,6 +135,7 @@ impl Default for ObservedConfig {
             max_ask_steps: 25,
             tail_start: 192 * 1024,
             tail_max: 64 * 1024 * 1024,
+            skills_every: Duration::from_secs(60),
         }
     }
 }
@@ -136,6 +145,8 @@ enum Input {
     Line(String),
     /// The file shrank or was replaced, or the pane's agent writes another file now: rebuild.
     Reset,
+    /// The skills the agent's folders hold now.
+    DiskSkills(Vec<SlashCommand>),
     /// Where the tail read began; more than 0 means earlier turns exist.
     Head(u64),
     /// The commands listed at the head of the log, which a tail read did not reach.
@@ -290,6 +301,7 @@ impl ObservedHandle {
             subagents: Mutex::new(Vec::new()),
             tasks: Mutex::new(Vec::new()),
         });
+        let (skills_quit, skills_rx) = crossbeam_channel::bounded::<()>(0);
         let worker = Worker {
             kind,
             pane: pane.to_owned(),
@@ -317,6 +329,8 @@ impl ObservedHandle {
             last_state: None,
             read_only: subagent.is_some(),
             head_commands: None,
+            disk_skills: Vec::new(),
+            _skills_quit: skills_quit,
         };
         let follower = Follower {
             kind,
@@ -343,6 +357,15 @@ impl ObservedHandle {
                 Box::new(move || follower.run()),
             )?,
         ];
+        // Detached: it ends when the worker (and with it the sender it watches) is gone, and a scan of another
+        // machine's folders must never hold up closing the chat.
+        if let (None, Some(layout)) = (&subagent, super::skills::Layout::of(kind.id)) {
+            let (io, inputs, every) = (io.clone(), inputs.clone(), config.skills_every);
+            spawn(
+                format!("herdr-observed-skills-{pane}"),
+                Box::new(move || scan_skills(&*io, &inputs, &skills_rx, every, layout)),
+            )?;
+        }
         Ok(ObservedHandle {
             inner: Arc::new(Inner {
                 machine: machine.to_owned(),
@@ -957,6 +980,11 @@ struct Worker {
     /// The commands the head of the log listed (see [`LogMapper::adopt_commands`]), kept for a wider read's
     /// fresh mapper.
     head_commands: Option<Vec<SlashCommand>>,
+    /// The skills the agent's folders hold (see [`super::skills`]): listed after the log's own commands, which win
+    /// on the same name.
+    disk_skills: Vec<SlashCommand>,
+    /// Dropped with the worker: the skill scan sees it go and ends.
+    _skills_quit: Sender<()>,
 }
 
 /// A wider read of the log, mapped from scratch beside what is shown.
@@ -1046,6 +1074,10 @@ impl Worker {
                 // The log a typed message was to be checked against is gone; a new one is what the message did
                 // (`/clear`, `/new`, `/resume`), and nothing in it echoes the command.
                 self.sent.clear();
+                true
+            }
+            Input::DiskSkills(skills) => {
+                self.disk_skills = skills;
                 true
             }
             Input::HeadCommands(commands) => {
@@ -1286,7 +1318,7 @@ impl Worker {
         };
         *self.shared.subagents.lock() = subagents;
         *self.shared.tasks.lock() = tasks;
-        self.transcript.snapshot(ObservedMeta {
+        let mut snapshot = self.transcript.snapshot(ObservedMeta {
             phase,
             agent: self.kind.id.to_owned(),
             cwd,
@@ -1294,7 +1326,43 @@ impl Worker {
             waiting,
             running: status == Some(AgentStatus::Working),
             info,
-        })
+        });
+        let named: HashSet<String> = snapshot.commands.iter().map(|c| c.name.clone()).collect();
+        snapshot.commands.extend(
+            self.disk_skills
+                .iter()
+                .filter(|c| !named.contains(&c.name))
+                .cloned(),
+        );
+        snapshot
+    }
+}
+
+/// Lists the agent's skill folders on the pane's machine now and every `every`, and tells the worker when what
+/// they hold changed. Ends when the worker is gone (`quit` disconnects, or a send fails).
+fn scan_skills(
+    io: &dyn PaneIo,
+    inputs: &Sender<Input>,
+    quit: &Receiver<()>,
+    every: Duration,
+    layout: super::skills::Layout,
+) {
+    let mut scan = super::skills::SkillScan::new(layout);
+    let mut told: Option<Vec<SlashCommand>> = None;
+    loop {
+        if let PaneState::Agent { cwd: Some(cwd), .. } = io.state()
+            && let Some(files) = io.files()
+            && let Ok(found) = scan.scan(&*files, &cwd)
+            && told.as_ref() != Some(&found)
+        {
+            if inputs.send(Input::DiskSkills(found.clone())).is_err() {
+                return;
+            }
+            told = Some(found);
+        }
+        if !matches!(quit.recv_timeout(every), Err(RecvTimeoutError::Timeout)) {
+            return;
+        }
     }
 }
 

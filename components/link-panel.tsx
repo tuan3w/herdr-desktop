@@ -1,35 +1,22 @@
 import { Files, Herdr, Pages } from "herdr-desktop/native";
-import { announce, cleanup, Clipboard, effect, keymap, openUrl, signal, untracked, View, WebView } from "nsh";
+import { Clipboard, cleanup, effect, keymap, signal, untracked, View } from "nsh";
 
 import type { FileData, PageView } from "herdr-desktop/native";
 
+import { Browser } from "#components/browser";
 import { FileViewer } from "#components/file-viewer";
 import { ImageView } from "#components/image-view";
-import { Btn, Clipped, Empty, Icon, IconButton, type IconName, notify, snug, Spinner } from "#kit";
+import { Btn, Clipped, Empty, Icon, IconButton, type IconName, notify, snug } from "#kit";
+import type { Via } from "#lib/browser";
 import { loadThumb, pictureDimensions, thumbKey, thumbState } from "#lib/chat-pictures";
 import { parentOf } from "#lib/files";
 import { BAR } from "#lib/layout";
 import { LINK_PANEL_WIDTH, type LinkPanel, type PanelLink } from "#lib/link-panel";
-import { shortUrl } from "#lib/links";
 import { viewFile } from "#lib/open-files";
+import { focusComposer } from "#lib/pane-input";
 import { shortPath } from "#lib/session-text";
 
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
-
-/**
- * Runs before a page's own scripts: a sound or a video that starts without the person's press or key in the second before
- * is paused, so nothing in the panel plays by itself. The page gets nothing it did not have; this only takes away.
- */
-const NO_AUTOPLAY = `(() => {
-  let touched = 0;
-  const mark = () => { touched = Date.now(); };
-  addEventListener("pointerdown", mark, true);
-  addEventListener("keydown", mark, true);
-  addEventListener("play", (e) => {
-    const media = e.target;
-    if (Date.now() - touched > 1000 && media && typeof media.pause === "function") media.pause();
-  }, true);
-})();`;
 
 /** What the header says and offers for one link. */
 interface Head {
@@ -41,13 +28,11 @@ interface Head {
   full: string;
   /** What `Copy link` copies. */
   copy: string;
-  /** `Open in browser` (web) or `Open as a tab` (a file or a picture). */
-  out: { label: string; onPress: () => void; disabled?: boolean };
+  /** `Open as a tab`: the old place of a file or a picture. */
+  out: { label: string; onPress: () => void };
 }
 
-const copyLink = (text: string) => void Clipboard.writeText(text).then(() => notify("Link copied"));
-
-/** One `BAR`-high line, as the chat's header: the kind's glyph, the title, where it is, and the panel's actions. */
+/** One `BAR`-high line, as the chat's header: the kind's glyph, the title, where it is, and the panel's actions. A page has none: the browser's toolbar is its line. */
 function PanelHeader(props: { head: Head; onClose: () => void }) {
   return (
     <View style={{ minHeight: BAR }} class="shrink-0 flex-row items-center gap-2 border-b border-border pl-4 pr-2">
@@ -77,15 +62,12 @@ function PanelHeader(props: { head: Head; onClose: () => void }) {
         </If>
         <View class="flex-1" />
       </View>
-      <IconButton icon="copy" label="Copy link" onPress={() => copyLink(props.head.copy)} />
-      <Btn
-        small
-        variant="ghost"
-        icon="external-link"
-        label={props.head.out.label}
-        disabled={props.head.out.disabled}
-        onPress={props.head.out.onPress}
+      <IconButton
+        icon="copy"
+        label="Copy link"
+        onPress={() => void Clipboard.writeText(props.head.copy).then(() => notify("Link copied"))}
       />
+      <Btn small variant="ghost" icon="external-link" label={props.head.out.label} onPress={props.head.out.onPress} />
       <IconButton icon="x" label="Close" shortcut="Esc" onPress={props.onClose} />
     </View>
   );
@@ -98,34 +80,29 @@ function useBody() {
 }
 
 /**
- * A web page. One of this computer is loaded as it is; a page of a remote machine's own `localhost` is reached through a
- * tunnel on its shared ssh connection, bound to this computer's loopback address, made when the panel shows it and
- * removed when it closes or shows something else (`Pages.open`, `Pages.closePage`). The page gets nothing but its load
- * (no input, no messages, no downloads listened to) and plays nothing by itself (`NO_AUTOPLAY`). One that fails says
- * what happened and offers the browser.
+ * A web page, in the embedded browser (`Browser`, which holds Copy link, Open in browser and Close in its one line). One of
+ * this computer loads as it is; a page of a remote machine's own `localhost` is reached through a tunnel on its shared ssh
+ * connection, bound to this computer's loopback address, made when the panel shows it and removed when it closes or
+ * shows something else (`Pages.open`, `Pages.closePage`).
  */
-function WebPanel(props: { link: Extract<PanelLink, { kind: "web" }>; onClose: () => void }) {
+function WebPanel(props: {
+  link: Extract<PanelLink, { kind: "web" }>;
+  onClose: () => void;
+  onLeave?: () => void;
+  active: boolean;
+}) {
+  const machine = props.link.machine;
+  if (machine === undefined) {
+    return <Browser url={props.link.url} onClose={props.onClose} onLeave={props.onLeave} active={props.active} />;
+  }
   const page = signal<PageView | null>(null);
   const failure = signal<string | null>(null);
-  const loading = signal(true);
-  const title = signal("");
   let attempt = 0;
-  const tunnelled = props.link.machine !== undefined;
-
   const start = async () => {
     const mine = ++attempt;
-    const previous = page();
-    page.set(null);
-    if (previous && tunnelled) Pages.closePage(previous.id);
     failure.set(null);
-    loading.set(true);
-    title.set("");
-    if (!tunnelled) {
-      page.set({ id: 0, url: props.link.url, remoteUrl: props.link.url });
-      return;
-    }
     try {
-      const opened = await Pages.open(props.link.machine!, props.link.url);
+      const opened = await Pages.open(machine, props.link.url);
       if (mine !== attempt) {
         // The panel closed or showed another link while the tunnel was being made.
         Pages.closePage(opened.id);
@@ -133,84 +110,32 @@ function WebPanel(props: { link: Extract<PanelLink, { kind: "web" }>; onClose: (
       }
       page.set(opened);
     } catch (e) {
-      if (mine !== attempt) return;
-      failure.set(reason(e));
-      loading.set(false);
-      announce(`Couldn't load ${host()}: ${reason(e)}`);
+      if (mine === attempt) failure.set(reason(e));
     }
   };
   void start();
   cleanup(() => {
     attempt++;
     const open = page();
-    if (open && tunnelled) Pages.closePage(open.id);
+    if (open) Pages.closePage(open.id);
   });
-
-  const host = () => shortUrl(props.link.url)?.host ?? props.link.url;
-  const machineName = () => Herdr.machines().find((m) => m.id === props.link.machine)?.name ?? props.link.machine ?? "";
-  const browse = () =>
-    void openUrl(page()?.url ?? props.link.url).catch((e) =>
-      notify(`Could not open the address: ${reason(e)}`, { type: "error" }),
-    );
-  const head = (): Head => ({
-    icon: "globe",
-    title: title() || host(),
-    sub: tunnelled ? `${machineName()} · through ssh` : title() ? host() : "",
-    full: props.link.url,
-    copy: props.link.url,
-    // A tunnelled page opens in the browser only while the tunnel stands, that is while the panel shows it.
-    out: { label: "Open in browser", onPress: browse, disabled: tunnelled && page() === null },
-  });
-
+  const via = (): Via | undefined => {
+    const p = page();
+    return p ? { local: new URL(p.url).origin, remote: new URL(p.remoteUrl).origin } : undefined;
+  };
+  const machineName = () => Herdr.machines().find((m) => m.id === machine)?.name ?? machine;
   return (
-    <>
-      <PanelHeader head={head()} onClose={props.onClose} />
-      <View class="min-h-0 flex-1">
-        <If
-          when={failure()}
-          else={
-            <>
-              <If when={page()}>
-                {(p) => (
-                  <WebView
-                    src={p().url}
-                    accessibilityLabel={`Page ${props.link.url}`}
-                    injectedJavaScriptBeforeContentLoaded={NO_AUTOPLAY}
-                    onLoadStart={() => loading.set(true)}
-                    onLoad={() => loading.set(false)}
-                    onError={({ message }) => {
-                      failure.set(message);
-                      loading.set(false);
-                      announce(`Couldn't load ${host()}: ${message}`);
-                    }}
-                    onNavigationStateChange={(nav) => title.set(nav.title)}
-                    class="size-full"
-                  />
-                )}
-              </If>
-              <If when={loading()}>
-                <View
-                  class="absolute inset-0 items-center justify-center bg-background"
-                  accessibilityLabel="Opening the page"
-                  accessibilityState={{ busy: true }}
-                >
-                  <Spinner />
-                </View>
-              </If>
-            </>
-          }
-        >
-          {(message) => (
-            <Empty fill icon="alert" title={`Couldn't load ${host()}`} hint={message()}>
-              <View class="flex-row gap-2">
-                <Btn label="Try again" onPress={() => void start()} />
-                <Btn label="Open in browser" variant="ghost" disabled={tunnelled} onPress={browse} />
-              </View>
-            </Empty>
-          )}
-        </If>
-      </View>
-    </>
+    <Browser
+      url={props.link.url}
+      via={via()}
+      waiting={page() === null && failure() === null}
+      place={`${machineName()} · through ssh`}
+      failure={failure()}
+      onRetry={() => void start()}
+      onClose={props.onClose}
+      onLeave={props.onLeave}
+      active={props.active}
+    />
   );
 }
 
@@ -317,21 +242,25 @@ function PicturePanel(props: { link: Extract<PanelLink, { kind: "picture" }>; cw
 
 /**
  * The side panel of a chat or a terminal (`design/files.md`, "The side panel"): what a pressed link points at, beside the
- * conversation so it stays in view. A web page, a file at its line, or a picture, under one header line (`PanelHeader`).
- * One per surface, replaced by the next link; `Close` or Escape closes it. Escape is the panel's while the pointer is
- * over it (a page in it may hold the keyboard) and otherwise only while no text field has the keyboard, so Escape in the
- * message box keeps its own meaning; never in a terminal, whose program owns Escape (`escape={false}`). Beside the
- * content at `LINK_PANEL_WIDTH`; under `snug()` it lies over the content's right edge, as the inspector does.
+ * conversation so it stays in view. A web page in the embedded browser (`Browser`), or a file at its line or a picture
+ * under one header line (`PanelHeader`). One per surface, replaced by the next link; `Close` or Escape closes it. Escape
+ * is the panel's while the pointer is over a file or a picture (a viewer may hold the keyboard) and otherwise only while
+ * no text field has the keyboard, so Escape in the message box keeps its own meaning. Over a page, Escape and the page's
+ * keys are the browser's: Escape gives the keyboard back to the message box. Never in a terminal, whose program owns
+ * Escape and `Ctrl+R` (`escape={false}`): there the browser takes keys only while its address field has them. Beside
+ * the content at `LINK_PANEL_WIDTH`; under `snug()` it lies over the content's right edge, as the inspector does.
  */
 export function LinkPanelView(props: { panel: LinkPanel; cwd: string; active: boolean; escape?: boolean }) {
   const over = signal(false);
   effect(() => {
-    if (props.panel.link() === null) {
+    const link = props.panel.link();
+    if (link === null) {
       // Closed under the pointer: no leave comes from a view that is gone.
       untracked(() => over.set(false));
       return;
     }
-    if (!props.active || props.escape === false) return;
+    // Over a page, Escape is the browser's (it gives the keyboard back); left to binding order it would be a race.
+    if (!props.active || props.escape === false || (link.kind === "web" && over())) return;
     return keymap.bind("escape", () => props.panel.close(), { when: over() ? "always" : "notEditing" });
   });
   const close = () => props.panel.close();
@@ -352,7 +281,16 @@ export function LinkPanelView(props: { panel: LinkPanel; cwd: string; active: bo
         <Each of={shown()} key={(link: PanelLink) => link}>
           {(link) => {
             const l = link();
-            if (l.kind === "web") return <WebPanel link={l} onClose={close} />;
+            if (l.kind === "web") {
+              return (
+                <WebPanel
+                  link={l}
+                  onClose={close}
+                  onLeave={props.escape === false ? undefined : focusComposer}
+                  active={props.active && props.escape !== false && over()}
+                />
+              );
+            }
             if (l.kind === "file") return <FilePanel link={l} cwd={props.cwd} onClose={close} />;
             return <PicturePanel link={l} cwd={props.cwd} onClose={close} />;
           }}

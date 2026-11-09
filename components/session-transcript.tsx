@@ -24,9 +24,6 @@ const PLACE_MS = 1500;
 /** How long a page key's target outlives its press: past nsh's eased scroll (300 ms on macOS), so a held key pages on from it. */
 const PAGE_AIM_MS = 400;
 
-/** What a cut live line fades into: the page. */
-const LINE_FADE = "from-background/0 to-background";
-
 /** What the transcript lets the tab do: jump to the newest row; and where it is scrolled (a lab reads it). */
 export interface TranscriptHandle {
   jump(): void;
@@ -83,7 +80,9 @@ function Footer(props: { ctx: RowContext; active: boolean }) {
                 <TurningGlyph />
               </If>
             </View>
-            <Clipped fade={[LINE_FADE]} boxClass="min-w-0 shrink" class="text-sm text-muted-foreground">
+            {/* An ellipsis, not a fade: GTK cuts one clipped line at a word, so a long command left a gap before the clock
+                and its fade fell on the empty end (owner, 2026-11-09, "not well aligned"). */}
+            <Clipped boxClass="min-w-0 shrink" class="text-sm text-muted-foreground">
               {w().toolLine}
             </Clipped>
             <If when={w().seconds !== null}>

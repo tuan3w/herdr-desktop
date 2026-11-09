@@ -45,3 +45,9 @@ test("a whole built-in name typed still leads a longer skill that starts the sam
   const commands = withBuiltIns([skill("clear-cache")], "claude", true);
   expect(names(matchCommands("/clear", "claude", commands, emptyMemory()))).toEqual(["clear", "clear-cache"]);
 });
+
+test("an omp skill is found by its bare name and picked in the form omp runs", () => {
+  const commands = withBuiltIns([skill("skill:herdr-design", "Design the window")], "omp", true);
+  expect(names(matchCommands("/herdr-design", "omp", commands, emptyMemory()))).toEqual(["skill:herdr-design"]);
+  expect(names(matchCommands("/herdr", "omp", commands, emptyMemory()))[0]).toBe("skill:herdr-design");
+});

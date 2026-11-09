@@ -48,7 +48,7 @@ pub use quick::{
     Hot, HotPaths, IGNORED_FROM, MentionHit, Mentions, Quick, QuickHit, QuickSearch, REFRESH_AFTER,
 };
 pub use remote::{FS_SCRIPT, RemoteFiles};
-pub use resolve::{candidates, parent, path_from_uri, uri_from_path};
+pub use resolve::{candidates, find as find_path, parent, path_from_uri, uri_from_path};
 pub use tunnel::{Tunnel, TunnelError, free_port, localhost_port};
 pub use upload::{UploadError, upload};
 pub use view::{

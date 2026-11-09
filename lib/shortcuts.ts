@@ -1,5 +1,7 @@
 import { keymap } from "nsh";
 
+import type { Modifiers } from "nsh/types";
+
 import { terminalEnabled } from "#lib/settings";
 
 /**
@@ -233,6 +235,9 @@ export const listedShortcuts = (): Shortcut[] =>
  * and the hints cannot disagree (also in a test that opens the app as another platform).
  */
 export const apple = (): boolean => keymap.label("mod+n").startsWith("⌘");
+
+/** Whether `mod` (Command on Apple platforms, Control elsewhere) was held at a press: a press's second meaning. */
+export const modHeld = (e: { modifiers: Modifiers }): boolean => (apple() ? e.modifiers.platform : e.modifiers.control);
 
 /** The keystrokes of `shortcut` on this platform (or on `onApple` when given, for a test). */
 export function keysOf(shortcut: Shortcut, onApple: boolean = apple()): string[] {

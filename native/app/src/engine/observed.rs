@@ -124,6 +124,10 @@ impl PaneIo for FleetPane {
             Err(e) => Err(e.message),
         }
     }
+
+    fn files(&self) -> Option<Arc<dyn herdr_core::files::Files>> {
+        self.fleet().ok()?.files_of(&self.machine).ok()
+    }
 }
 
 impl Engine {

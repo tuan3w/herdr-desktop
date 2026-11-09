@@ -186,8 +186,11 @@ export function Lightbox(props: {
     };
   });
 
-  // The wheel: a view has no wheel event, so a tall scroll view sits under the picture as a sensor. It rests in the middle;
-  // each step away is converted to zoom steps (the rest kept so a trackpad's small steps add up) and it is put back.
+  // The wheel: a view has no wheel event, so a tall, empty scroll view lies over the picture as a sensor. It rests in the
+  // middle; each step away is converted to zoom steps (the rest kept so a trackpad's small steps add up) and it is put
+  // back. The picture is never inside it: the platform draws a scroll the frame it happens, before the zoom and the reset
+  // arrive, so a picture in it jumped along the wheel and back on every notch, which read as zooming in and out (owner,
+  // 2026-11-09).
   let sensor: ScrollRef | undefined;
   const wheel = (offset: number) => {
     const delta = offset - SENSOR_SPAN / 2;
@@ -235,11 +238,59 @@ export function Lightbox(props: {
           }}
         >
           <View testID="dialog-scrim" focusable={false} class="absolute inset-0 bg-black/70" />
+          <View class="absolute inset-0 items-center justify-center">
+            <If
+              when={url()}
+              else={
+                <View class={`max-w-md rounded-lg bg-card ${EDGE.lg}`}>
+                  <Empty
+                    icon="image"
+                    title={props.empty?.title ?? "This picture cannot be shown"}
+                    hint={props.empty?.hint ?? failure() ?? undefined}
+                  />
+                </View>
+              }
+            >
+              {(src) => (
+                <View
+                  role="group"
+                  accessibilityLabel={`Picture, ${props.name}`}
+                  style={{
+                    width: Math.max(1, shown().width),
+                    height: Math.max(1, shown().height),
+                    transform: `translate(${pan().x}px, ${pan().y}px)`,
+                  }}
+                >
+                  {/* Drawn once at its own size and zoomed by a transform: a zoom never lays the picture out or redraws it,
+                      which made a wheel zoom of a large photo lag. */}
+                  <Image
+                    src={src()}
+                    accessibilityLabel={props.name}
+                    onLoad={({ size }) => {
+                      natural.set({ width: size.width, height: size.height });
+                    }}
+                    onError={({ message }) => failure.set(message)}
+                    style={{
+                      position: "absolute",
+                      left: (shown().width - natural().width) / 2,
+                      top: (shown().height - natural().height) / 2,
+                      width: Math.max(1, natural().width),
+                      height: Math.max(1, natural().height),
+                      transform: `rotate(${turn()}deg) scale(${scale()})`,
+                      opacity: natural().width > 0 ? 1 : 0,
+                    }}
+                  />
+                </View>
+              )}
+            </If>
+          </View>
           <Scroll
             ref={(node: ScrollRef) => {
               sensor = node;
             }}
+            testID="lightbox-wheel"
             class="absolute inset-0"
+            scrollbar={false}
             contentOffset={{ y: SENSOR_SPAN / 2 }}
             scrollEventThrottle={16}
             onScroll={(e) => wheel(e.offset.y)}
@@ -247,59 +298,17 @@ export function Lightbox(props: {
             <View style={{ height: box().height + SENSOR_SPAN, paddingTop: SENSOR_SPAN / 2 }}>
               <View
                 focusable={false}
-                onPress={ask}
+                onPress={(e) => {
+                  // The press lands here, over the picture: whether it is on the picture, from the window's centre.
+                  const on =
+                    url() !== undefined &&
+                    Math.abs(e.position.x - box().width / 2 - pan().x) <= shown().width / 2 &&
+                    Math.abs(e.position.y - box().height / 2 - pan().y) <= shown().height / 2;
+                  if (!on) ask();
+                  else if (e.clickCount === 2) toggle();
+                }}
                 style={{ height: box().height, cursor: draggable() ? "grab" : "default" }}
-                class="items-center justify-center"
-              >
-                <If
-                  when={url()}
-                  else={
-                    <View class={`max-w-md rounded-lg bg-card ${EDGE.lg}`}>
-                      <Empty
-                        icon="image"
-                        title={props.empty?.title ?? "This picture cannot be shown"}
-                        hint={props.empty?.hint ?? failure() ?? undefined}
-                      />
-                    </View>
-                  }
-                >
-                  {(src) => (
-                    <View
-                      focusable={false}
-                      role="group"
-                      accessibilityLabel={`Picture, ${props.name}`}
-                      onPress={(e) => {
-                        if (e.clickCount === 2) toggle();
-                      }}
-                      style={{
-                        width: Math.max(1, shown().width),
-                        height: Math.max(1, shown().height),
-                        transform: `translate(${pan().x}px, ${pan().y}px)`,
-                      }}
-                    >
-                      {/* Drawn once at its own size and zoomed by a transform: a zoom never lays the picture out or redraws it,
-                          which made a wheel zoom of a large photo lag. */}
-                      <Image
-                        src={src()}
-                        accessibilityLabel={props.name}
-                        onLoad={({ size }) => {
-                          natural.set({ width: size.width, height: size.height });
-                        }}
-                        onError={({ message }) => failure.set(message)}
-                        style={{
-                          position: "absolute",
-                          left: (shown().width - natural().width) / 2,
-                          top: (shown().height - natural().height) / 2,
-                          width: Math.max(1, natural().width),
-                          height: Math.max(1, natural().height),
-                          transform: `rotate(${turn()}deg) scale(${scale()})`,
-                          opacity: natural().width > 0 ? 1 : 0,
-                        }}
-                      />
-                    </View>
-                  )}
-                </If>
-              </View>
+              />
             </View>
           </Scroll>
 

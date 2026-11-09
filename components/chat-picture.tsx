@@ -17,7 +17,7 @@ import {
 import { sizeText } from "#lib/files";
 import type { LinkPanel } from "#lib/link-panel";
 import { viewFile } from "#lib/open-files";
-import { apple } from "#lib/shortcuts";
+import { modHeld } from "#lib/shortcuts";
 
 /** Where a picture of a message is, and where a press on it goes. */
 export interface PictureContext {
@@ -26,10 +26,6 @@ export interface PictureContext {
   /** The surface's side panel; without one a picture opens in the viewer, a web address in the browser. */
   links?: LinkPanel;
 }
-
-/** `mod` held at a press: the old way (the viewer's tab, the browser) instead of the side panel. */
-export const modHeld = (e: { modifiers: PressEvent["modifiers"] }): boolean =>
-  apple() ? e.modifiers.platform : e.modifiers.control;
 
 const CHIP =
   "my-1 flex-row items-center gap-2 self-start rounded-md border border-border bg-muted px-2 py-1 hover:bg-accent";
@@ -50,6 +46,102 @@ function PictureChip(props: { text: string; tip?: string; onPress: (e: PressEven
         </Tipped>
       )}
     </If>
+  );
+}
+
+/** Opens a picture found at `path` large: the side panel (`mod`, or no panel: the viewer). */
+function openPicture(at: PictureContext, path: string, e?: PressEvent, uri?: string): void {
+  if (at.links && !(e && modHeld(e))) at.links.show({ kind: "picture", machine: at.machine, path, uri });
+  else viewFile(at.machine, path);
+}
+
+/** A thumbnail tile is this many points square: the size of the log's own pictures (`TurnPictures`). */
+const TILE = 72;
+const TILE_BOX = "h-[72px] items-center justify-center gap-1 rounded-lg border border-border bg-muted px-2";
+
+/**
+ * A picture the person's own message carries (`@.herdr-desktop/attachments/shot.png`, or a keeper's attached file), as
+ * a square tile beside the others under the words, fetched and kept as a picture of the agent's words is (same cache,
+ * `lib/chat-pictures.ts`, `path` found as a pressed link is). A press opens it in the side panel. While it comes, the
+ * tile holds its place; too large or unreadable, the tile says so and still opens it; not found, it says so and a press
+ * tells where it was looked for. Its name is in its accessible name and its tooltip.
+ */
+export function PictureTile(props: { path: string; name: string; at: PictureContext }) {
+  const key = thumbKey(props.at.machine, props.at.folder, props.path);
+  void loadThumb(props.at.machine, props.at.folder, props.path);
+  const state = () => thumbState(key);
+  const ready = () => {
+    const s = state();
+    return s.state === "ready" ? s : undefined;
+  };
+  const shut = () => {
+    const s = state();
+    if (s.state === "large") return { word: "Too large to show", path: s.path };
+    if (s.state === "failed") return { word: "Can't be shown", path: s.path };
+    return undefined;
+  };
+  const missing = () => {
+    const s = state();
+    return s.state === "missing" ? s : undefined;
+  };
+  return (
+    <Tipped label={props.name} side="top">
+      <>
+        <If when={ready()}>
+          {(r) => (
+            <View
+              role="button"
+              accessibilityLabel={`Picture ${props.name}`}
+              onPress={(e) => openPicture(props.at, r().path, e, r().uri)}
+              class={`overflow-hidden rounded-lg border border-border bg-muted ${FOCUS_RING}`}
+            >
+              <Image src={r().uri} style={{ width: TILE, height: TILE, objectFit: "cover" }} />
+            </View>
+          )}
+        </If>
+        <If when={state().state === "loading"}>
+          <View
+            accessibilityLabel={`Picture ${props.name}, loading`}
+            accessibilityState={{ busy: true }}
+            class={`${TILE_BOX} w-[72px]`}
+          >
+            <Icon name="image" size={14} tone="muted-foreground" />
+          </View>
+        </If>
+        <If when={shut()}>
+          {(s) => (
+            <View
+              role="button"
+              accessibilityLabel={`Picture ${props.name}, ${s().word.toLowerCase()}`}
+              onPress={(e) => openPicture(props.at, s().path, e)}
+              class={`${TILE_BOX} w-[132px] hover:bg-accent ${FOCUS_RING}`}
+            >
+              <Icon name="image" size={14} tone="muted-foreground" />
+              <Text class="text-center text-xs text-muted-foreground">{s().word}</Text>
+            </View>
+          )}
+        </If>
+        <If when={missing()}>
+          {(m) => (
+            <View
+              role="button"
+              accessibilityLabel={`Picture ${props.name}, not found`}
+              onPress={() => notify(m().message)}
+              class={`${TILE_BOX} w-[132px] hover:bg-accent ${FOCUS_RING}`}
+            >
+              <Icon name="image" size={14} tone="muted-foreground" />
+              <Text
+                class="text-center text-xs text-muted-foreground"
+                style={{ numberOfLines: 1, textOverflow: "ellipsis" }}
+              >
+                {props.name}
+              </Text>
+              <Text class="text-center text-xs text-muted-foreground">Not found</Text>
+            </View>
+          )}
+        </If>
+      </>
+    </Tipped>
   );
 }
 
@@ -81,11 +173,6 @@ export function ChatPicture(props: { src: string; alt: string; at: PictureContex
   const box = () => {
     const n = natural();
     return n ? thumbBox(n, THUMB_WIDTH) : THUMB_PLACEHOLDER;
-  };
-  const open = (path: string, e?: PressEvent, uri?: string) => {
-    if (props.at.links && !(e && modHeld(e)))
-      props.at.links.show({ kind: "picture", machine: props.at.machine, path, uri });
-    else viewFile(props.at.machine, path);
   };
   const ready = () => {
     const s = state();
@@ -134,7 +221,7 @@ export function ChatPicture(props: { src: string; alt: string; at: PictureContex
             <View
               role="button"
               accessibilityLabel={`Picture ${caption()}`}
-              onPress={(e) => open(r().path, e, r().uri)}
+              onPress={(e) => openPicture(props.at, r().path, e, r().uri)}
               style={{ width: box().width, height: box().height }}
               class={`overflow-hidden rounded-md border border-border bg-muted ${FOCUS_RING}`}
             >
@@ -163,7 +250,9 @@ export function ChatPicture(props: { src: string; alt: string; at: PictureContex
           <Text class="text-xs text-muted-foreground">{caption()}</Text>
         </View>
       </If>
-      <If when={shut()}>{(s) => <PictureChip text={s().text} tip={s().tip} onPress={(e) => open(s().path, e)} />}</If>
+      <If when={shut()}>
+        {(s) => <PictureChip text={s().text} tip={s().tip} onPress={(e) => openPicture(props.at, s().path, e)} />}
+      </If>
       <If when={!props.mention ? missing() : undefined}>
         {(m) => (
           <PictureChip text={`Image: ${name()} · not found`} tip={m().message} onPress={() => notify(m().message)} />

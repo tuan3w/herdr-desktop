@@ -62,15 +62,57 @@ test("pressing a web link opens the side panel, not the browser; Open in browser
   const app = await links();
   await app.press(`label:${PR}`);
   await app.waitFor(PANEL);
-  expect(app.shows(`label:/, ${PR.replace(/[/.]/g, "\\$&")}$/`)).toBe(true);
+  await app.waitUntil(() => app.value("label:Address") === PR);
   expect(app.openedUrls()).toEqual([]);
+  // A fresh page has no history: Back and Forward are there, and say they cannot act.
+  expect(app.enabled("label:Back")).toBe(false);
+  expect(app.enabled("label:Forward")).toBe(false);
 
-  await app.press("Open in browser");
+  await app.press("label:Open in browser");
   await app.waitUntil(() => app.openedUrls().length === 1);
   expect(app.openedUrls()).toEqual([PR]);
 
   await app.press("label:Close");
   await app.waitFor(PANEL, { state: "gone" });
+});
+
+test("an address typed without a scheme opens as https in the panel, and Open in browser then hands that page over", async () => {
+  const app = await links();
+  await app.press(`label:${PR}`);
+  await app.waitFor(PANEL);
+  await app.clear("label:Address");
+  await app.type("label:Address", "docs.example.com/guides");
+  await app.submit("label:Address");
+  await app.waitFor("label:Page https://docs.example.com/guides");
+  expect(app.value("label:Address")).toBe("https://docs.example.com/guides");
+
+  await app.press("label:Open in browser");
+  await app.waitUntil(() => app.openedUrls().length === 1);
+  expect(app.openedUrls()).toEqual(["https://docs.example.com/guides"]);
+});
+
+test("a typed address the panel does not show (plain http to another computer, words) is refused and the page stays", async () => {
+  const app = await links();
+  await app.press(`label:${PR}`);
+  await app.waitFor(PANEL);
+  for (const typed of ["http://example.com/", "how to fix login"]) {
+    await app.clear("label:Address");
+    await app.type("label:Address", typed);
+    await app.submit("label:Address");
+    await app.wait(100);
+    expect(app.shows(`label:Page ${PR}`)).toBe(true);
+  }
+  expect(app.openedUrls()).toEqual([]);
+});
+
+test("Escape over a page leaves the panel open: it gives the keyboard back to the message box", async () => {
+  const app = await links();
+  await app.press(`label:${PR}`);
+  await app.waitFor(PANEL);
+  await app.hover(PANEL);
+  await app.keyboard.press("escape");
+  await app.wait(100);
+  expect(app.shows(PANEL)).toBe(true);
 });
 
 test("a file link shows the file's name and line, and opens the file at that line in the panel", async () => {
