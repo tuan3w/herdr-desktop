@@ -1,4 +1,4 @@
-import { announce, effect, type JSX, Scroll, signal, Text, untracked, View, windowSize } from "nsh";
+import { announce, computed, effect, type JSX, Scroll, signal, Text, untracked, View, windowSize } from "nsh";
 import { AlertDialog, Dialog } from "nsh/base";
 
 import { largeDialogSize } from "#lib/layout";
@@ -50,11 +50,15 @@ export function Modal(props: {
   onOpenChangeComplete?: (open: boolean) => void;
 }) {
   const id = newDialogId();
-  trackDialog(id, () => props.open);
+  // nsh's `Dialog` deletes its native window and builds every view in it again each time its `open` is evaluated, even
+  // to the same `true`: an owner's `open={settingsPage() !== null}` rebuilt Settings on every page change, which the
+  // person saw as the content going away and coming back. Only a change of the boolean reaches it, and the effects below.
+  const open = computed(() => props.open);
+  trackDialog(id, open);
   const state = createOpenState({
-    open: () => props.open,
-    onOpenChange: (open, change) => {
-      if (!open) props.onClose(change);
+    open,
+    onOpenChange: (next, change) => {
+      if (!next) props.onClose(change);
     },
   });
   const ask = (reason: OpenReason) => {
@@ -65,7 +69,7 @@ export function Modal(props: {
     state.set(false, reason);
   };
   const large = () => (props.size === "settings" ? largeDialogSize(windowSize()) : undefined);
-  const pop = enterScale(() => props.open);
+  const pop = enterScale(open);
   const viewport = signal(0);
   const content = signal(0);
   // Whether a body and a footer were given, without reading them: `props.children` and `props.actions` are getters that
@@ -81,7 +85,7 @@ export function Modal(props: {
   // changes while it is open (a counter, a name being typed) must not be read again at every change.
   let announced = false;
   effect(() => {
-    const now = props.open;
+    const now = open();
     if (now && !announced)
       untracked(() => announce(props.description ? `${props.title}. ${props.description}` : props.title));
     announced = now;
@@ -138,7 +142,7 @@ export function Modal(props: {
   // both as the same cancel without a reason.
   return (
     <Dialog
-      open={props.open}
+      open={open()}
       animation="fade"
       closeOnEscape={false}
       closeOnBackdropPress={false}
