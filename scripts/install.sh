@@ -117,8 +117,18 @@ elif [ -z "$version" ]; then
   [ -z "${HERDR_DESKTOP_BASE:-}" ] || die "give --version with HERDR_DESKTOP_BASE"
   say "looking for the newest release..."
   fetch "https://api.github.com/repos/$REPO/releases?per_page=20" "$work/latest.json"
-  # The rolling pre-release `edge` is newer than any release and is not one: the newest vX.Y.Z tag is.
-  tag="$(sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\(v[0-9][^"]*\)".*/\1/p' "$work/latest.json" | head -1)"
+  # The rolling pre-release `edge` is newer than any release and is not one: the highest vX.Y.Z tag is. The list is not in
+  # version order (GitHub put alpha.10 after alpha.5), so the highest is found by semver: alpha < beta < rc < stable.
+  tag="$(sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\(v[0-9][^"]*\)".*/\1/p' "$work/latest.json" |
+    awk '{
+      v = substr($0, 2); stage = 3; n = 0
+      if (match(v, /-(alpha|beta|rc)\.[0-9]+$/)) {
+        split(substr(v, RSTART + 1), s, "."); stage = (s[1] == "alpha") ? 0 : (s[1] == "beta") ? 1 : 2; n = s[2]
+        v = substr(v, 1, RSTART - 1)
+      }
+      split(v, a, ".")
+      printf "%08d%08d%08d%d%08d %s\n", a[1], a[2], a[3], stage, n, $0
+    }' | sort | tail -1 | cut -d' ' -f2)"
   [ -n "$tag" ] || die "could not read the newest release from GitHub (rate limited? try --version)"
   version="${tag#v}"
 fi

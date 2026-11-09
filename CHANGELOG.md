@@ -4,6 +4,8 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+- The install command installs the highest release again. After `0.1.0-alpha.10` it installed `0.1.0-alpha.9`, because
+  GitHub lists `alpha.10` after `alpha.5`; until you update the script, install it with `--version 0.1.0-alpha.10`.
 ## [0.1.0-alpha.10] - 2026-11-09
 
 ### Chats open where you left them
