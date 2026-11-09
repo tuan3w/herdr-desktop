@@ -29,9 +29,14 @@ runs:
     - name: nsh 0.4.0
       shell: bash
       # Pinned: nsh 0.4.0 is the API the app is written for (AGENTS.md: do not upgrade unless asked). The installer
-      # links nsh into ~/.local/bin on both systems.
+      # links nsh into ~/.local/bin on both systems. Tried three times, a minute apart: GitHub's asset host answered 504
+      # twice in a row on 2026-11-09 and failed the 0.1.0-alpha.8 and alpha.9 Linux builds.
       run: |
-        NSH_VERSION=v0.4.0 sh -c "$(curl -fsSL https://nsh.dev/install.sh)"
+        for attempt in 1 2 3; do
+          NSH_VERSION=v0.4.0 sh -c "$(curl -fsSL --retry 3 https://nsh.dev/install.sh)" && break
+          [ "$attempt" = 3 ] && exit 1
+          sleep 60
+        done
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
         "$HOME/.local/bin/nsh" -V
 
