@@ -73,7 +73,7 @@ test("Stop appears while a turn runs with nothing typed and ends the turn; what 
 
   await say_(app, "slow");
   await app.waitFor("label:Stop");
-  expect(said(app, "Esc stops the turn") || app.shows(label("^You: slow"))).toBe(true);
+  expect(app.shows("text:Queue a message")).toBe(true);
 
   // Typed while the agent works: queued, shown above the box, and the button is Queue, not Stop.
   await say_(app, "after that, run the tests");
@@ -234,14 +234,14 @@ test("sending goes through the port with what was typed, an empty box sends noth
   await app.waitUntil(() => said(app, "send run the tests"));
   expect(app.value(BOX)).toBe("");
 
-  // The scripted agent is now working: the next message waits for the turn and says so.
+  // The scripted agent is now working: the next message waits for the turn, and the empty box says so.
   await app.waitFor("label:Stop");
+  expect(app.shows("text:Queue a message")).toBe(true);
   await say_(app, "and the lint");
   await app.waitFor(label("^Queued: and the lint"));
   expect(said(app, "send and the lint")).toBe(true);
 
   await app.type(BOX, "draft");
-  expect(said(app, "Goes into the queue and is sent when the turn ends")).toBe(true);
   expect(app.shows("label:Queue message")).toBe(true);
 });
 

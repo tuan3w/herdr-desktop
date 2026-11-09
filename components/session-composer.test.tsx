@@ -252,6 +252,17 @@ test("Up in an empty box brings back the last message, Down goes forward again, 
   expect(box(app)).toBe("half a thought");
 });
 
+test("while the agent works the empty box says a message is queued once, in the placeholder, and Stop's tooltip names Esc", async () => {
+  const app = await chat("tools");
+  await app.waitFor("label:Stop");
+  expect(app.shows("text:Queue a message")).toBe(true);
+  // Nothing under the box repeats it: the line there is for failures and a command's arguments.
+  expect(app.texts().filter((t) => /queue/i.test(t))).toEqual([]);
+
+  await app.hover("label:Stop");
+  await app.waitFor("text:Esc");
+});
+
 test("a command list opens at a slash in the same list as files", async () => {
   const app = await chat("commands");
   await app.type(BOX, "/re");

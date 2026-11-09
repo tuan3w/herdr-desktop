@@ -9,15 +9,20 @@ import { AttachPicker } from "#components/session-attach";
 import { ChipRow, PictureStrip } from "#components/session-chips";
 import { SessionModeChip, SessionModelPicker } from "#components/session-config";
 import { SessionQueue } from "#components/session-queue";
-import { ActionMenu, FOCUS_RING, Icon } from "#kit";
+import { ActionMenu, FOCUS_RING, Icon, Tipped } from "#kit";
 import { type Composer, createComposer } from "#lib/composer";
 import { CHAT_COLUMN, COMPOSER_INPUT } from "#lib/layout";
 import { pinCommand, slashMemory } from "#lib/pane-memory";
 import type { SessionPort } from "#lib/session";
-import { deliveryNote } from "#lib/session-compose";
 import { enterNewline } from "#lib/settings";
 import { GLOBAL, keysOf, keyText } from "#lib/shortcuts";
 import { isPinned, usageKey } from "#lib/slash";
+
+/**
+ * Below this box width the long placeholder wraps to a second line the one-line field cuts (a pane at 960 split in two):
+ * the box then says `Ask anything` alone; `@` and `/` are in the `+` menu and the keyboard sheet.
+ */
+const FULL_HINT_MIN = 400;
 
 /** What the chat does with its message box from outside: the open of a tab, `mod+2`, `Reply…`, a drop, a shortcut. */
 export interface SessionComposerHandle {
@@ -76,18 +81,25 @@ export function SessionComposer(props: {
   // would move under the pointer. Its bottom edge stays 8 pt over the box's top edge.
   const box = signal<ViewRef | null>(null);
   const anchor = () => box() ?? card();
-  // While the commands are listed the box says what typing does; the keys of the list say the rest.
+  // While the commands are listed the box says what typing does; while the agent works it says where a message goes, once,
+  // instead of a note under the box (the keys of the list and the keyboard sheet say the rest).
+  const boxWidth = signal(0);
   const placeholder = () =>
-    c.off() ?? (c.listed() === "slash" ? "Type to filter" : "Ask anything · @ for files · / for commands");
+    c.off() ??
+    (c.listed() === "slash"
+      ? "Type to filter"
+      : c.running()
+        ? "Queue a message"
+        : boxWidth() > 0 && boxWidth() < FULL_HINT_MIN
+          ? "Ask anything"
+          : "Ask anything · @ for files · / for commands");
   const attachKey = () => keyText(keysOf(GLOBAL.attachFiles)[0]!);
 
-  /** What the line in the box's bottom row says: the failure, else what the typed command takes, else what a send does, beside the mode and model under the box. The keys are not here: the placeholder says how to start and the keyboard sheet lists the rest. */
+  /** What the line beside the mode and model under the box says: the failure, else what the typed command takes. Help is not here: the placeholder says how to start and where a message goes, the keyboard sheet lists the keys. */
   const line = (): { text: string; alert: boolean } | null => {
     if (c.error() !== "") return { text: c.error(), alert: true };
     const ghost = c.ghost();
     if (ghost) return { text: `${c.value().trim()} takes ${ghost}`, alert: false };
-    const note = deliveryNote(props.view());
-    if (note) return { text: note, alert: false };
     return null;
   };
 
@@ -128,6 +140,7 @@ export function SessionComposer(props: {
         ref={(node: ViewRef) => {
           box.set(node);
         }}
+        onLayout={({ bounds }) => boxWidth.set(bounds.size.width)}
         class="gap-1 rounded-xl border border-border bg-card px-2 py-2 focus-within:border-ring focus-within:outline-[0.5px] focus-within:outline-offset-0 focus-within:outline-ring"
       >
         <PictureStrip composer={c} />
@@ -229,28 +242,34 @@ export function SessionComposer(props: {
 /** Whether a character typed at the end of `text` starts a word, which `@` needs to mean a mention. */
 const startsWord = (text: string): boolean => text === "" || /\s$/.test(text);
 
-/** The round button: Send, Queue message while the agent works, Stop while a turn runs with nothing typed. */
+/**
+ * The round button: Send, Queue message while the agent works, Stop while a turn runs with nothing typed. Stop is a muted
+ * ring, not a filled button: while the agent works nothing needs the person, and a filled Stop was the loudest thing on
+ * screen (`design/taste.md`, hierarchy by subtraction). Its tooltip carries the key that also stops the turn.
+ */
 function SendButton(props: { c: Composer }): JSX.Element {
   const c = props.c;
   const label = () => (c.showStop() ? "Stop" : c.running() ? "Queue message" : "Send message");
   const usable = () => c.canSend();
   return (
-    <Button
-      onPress={() => (c.showStop() ? (c.guarded() ? undefined : void c.stop()) : void c.send())}
-      disabled={!usable()}
-      accessibilityLabel={label()}
-      class={`size-8 items-center justify-center rounded-full ${FOCUS_RING} ${usable() ? "bg-primary" : "bg-muted"} ${c.guarded() ? "opacity-60" : ""}`}
-    >
-      <If
-        when={c.showStop()}
-        else={<Icon name="arrow-up" size={16} tone={usable() ? "primary-foreground" : "muted-foreground"} />}
+    <Tipped label={label()} shortcut={c.showStop() ? keyText("escape") : undefined} side="top">
+      <Button
+        onPress={() => (c.showStop() ? (c.guarded() ? undefined : void c.stop()) : void c.send())}
+        disabled={!usable()}
+        accessibilityLabel={label()}
+        class={`size-8 items-center justify-center rounded-full ${FOCUS_RING} ${c.showStop() ? "border border-border bg-transparent" : usable() ? "bg-primary" : "bg-muted"} ${c.guarded() ? "opacity-60" : ""}`}
       >
-        <View
-          class="size-3 rounded-sm bg-primary-foreground"
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        />
-      </If>
-    </Button>
+        <If
+          when={c.showStop()}
+          else={<Icon name="arrow-up" size={16} tone={usable() ? "primary-foreground" : "muted-foreground"} />}
+        >
+          <View
+            class="size-3 rounded-sm bg-foreground"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          />
+        </If>
+      </Button>
+    </Tipped>
   );
 }
