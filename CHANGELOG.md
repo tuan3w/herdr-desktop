@@ -4,6 +4,49 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+## [0.1.0-alpha.8] - 2026-11-09
+
+### Paths that open, skills that complete, a browser beside the chat
+
+A path the agent names opens wherever it appears, your skills show in the
+`/` list, and a link opens in a small browser you can use. Settings and
+picture zoom no longer flicker.
+
+> [!TIP]
+> Try it: in a chat, type `/` and part of a skill's name, such as `/herdr`.
+
+- In an omp chat read from the terminal, the `/` list offers the project's
+  and your skills as omp runs them (`/skill:herdr-design`), with their
+  descriptions; type part of the name, such as `/herdr`. A Claude Code chat
+  lists its skills before the first message too.
+- A long command on the working line now ends in … at the edge of the
+  conversation, with the time still beside it.
+- The install script waits out GitHub's short download outages (it gave up
+  after four quick 504 errors).
+- The sidebar no longer shows a column of pick boxes over agent names. Pick an
+  agent from its `...` menu, or with Ctrl+click (Cmd+click on a Mac);
+  Shift+click picks a range. A picked agent shows a check mark.
+- Settings › About now finds the newest alpha (it only ever looked for a
+  stable release), says when you are up to date or why it could not check,
+  and copies the install command that updates the app.
+- Choosing a page in Settings switches at once: the dialog no longer
+  vanishes and fades back in on every press.
+- A page opened from a link is now a small browser: go back and forward,
+  reload, and type an address (Ctrl+L, Cmd+L on a Mac). Copy link and Open in
+  browser sit in its one bar; a page that cannot load says why and offers to
+  try again.
+- Zooming a picture with the wheel or touchpad goes straight to the new size:
+  the picture no longer jumps up or down for a moment on every step.
+- A path the agent names relative to its folder (`.scratch/shot.png`,
+  `../notes.txt`, `main.rs:3`) now opens when you press it, in a message or
+  in a tool call, instead of saying "A path must start with / or ~/". It is
+  looked for in the session's folder, then its checkout and project; a file
+  that is not there says which folder it is not in. Files in tool calls open
+  in the side panel like links in messages.
+- A picture you attached to a terminal agent's chat shows as a thumbnail in
+  your message, and other files as small chips, instead of the raw
+  `@.herdr-desktop/attachments/…` text. Press one to open it beside the chat.
+
 ## [0.1.0-alpha.7] - 2026-11-09
 
 ### Pictures and links you can check without leaving the chat
