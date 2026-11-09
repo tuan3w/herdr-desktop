@@ -4,6 +4,47 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+## [0.1.0-alpha.6] - 2026-11-09
+
+### A sidebar by machine and a message box that works with terminal agents
+
+The sidebar is in sections, Pinned, This computer, then each other machine,
+and projects where nothing is going on fold into one quiet line. The
+message box keeps your words on top and its controls in one row inside it.
+
+> [!TIP]
+> Try it: open a project's `...` menu in the sidebar and choose `Move up`,
+> or press `Ctrl+Shift+Up` (`Cmd+Shift+Up` on a Mac) on its header.
+
+- Agent names start at the left edge with their state at the right end of
+  the row, so a quiet list has no gap; a pinned project sits in `Pinned`
+  only.
+- In the message box the `/` and `@` lists open as the box's own top, at
+  its width. The `/` list shows commands and skills under their own
+  headings, and a file's preview sits inside the `@` list.
+
+**Fixed**
+
+- A picture or file sent to a terminal agent's chat no longer fails with
+  "Attach files in the terminal": it goes as its path in your words, as on
+  the phone.
+- A terminal agent's chat follows `/clear`, `/new` and `/resume` to the new
+  session within seconds instead of staying on the old conversation; after
+  Claude Code's `/clear` one line says "The conversation was cleared".
+- Claude Code's skills stay in the `/` list of a long session; they were
+  missing once the session outgrew the first read of its log.
+- A slash command typed into a terminal agent's chat (`/clear`, omp's
+  `/compact`) no longer warns that the terminal may not have taken it.
+- Typing a command's whole name and pressing Enter keeps that command
+  instead of picking a longer one that starts the same way.
+
+**Not checked**
+
+- Known: typing Vietnamese with ibus in the message box can repeat a word
+  (`thông thông`); not fixed yet.
+- Seen on Linux only, on made-up data with one machine; several machines,
+  a pinned project and hover were not looked at.
+
 ## [0.1.0-alpha.5] - 2026-11-09
 
 ### A quieter window, everything on one edge
