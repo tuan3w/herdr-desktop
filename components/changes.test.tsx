@@ -8,6 +8,7 @@ import { headings } from "#components/changes-list";
 import { changeText } from "#components/diff-block";
 import type { MenuAction, MenuEntry, MenuGroup } from "#kit";
 import type { Item } from "#lib/changes";
+import { forgetKept } from "#lib/changes-model";
 
 const DESKTOP = { width: 1280, height: 800, platform: "linux" as const, clock: {} };
 
@@ -17,8 +18,11 @@ const DESKTOP = { width: 1280, height: 800, platform: "linux" as const, clock: {
  * moved to src/tokens.ts and edited, docs/notes.md and src/rate-limit.ts new. Two agents of the scripted herdr work in it:
  * `omp` waits for an answer, `claude` is done. A file is found by its label, which starts with its path.
  */
-const lab = (params: Record<string, unknown> = {}, size = DESKTOP) =>
-  open("./changes-lab.tsx", { ...size, host: { params } });
+const lab = (params: Record<string, unknown> = {}, size = DESKTOP) => {
+  // A tab keeps its last reading between visits (module state): each test starts from one never opened before.
+  forgetKept();
+  return open("./changes-lab.tsx", { ...size, host: { params } });
+};
 
 const esc = (path: string) => path.replace(/[./]/g, "\\$&");
 const file = (path: string) => `label:/^${esc(path)}, /`;

@@ -60,7 +60,7 @@ export { palette } from "#lib/palette/controller";
 export const shortcutsOpen = signal(false);
 
 /** The pages of Settings, in the order of its nav. Machines is one of them, not a dialog of its own. */
-export type SettingsPage = "look" | "notifications" | "accessibility" | "machines" | "about";
+export type SettingsPage = "look" | "notifications" | "accessibility" | "machines" | "storage" | "about";
 
 /**
  * The page of Settings while its dialog is open, or `null` while it is closed. A dialog over an unchanged window, by the owner's

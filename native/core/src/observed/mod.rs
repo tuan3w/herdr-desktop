@@ -10,6 +10,7 @@
 pub mod ask;
 pub mod claude;
 pub mod codex;
+pub mod copy;
 pub mod kinds;
 pub mod locate;
 pub mod model;

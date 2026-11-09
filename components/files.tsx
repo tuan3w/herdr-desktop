@@ -27,6 +27,7 @@ import {
 import { parseFilesKey } from "#lib/dock";
 import { arrange, crumbsOf, FILE_COLUMN, type FileSortKey, firstSort, listingNote, sortOfPress } from "#lib/file-table";
 import { entryLabel, fileSort, joinPath, parentOf, revealLabel, showHidden, sizeText, stepNames } from "#lib/files";
+import { folderCache, sameListing } from "#lib/folder-cache";
 import { requests } from "#lib/open-files";
 import { fold } from "#lib/text";
 import { restartable } from "#lib/timer";
@@ -139,9 +140,18 @@ export function FilesTab(props: { id: string; active: boolean }) {
 
   const go = async (path: string): Promise<void> => {
     const mine = ++latest;
-    loading.set(true);
+    // A folder seen this run shows its rows now and the machine's answer corrects them: no skeleton, and the table
+    // keeps its selection when nothing changed.
+    const cached = folderCache.get(machine, path);
+    if (cached) {
+      listing.set(cached.view);
+      readAt.set(cached.at);
+      typed.set(cached.view.path);
+      query.set("");
+    }
+    loading.set(!cached);
     failure.set(null);
-    at.set(path);
+    at.set(cached?.view.path ?? path);
     editing.set(false);
     // Leaving the viewer happens now, not when the listing arrives: a request that names a file starts reading it at the
     // same time, and a slow listing that closed the viewer on arrival undid the file that had opened first.
@@ -149,16 +159,23 @@ export function FilesTab(props: { id: string; active: boolean }) {
     try {
       const next = await MachineFiles.list(machine, path);
       if (mine !== latest) return;
-      listing.set(next);
+      const now = Math.floor(Date.now() / 1000);
+      folderCache.put(machine, path, next, now);
+      if (next.path !== path) folderCache.put(machine, next.path, next, now);
+      readAt.set(now);
       at.set(next.path);
+      if (cached && sameListing(cached.view, next)) return;
+      listing.set(next);
       typed.set(next.path);
-      query.set("");
-      readAt.set(Math.floor(Date.now() / 1000));
+      if (!cached) query.set("");
       announce(`${next.path.replace(/\/+$/, "").split("/").pop() || "Root"} folder, ${next.entries.length} items`);
     } catch (e) {
       if (mine !== latest) return;
-      failure.set(reason(e));
-      typed.set(path);
+      // The rows shown stay, and "N min ago" says how old they are.
+      if (!cached) {
+        failure.set(reason(e));
+        typed.set(path);
+      }
       announce(reason(e));
     } finally {
       if (mine === latest) loading.set(false);

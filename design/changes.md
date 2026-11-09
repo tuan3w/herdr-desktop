@@ -41,6 +41,8 @@ All of it is `herdr_core::git` (`native/core/src/git`), reached through the `Git
 
 The tab reads when it comes to the front, every `POLL_MS` (5 s, stretched to four times a slow read) while it is in front and the window is on screen (focused or not; `background` reads nothing), and `TURN_MS` after an agent of the checkout changes state. A hidden tab, or a window in the background, reads nothing.
 
+A tab opened again (a project switch, a layout swap) paints what it last read at once: the status of the checkout when it is under 10 minutes old, and the diff of the selected file when the same change is still wanted (`keptStatus`, `wantedKey`). A read follows at once and replaces both in place. Until that first read settles (`stale`), reverting a file or a change and sending notes are refused with `Updating the changes; try again in a moment`: the list and its fingerprints may be old, and `revert_file` checks none.
+
 ## Reviewing
 
 - `j` and `k` move between files (Up and Down too while the list has the keyboard), `n` and `p` between the changes of a file, `Enter` shows more unchanged lines while the list has the keyboard (3, 12, the whole file: `CONTEXTS`; the file's menu has them as `Context` radios, with no key hint because the key depends on where the focus is), `x` marks the file reviewed, `r` reads again, `c` writes a note on the change in view.
@@ -65,4 +67,4 @@ A tab's folder, a project's checkouts and an agent's folder are compared after `
 
 ## Tests
 
-`lib/changes.test.ts` (the rules), `lib/changes-scope.test.ts` (scope, the closed section, size order, big files), `lib/changes-layout.test.ts` (widths), `components/changes.test.tsx` (the tab against a repository the test seam builds with the real git: `Git.testRepo`, `testWrite`, `testRead`), `native/core/tests/git.rs` (git itself, locally and through `git.py`).
+`lib/changes.test.ts` (the rules), `lib/changes-scope.test.ts` (scope, the closed section, size order, big files), `lib/changes-kept.test.ts` (what a reopened tab paints again), `lib/changes-layout.test.ts` (widths), `components/changes.test.tsx` (the tab against a repository the test seam builds with the real git: `Git.testRepo`, `testWrite`, `testRead`), `native/core/tests/git.rs` (git itself, locally and through `git.py`).

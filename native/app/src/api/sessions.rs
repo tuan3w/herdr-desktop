@@ -202,8 +202,11 @@ impl Sessions {
         .await
     }
 
-    /// Closes the connection to a session. The keeper and its agent keep running; attach again later. For a
-    /// chat read from a terminal (`pane:...`) it stops reading the log, as `stopObserving`.
+    /// The person leaves the session (its tab closed, its project switched). The connection is not closed at once: it
+    /// lingers for ten minutes (ninety seconds while the window is hidden), so `attach` or `observe` again takes it
+    /// back with nothing to read, and it closes sooner when another session needs its place on the machine. The keeper
+    /// and its agent keep running either way. For a chat read from a terminal (`pane:...`) the same holds for reading its
+    /// log; `stopObserving` ends that at once.
     pub fn detach(machine: String, id: String) -> Result<(), String> {
         let engine = engine()?;
         if let Some((pane, name)) = sub_id(&id) {
@@ -213,8 +216,8 @@ impl Sessions {
             return Ok(());
         }
         match id.strip_prefix(PANE_ID) {
-            Some(pane) => engine.sessions().stop_observing(&machine, pane),
-            None => engine.sessions().detach(&machine, &id),
+            Some(pane) => engine.sessions().release_observed(&machine, pane),
+            None => engine.sessions().release(&machine, &id),
         }
         Ok(())
     }

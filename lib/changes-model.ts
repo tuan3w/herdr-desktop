@@ -32,6 +32,7 @@ import {
   withMark,
 } from "#lib/changes";
 import { noteCount } from "#lib/changes-count";
+import { keptStatus, wantedKey } from "#lib/changes-kept";
 import { scopeFiles, sessionPaths } from "#lib/changes-scope";
 import { groupFiles, NEW_ROOT } from "#lib/changes-tree";
 import { changesKey } from "#lib/dock";
@@ -60,9 +61,41 @@ interface Kept {
   folded: string[];
   context: number;
   next: number;
+  /** What git said last, and when (`Date.now()`): a tab opened again paints it at once and reads git behind it. */
+  status?: StatusView;
+  statusAt?: number;
+  /** The diff on screen and the `wantedKey` it was read for: shown again only when the same file, change and context are asked for. */
+  diff?: DiffView;
+  diffKey?: string;
 }
 
 const kept = new Map<string, Kept>();
+
+/**
+ * Checkouts whose status and diff are kept. They are the bulk of `kept` (a status lists every changed file); the notes,
+ * selection and folds of a checkout are small and stay for all of them.
+ */
+const KEPT_HEAVY = 8;
+
+/** Makes `key` the newest and lets the status and diff of all but the newest `KEPT_HEAVY` checkouts go. */
+function keep(key: string, entry: Kept): void {
+  kept.delete(key);
+  kept.set(key, entry);
+  let heavy = 0;
+  for (const k of [...kept.keys()].reverse()) {
+    const e = kept.get(k)!;
+    if (!e.status || ++heavy <= KEPT_HEAVY) continue;
+    delete e.status;
+    delete e.statusAt;
+    delete e.diff;
+    delete e.diffKey;
+  }
+}
+
+/** Forgets what every checkout's tab kept: a test opens a tab that was never opened before. */
+export function forgetKept(): void {
+  kept.clear();
+}
 
 /** The `reviewed` marks of every checkout, in the settings file: written through at every change. */
 const reviewedStore = remembered<Record<string, Marks>>("changes.reviewed.v1", readMarks, () => ({}));
@@ -70,6 +103,8 @@ const reviewedStore = remembered<Record<string, Marks>>("changes.reviewed.v1", r
 const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 const lines = (n: number): string => `${n} ${n === 1 ? "line" : "lines"}`;
+
+const UPDATING = "Updating the changes; try again in a moment";
 
 /** What reverting a file loses, in the words a confirmation names it with. */
 export function lostByFile(c: Pick<ChangeView, "kind" | "added" | "removed" | "path" | "oldPath">): string {
@@ -94,6 +129,8 @@ export interface ChangesModel {
   readonly cwd: string;
   /** What git said last, `null` before the first answer. */
   status: Accessor<StatusView | null>;
+  /** The status shown is the one kept from the last visit and git has not answered since: nothing is reverted or sent from it. */
+  stale: Accessor<boolean>;
   /** A read is running. */
   loading: Accessor<boolean>;
   /** The last read failed (the machine, git, a timeout), in words; `null` when it did not. */
@@ -177,9 +214,11 @@ export interface ChangesModel {
 export function createChanges(machine: string, cwd: string, active: Accessor<boolean>): ChangesModel {
   const key = changesKey(machine, cwd);
   const saved: Kept = kept.get(key) ?? { notes: [], selected: null, folded: [], context: CONTEXTS[0], next: 1 };
-  const remember = () => kept.set(key, saved);
+  const remember = () => keep(key, saved);
 
-  const status = signal<StatusView | null>(null);
+  const opened = keptStatus(saved, Date.now());
+  const status = signal<StatusView | null>(opened);
+  const stale = signal(opened !== null);
   const loading = signal(false);
   const failure = signal<string | null>(null);
   const query = signal("");
@@ -274,6 +313,9 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
       if (disposed) return;
       failure.set(null);
       status.set(next);
+      saved.status = next;
+      saved.statusAt = Date.now();
+      remember();
       // The chip of a chat in this checkout shows the same number without reading git itself.
       const count = next.problem ? null : next.files.length;
       noteCount(machine, cwd, count);
@@ -292,6 +334,8 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
         const first = untracked(order)[0];
         if (first) reveal(first.path);
         selectedPath.set(first?.path ?? null);
+        saved.selected = first?.path ?? null;
+        remember();
       }
       if (announceResult)
         announce(
@@ -306,7 +350,10 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
     } finally {
       lastMs = performance.now() - started;
       inflight = false;
-      if (!disposed) loading.set(false);
+      if (!disposed) {
+        loading.set(false);
+        stale.set(false);
+      }
       if (again && !disposed) {
         again = false;
         void refresh();
@@ -322,7 +369,7 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
   effect(() => {
     if (!active()) return;
     const background = lifecycle() === "background";
-    if (background && untracked(status) !== null) return;
+    if (background && untracked(status) !== null && !untracked(stale)) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const tick = () => {
       void refresh().finally(() => {
@@ -355,8 +402,21 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
 
   let diffSeq = 0;
   let shownKey = "";
+  const forgetDiff = () => {
+    delete saved.diff;
+    delete saved.diffKey;
+    remember();
+  };
 
-  async function readDiff(c: ChangeView): Promise<void> {
+  // A diff kept from the last visit is drawn again at once, and `shownKey` says it is what the selection wants, so the
+  // effect below neither blanks nor reads it before git has answered; a changed fingerprint then reads it as ever.
+  const keptKey = untracked(() => wantedKey(selected(), context(), all().has(selectedPath() ?? ""), held()));
+  if (saved.diff && keptKey !== "" && saved.diffKey === keptKey) {
+    diff.set(saved.diff);
+    shownKey = keptKey;
+  }
+
+  async function readDiff(c: ChangeView, wanted: string): Promise<void> {
     const mine = ++diffSeq;
     diffLoading.set(true);
     diffFailure.set(null);
@@ -364,9 +424,13 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
       const d = await Git.diff(machine, root(), c.path, c.oldPath ?? null, c.kind, context(), all().has(c.path));
       if (mine !== diffSeq || disposed) return;
       diff.set(d);
+      saved.diff = d;
+      saved.diffKey = wanted;
+      remember();
     } catch (e) {
       if (mine !== diffSeq || disposed) return;
       diff.set(null);
+      forgetDiff();
       diffFailure.set(reason(e));
     } finally {
       if (mine === diffSeq && !disposed) diffLoading.set(false);
@@ -378,22 +442,24 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
   effect(() => {
     const c = selected();
     const holding = held();
-    const wanted = c ? `${c.path}|${c.fingerprint}|${context()}|${all().has(c.path)}|${holding}` : "";
+    const wanted = wantedKey(c, context(), all().has(c?.path ?? ""), holding);
     if (wanted === shownKey) return;
     const sameFile = untracked(() => diff()?.path === c?.path);
     shownKey = wanted;
     if (!c || holding) {
       diffSeq++;
       diff.set(null);
+      forgetDiff();
       diffFailure.set(null);
       diffLoading.set(false);
       return;
     }
     if (!sameFile) {
       diff.set(null);
+      forgetDiff();
       group.set(-1);
     }
-    void untracked(() => readDiff(c));
+    void untracked(() => readDiff(c, wanted));
   });
 
   /** Opens the groups that hide `path` (the closed section of unknown files, its folder), so a selected row is one you can see. */
@@ -481,6 +547,11 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
   }
 
   async function revertFile(c: ChangeView): Promise<void> {
+    // The Rust side checks no fingerprint for a whole file, so a list kept from the last visit must not answer for it.
+    if (stale()) {
+      announce(UPDATING);
+      return;
+    }
     const yes = await confirmDestructive({
       title: `Revert ${c.path}?`,
       description: lostByFile(c),
@@ -498,6 +569,10 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
   }
 
   async function revertGroup(): Promise<void> {
+    if (stale()) {
+      announce(UPDATING);
+      return;
+    }
     const d = diff();
     const g = current();
     const c = selected();
@@ -522,6 +597,10 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
   }
 
   async function sendNotes(row: BoardRow): Promise<boolean> {
+    if (stale()) {
+      announce(UPDATING);
+      return false;
+    }
     const text = message();
     const count = notes().length;
     if (count === 0) return false;
@@ -551,6 +630,7 @@ export function createChanges(machine: string, cwd: string, active: Accessor<boo
     machine,
     cwd,
     status,
+    stale,
     loading,
     failure,
     root,

@@ -9,6 +9,7 @@ import { LookPage } from "#components/settings-look";
 import { Btn, copyText, FOCUS_RING, Modal, notify, SettingRow, Switch } from "#kit";
 import { closeSettings, settingsPage } from "#lib/actions";
 import type { SettingsPage } from "#lib/actions";
+import { sizeText } from "#lib/files";
 import { revision } from "#lib/herdr";
 import { DIALOG_LARGE } from "#lib/layout";
 import { hoverTransition } from "#lib/motion";
@@ -26,6 +27,7 @@ const PAGES: { id: SettingsPage; title: string }[] = [
   { id: "notifications", title: "Notifications" },
   { id: "accessibility", title: "Accessibility" },
   { id: "machines", title: "Machines" },
+  { id: "storage", title: "Storage" },
   { id: "about", title: "About" },
 ];
 
@@ -122,6 +124,67 @@ function AccessibilityPage() {
         label="Large hit targets"
         description="44 pt targets for a touch screen. A pointer gets 24 pt targets."
         control={<Switch label="Large hit targets" checked={largeTargets()} onChange={(v) => largeTargets.set(v)} />}
+      />
+    </View>
+  );
+}
+
+/**
+ * What the app keeps on this computer. The numbers are read when the page opens and after each change here, not on a
+ * timer: a copy saved while the page is open shows the next time it opens.
+ */
+function StoragePage() {
+  const usage = signal(Herdr.cacheUsage());
+  // Cleared stays said until the person changes something else here; the size line alone would read as a plain zero.
+  const cleared = signal(false);
+  const attempt = (what: string, run: () => void) => {
+    try {
+      run();
+    } catch (e) {
+      notify(`Could not ${what}: ${e instanceof Error ? e.message : String(e)}`, { lasting: true });
+    }
+    usage.set(Herdr.cacheUsage());
+  };
+  const setKeep = (on: boolean) =>
+    attempt("save the setting", () => {
+      Herdr.setCacheEnabled(on);
+      cleared.set(false);
+    });
+  return (
+    <View>
+      <SettingRow
+        onPress={() => setKeep(!usage().enabled)}
+        label="Keep conversations and the board on this computer"
+        description="Saves the conversations you open and the last state of the board here, so a tab opens at once and then catches up. They stay on this computer, readable only by this account, and a machine's are deleted when you remove the machine. Turning this off keeps what is saved until you clear it."
+        control={
+          <Switch
+            label="Keep conversations and the board on this computer"
+            checked={usage().enabled}
+            onChange={setKeep}
+          />
+        }
+      />
+      <SettingRow
+        label={`Saved conversations and boards: ${sizeText(usage().bytes)}`}
+        description="Everything the switch above keeps. Clearing deletes it; a conversation is saved again the next time you open it."
+        control={
+          <Btn
+            small
+            label={cleared() ? "Cleared" : "Clear"}
+            name={cleared() ? "Cleared saved conversations and boards" : "Clear saved conversations and boards"}
+            disabled={cleared()}
+            onPress={() =>
+              attempt("clear the saved copies", () => {
+                Herdr.clearCache();
+                cleared.set(true);
+              })
+            }
+          />
+        }
+      />
+      <SettingRow
+        label={`Copies of files from other machines: ${sizeText(usage().mediaBytes)}`}
+        description="Videos and sounds played from another machine, kept so they play again without a second copy. Clear does not remove them."
       />
     </View>
   );
@@ -241,10 +304,11 @@ function NavItem(props: { page: (typeof PAGES)[number] }) {
 
 /**
  * Every preference of the app, as a large centered dialog over the unchanged window: a nav of pages at the left (Look,
- * Notifications, Accessibility, Machines, About) and the chosen page's rows beside it, at a readable measure. Each option
- * applies and is saved the moment it changes (`lib/settings.ts`, and the engine's settings file for the notification
- * switches). It is open while `settingsPage()` is set. `Escape` goes one layer back (a machine's form, then the dialog);
- * `Close` and the sidebar's Settings row do the same with the pointer. Opening or closing it answers nothing.
+ * Notifications, Accessibility, Machines, Storage, About) and the chosen page's rows beside it, at a readable measure.
+ * Each option applies and is saved the moment it changes (`lib/settings.ts`, and the engine's settings file for the
+ * notification and storage switches). It is open while `settingsPage()` is set. `Escape` goes one layer back (a
+ * machine's form, then the dialog); `Close` and the sidebar's Settings row do the same with the pointer. Opening or
+ * closing it answers nothing.
  */
 export function Settings() {
   const page = () => PAGES.find((p) => p.id === settingsPage()) ?? PAGES[0];
@@ -286,6 +350,9 @@ export function Settings() {
             </If>
             <If when={page().id === "machines"}>
               <Machines />
+            </If>
+            <If when={page().id === "storage"}>
+              <StoragePage />
             </If>
             <If when={page().id === "about"}>
               <AboutPage />

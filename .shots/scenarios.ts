@@ -295,6 +295,16 @@ export const SCENARIOS: Record<string, Scenario> = {
       await app.wait(600);
     },
   },
+  // Storage: what the app keeps on this computer, the switch that keeps it, and Clear.
+  "settings-storage": {
+    fixture: "mixed",
+    steps: async (app) => {
+      await app.keyboard.press("ctrl+,");
+      await app.wait(400);
+      await app.press("label:Storage");
+      await app.wait(300);
+    },
+  },
   // A machine over ssh that cannot be reached (`.invalid` never resolves, so the real ssh fails at once and nothing is
   // contacted): its row says why and counts down to the next attempt. The attention states (changed or untrusted host
   // key) need scripted ssh output and are covered by `components/machines.test.tsx`.

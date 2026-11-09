@@ -30,12 +30,19 @@ const FAKE_AGENT_IN_CORE: &str = "../core/tests/support/fake_acp_agent.py";
 /// A cell the hub's callbacks reach the fleet through once it exists (the hub is built first).
 pub(super) type FleetCell = Arc<OnceLock<Weak<Fleet>>>;
 
-/// Builds the hub: changes bump the engine's tick, and the list of started keepers is saved as a setting.
-pub(super) fn build_hub(owned: Vec<String>, notes: Sender<Note>, fleet: FleetCell) -> SessionHub {
+/// Builds the hub: changes bump the engine's tick, the list of started keepers is saved as a setting, and saved
+/// conversations go to `cache`.
+pub(super) fn build_hub(
+    owned: Vec<String>,
+    notes: Sender<Note>,
+    fleet: FleetCell,
+    cache: Arc<herdr_core::cache::Cache>,
+) -> SessionHub {
     let mut config = HubConfig::new(Arc::new(move || {
         let _ = notes.send(Note::Bump);
     }));
     config.owned = owned;
+    config.cache = cache;
     config.on_owned = Arc::new(move |all| {
         if let Some(fleet) = fleet.get().and_then(Weak::upgrade)
             && let Err(e) = fleet.set_setting(OWNED_KEY, json!(all))

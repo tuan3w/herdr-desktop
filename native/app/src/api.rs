@@ -90,6 +90,19 @@ fn review_keys(keys: &[String]) -> Result<Vec<herdr_core::store::ReviewKey>, Str
         .collect()
 }
 
+/// What the app keeps on this computer (`Herdr.cacheUsage`).
+#[derive(Debug, Clone, PartialEq, JsObject)]
+pub struct StorageView {
+    /// Bytes the saved conversations and board snapshots take on disk.
+    pub bytes: f64,
+    /// How many of them there are.
+    pub entries: f64,
+    /// Whether they are kept and read (`Herdr.setCacheEnabled`).
+    pub enabled: bool,
+    /// Bytes of the copies of other machines' videos and sounds.
+    pub media_bytes: f64,
+}
+
 /// Everything the app knows about herdr: machines, agents, panes. Call `configure` once at start; the
 /// rest pulls state (`board`, `paneMeta`, `machineStatuses`) after `onChange` says something changed, and
 /// acts on it (`answer`, `sendKeys`, `startAgent`). Nothing here returns raw herdr JSON.
@@ -370,6 +383,34 @@ impl Herdr {
         engine()?.set_setting(&key, value)
     }
 
+    /// What the app keeps on this computer, and whether it keeps it: saved conversations and board snapshots (`bytes`,
+    /// `entries`) apart from the copies of other machines' videos and sounds (`mediaBytes`).
+    pub fn cache_usage() -> Result<StorageView, String> {
+        let engine = engine()?;
+        let cache = engine.cache();
+        let usage = cache.usage();
+        Ok(StorageView {
+            bytes: usage.bytes as f64,
+            entries: usage.entries as f64,
+            enabled: cache.enabled(),
+            media_bytes: engine.media_cache().used() as f64,
+        })
+    }
+
+    /// Switches the keeping of saved conversations and board snapshots on or off, and remembers the choice. Off keeps
+    /// what is saved until `clearCache`.
+    pub fn set_cache_enabled(on: bool) -> Result<(), String> {
+        let engine = engine()?;
+        engine.cache().set_enabled(on);
+        engine.set_setting(crate::engine::CACHE_KEY, Value::Bool(on))
+    }
+
+    /// Deletes every saved conversation and board snapshot. The copies of other machines' videos and sounds stay.
+    pub fn clear_cache() -> Result<(), String> {
+        engine()?.cache().clear();
+        Ok(())
+    }
+
     /// A new workspace (with a tab and a pane) in a folder. Never focused in herdr.
     pub async fn create_workspace(
         machine: String,
@@ -538,6 +579,19 @@ impl Herdr {
         } else {
             None
         }
+    }
+
+    /// Test seam: saves `text` in the cache as a copy of this computer, so a test can see the Storage page count it and
+    /// `clearCache` remove it (a real copy is saved seconds after a screen changes). Throws unless
+    /// `HERDR_DESKTOP_TEST=1`.
+    pub fn test_save_cache(text: String) -> Result<(), String> {
+        if !crate::fixture::test_seam_open() {
+            return Err(format!("The test seam is closed: set {TEST_FLAG}=1"));
+        }
+        let cache = engine()?.cache();
+        let key = cache.key(herdr_core::cache::Kind::Board, "local", "test");
+        cache.put(&key, text.as_bytes());
+        Ok(())
     }
 
     /// Test seam: sends an event (`{ event, data }`) to the app as the scripted herdr's subscribers.

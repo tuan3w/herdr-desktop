@@ -11,17 +11,19 @@ use std::io::BufReader;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crossbeam_channel::{Receiver, Sender, bounded, unbounded};
 use parking_lot::Mutex;
 
 use super::adapter::{Action, Begin, Driver, RecordInfo, Sent};
+use super::copy::{Saved, Window};
 use super::error::{KeeperError, Refusal, exit};
 use super::host::{Attach, KeeperHost};
 use super::lines::AttachLines;
 use super::outgoing::{self, Caps, Outgoing, Pasted};
 use super::types::{FieldAnswer, SessionPhase, SessionSnapshot};
+use crate::cache::{Cache, Key, Kind};
 
 /// How long a caller waits for the session thread to take an action.
 const CALL_TIMEOUT: Duration = Duration::from_secs(10);
@@ -59,6 +61,8 @@ pub(super) struct Opening<'a> {
     /// Lists the machine's keepers: where the record of an attached keeper is read from.
     pub listing: Listing,
     pub on_change: Arc<dyn Fn() + Send + Sync>,
+    /// Where the conversation's saved copy is read from and written to.
+    pub cache: Arc<crate::cache::Cache>,
 }
 
 pub(super) type Listing =
@@ -122,16 +126,38 @@ impl SessionHandle {
             cwd,
             listing,
             on_change,
+            cache,
         } = opening;
         let conn = host.attach(id)?;
         let started = Instant::now();
-        let (driver, first) = Driver::new(begin, agent, cwd, 0);
+        let key = cache.key(Kind::Keeper, machine, id);
+        // Only an attach has a log to continue; a bad copy is a miss and is not kept.
+        let copy = if matches!(begin, Begin::Attach) {
+            cache.get(&key).and_then(|bytes| {
+                let copy = Saved::decode(&bytes);
+                if copy.is_none() {
+                    cache.forget(&key);
+                }
+                copy
+            })
+        } else {
+            None
+        };
+        let seeded = copy.is_some();
+        let (mut driver, first) = Driver::new(begin, agent, cwd, 0, copy);
         let (tx, rx) = unbounded();
+        // A saved copy is on screen before the thread has run once.
+        let initial = if seeded {
+            driver.snapshot()
+        } else {
+            placeholder(agent, cwd)
+        };
         let shared = Arc::new(Shared {
-            snapshot: Mutex::new(Arc::new(placeholder(agent, cwd))),
+            snapshot: Mutex::new(Arc::new(initial)),
             alive: AtomicBool::new(true),
         });
         let mut worker = Worker {
+            window: driver.window(),
             driver,
             conn,
             started,
@@ -142,6 +168,8 @@ impl SessionHandle {
             id: id.to_owned(),
             ended: false,
             replies: Vec::new(),
+            cache,
+            key,
         };
         worker.start_reader();
         let thread = std::thread::Builder::new()
@@ -177,6 +205,11 @@ impl SessionHandle {
     /// Whether the thread still runs (it ends when the session ends or the connection is lost).
     pub fn is_open(&self) -> bool {
         self.inner.shared.alive.load(Ordering::Acquire)
+    }
+
+    /// Whether `other` is this very session (a clone of the same handle), not another one opened for the same keeper.
+    pub fn same(&self, other: &SessionHandle) -> bool {
+        Arc::ptr_eq(&self.inner, &other.inner)
     }
 
     fn call<T: Send + 'static>(
@@ -348,11 +381,19 @@ fn placeholder(agent: &str, cwd: &str) -> SessionSnapshot {
         context_percent: None,
         running: false,
         accepts_pictures: false,
+        cached_at_ms: None,
         connection_lost: false,
         unsent: None,
         observed: None,
         acp: super::types::AcpInfo::default(),
     }
+}
+
+/// The wall clock in unix milliseconds: what a saved copy says it was written at.
+fn unix_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
 
 struct Worker {
@@ -368,6 +409,11 @@ struct Worker {
     ended: bool,
     /// Callers waiting for the snapshot that shows what they did.
     replies: Vec<Reply>,
+    /// The conversation's lines as the driver records them: what the saved copy is made of.
+    window: Arc<Mutex<Window>>,
+    cache: Arc<Cache>,
+    /// Where this conversation's copy is kept.
+    key: Key,
 }
 
 impl Worker {
@@ -421,6 +467,9 @@ impl Worker {
     }
 
     fn finish(&mut self) {
+        // What the last burst recorded must be on disk before the next open reads it, however soon that comes.
+        self.save_soon();
+        self.cache.flush();
         self.conn.close();
         self.shared.alive.store(false, Ordering::Release);
     }
@@ -482,6 +531,7 @@ impl Worker {
         for action in actions {
             match action {
                 Action::Write(line) => {
+                    self.driver.note_sent(&line);
                     if self.conn.write_line(&line).is_err() {
                         let _ = self.inputs.send(Input::Closed);
                     }
@@ -532,5 +582,17 @@ impl Worker {
             reply();
         }
         (self.on_change)();
+        self.save_soon();
+    }
+
+    /// Has the copy written soon if anything was recorded since the last time. The bytes are made when the save is
+    /// due, from what the window holds then.
+    fn save_soon(&mut self) {
+        if self.driver.take_dirty() {
+            let window = self.window.clone();
+            self.cache.save_soon(&self.key, || {
+                Box::new(move || Some(window.lock().encode(unix_ms())))
+            });
+        }
     }
 }

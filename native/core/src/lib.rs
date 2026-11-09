@@ -3,6 +3,7 @@
 //! Pure Rust, no nsh dependency, tested with `cargo test` alone. See `docs/ARCHITECTURE.md`.
 
 pub mod board;
+pub mod cache;
 pub mod compose;
 pub mod files;
 pub mod git;

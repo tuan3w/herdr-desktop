@@ -89,6 +89,11 @@ impl Fleet {
     pub fn media_cache(&self) -> Arc<herdr_core::files::MediaCache> {
         self.media.clone()
     }
+
+    /// The cache of saved conversations and snapshots (`herdr_core::cache`), apart from the media copies above.
+    pub fn cache(&self) -> Arc<herdr_core::cache::Cache> {
+        self.cache.clone()
+    }
 }
 
 impl Fleet {

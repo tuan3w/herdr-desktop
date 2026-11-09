@@ -7,13 +7,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use common::{FakeWire, Plan, fixture, wait_for};
-use crossbeam_channel::{Receiver, unbounded};
+use crossbeam_channel::{Receiver, bounded, unbounded};
 use herdr_core::link::{
     Activity, Clock, LinkConfig, LinkNote, LinkState, MachineLink, ManualClock, Profile, Timing,
     Update,
 };
-use herdr_core::schema::AgentStatus;
-use herdr_core::wire::{Fatal, WireError};
+use herdr_core::schema::{AgentStatus, Snapshot};
+use herdr_core::wire::{EventStream, Fatal, Wire, WireError};
 use serde_json::{Value, json};
 
 const SECOND: Duration = Duration::from_secs(1);
@@ -43,6 +43,7 @@ fn rig_with(enabled: bool, prepare: impl FnOnce(&FakeWire)) -> Rig {
             clock: clock.clone(),
             timing: Timing::default(),
             enabled,
+            seed: None,
         },
         tx,
     );
@@ -515,4 +516,80 @@ fn shutdown_returns_even_while_a_stream_is_open() {
         d.store(true, Ordering::SeqCst);
     });
     wait_for("shutdown to finish", || done.load(Ordering::SeqCst));
+}
+
+/// A herdr that answers nothing until the gate is opened (its sender dropped or sent to).
+struct Gated {
+    inner: Arc<FakeWire>,
+    gate: Receiver<()>,
+}
+
+impl Wire for Gated {
+    fn request(&self, method: &str, params: Value, timeout: Duration) -> Result<Value, WireError> {
+        let _ = self.gate.recv();
+        self.inner.request(method, params, timeout)
+    }
+
+    fn events(&self, subscriptions: &[Value]) -> Result<Box<dyn EventStream>, WireError> {
+        self.inner.events(subscriptions)
+    }
+}
+
+/// What a machine showed on an earlier run: the mixed fixture, with fewer agents than the live one has.
+fn earlier_snapshot() -> Snapshot {
+    let mut seed = common::snapshot_fixture("snapshot-mixed.json");
+    seed.agents.truncate(2);
+    seed.panes.truncate(2);
+    seed
+}
+
+#[test]
+fn a_seeded_link_shows_the_last_snapshot_while_connecting_and_the_live_one_replaces_it() {
+    let clock = Arc::new(ManualClock::new());
+    let wire = FakeWire::new(clock.clone(), "snapshot-mixed.json");
+    let (open, gate) = bounded::<()>(0);
+    let (tx, _updates) = unbounded();
+    let link = MachineLink::start(
+        LinkConfig {
+            machine: "box".into(),
+            wire: Arc::new(Gated { inner: wire, gate }),
+            clock: clock.clone(),
+            timing: Timing::default(),
+            enabled: true,
+            seed: Some(earlier_snapshot()),
+        },
+        tx,
+    );
+    // Declared after the link so a failing assertion drops (and opens) the gate before the link joins its thread.
+    let mut open = Some(open);
+    assert_eq!(link.state(), LinkState::Connecting);
+    assert_eq!(link.snapshot().agents.len(), 2);
+    assert_eq!(link.snapshot().panes.len(), 2);
+    assert_eq!(link.revision(), 0, "nothing has been published yet");
+
+    drop(open.take());
+    wait_for("the link to be online", || {
+        link.state() == LinkState::Online
+    });
+    assert_eq!(link.snapshot().agents.len(), 5);
+}
+
+#[test]
+fn a_seed_is_ignored_by_a_machine_that_starts_switched_off() {
+    let clock = Arc::new(ManualClock::new());
+    let wire = FakeWire::new(clock.clone(), "snapshot-mixed.json");
+    let (tx, _updates) = unbounded();
+    let link = MachineLink::start(
+        LinkConfig {
+            machine: "box".into(),
+            wire,
+            clock,
+            timing: Timing::default(),
+            enabled: false,
+            seed: Some(earlier_snapshot()),
+        },
+        tx,
+    );
+    assert_eq!(link.state(), LinkState::Off);
+    assert!(link.snapshot().agents.is_empty());
 }

@@ -1,12 +1,13 @@
 //! Child processes the app owns: spawned with piped stdio, killed only by their own PID.
 
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Error, ErrorKind, Read};
 use std::process::{ChildStderr, ChildStdin, ChildStdout, Command};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 use crossbeam_channel::{Receiver, unbounded};
 use flate2::read::ZlibDecoder;
+use flate2::{Decompress, FlushDecompress, Status};
 use rustix::process::{Pid, Signal, WaitId, WaitIdOptions};
 
 /// The most stderr text kept (the tail: that is where ssh puts the reason).
@@ -166,14 +167,16 @@ impl Proc {
     }
 }
 
-/// Reads the relay's framed output on a thread: plain lines, and `Z<n>` frames inflated. The
-/// receiver disconnects when the stream ends or breaks (the child is killed then, a garbled stream
-/// cannot be trusted).
+/// Reads the relay's framed output on a thread: plain lines, `Z<n>` frames inflated on their own,
+/// and `E<n>` event frames inflated through the one zlib stream this stdout carries. The receiver
+/// disconnects when the stream ends or breaks (the child is killed then, a garbled stream cannot be
+/// trusted).
 pub(crate) fn frames(stdout: ChildStdout, proc: Arc<Proc>) -> Receiver<Vec<u8>> {
     let (tx, rx) = unbounded();
     std::thread::spawn(move || {
         let mut reader = BufReader::new(stdout);
-        while let Ok(Some(frame)) = read_frame(&mut reader) {
+        let mut events = Decompress::new(true);
+        while let Ok(Some(frame)) = read_frame(&mut reader, &mut events) {
             if tx.send(frame).is_err() {
                 break;
             }
@@ -183,9 +186,13 @@ pub(crate) fn frames(stdout: ChildStdout, proc: Arc<Proc>) -> Receiver<Vec<u8>> 
     rx
 }
 
-/// One frame: the next line without its newline, or the inflated body of a `Z<n>` frame.
-/// `Ok(None)` at end of stream.
-pub(crate) fn read_frame(reader: &mut impl BufRead) -> std::io::Result<Option<Vec<u8>>> {
+/// One frame: the next line without its newline, the inflated body of a `Z<n>` frame, or the next
+/// event of an `E<n>` frame (`events` is the stream's inflater and must outlive the frames: each
+/// piece continues the one before). `Ok(None)` at end of stream.
+pub(crate) fn read_frame(
+    reader: &mut impl BufRead,
+    events: &mut Decompress,
+) -> std::io::Result<Option<Vec<u8>>> {
     let mut line = Vec::new();
     if reader.read_until(b'\n', &mut line)? == 0 {
         return Ok(None);
@@ -193,22 +200,146 @@ pub(crate) fn read_frame(reader: &mut impl BufRead) -> std::io::Result<Option<Ve
     if line.last() == Some(&b'\n') {
         line.pop();
     }
-    let digits = line
-        .strip_prefix(b"Z")
-        .filter(|d| !d.is_empty() && d.iter().all(u8::is_ascii_digit));
-    let Some(digits) = digits else {
+    let tagged = match line.split_first() {
+        Some((tag, digits))
+            if matches!(*tag, b'Z' | b'E')
+                && !digits.is_empty()
+                && digits.iter().all(u8::is_ascii_digit) =>
+        {
+            Some((*tag == b'E', digits))
+        }
+        _ => None,
+    };
+    let Some((event, digits)) = tagged else {
         return Ok(Some(line));
     };
     let len: usize = std::str::from_utf8(digits)
         .ok()
         .and_then(|d| d.parse().ok())
         .filter(|&n| n <= FRAME_MAX)
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "bad frame length"))?;
+        .ok_or_else(|| Error::new(ErrorKind::InvalidData, "bad frame length"))?;
     let mut deflated = vec![0u8; len];
     reader.read_exact(&mut deflated)?;
+    if event {
+        let mut inflated = inflate_piece(events, &deflated)?;
+        // The relay puts a newline after every event before deflating it.
+        if inflated.last() == Some(&b'\n') {
+            inflated.pop();
+        }
+        return Ok(Some(inflated));
+    }
     let mut inflated = Vec::new();
     ZlibDecoder::new(deflated.as_slice())
         .take(FRAME_MAX as u64)
         .read_to_end(&mut inflated)?;
     Ok(Some(inflated))
+}
+
+/// Inflates one sync-flushed piece of a zlib stream, refusing more than `FRAME_MAX` of output.
+fn inflate_piece(z: &mut Decompress, packed: &[u8]) -> std::io::Result<Vec<u8>> {
+    let mut out = Vec::with_capacity(packed.len().saturating_mul(8).clamp(4096, 1 << 20));
+    let mut input = packed;
+    loop {
+        let (in_before, out_before) = (z.total_in(), out.len());
+        let status = z
+            .decompress_vec(input, &mut out, FlushDecompress::Sync)
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+        let used = usize::try_from(z.total_in() - in_before).unwrap_or(input.len());
+        input = &input[used.min(input.len())..];
+        if out.len() > FRAME_MAX {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "an event frame inflates past the allowed size",
+            ));
+        }
+        // A full output buffer may hide more output: make room and go on.
+        if input.is_empty() && out.len() < out.capacity() {
+            return Ok(out);
+        }
+        if status == Status::StreamEnd {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "the event stream ended inside its connection",
+            ));
+        }
+        if used == 0 && out.len() == out_before && out.len() < out.capacity() {
+            return Err(Error::new(ErrorKind::InvalidData, "a stalled event frame"));
+        }
+        out.reserve(out.capacity().max(4096));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::{Cursor, Write};
+
+    use flate2::write::ZlibEncoder;
+    use flate2::{Compress, Compression, FlushCompress};
+
+    use super::*;
+
+    /// What the relay writes for each event: the event and a newline, sync-flushed on one stream.
+    fn event_frames(events: &[&[u8]]) -> Vec<u8> {
+        let mut z = Compress::new(Compression::new(6), true);
+        let mut wire = Vec::new();
+        for event in events {
+            let mut input = event.to_vec();
+            input.push(b'\n');
+            let mut piece = Vec::with_capacity(input.len() * 2 + 128);
+            z.compress_vec(&input, &mut piece, FlushCompress::Sync)
+                .expect("compress");
+            wire.extend_from_slice(format!("E{}\n", piece.len()).as_bytes());
+            wire.extend_from_slice(&piece);
+        }
+        wire
+    }
+
+    fn read_all(wire: Vec<u8>) -> std::io::Result<Vec<Vec<u8>>> {
+        let mut reader = Cursor::new(wire);
+        let mut events = Decompress::new(true);
+        let mut got = Vec::new();
+        while let Some(frame) = read_frame(&mut reader, &mut events)? {
+            got.push(frame);
+        }
+        Ok(got)
+    }
+
+    #[test]
+    fn events_continue_one_stream_across_frames_between_plain_and_answer_frames() {
+        let first: &[u8] = br#"{"event":"pane_updated","data":{"n":1}}"#;
+        let second: &[u8] = br#"{"event":"pane_updated","data":{"n":2}}"#;
+        let big = format!(
+            r#"{{"event":"x","data":"{}"}}"#,
+            "row of text ".repeat(5000)
+        );
+        let mut answer = ZlibEncoder::new(Vec::new(), Compression::new(6));
+        answer.write_all(br#"{"id":"a"}"#).unwrap();
+        let answer = answer.finish().unwrap();
+
+        let mut wire = b"{\"id\":\"ack\"}\n".to_vec();
+        wire.extend_from_slice(format!("Z{}\n", answer.len()).as_bytes());
+        wire.extend_from_slice(&answer);
+        wire.extend_from_slice(&event_frames(&[first, second, big.as_bytes(), first]));
+
+        let got = read_all(wire).expect("decode");
+        assert_eq!(got.len(), 6);
+        assert_eq!(got[0], br#"{"id":"ack"}"#);
+        assert_eq!(got[1], br#"{"id":"a"}"#);
+        assert_eq!(got[2], first);
+        assert_eq!(got[3], second);
+        assert_eq!(got[4], big.as_bytes());
+        assert_eq!(got[5], first, "a repeat is decoded from the shared window");
+    }
+
+    #[test]
+    fn an_event_frame_cut_short_or_garbled_ends_the_stream() {
+        let wire = event_frames(&[br#"{"event":"a"}"#]);
+        assert!(read_all(wire[..wire.len() - 3].to_vec()).is_err());
+
+        // The piece starts after the `E<n>` line; a zlib header that fails its check is an error.
+        let mut garbled = wire.clone();
+        let at = garbled.iter().position(|b| *b == b'\n').unwrap() + 1;
+        garbled[at..at + 2].fill(0xff);
+        assert!(read_all(garbled).is_err());
+    }
 }

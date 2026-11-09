@@ -11,6 +11,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
+use parking_lot::Mutex;
+
 use super::vendored::acp::{self, Id, Message, SessionUpdate};
 use super::vendored::question::{self, Act, Form, Kind};
 use super::vendored::queue::{self, Queue};
@@ -19,6 +21,7 @@ use super::vendored::session::{self, Effect, Event, Phase, Record, Refused, Sess
 use super::vendored::transcript::{self, Entry, Transcript};
 use super::vendored::{KEEPER_SCRIPT, ROUTES};
 
+use super::copy::{Saved, Since, Window};
 use super::error::Refusal;
 use super::outgoing::{self, Outgoing, Pasted};
 use super::records::Route;
@@ -90,6 +93,9 @@ pub(super) fn ensure_script(home: &Path) -> std::io::Result<PathBuf> {
 /// appeared was meant for what was on screen before.
 pub(super) const ANSWER_GUARD_MS: u64 = session::ANSWER_GUARD_MS;
 
+/// The keeper tells a client that sent `_meta.herdr.since` that only the turns from there on follow.
+const HERDR_REPLAY: &str = "_herdr/replay";
+
 /// How a session begins.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Begin {
@@ -151,11 +157,45 @@ pub(super) struct Driver {
     unsent_seq: u64,
     revision: u64,
     items: ItemCache,
+    /// The conversation's lines as the keeper sent them (and the app's own prompts), for the saved copy. Shared with
+    /// the thread that writes it.
+    window: Arc<Mutex<Window>>,
+    /// A saved copy is on screen until the keeper has replayed what is new.
+    held: Option<Held>,
+    /// Something was recorded since the last [`take_dirty`](Self::take_dirty).
+    dirty: bool,
+    /// The prompts this driver sent, to give each one's recorded message an id of its own.
+    sent_prompts: u64,
+}
+
+/// What a saved copy being shown needs while the keeper's answer is still coming. The copy is what
+/// `Driver::transcript` shows; the answer builds `shadow` and replaces the copy only once it is whole, so the
+/// screen never shows half a replay or a message twice.
+struct Held {
+    shadow: Transcript,
+    /// Where the keeper is asked to continue from (see [`Saved::since`]); `None` asks for the whole replay.
+    since: Option<Since>,
+    /// When the copy on screen was saved, in unix milliseconds.
+    saved_ms: u64,
+    /// The session the copy was made of: a `since` is only asked of the keeper for that same session.
+    saved_sid: Option<String>,
+    /// The keeper said it is continuing (`_herdr/replay`), so `since` was taken.
+    saw_notice: bool,
+    /// A `session/load` was sent and its first update has not come yet.
+    fresh: bool,
 }
 
 impl Driver {
-    /// A driver and the actions that begin the session.
-    pub(super) fn new(begin: Begin, agent: &str, cwd: &str, now_ms: u64) -> (Driver, Vec<Action>) {
+    /// A driver and the actions that begin the session. `copy` is what was saved of this conversation last time; it
+    /// is shown until the keeper's replay is whole, and only for an attach (a new keeper has no log to continue).
+    pub(super) fn new(
+        begin: Begin,
+        agent: &str,
+        cwd: &str,
+        now_ms: u64,
+        copy: Option<Saved>,
+    ) -> (Driver, Vec<Action>) {
+        let copy = copy.filter(|_| matches!(begin, Begin::Attach));
         let (start, resume, cwd) = match begin {
             Begin::Attach => (Start::Attach, None, cwd.to_owned()),
             Begin::Create { cwd } => (Start::Create { cwd: cwd.clone() }, None, cwd),
@@ -182,9 +222,78 @@ impl Driver {
             unsent_seq: 0,
             revision: 0,
             items: ItemCache::default(),
+            window: Arc::new(Mutex::new(Window::default())),
+            held: None,
+            dirty: false,
+            sent_prompts: 0,
         };
+        if let Some(copy) = copy {
+            driver.seed(copy);
+        }
         let actions = driver.run(effects, now_ms);
         (driver, actions)
+    }
+
+    /// Shows a saved copy: the transcript the lines make is what the screen has until the keeper's replay is whole.
+    fn seed(&mut self, copy: Saved) {
+        let since = copy.since();
+        for line in &copy.lines {
+            apply_saved(&mut self.transcript, line);
+        }
+        let mut shadow = Transcript::default();
+        if let Some(since) = &since {
+            for line in &copy.lines[..since.index] {
+                apply_saved(&mut shadow, line);
+            }
+        }
+        *self.window.lock() = Window::from_saved(&copy);
+        self.held = Some(Held {
+            shadow,
+            since,
+            saved_ms: copy.header.saved_ms,
+            saved_sid: copy.header.sid,
+            saw_notice: false,
+            fresh: false,
+        });
+    }
+
+    /// The recorder of the conversation's lines, for the thread that saves them.
+    pub(super) fn window(&self) -> Arc<Mutex<Window>> {
+        self.window.clone()
+    }
+
+    /// Whether something was recorded since the last call.
+    pub(super) fn take_dirty(&mut self) -> bool {
+        std::mem::take(&mut self.dirty)
+    }
+
+    /// What goes out: a `session/load` over a saved copy asks the keeper for only the turns from the copy's last
+    /// stamp on (`_meta.herdr.since`), and starts watching what comes back.
+    fn outgoing(&mut self, mut m: Message) -> Message {
+        let Some(held) = self.held.as_mut() else {
+            return m;
+        };
+        let Message::Request { method, params, .. } = &mut m else {
+            return m;
+        };
+        if method.as_str() != acp::method::SESSION_LOAD {
+            return m;
+        }
+        held.fresh = true;
+        held.saw_notice = false;
+        let same_session = held.saved_sid.is_none()
+            || params.get("sessionId").and_then(serde_json::Value::as_str)
+                == held.saved_sid.as_deref();
+        if !same_session {
+            held.since = None;
+        }
+        if let (Some(since), Some(object)) = (&held.since, params.as_object_mut()) {
+            object.insert(
+                "_meta".to_owned(),
+                serde_json::json!({"herdr": {"since": {"epoch": since.epoch, "turn": since.turn}}}),
+            );
+        }
+        m
     }
 
     /// Carries out effects the way `herdr-tui` does; reading the record may answer at once.
@@ -193,7 +302,7 @@ impl Driver {
         let mut pending = VecDeque::from(effects);
         while let Some(effect) = pending.pop_front() {
             match effect {
-                Effect::Send(m) => actions.push(Action::Write(m.to_line())),
+                Effect::Send(m) => actions.push(Action::Write(self.outgoing(m).to_line())),
                 Effect::ReadRecord => match &self.resume {
                     Some((session_id, cwd)) => {
                         let record = Record {
@@ -255,16 +364,143 @@ impl Driver {
         {
             self.dropped_turns = n;
         }
+        self.record(line, &message);
         // Items this line makes are timed now, by whether the session was open before it: the lines of a
         // history replay and the response that ends it can arrive in one burst, and none of what the replay
         // brings is news.
         let live = self.session.ready();
+        let effects = self.handle_message(message, now_ms);
+        if self.held.is_some() && self.session.ready() {
+            self.show_replay();
+        }
+        // A copy on screen is not the session's transcript: it has no times to give.
+        if self.held.is_none() {
+            self.items
+                .stamp(self.transcript.items(), now_ms, live, self.working());
+        }
+        self.run(effects, now_ms)
+    }
+
+    /// Hands the message to the reducer. While a saved copy is shown the reducer builds the conversation in the
+    /// shadow transcript instead, so the screen keeps the copy until the replay is whole.
+    fn handle_message(&mut self, message: Message, now_ms: u64) -> Vec<Effect> {
+        if let Some(held) = self.held.as_mut() {
+            std::mem::swap(&mut self.transcript, &mut held.shadow);
+        }
         let effects = self
             .session
             .handle(Event::Message(message), now_ms, &mut self.transcript);
-        self.items
-            .stamp(self.transcript.items(), now_ms, live, self.working());
-        self.run(effects, now_ms)
+        if let Some(held) = self.held.as_mut() {
+            std::mem::swap(&mut self.transcript, &mut held.shadow);
+        }
+        effects
+    }
+
+    /// The keeper answered the load: what the replay built replaces the copy on screen.
+    fn show_replay(&mut self) {
+        // A replay with no update in it (the log is empty) leaves nothing of the copy standing either.
+        self.replay_begins();
+        let Some(held) = self.held.take() else {
+            return;
+        };
+        self.transcript = held.shadow;
+        self.items = ItemCache::default();
+        self.dirty = true;
+    }
+
+    /// The first update of a replay is here (or the load answered without any). With the keeper continuing from
+    /// the copy's stamp, the lines past it are what the keeper sends again; any other replay is the whole
+    /// conversation, and the copy, on screen and recorded, gives way to it.
+    fn replay_begins(&mut self) {
+        let Some(held) = self.held.as_mut() else {
+            return;
+        };
+        if !std::mem::take(&mut held.fresh) {
+            return;
+        }
+        match (&held.since, held.saw_notice) {
+            (Some(since), true) => self.window.lock().truncate(since.index),
+            _ => {
+                held.shadow = Transcript::default();
+                self.window.lock().clear();
+            }
+        }
+    }
+
+    /// Keeps a line of the conversation for the saved copy, and notes the keeper's `_herdr/replay`.
+    fn record(&mut self, line: &str, message: &Message) {
+        let Message::Notification { method, params } = message else {
+            return;
+        };
+        if method == HERDR_REPLAY {
+            if let Some(held) = self.held.as_mut()
+                && let Some(since) = &held.since
+                && params.get("from").and_then(serde_json::Value::as_u64) == Some(since.turn)
+            {
+                held.saw_notice = true;
+            }
+            return;
+        }
+        if method != acp::method::SESSION_UPDATE {
+            return;
+        }
+        let sid = params.get("sessionId").and_then(serde_json::Value::as_str);
+        if sid.is_none() || sid != self.session.session_id() {
+            return;
+        }
+        // A notice is live news, not part of any replay. The substring test keeps the parse for the rare line.
+        if line.contains("\"notice\"")
+            && matches!(
+                params.get("update").and_then(SessionUpdate::from_value),
+                Some(SessionUpdate::Notice { .. })
+            )
+        {
+            return;
+        }
+        self.replay_begins();
+        self.window
+            .lock()
+            .push(sid.unwrap_or_default(), line.to_owned());
+        self.dirty = self.dirty || self.held.is_none();
+    }
+
+    /// The person's own prompt is about to go out. The keeper does not send a prompt back to the client that
+    /// sent it, so the copy would never hold what is typed in this app; it is recorded here, as the keeper
+    /// records it for everyone else.
+    pub(super) fn note_sent(&mut self, line: &str) {
+        if !line.contains(acp::method::SESSION_PROMPT) {
+            return;
+        }
+        let Ok(Message::Request { method, params, .. }) = Message::parse(line) else {
+            return;
+        };
+        if method != acp::method::SESSION_PROMPT {
+            return;
+        }
+        let (Some(sid), Some(blocks)) = (
+            params.get("sessionId").and_then(serde_json::Value::as_str),
+            params.get("prompt").and_then(serde_json::Value::as_array),
+        ) else {
+            return;
+        };
+        self.sent_prompts += 1;
+        let message_id = format!("desktop-{}", self.sent_prompts);
+        let mut window = self.window.lock();
+        for block in blocks.iter().filter(|b| b.is_object()) {
+            let kind = block.get("type").and_then(serde_json::Value::as_str);
+            // The keeper's own filter for what it logs of a prompt (keeper.py `begin_turn`).
+            let content = if kind != Some("text") && block.to_string().len() > 20_000 {
+                serde_json::json!({"type": "text", "text": format!("[{} omitted]", kind.unwrap_or("attachment"))})
+            } else {
+                block.clone()
+            };
+            let recorded = serde_json::json!({"jsonrpc": "2.0", "method": acp::method::SESSION_UPDATE,
+                "params": {"sessionId": sid, "update": {"sessionUpdate": "user_message_chunk",
+                    "content": content, "messageId": message_id}}});
+            window.push(sid, recorded.to_string());
+        }
+        drop(window);
+        self.dirty = true;
     }
 
     /// The keeper's record, or `None` when it cannot be read.
@@ -304,6 +540,10 @@ impl Driver {
     /// Turn bookkeeping that follows every batch of events: say what a turn did when it ends, settle the
     /// queue, and send the next queued message when nothing runs and nothing asks.
     pub(super) fn tick(&mut self, now_ms: u64) -> Vec<Action> {
+        // The copy on screen is not the session: no turn is running in it, and nothing can be sent against it.
+        if self.held.is_some() {
+            return Vec::new();
+        }
         let actions = self.settle(now_ms);
         // Items made by the batch just handled get their time; what the history replay brought gets none.
         let live = self.session.ready();
@@ -445,6 +685,10 @@ impl Driver {
     fn shown(&self, request_id: &str, digest: &str) -> Result<Id, Refusal> {
         if matches!(self.session.phase(), Phase::Ended(_)) {
             return Err(Refusal::Ended);
+        }
+        // A request is never in a copy; this keeps an answer from ever being aimed at one.
+        if self.held.is_some() {
+            return Err(Refusal::NotReady);
         }
         let head = self
             .session
@@ -677,9 +921,16 @@ impl Driver {
                 .collect(),
             mode: self.transcript.mode().map(str::to_owned),
             context_percent: self.transcript.context(),
-            running: self.working(),
+            running: self.held.is_none() && self.working(),
             accepts_pictures: self.session.accepts_pictures(),
             connection_lost: self.lost,
+            // The conversation shown is the saved one until the keeper's replay is whole; after the connection ended
+            // there is no update coming, and the strip that says why is the one to read.
+            cached_at_ms: self
+                .held
+                .as_ref()
+                .filter(|_| !matches!(self.session.phase(), Phase::Ended(_)))
+                .map(|h| h.saved_ms),
             unsent: self.unsent.clone(),
             observed: None,
             acp: self.acp_info(),
@@ -900,6 +1151,22 @@ fn earlier_text(turns: u64) -> String {
         "Earlier messages are no longer kept on the machine ({turns} turn{}).",
         if turns == 1 { "" } else { "s" }
     )
+}
+
+/// Applies one saved line to a transcript the way the reducer does a live one (`Session::notification`): the
+/// updates of the conversation, not the notices, which are live news and no part of a replay.
+fn apply_saved(transcript: &mut Transcript, line: &str) {
+    let Ok(Message::Notification { method, params }) = Message::parse(line) else {
+        return;
+    };
+    if method != acp::method::SESSION_UPDATE {
+        return;
+    }
+    if let Some(update) = params.get("update").and_then(SessionUpdate::from_value)
+        && !matches!(update, SessionUpdate::Notice { .. })
+    {
+        transcript.apply(update);
+    }
 }
 
 fn refusal(r: Refused) -> Refusal {
@@ -1545,6 +1812,7 @@ impl ObservedTranscript {
             running: meta.running,
             accepts_pictures: false,
             connection_lost: false,
+            cached_at_ms: None,
             unsent: None,
             observed: Some(meta.info),
             acp: AcpInfo::default(),
@@ -1597,6 +1865,7 @@ mod tests {
             "omp",
             "/work",
             0,
+            None,
         );
         assert!(matches!(first.as_slice(), [Action::Write(_)]));
         d.on_line(
@@ -1860,7 +2129,7 @@ mod tests {
 
     #[test]
     fn a_notice_in_a_history_replay_is_not_news_but_a_live_one_is() {
-        let (mut d, _) = Driver::new(Begin::Attach, "omp", "/work", 0);
+        let (mut d, _) = Driver::new(Begin::Attach, "omp", "/work", 0, None);
         d.on_line(
             r#"{"jsonrpc":"2.0","id":1,"result":{"agentCapabilities":{}}}"#,
             0,
@@ -1912,5 +2181,277 @@ mod tests {
             assert_eq!(t.status, ToolStatus::Failed);
             assert!(t.title.ends_with(said), "{}", t.title);
         }
+    }
+
+    // The saved copy of a conversation: what is shown at once, and what the keeper is asked to send again.
+
+    const LOADED: &str = r#"{"jsonrpc":"2.0","id":2,"result":{}}"#;
+
+    fn chunk_line(kind: &str, id: &str, text: &str, stamp: Option<(&str, u64)>) -> String {
+        let mut params = json!({"sessionId": "s1", "update": {"sessionUpdate": kind,
+            "messageId": id, "content": {"type": "text", "text": text}}});
+        if let Some((epoch, turn)) = stamp {
+            params["_meta"] = json!({"herdr": {"epoch": epoch, "turn": turn}});
+        }
+        json!({"jsonrpc": "2.0", "method": "session/update", "params": params}).to_string()
+    }
+
+    /// One turn as the keeper replays it: the first line names the turn and the keeper's run.
+    fn turn_lines(epoch: &str, turn: u64) -> Vec<String> {
+        vec![
+            chunk_line(
+                "user_message_chunk",
+                &format!("u{turn}"),
+                &format!("question {turn}"),
+                Some((epoch, turn)),
+            ),
+            chunk_line(
+                "agent_message_chunk",
+                &format!("a{turn}"),
+                &format!("answer {turn} "),
+                None,
+            ),
+            chunk_line("agent_message_chunk", &format!("a{turn}"), "done", None),
+        ]
+    }
+
+    fn turns(epoch: &str, from: u64, to: u64) -> Vec<String> {
+        (from..=to).flat_map(|t| turn_lines(epoch, t)).collect()
+    }
+
+    fn saved_of(lines: Vec<String>) -> Saved {
+        let mut window = Window::default();
+        for line in lines {
+            window.push("s1", line);
+        }
+        Saved::decode(&window.encode(1_000)).expect("a copy that reads back")
+    }
+
+    /// An attach whose keeper has answered `initialize` and whose record names session `sid`, and the `session/load`
+    /// it then sent.
+    fn attach(copy: Option<Saved>, sid: &str) -> (Driver, serde_json::Value) {
+        let (mut d, _) = Driver::new(Begin::Attach, "omp", "/work", 0, copy);
+        d.on_line(
+            r#"{"jsonrpc":"2.0","id":1,"result":{"agentCapabilities":{}}}"#,
+            0,
+        );
+        let actions = d.on_record(
+            Some(RecordInfo {
+                session_id: Some(sid.into()),
+                cwd: "/work".into(),
+                exited: None,
+            }),
+            0,
+        );
+        let load = actions
+            .iter()
+            .find_map(|a| match a {
+                Action::Write(line) => serde_json::from_str::<serde_json::Value>(line)
+                    .ok()
+                    .filter(|v| v["method"] == "session/load"),
+                _ => None,
+            })
+            .expect("the session/load");
+        (d, load)
+    }
+
+    fn feed(d: &mut Driver, lines: &[String]) {
+        for line in lines {
+            d.on_line(line, 1);
+        }
+    }
+
+    fn replay_notice(from: u64) -> String {
+        json!({"jsonrpc": "2.0", "method": "_herdr/replay",
+            "params": {"sessionId": "s1", "from": from}})
+        .to_string()
+    }
+
+    /// Who said what, in order.
+    fn said(d: &mut Driver) -> Vec<(Role, String)> {
+        d.snapshot()
+            .items
+            .iter()
+            .filter_map(|i| match &i.kind {
+                ItemKind::Message { role, text, .. } => Some((*role, text.clone())),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn recorded(d: &Driver) -> Vec<String> {
+        d.window().lock().lines().map(str::to_owned).collect()
+    }
+
+    fn since_of(load: &serde_json::Value) -> Option<serde_json::Value> {
+        load.pointer("/params/_meta/herdr/since").cloned()
+    }
+
+    /// What a full replay of turns 1 to 5 gives, and what it records.
+    fn full_replay() -> (Vec<(Role, String)>, Vec<String>) {
+        let (mut d, load) = attach(None, "s1");
+        assert_eq!(since_of(&load), None, "nothing to continue from");
+        feed(&mut d, &turns("e1", 1, 5));
+        d.on_line(LOADED, 2);
+        let said = said(&mut d);
+        assert_eq!(said.len(), 10);
+        (said, recorded(&d))
+    }
+
+    /// A copy saved in the middle of turn 3: turns 1 and 2 whole and only the first line of turn 3.
+    fn copy_in_turn_three(epoch: &str) -> Saved {
+        let mut lines = turns(epoch, 1, 2);
+        lines.extend(turn_lines(epoch, 3).into_iter().take(1));
+        saved_of(lines)
+    }
+
+    #[test]
+    fn a_replay_that_goes_on_from_the_copys_last_turn_makes_the_same_conversation_as_a_whole_one() {
+        let (want, want_recorded) = full_replay();
+        let (mut d, load) = attach(Some(copy_in_turn_three("e1")), "s1");
+        assert_eq!(
+            since_of(&load),
+            Some(json!({"epoch": "e1", "turn": 3})),
+            "the keeper is asked for turn 3 on"
+        );
+        d.on_line(&replay_notice(3), 1);
+        feed(&mut d, &turns("e1", 3, 5));
+        d.on_line(LOADED, 2);
+        assert_eq!(said(&mut d), want, "no turn twice, none missing");
+        assert_eq!(recorded(&d), want_recorded, "the next copy is the same too");
+    }
+
+    #[test]
+    fn a_keeper_that_ignored_the_ask_leaves_nothing_of_the_copy_in_the_conversation() {
+        // The keeper started again (another run): it does not know the copy's turn and replays everything.
+        let (want, _) = full_replay();
+        let (mut d, load) = attach(Some(copy_in_turn_three("e1")), "s1");
+        assert!(since_of(&load).is_some());
+        feed(&mut d, &turns("e2", 1, 5));
+        d.on_line(LOADED, 2);
+        assert_eq!(said(&mut d), want);
+        assert_eq!(
+            recorded(&d),
+            turns("e2", 1, 5),
+            "the copy is the new replay, not both"
+        );
+    }
+
+    #[test]
+    fn the_keeper_is_asked_to_continue_only_from_a_copy_that_is_whole_and_has_a_turn_before_its_stamp()
+     {
+        let whole = |c: &Saved| since_of(&attach(Some(c.clone()), "s1").1).is_some();
+        let base = copy_in_turn_three("e1");
+        assert!(whole(&base));
+
+        let mut partial = base.clone();
+        partial.header.partial = true;
+        assert!(
+            !whole(&partial),
+            "a copy that lost its front would show less than a full replay"
+        );
+
+        let mut gap = base.clone();
+        gap.header.gap = true;
+        assert!(!whole(&gap));
+
+        assert!(
+            !whole(&saved_of(turn_lines("e1", 1))),
+            "the stamp is on the first line: nothing is held before it"
+        );
+        let unstamped = turn_lines("e1", 1).split_off(1);
+        assert!(
+            !whole(&saved_of(unstamped)),
+            "no stamp, nowhere to continue from"
+        );
+
+        assert!(
+            since_of(&attach(Some(base), "another-session").1).is_none(),
+            "a stamp is only good for the session it was counted in"
+        );
+    }
+
+    #[test]
+    fn the_copy_stays_on_screen_until_the_keeper_has_answered_and_then_gives_way() {
+        let copy = copy_in_turn_three("e1");
+        let (mut d, _) = attach(Some(copy.clone()), "s1");
+        let (mut from_copy, _) = attach(None, "s1");
+        feed(&mut from_copy, &copy.lines);
+        // What the copy would show if it were a live conversation.
+        let shown = said(&mut from_copy);
+        let before = d.snapshot();
+        assert_eq!(said(&mut d), shown);
+        assert_eq!(before.cached_at_ms, Some(1_000));
+        assert_eq!(before.phase, SessionPhase::Connecting);
+        assert!(!before.running);
+
+        d.on_line(&replay_notice(3), 1);
+        feed(&mut d, &turns("e1", 3, 4));
+        assert_eq!(said(&mut d), shown, "half a replay is not shown");
+        assert_eq!(d.snapshot().cached_at_ms, Some(1_000));
+
+        feed(&mut d, &turns("e1", 5, 5));
+        d.on_line(LOADED, 2);
+        let after = d.snapshot();
+        assert_eq!(after.cached_at_ms, None);
+        assert_eq!(after.phase, SessionPhase::Idle);
+        assert_eq!(said(&mut d).len(), 10);
+
+        // A new keeper has no log to continue: the copy does not apply.
+        let (mut created, _) = Driver::new(
+            Begin::Create {
+                cwd: "/work".into(),
+            },
+            "omp",
+            "/work",
+            0,
+            Some(copy),
+        );
+        assert!(said(&mut created).is_empty());
+        assert_eq!(created.snapshot().cached_at_ms, None);
+    }
+
+    #[test]
+    fn what_is_typed_in_the_app_is_in_the_copy_though_the_keeper_never_sends_it_back() {
+        let mut d = open();
+        let (_, actions) = d
+            .send("fix the build", Outgoing::default(), 0)
+            .expect("send");
+        for action in &actions {
+            if let Action::Write(line) = action {
+                d.note_sent(line);
+            }
+        }
+        let lines = recorded(&d);
+        assert_eq!(lines.len(), 1);
+        let copy = Saved {
+            header: crate::session::copy::Header {
+                v: 1,
+                sid: Some("s1".into()),
+                saved_ms: 5,
+                partial: false,
+                gap: false,
+            },
+            lines,
+        };
+        let (mut seeded, _) = attach(Some(copy), "s1");
+        assert_eq!(said(&mut seeded), said(&mut d));
+        assert_eq!(
+            said(&mut seeded),
+            [(Role::User, "fix the build".to_owned())]
+        );
+    }
+
+    #[test]
+    fn nothing_is_sent_or_answered_against_a_copy() {
+        let (mut d, _) = attach(Some(copy_in_turn_three("e1")), "s1");
+        assert_eq!(
+            d.send("hello", Outgoing::default(), 0),
+            Err(Refusal::NotReady)
+        );
+        assert_eq!(
+            d.answer_permission("1", "digest", "allow", 0),
+            Err(Refusal::NotReady)
+        );
     }
 }

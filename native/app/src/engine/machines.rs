@@ -106,6 +106,8 @@ impl Fleet {
                 self.drop_link(&machine.id);
                 self.first_seen.lock().forget_machine(&machine.id);
                 self.previews.forget_machine(&machine.id);
+                // Its old board must not seed the new link; the saved chats go once the old host's sessions let go (below).
+                self.cache.forget_machine(&machine.id);
                 self.start_link(&machine);
             }
             (Some(_), false) => {
@@ -116,6 +118,10 @@ impl Fleet {
         }
         drop(machines);
         self.sync_keeper_host(&machine, moved || before.is_none());
+        if moved {
+            // After the old host's sessions let go (they save their copies as they do): what was kept was another computer's.
+            self.cache.forget_machine(&machine.id);
+        }
         self.bump();
         Ok(machine)
     }
@@ -137,6 +143,7 @@ impl Fleet {
         self.sessions.remove_host(id);
         self.first_seen.lock().forget_machine(id);
         self.previews.forget_machine(id);
+        self.cache.forget_machine(id);
         {
             let mut reviewed = self.reviewed.lock();
             reviewed.forget_machine(id);

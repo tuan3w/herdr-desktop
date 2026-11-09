@@ -5,17 +5,20 @@
 
 use std::collections::BTreeSet;
 use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock};
 use std::time::{Duration, Instant};
 
+use herdr_core::cache::{Cache, Caps, Kind};
+use herdr_core::observed::copy::Saved;
 use herdr_core::observed::kinds::ObservedKind;
 use herdr_core::observed::model::{
     AskAnswer, AskDriver, AskOption, AskQuestion, AskStep, BackgroundTask, LocateCtx, Location,
     Locator, LogMapper, PendingAsk, ProposedPlan, Role, SubagentInfo, Update, message,
 };
-use herdr_core::observed::session::{ObservedConfig, PaneIo, PaneState};
+use herdr_core::observed::session::{ObservedConfig, ObservedHandle, PaneIo, PaneState};
 use herdr_core::schema::AgentStatus;
 use herdr_core::session::{
     Ask, EarlierHistory, FieldAnswer, HubConfig, ItemKind, KeeperError, KeeperHost, ObservedLink,
@@ -277,6 +280,9 @@ struct Rig {
     home: PathBuf,
     log: PathBuf,
     hub: SessionHub,
+    cache: Arc<Cache>,
+    /// While this file is missing, the keeper's `follow` waits before it starts (see [`Rig::cached`]).
+    gate: PathBuf,
 }
 
 impl Rig {
@@ -285,23 +291,74 @@ impl Rig {
     }
 
     fn with(observed: ObservedConfig) -> Self {
+        Self::build(observed, false)
+    }
+
+    /// A rig whose hub keeps saved chats in a folder of its own, written only when a chat ends (the delay is an
+    /// hour), and whose keeper's `follow` can be held back with [`hold`](Self::hold): what a chat shows before the
+    /// machine has answered is then a fact to look at, not a race.
+    fn cached() -> Self {
+        Self::build(fast(), true)
+    }
+
+    fn build(observed: ObservedConfig, cached: bool) -> Self {
         let dir = tempfile::tempdir().expect("tempdir");
         let home = dir.path().join("home");
         let log = home.join(".omp/agent/sessions/project/log.jsonl");
         std::fs::create_dir_all(log.parent().expect("parent")).expect("mkdir");
+        let gate = dir.path().join("gate");
         let mut config = HubConfig::new(Arc::new(|| {}));
         config.observed = observed;
+        let mut path = "/usr/bin:/bin".to_owned();
+        if cached {
+            config.cache = Arc::new(Cache::open(
+                dir.path().join("cache"),
+                Caps {
+                    debounce: Duration::from_secs(3600),
+                    ..Caps::default()
+                },
+            ));
+            std::fs::write(&gate, "").expect("gate");
+            let bin = dir.path().join("bin");
+            std::fs::create_dir_all(&bin).expect("mkdir");
+            let python = bin.join("python3");
+            let waiting = format!(
+                "#!/bin/sh\n\
+                 for word in \"$@\"; do\n\
+                 if [ \"$word\" = follow ]; then\n\
+                 n=0\n\
+                 while [ ! -e '{}' ] && [ \"$n\" -lt 1500 ]; do sleep 0.02; n=$((n + 1)); done\n\
+                 fi\n\
+                 done\n\
+                 exec '{}' \"$@\"\n",
+                gate.display(),
+                real_python3().display()
+            );
+            std::fs::write(&python, waiting).expect("python3");
+            std::fs::set_permissions(&python, std::fs::Permissions::from_mode(0o755))
+                .expect("chmod");
+            path = format!("{}:{path}", bin.display());
+        }
+        let cache = config.cache.clone();
         let hub = SessionHub::new(config);
-        hub.set_host(
-            LOCAL,
-            Arc::new(KeeperHost::local(&home).env("PATH", "/usr/bin:/bin")),
-        );
+        hub.set_host(LOCAL, Arc::new(KeeperHost::local(&home).env("PATH", path)));
         Self {
             _dir: dir,
             home,
             log,
             hub,
+            cache,
+            gate,
         }
+    }
+
+    /// From now on a `follow` the keeper is asked for does not start until [`release`](Self::release).
+    fn hold(&self) {
+        std::fs::remove_file(&self.gate).expect("shut the gate");
+    }
+
+    fn release(&self) {
+        std::fs::write(&self.gate, "").expect("open the gate");
     }
 
     fn append(&self, lines: &[Value]) {
@@ -318,6 +375,16 @@ impl Rig {
     fn located(&self) -> Location {
         Location::Located(self.log.display().to_string())
     }
+}
+
+/// The python3 the machine has, for the gate's stand-in to hand over to.
+fn real_python3() -> PathBuf {
+    std::env::var("PATH")
+        .unwrap_or_default()
+        .split(':')
+        .map(|dir| Path::new(dir).join("python3"))
+        .find(|candidate| candidate.is_file())
+        .expect("python3 is on the PATH")
 }
 
 fn fast() -> ObservedConfig {
@@ -1456,5 +1523,192 @@ fn a_claude_chat_offers_its_project_skills_before_the_log_lists_them_and_the_log
     assert_eq!(
         chat.snapshot().commands[0].description,
         "Reviews a pull request"
+    );
+}
+
+// ---- saved copies ---------------------------------------------------------------------------------
+
+fn open(rig: &Rig, pane: &Arc<Pane>) -> ObservedHandle {
+    rig.hub
+        .observe(LOCAL, "w1:p1", kind(false), pane.clone())
+        .expect("observe")
+}
+
+/// The log has answered and nothing shown is a saved copy any more.
+fn live(s: &SessionSnapshot) -> bool {
+    s.phase == SessionPhase::Idle && s.cached_at_ms.is_none()
+}
+
+/// The copy the cache holds for the pane now.
+fn saved(rig: &Rig) -> Saved {
+    let key = rig.cache.key(Kind::Observed, LOCAL, "w1:p1");
+    Saved::decode(&rig.cache.get(&key).expect("a copy was kept"), "omp").expect("a copy")
+}
+
+/// A chat on the first two lines of the log, read to its end and closed: the copy is on disk.
+fn closed_chat(rig: &Rig, pane: &Arc<Pane>) {
+    rig.append(&[
+        user(
+            "u1",
+            "hello there, this is a first question that is long enough",
+        ),
+        agent(
+            "a1",
+            "hi there, and this is a first answer that is long enough too",
+        ),
+    ]);
+    let chat = open(rig, pane);
+    eventually("the first read", || {
+        let s = chat.snapshot();
+        (live(&s) && s.items.len() == 2).then_some(())
+    });
+    assert_eq!(chat.snapshot().cached_at_ms, None, "nothing was saved yet");
+    rig.hub.stop_observing(LOCAL, "w1:p1");
+}
+
+#[test]
+fn a_reopened_chat_shows_its_saved_copy_before_the_machine_answers_and_then_only_what_is_new() {
+    use herdr_core::session::Role::{Agent, User};
+    let rig = Rig::cached();
+    let pane = Pane::new(rig.located());
+    closed_chat(&rig, &pane);
+    let first = saved(&rig);
+    assert_eq!((first.start, first.records.len()), (0, 2));
+
+    // The agent writes on while nobody looks, and the machine's next answer is held back.
+    rig.append(&[agent("a2", "written while it was closed")]);
+    rig.hold();
+    let chat = open(&rig, &pane);
+    let seen = eventually("the saved copy", || {
+        let s = chat.snapshot();
+        (s.cached_at_ms.is_some() && s.items.len() == 2 && s.phase == SessionPhase::Connecting)
+            .then_some(s)
+    });
+    assert_eq!(
+        texts(&seen, User),
+        ["hello there, this is a first question that is long enough"]
+    );
+    assert_eq!(
+        texts(&seen, Agent),
+        ["hi there, and this is a first answer that is long enough too"]
+    );
+
+    rig.release();
+    let done = eventually("what is new", || {
+        let s = chat.snapshot();
+        (live(&s) && s.items.len() == 3).then_some(s)
+    });
+    assert_eq!(
+        texts(&done, Agent),
+        [
+            "hi there, and this is a first answer that is long enough too",
+            "written while it was closed"
+        ]
+    );
+    assert_eq!(texts(&done, User).len(), 1);
+
+    // The copy that is kept next has each record once: the new line follows the old ones.
+    rig.hub.stop_observing(LOCAL, "w1:p1");
+    let next = saved(&rig);
+    assert_eq!((next.start, next.records.len()), (0, 3));
+    assert_eq!(next.records[..2], first.records[..]);
+    assert_eq!(
+        next.end,
+        std::fs::metadata(&rig.log).expect("log").len(),
+        "it ends where the log does"
+    );
+}
+
+#[test]
+fn a_log_that_was_replaced_while_the_chat_was_closed_leaves_only_the_new_content() {
+    use herdr_core::session::Role::{Agent, User};
+    let rig = Rig::cached();
+    let pane = Pane::new(rig.located());
+    closed_chat(&rig, &pane);
+
+    // Shorter than the copy's end: the offset it would resume from is past the file's end.
+    write_log(&rig.log, &[user("u9", "fresh")]);
+    let chat = open(&rig, &pane);
+    let s = eventually("only the new content", || {
+        let s = chat.snapshot();
+        (live(&s) && texts(&s, User) == ["fresh"] && s.items.len() == 1).then_some(s)
+    });
+    assert!(texts(&s, Agent).is_empty());
+
+    rig.hub.stop_observing(LOCAL, "w1:p1");
+    let copy = saved(&rig);
+    assert_eq!(
+        (copy.start, copy.records.len()),
+        (0, 1),
+        "nothing of the old copy is kept"
+    );
+    assert_eq!(copy.end, std::fs::metadata(&rig.log).expect("log").len());
+}
+
+#[test]
+fn a_saved_copy_of_another_log_than_the_one_the_pane_writes_now_is_dropped() {
+    use herdr_core::session::Role::{Agent, User};
+    let rig = Rig::cached();
+    let pane = Pane::new(rig.located());
+    closed_chat(&rig, &pane);
+
+    // The pane's agent has another session now. Its machine answers neither the pane's log nor the follow yet.
+    let next = rig.log.with_file_name("next.jsonl");
+    write_log(&next, &[user("n1", "elsewhere")]);
+    *pane.location.lock() = Location::Located(next.display().to_string());
+    rig.hold();
+    let asking = pane.location.lock();
+    let chat = open(&rig, &pane);
+    eventually("the saved copy", || {
+        let s = chat.snapshot();
+        (s.cached_at_ms.is_some() && s.items.len() == 2).then_some(())
+    });
+    drop(asking);
+    eventually("the copy gone", || {
+        let s = chat.snapshot();
+        (s.cached_at_ms.is_none() && s.items.is_empty()).then_some(())
+    });
+
+    rig.release();
+    let s = eventually("the new log", || {
+        let s = chat.snapshot();
+        (live(&s) && texts(&s, User) == ["elsewhere"]).then_some(s)
+    });
+    assert!(texts(&s, Agent).is_empty());
+    assert_eq!(
+        s.observed.as_ref().and_then(|o| o.log_path.as_deref()),
+        next.to_str()
+    );
+
+    rig.hub.stop_observing(LOCAL, "w1:p1");
+    let copy = saved(&rig);
+    assert_eq!(copy.path, next.display().to_string());
+    assert_eq!(copy.records.len(), 1);
+}
+
+#[test]
+fn a_saved_copy_is_dropped_for_good_when_the_pane_has_no_log_to_agree_with_it() {
+    let rig = Rig::cached();
+    let pane = Pane::new(rig.located());
+    closed_chat(&rig, &pane);
+
+    // The pane's agent has not written its file: whatever the copy showed was another conversation's.
+    rig.hold();
+    *pane.location.lock() = Location::NotYet("nothing written yet".into());
+    let asking = pane.location.lock();
+    let chat = open(&rig, &pane);
+    eventually("the saved copy", || {
+        let s = chat.snapshot();
+        (s.cached_at_ms.is_some() && s.items.len() == 2).then_some(())
+    });
+    drop(asking);
+    eventually("the copy gone", || {
+        let s = chat.snapshot();
+        (s.cached_at_ms.is_none() && s.items.is_empty()).then_some(())
+    });
+    let key = rig.cache.key(Kind::Observed, LOCAL, "w1:p1");
+    assert!(
+        rig.cache.get(&key).is_none(),
+        "the copy is not kept for the next open"
     );
 }

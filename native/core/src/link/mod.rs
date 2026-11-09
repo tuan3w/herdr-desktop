@@ -163,6 +163,10 @@ pub struct LinkConfig {
     pub timing: Timing,
     /// `false` starts the link `Off`; [`MachineLink::set_enabled`] switches it on later.
     pub enabled: bool,
+    /// What the machine last reported on an earlier run. It is shown while the link is `Connecting` (so
+    /// the state is never `Online` on it) and the first live snapshot replaces it. Ignored when the link
+    /// starts `Off`.
+    pub seed: Option<Snapshot>,
 }
 
 impl LinkConfig {
@@ -174,6 +178,7 @@ impl LinkConfig {
             clock: Arc::new(SystemClock),
             timing: Timing::default(),
             enabled: true,
+            seed: None,
         }
     }
 }
@@ -250,11 +255,12 @@ impl MachineLink {
             clock,
             timing,
             enabled,
+            seed,
         } = config;
         let shared = Arc::new(Shared {
             machine,
             inner: Mutex::new(Inner {
-                snapshot: Arc::new(Snapshot::default()),
+                snapshot: Arc::new(seed.filter(|_| enabled).unwrap_or_default()),
                 status: LinkStatus {
                     state: if enabled {
                         LinkState::Connecting
@@ -300,7 +306,7 @@ impl MachineLink {
         &self.shared.machine
     }
 
-    /// The latest snapshot: empty before the first one, stale while `Offline`.
+    /// The latest snapshot: empty before the first one (or the seed, while `Connecting`), stale while `Offline`.
     pub fn snapshot(&self) -> Arc<Snapshot> {
         self.shared.inner.lock().snapshot.clone()
     }

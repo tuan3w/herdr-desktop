@@ -14,6 +14,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use herdr_core::board::{Board, FirstSeen, SessionRow};
+use herdr_core::cache::{Cache, Caps};
 use herdr_core::link::LinkState;
 use herdr_core::schema::{AgentStatus, Snapshot};
 use herdr_core::session::{
@@ -159,6 +160,16 @@ exec /usr/bin/env -i PATH="{bin}" HOME="{home}" /bin/sh -c "exec $1"
 
     fn hub(&self, host: Arc<KeeperHost>) -> SessionHub {
         let hub = SessionHub::new(HubConfig::new(Arc::new(|| {})));
+        hub.set_host(LOCAL, host);
+        hub
+    }
+
+    /// A hub that keeps conversations in this rig's cache folder. Two of them share the folder, as two runs of the app
+    /// do.
+    fn hub_with_cache(&self, host: Arc<KeeperHost>) -> SessionHub {
+        let mut config = HubConfig::new(Arc::new(|| {}));
+        config.cache = Arc::new(Cache::open(self.dir.path().join("cache"), Caps::default()));
+        let hub = SessionHub::new(config);
         hub.set_host(LOCAL, host);
         hub
     }
@@ -507,6 +518,63 @@ fn closing_the_connection_leaves_the_agent_running_and_attaching_replays_the_con
     );
 }
 
+/// The conversation as the person reads it: who said what, in order.
+fn spoken(s: &SessionSnapshot) -> (Vec<String>, Vec<String>) {
+    (messages(s, Role::User), messages(s, Role::Agent))
+}
+
+fn wait_turns(handle: &SessionHandle, turns: usize) -> Arc<SessionSnapshot> {
+    eventually("the agent's answers", || {
+        let s = handle.snapshot();
+        (s.phase == SessionPhase::Idle && messages(&s, Role::Agent).len() == turns).then_some(s)
+    })
+}
+
+#[test]
+fn coming_back_shows_the_saved_conversation_at_once_and_ends_as_the_keepers_replay_with_no_turn_twice()
+ {
+    let rig = Rig::new();
+    let hub = rig.hub_with_cache(rig.local());
+    let session = hub.start(LOCAL, "omp", &rig.cwd()).expect("start");
+    let id = session.id().to_owned();
+    wait_idle(&session);
+    for turn in 1..=2 {
+        session.send("plain", Outgoing::default()).expect("send");
+        wait_turns(&session, turn);
+    }
+    hub.detach(LOCAL, &id);
+
+    // What was seen live is the copy; the keeper's replay (with its turn stamps) replaces it.
+    let again = hub.attach(LOCAL, &id).expect("attach");
+    // The keeper needs two round trips before it replays anything: the copy is what the first snapshot has.
+    let first = again.snapshot();
+    assert!(first.cached_at_ms.is_some(), "the copy is on screen");
+    assert_eq!(first.phase, SessionPhase::Connecting);
+    assert_eq!(spoken(&first).0, ["plain", "plain"]);
+    let replayed = eventually("the replay to end", || {
+        let s = again.snapshot();
+        (s.phase == SessionPhase::Idle && s.cached_at_ms.is_none()).then_some(s)
+    });
+    assert_eq!(spoken(&replayed), spoken(&first));
+    // One more turn after the replay: the copy of the next run has stamps with a turn before them to go on from.
+    again.send("plain", Outgoing::default()).expect("send");
+    let before = wait_turns(&again, 3);
+    assert_eq!(spoken(&before).0, ["plain", "plain", "plain"]);
+    hub.detach(LOCAL, &id);
+
+    // Another run of the app: its own hub and cache over the same folder.
+    let hub = rig.hub_with_cache(rig.local());
+    let third = hub.attach(LOCAL, &id).expect("attach");
+    let shown = third.snapshot();
+    assert!(shown.cached_at_ms.is_some());
+    assert_eq!(spoken(&shown), spoken(&before));
+    let done = eventually("the replay to end", || {
+        let s = third.snapshot();
+        (s.phase == SessionPhase::Idle && s.cached_at_ms.is_none()).then_some(s)
+    });
+    assert_eq!(spoken(&done), spoken(&before), "no turn twice, none lost");
+}
+
 #[test]
 fn a_connection_that_dies_ends_the_session_here_without_blaming_the_agent() {
     let rig = Rig::new();
@@ -711,6 +779,92 @@ fn at_most_four_sessions_are_open_on_a_machine() {
     hub.detach(LOCAL, &first);
     let again = hub.attach(LOCAL, &first).expect("room again");
     wait_idle(&again);
+}
+
+#[test]
+fn a_session_the_person_left_stays_attached_and_coming_back_takes_it_back_as_it_is() {
+    let rig = Rig::new();
+    let hub = rig.hub(rig.local());
+    let session = hub.start(LOCAL, "omp", &rig.cwd()).expect("start");
+    let id = session.id().to_owned();
+    wait_idle(&session);
+    session.send("plain", Outgoing::default()).expect("send");
+    wait_turns(&session, 1);
+
+    hub.release(LOCAL, &id);
+    assert!(
+        session.is_open(),
+        "leaving a chat does not close its connection"
+    );
+    let again = hub.attach(LOCAL, &id).expect("attach");
+    assert!(
+        again.same(&session),
+        "the very session, not a second connection"
+    );
+    assert_eq!(
+        spoken(&again.snapshot()).1,
+        ["Hello"],
+        "nothing was replayed"
+    );
+    // Taken back, it is not left lingering: a reaper that ran now must not close it.
+    assert!(again.is_open());
+}
+
+#[test]
+fn a_session_that_lingers_gives_its_place_up_to_a_new_one_and_a_held_one_never_does() {
+    let rig = Rig::new();
+    let hub = rig.hub(rig.local());
+    let mut open = Vec::new();
+    for _ in 0..MAX_ATTACHED {
+        let s = hub.start(LOCAL, "omp", &rig.cwd()).expect("start");
+        wait_idle(&s);
+        open.push(s);
+    }
+    // None lingers: the machine is full, as ever.
+    assert!(matches!(
+        hub.start(LOCAL, "omp", &rig.cwd()),
+        Err(KeeperError::TooMany(_))
+    ));
+    // Two left; the one left first goes first.
+    hub.release(LOCAL, open[1].id());
+    hub.release(LOCAL, open[2].id());
+    let fifth = hub
+        .start(LOCAL, "omp", &rig.cwd())
+        .expect("a lingering session makes room");
+    wait_idle(&fifth);
+    eventually("the longest lingering session to close", || {
+        (!open[1].is_open()).then_some(())
+    });
+    assert!(open[2].is_open(), "only as many as needed close");
+    assert!(
+        open[0].is_open() && open[3].is_open(),
+        "a session the person holds is never closed for another"
+    );
+}
+
+#[test]
+fn a_session_left_past_the_linger_is_closed_and_its_keeper_keeps_running() {
+    let rig = Rig::new();
+    let mut config = HubConfig::new(Arc::new(|| {}));
+    config.linger = Duration::from_millis(1);
+    config.reap_every = Duration::from_millis(10);
+    let hub = SessionHub::new(config);
+    hub.set_host(LOCAL, rig.local());
+    let session = hub.start(LOCAL, "omp", &rig.cwd()).expect("start");
+    let id = session.id().to_owned();
+    wait_idle(&session);
+    let held = hub.start(LOCAL, "omp", &rig.cwd()).expect("start");
+    wait_idle(&held);
+
+    hub.release(LOCAL, &id);
+    eventually("the reaper to close it", || {
+        (!session.is_open()).then_some(())
+    });
+    assert!(held.is_open(), "a session nobody left is not reaped");
+    let kept = rig.local().list().expect("list");
+    assert!(kept.iter().any(|k| k.id == id && k.alive()), "{kept:?}");
+    // And it can be attached again, from the machine.
+    wait_idle(&hub.attach(LOCAL, &id).expect("attach"));
 }
 
 #[test]

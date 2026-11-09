@@ -22,6 +22,7 @@ use super::records::{KeeperInfo, KeeperState, PastSessions, Route};
 use super::thread::{Opening, SessionHandle};
 use super::types::SessionPhase;
 use crate::board::{SessionRow, folder_name};
+use crate::cache::Cache;
 use crate::observed::kinds::ObservedKind;
 use crate::observed::session::{ObservedConfig, ObservedHandle, PaneIo};
 use crate::schema::AgentStatus;
@@ -50,6 +51,17 @@ pub struct HubConfig {
     pub observed: ObservedConfig,
     /// Called from a hub or session thread when anything the screens show changed. Must not block.
     pub on_change: Arc<dyn Fn() + Send + Sync>,
+    /// What is kept on disk between runs (saved conversations); a disabled cache keeps nothing.
+    pub cache: Arc<Cache>,
+    /// How long a chat the person left stays attached, so coming back to it costs nothing (a tab closed, a project
+    /// switched). It goes sooner when a new one needs its place.
+    pub linger: Duration,
+    /// The same while the window is hidden.
+    pub linger_background: Duration,
+    /// How often lingering sessions are looked at for being past `linger`.
+    pub reap_every: Duration,
+    /// How old a listing may be and still stand in for a `keeper list` when a session is attached.
+    pub listing_fresh: Duration,
 }
 
 impl HubConfig {
@@ -62,6 +74,11 @@ impl HubConfig {
             on_owned: Arc::new(|_| {}),
             observed: ObservedConfig::default(),
             on_change,
+            cache: Arc::new(Cache::disabled()),
+            linger: Duration::from_secs(10 * 60),
+            linger_background: Duration::from_secs(90),
+            reap_every: Duration::from_secs(15),
+            listing_fresh: Duration::from_secs(60),
         }
     }
 }
@@ -71,8 +88,43 @@ struct Entry {
     host: Arc<KeeperHost>,
     /// The last listing; `None` before the first answer or after the machine stopped answering.
     listing: Mutex<Option<Vec<KeeperInfo>>>,
+    /// When `listing` was read; `None` while it is `None`.
+    listed_at: Mutex<Option<Instant>>,
+    /// How old `listing` may be and still be believed (`HubConfig::listing_fresh`).
+    fresh: Duration,
     /// The poller found the script missing: it will not install it on its own.
     not_installed: AtomicBool,
+}
+
+impl Entry {
+    /// The listing, when it is recent enough to stand in for asking the machine.
+    fn fresh_listing(&self) -> Option<Vec<KeeperInfo>> {
+        let at = (*self.listed_at.lock())?;
+        if at.elapsed() > self.fresh {
+            return None;
+        }
+        self.listing.lock().clone()
+    }
+
+    /// Keeper `id`'s record from a recent listing, when it is there and its agent is alive. Anything else (not listed,
+    /// exited, no recent listing) is for a fresh `keeper list` to say, in the words the screens already have.
+    fn fresh_info(&self, id: &str) -> Option<KeeperInfo> {
+        self.fresh_listing()?
+            .into_iter()
+            .find(|k| k.id == id)
+            .filter(KeeperInfo::alive)
+    }
+
+    /// What a session's thread reads its keeper's record from: the recent listing when it already names the
+    /// ACP session (`session_id`), else the machine's answer now.
+    fn listing_for(&self, id: &str) -> Result<Vec<KeeperInfo>, KeeperError> {
+        if let Some(all) = self.fresh_listing()
+            && all.iter().any(|k| k.id == id && k.session_id.is_some())
+        {
+            return Ok(all);
+        }
+        self.host.list()
+    }
 }
 
 /// How long a state has lasted, as far as this app has seen: an episode already there when a machine's
@@ -83,10 +135,28 @@ struct Episodes {
     machines: HashSet<String>,
 }
 
+/// Which table a lingering session is in, with its machine and id (a pane id for an observed one).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum Slot {
+    Keeper(String, String),
+    Observed(String, String),
+}
+
+impl Slot {
+    fn machine(&self) -> &str {
+        match self {
+            Slot::Keeper(m, _) | Slot::Observed(m, _) => m,
+        }
+    }
+}
+
 struct Inner {
     entries: RwLock<HashMap<String, Arc<Entry>>>,
     attached: Mutex<HashMap<(String, String), SessionHandle>>,
     observed: Mutex<HashMap<(String, String), ObservedHandle>>,
+    /// Sessions the person left that are still attached, and since when. Lock order: this one first, then
+    /// `attached` or `observed`, never the other way round.
+    lingering: Mutex<HashMap<Slot, Instant>>,
     owned: Mutex<BTreeSet<String>>,
     episodes: Mutex<Episodes>,
     background: AtomicBool,
@@ -113,6 +183,7 @@ impl SessionHub {
             entries: RwLock::new(HashMap::new()),
             attached: Mutex::new(HashMap::new()),
             observed: Mutex::new(HashMap::new()),
+            lingering: Mutex::new(HashMap::new()),
             owned: Mutex::new(owned),
             episodes: Mutex::new(Episodes::default()),
             background: AtomicBool::new(false),
@@ -124,16 +195,30 @@ impl SessionHub {
             std::thread::Builder::new()
                 .name("herdr-session-poll".to_owned())
                 .spawn(move || {
+                    // Absolute deadlines: a burst of `Poll::Machine` must not push the regular poll or the reaping off.
+                    let started = Instant::now();
+                    let (mut last_poll, mut last_reap) = (started, started);
                     loop {
-                        let wait = if inner.background.load(Ordering::Relaxed) {
+                        let interval = if inner.background.load(Ordering::Relaxed) {
                             inner.config.poll_background
                         } else {
                             inner.config.poll_foreground
                         };
-                        match polls.recv_timeout(wait) {
+                        let due = (last_poll + interval).min(last_reap + inner.config.reap_every);
+                        match polls.recv_deadline(due) {
                             Ok(Poll::Stop) | Err(RecvTimeoutError::Disconnected) => return,
                             Ok(Poll::Machine(machine)) => inner.poll(Some(&machine)),
-                            Err(RecvTimeoutError::Timeout) => inner.poll(None),
+                            Err(RecvTimeoutError::Timeout) => {
+                                let now = Instant::now();
+                                if now >= last_reap + inner.config.reap_every {
+                                    inner.reap(now);
+                                    last_reap = now;
+                                }
+                                if now >= last_poll + interval {
+                                    inner.poll(None);
+                                    last_poll = Instant::now();
+                                }
+                            }
                         }
                     }
                 })
@@ -155,6 +240,8 @@ impl SessionHub {
             Arc::new(Entry {
                 host,
                 listing: Mutex::new(None),
+                listed_at: Mutex::new(None),
+                fresh: self.inner.config.listing_fresh,
                 not_installed: AtomicBool::new(false),
             }),
         );
@@ -178,6 +265,10 @@ impl SessionHub {
     }
 
     fn detach_machine(&self, machine: &str) {
+        self.inner
+            .lingering
+            .lock()
+            .retain(|slot, _| slot.machine() != machine);
         let gone: Vec<SessionHandle> = {
             let mut attached = self.inner.attached.lock();
             let keys: Vec<_> = attached
@@ -290,25 +381,34 @@ impl SessionHub {
     /// Attaches to keeper `id` on `machine`: the agent's conversation replays into the transcript. An
     /// already attached session is returned as it is.
     pub fn attach(&self, machine: &str, id: &str) -> Result<SessionHandle, KeeperError> {
+        self.inner
+            .unlinger(&Slot::Keeper(machine.to_owned(), id.to_owned()));
         if let Some(handle) = self.handle(machine, id) {
             return Ok(handle);
         }
         self.check_room(machine, Some(id))?;
         let entry = self.entry(machine)?;
-        let info = entry
-            .host
-            .list()?
-            .into_iter()
-            .find(|k| k.id == id)
-            .ok_or_else(|| {
-                KeeperError::Gone("That session doesn’t exist on the machine.".into())
-            })?;
-        if !info.alive() {
-            return Err(KeeperError::AgentExited(
-                info.exit_reason
-                    .unwrap_or_else(|| "The agent of this session has exited.".into()),
-            ));
-        }
+        // A recent listing says what `keeper list` would, without an ssh round trip before anything can be shown.
+        let info = match entry.fresh_info(id) {
+            Some(info) => info,
+            None => {
+                let info = entry
+                    .host
+                    .list()?
+                    .into_iter()
+                    .find(|k| k.id == id)
+                    .ok_or_else(|| {
+                        KeeperError::Gone("That session doesn’t exist on the machine.".into())
+                    })?;
+                if !info.alive() {
+                    return Err(KeeperError::AgentExited(
+                        info.exit_reason
+                            .unwrap_or_else(|| "The agent of this session has exited.".into()),
+                    ));
+                }
+                info
+            }
+        };
         self.open(machine, &entry, id, Begin::Attach, &info.agent, &info.cwd)
     }
 
@@ -327,8 +427,10 @@ impl SessionHub {
         }
     }
 
-    /// Closes the connection to a session. The keeper and its agent keep running.
+    /// Closes the connection to a session now. The keeper and its agent keep running.
     pub fn detach(&self, machine: &str, id: &str) {
+        self.inner
+            .unlinger(&Slot::Keeper(machine.to_owned(), id.to_owned()));
         let handle = self
             .inner
             .attached
@@ -337,6 +439,18 @@ impl SessionHub {
         if let Some(handle) = handle {
             handle.detach();
             (self.inner.config.on_change)();
+        }
+    }
+
+    /// The person left the session (its tab closed, its project switched). It stays attached for `linger`, so coming back
+    /// costs nothing, and goes sooner when another session needs its place. Nothing blocks here: the UI thread never
+    /// waits for a connection to close.
+    pub fn release(&self, machine: &str, id: &str) {
+        if self.handle(machine, id).is_some() {
+            self.inner.lingering.lock().insert(
+                Slot::Keeper(machine.to_owned(), id.to_owned()),
+                Instant::now(),
+            );
         }
     }
 
@@ -380,10 +494,23 @@ impl SessionHub {
         kind: &'static ObservedKind,
         io: Arc<dyn PaneIo>,
     ) -> Result<ObservedHandle, KeeperError> {
+        self.inner
+            .unlinger(&Slot::Observed(machine.to_owned(), pane.to_owned()));
         if let Some(handle) = self.observed(machine, pane) {
             return Ok(handle);
         }
         let entry = self.entry(machine)?;
+        // Room first, outside the table's lock: a lingering chat gives its place up instead of refusing this one.
+        loop {
+            let open = {
+                let mut observed = self.inner.observed.lock();
+                observed.retain(|_, h| h.is_open());
+                observed.keys().filter(|(m, _)| m == machine).count()
+            };
+            if open < MAX_OBSERVED || !self.inner.evict_lingering(machine, true) {
+                break;
+            }
+        }
         let mut observed = self.inner.observed.lock();
         observed.retain(|_, h| h.is_open());
         if observed.keys().filter(|(m, _)| m == machine).count() >= MAX_OBSERVED {
@@ -399,6 +526,7 @@ impl SessionHub {
             io,
             self.inner.config.observed.clone(),
             self.inner.config.on_change.clone(),
+            self.inner.config.cache.clone(),
         )
         .map_err(KeeperError::Other)?;
         observed.insert((machine.to_owned(), pane.to_owned()), handle.clone());
@@ -421,8 +549,10 @@ impl SessionHub {
         }
     }
 
-    /// Stops reading a pane's log (`Show terminal`). The agent is not touched.
+    /// Stops reading a pane's log now (`Show terminal`). The agent is not touched.
     pub fn stop_observing(&self, machine: &str, pane: &str) {
+        self.inner
+            .unlinger(&Slot::Observed(machine.to_owned(), pane.to_owned()));
         let handle = self
             .inner
             .observed
@@ -431,6 +561,17 @@ impl SessionHub {
         if let Some(handle) = handle {
             handle.detach();
             (self.inner.config.on_change)();
+        }
+    }
+
+    /// The person left the chat of a pane's log (its tab closed, its project switched): it keeps reading for `linger`
+    /// (see [`release`](Self::release)).
+    pub fn release_observed(&self, machine: &str, pane: &str) {
+        if self.observed(machine, pane).is_some() {
+            self.inner.lingering.lock().insert(
+                Slot::Observed(machine.to_owned(), pane.to_owned()),
+                Instant::now(),
+            );
         }
     }
 
@@ -451,20 +592,27 @@ impl SessionHub {
         }
     }
 
-    /// Fails when `machine` has [`MAX_ATTACHED`] open sessions already (other than `id`).
+    /// Fails when `machine` has [`MAX_ATTACHED`] open sessions already (other than `id`) and none of them is only
+    /// lingering: a lingering one is closed instead, the one left longest first.
     fn check_room(&self, machine: &str, id: Option<&str>) -> Result<(), KeeperError> {
-        let mut attached = self.inner.attached.lock();
-        attached.retain(|_, h| h.is_open());
-        let open = attached
-            .keys()
-            .filter(|(m, k)| m == machine && Some(k.as_str()) != id)
-            .count();
-        if open >= MAX_ATTACHED {
-            return Err(KeeperError::TooMany(format!(
-                "{MAX_ATTACHED} sessions are open on this machine already. Close one first."
-            )));
+        loop {
+            let open = {
+                let mut attached = self.inner.attached.lock();
+                attached.retain(|_, h| h.is_open());
+                attached
+                    .keys()
+                    .filter(|(m, k)| m == machine && Some(k.as_str()) != id)
+                    .count()
+            };
+            if open < MAX_ATTACHED {
+                return Ok(());
+            }
+            if !self.inner.evict_lingering(machine, false) {
+                return Err(KeeperError::TooMany(format!(
+                    "{MAX_ATTACHED} sessions are open on this machine already. Close one first."
+                )));
+            }
         }
-        Ok(())
     }
 
     fn open(
@@ -476,7 +624,7 @@ impl SessionHub {
         agent: &str,
         cwd: &str,
     ) -> Result<SessionHandle, KeeperError> {
-        let host = entry.host.clone();
+        let (listed, id_owned) = (entry.clone(), id.to_owned());
         let on_change = self.inner.config.on_change.clone();
         let handle = SessionHandle::open(Opening {
             host: &entry.host,
@@ -485,8 +633,9 @@ impl SessionHub {
             begin,
             agent,
             cwd,
-            listing: Arc::new(move || host.list()),
+            listing: Arc::new(move || listed.listing_for(&id_owned)),
             on_change,
+            cache: self.inner.config.cache.clone(),
         })?;
         self.inner
             .attached
@@ -528,6 +677,7 @@ impl SessionHub {
         for handle in watched {
             handle.detach();
         }
+        self.inner.lingering.lock().clear();
     }
 }
 
@@ -546,6 +696,7 @@ impl Inner {
 
     /// Stores a listing and says so when it differs from the last one.
     fn store_listing(&self, entry: &Entry, listing: Option<Vec<KeeperInfo>>) {
+        *entry.listed_at.lock() = listing.as_ref().map(|_| Instant::now());
         let mut slot = entry.listing.lock();
         if *slot != listing {
             *slot = listing;
@@ -554,6 +705,98 @@ impl Inner {
         }
     }
 
+    /// The session is wanted again (or ended on purpose): it is not lingering any more.
+    fn unlinger(&self, slot: &Slot) {
+        self.lingering.lock().remove(slot);
+    }
+
+    /// Closes the session that has lingered longest on `machine` (an observed one when `observed`), on a thread of its
+    /// own. False when none lingers there.
+    fn evict_lingering(&self, machine: &str, observed: bool) -> bool {
+        let handle = {
+            let mut lingering = self.lingering.lock();
+            let Some(oldest) = lingering
+                .iter()
+                .filter(|(s, _)| {
+                    s.machine() == machine && matches!(s, Slot::Observed(..)) == observed
+                })
+                .min_by_key(|(_, since)| **since)
+                .map(|(s, _)| s.clone())
+            else {
+                return false;
+            };
+            lingering.remove(&oldest);
+            self.take(&oldest)
+        };
+        if let Some(handle) = handle {
+            handle.close();
+        }
+        true
+    }
+
+    /// Closes every lingering session that has lingered past the limit (shorter while the window is hidden).
+    fn reap(&self, now: Instant) {
+        let limit = if self.background.load(Ordering::Relaxed) {
+            self.config.linger_background
+        } else {
+            self.config.linger
+        };
+        let closing: Vec<Closing> = {
+            let mut lingering = self.lingering.lock();
+            let expired: Vec<Slot> = lingering
+                .iter()
+                .filter(|(_, since)| now.saturating_duration_since(**since) >= limit)
+                .map(|(s, _)| s.clone())
+                .collect();
+            expired
+                .iter()
+                .filter_map(|slot| {
+                    lingering.remove(slot);
+                    self.take(slot)
+                })
+                .collect()
+        };
+        for handle in closing {
+            handle.close();
+        }
+    }
+
+    /// Takes a session out of its table (call with `lingering` locked: that order, never the reverse).
+    fn take(&self, slot: &Slot) -> Option<Closing> {
+        match slot {
+            Slot::Keeper(m, id) => self
+                .attached
+                .lock()
+                .remove(&(m.clone(), id.clone()))
+                .map(Closing::Keeper),
+            Slot::Observed(m, pane) => self
+                .observed
+                .lock()
+                .remove(&(m.clone(), pane.clone()))
+                .map(Closing::Observed),
+        }
+    }
+}
+
+/// A session on its way out of the hub.
+enum Closing {
+    Keeper(SessionHandle),
+    Observed(ObservedHandle),
+}
+
+impl Closing {
+    /// Closes it on a thread of its own: closing joins the session's threads and waits for its ssh child.
+    fn close(self) {
+        let _ = std::thread::Builder::new()
+            .name("herdr-reap".to_owned())
+            .spawn(move || match self {
+                Closing::Keeper(h) => h.detach(),
+                Closing::Observed(h) => h.detach(),
+            });
+    }
+}
+
+impl Inner {
     /// Lists one machine, or every machine. A machine that does not answer shows no sessions (they would
     /// be stale); one without the script is left alone.
     fn poll(&self, only: Option<&str>) {

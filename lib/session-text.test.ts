@@ -9,6 +9,7 @@ import {
   itemLabel,
   oneLine,
   outputView,
+  savedAtText,
   shellLine,
   tailText,
   toolLine,
@@ -158,6 +159,11 @@ test("the live line's clock ticks by the second and keeps its width past a minut
   expect(clockText(64)).toBe("1m 04s");
   expect(clockText(600)).toBe("10m 00s");
   expect(clockText(3725)).toBe("1h 02m");
+});
+
+test("the saved-copy line names the time of day the copy was written, two digits each", () => {
+  expect(savedAtText(new Date(2026, 10, 9, 7, 5).getTime())).toBe("07:05");
+  expect(savedAtText(new Date(2026, 10, 9, 23, 59, 59).getTime())).toBe("23:59");
 });
 
 test("a command to paste into a terminal never lets an argument become a second command", () => {

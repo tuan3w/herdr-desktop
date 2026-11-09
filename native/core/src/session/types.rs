@@ -678,6 +678,9 @@ pub struct SessionSnapshot {
     pub accepts_pictures: bool,
     /// The connection to the keeper closed without the agent exiting: attach again to carry on.
     pub connection_lost: bool,
+    /// While the conversation shown is a copy saved on this computer (the live one is still on its way): when it was
+    /// saved, in milliseconds since the epoch. `None` for a conversation that came from the machine.
+    pub cached_at_ms: Option<u64>,
     /// A message the agent refused, to put back in the composer.
     pub unsent: Option<Unsent>,
     /// Set for an observed session (an agent in a terminal pane): see [`ObservedInfo`].

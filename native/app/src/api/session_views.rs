@@ -866,6 +866,10 @@ pub struct SessionView {
     pub ended_reason: Option<String>,
     /// The connection to the machine closed but the agent did not exit: `attach` again to carry on.
     pub connection_lost: bool,
+    /// While the conversation shown is a copy saved on this computer and the live one is still on its way: when the copy
+    /// was saved, in milliseconds since the epoch. Nothing can be sent or answered meanwhile (`phase` is `connecting`).
+    #[prop(skip_none)]
+    pub cached_at: Option<u64>,
     /// The agent's route id.
     pub agent: String,
     /// The folder it runs in.
@@ -1105,6 +1109,7 @@ impl From<&SessionSnapshot> for SessionView {
             phase,
             ended_reason,
             connection_lost: s.connection_lost,
+            cached_at: s.cached_at_ms,
             agent: s.agent.clone(),
             cwd: s.cwd.clone(),
             title: s.title.clone(),

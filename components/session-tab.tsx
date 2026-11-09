@@ -25,7 +25,7 @@ import { registerPane } from "#lib/pane-input";
 import { createSessionModel, latest, type SessionPort, sessionPort } from "#lib/session";
 import { lastCode, lastReply } from "#lib/session-copy";
 import { inspectorOpen } from "#lib/session-inspector";
-import { oneLine, sessionTitle, tailText, visibleText } from "#lib/session-text";
+import { oneLine, savedAtText, sessionTitle, tailText, visibleText } from "#lib/session-text";
 import { announceOutput } from "#lib/settings";
 import { INSPECTOR_KEY } from "#lib/shortcuts";
 
@@ -347,6 +347,11 @@ export function SessionChat(props: {
                     <View role="alert" class="flex-row items-center gap-2 border-b border-border bg-muted px-6 py-2">
                       <Text class="min-w-0 flex-1 text-xs text-foreground">{`Not connected to ${machineName()}. The agent keeps running; reconnect to carry on.`}</Text>
                       <Btn small label="Reconnect" loading={reconnecting()} onPress={() => void reconnect()} />
+                    </View>
+                  </If>
+                  <If when={view().cachedAt}>
+                    <View class="border-b border-border bg-muted px-6 py-2">
+                      <Text class="text-xs text-muted-foreground">{`Showing the conversation saved at ${savedAtText(view().cachedAt!)}. Updating…`}</Text>
                     </View>
                   </If>
                   <If when={view().observed && view().observed!.link !== "following" && view().observed!.linkText}>

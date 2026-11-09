@@ -66,6 +66,9 @@ pub use words::{compact, status_line, window_title};
 /// The setting that holds the pinned projects' keys.
 const PINNED_KEY: &str = "projects.pinned";
 
+/// The setting that switches the cache of saved conversations and snapshots on (the default) or off.
+pub(crate) const CACHE_KEY: &str = "cache.enabled";
+
 /// How long a request to herdr may take before it counts as failed.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -166,6 +169,11 @@ impl Engine {
             };
 
         let fleet_cell = sessions::FleetCell::default();
+        let cache = Arc::new(herdr_core::cache::Cache::open(
+            store.dir().join("cache"),
+            herdr_core::cache::Caps::default(),
+        ));
+        cache.set_enabled(stored_settings.value.get::<bool>(CACHE_KEY).unwrap_or(true));
         let sessions = sessions::build_hub(
             stored_settings
                 .value
@@ -173,6 +181,7 @@ impl Engine {
                 .unwrap_or_default(),
             notes.clone(),
             fleet_cell.clone(),
+            cache.clone(),
         );
 
         let fleet = Arc::new(Fleet {
@@ -192,6 +201,7 @@ impl Engine {
                 store.dir().join("cache").join("media"),
                 herdr_core::files::MEDIA_CAP,
             )),
+            cache,
             store,
             local_socket,
             ssh,
@@ -305,6 +315,8 @@ impl Engine {
 
 impl Drop for Engine {
     fn drop(&mut self) {
+        // The board's last snapshots are written while the links are still there to read.
+        self.fleet.cache.flush();
         self.fleet.end_seam_sessions();
         self.fleet.stop();
         for thread in self.threads.drain(..) {
@@ -342,6 +354,8 @@ pub struct Fleet {
     store: Store,
     /// Copies of other machines' videos and sounds while they play (`<dataDir>/cache/media`, capped).
     media: Arc<herdr_core::files::MediaCache>,
+    /// What is kept between runs: each machine's last snapshot and the saved conversations (`<dataDir>/cache`, capped).
+    cache: Arc<herdr_core::cache::Cache>,
     local_socket: PathBuf,
     ssh: Option<SshClient>,
     /// Agent sessions: each machine's keeper, the listings and the attached conversations.
@@ -501,6 +515,7 @@ impl Fleet {
         };
         let mut config = LinkConfig::new(machine.id.clone(), wire);
         config.enabled = machine.enabled;
+        config.seed = self.board_seed(&machine.id);
         let link = Arc::new(MachineLink::start(config, self.updates.clone()));
 
         let activity = link.activity();
@@ -527,6 +542,18 @@ impl Fleet {
         }
         self.links.write().push((machine.id.clone(), link.clone()));
         link
+    }
+
+    /// What `machine` last showed, when the cache still has it and it is recent enough; a copy that does
+    /// not read is removed so it is not tried again.
+    fn board_seed(&self, machine: &str) -> Option<Snapshot> {
+        let key = forward::board_key(&self.cache, machine);
+        let bytes = self.cache.get(&key)?;
+        let seed = forward::decode_board(&bytes, now_ms());
+        if seed.is_none() {
+            self.cache.forget(&key);
+        }
+        seed
     }
 
     /// The wire of a remote machine, or why the machine cannot be reached at all.

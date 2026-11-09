@@ -9,9 +9,12 @@ Protocol, one JSON object per line on stdin; answers on stdout, possibly out of 
 matches them by `id`). The first line out is `herdr-desktop-relay-v1`. An answer longer than 512
 bytes is written as `Z<n>`, a newline and exactly n bytes of zlib data holding the JSON (no newline
 after them); a shorter one is a plain line. A request whose method is `events.subscribe` keeps its
-connection open: herdr's acknowledgement, then every event line, framed the same way, until herdr
-hangs up (the relay then exits so the caller notices). Exit 78 means "cannot serve" (no herdr socket
-at that path) so the caller can try another bridge; 64 is a usage error.
+connection open: herdr's acknowledgement, framed as above, then every event as `E<n>`, a newline and
+exactly n bytes: the next sync-flushed piece of ONE zlib stream that lives as long as that connection
+(the event and a newline go in, so the caller strips the newline it inflates). Events are near
+copies of each other, so a shared window turns the repeats into references. The relay exits when
+herdr hangs up so the caller notices. Exit 78 means "cannot serve" (no herdr socket at that path) so
+the caller can try another bridge; 64 is a usage error.
 """
 import json
 import os
@@ -28,18 +31,26 @@ CONNECT_TIMEOUT = 30
 out_lock = threading.Lock()
 
 
-def emit(payload):
-    if len(payload) > COMPRESS_MIN:
-        z = zlib.compress(payload, 6)
-        frame = b"Z%d\n" % len(z) + z
-    else:
-        frame = payload + b"\n"
+def write_out(frame):
     try:
         with out_lock:
             sys.stdout.buffer.write(frame)
             sys.stdout.buffer.flush()
     except OSError:
         os._exit(1)
+
+
+def emit(payload):
+    if len(payload) > COMPRESS_MIN:
+        z = zlib.compress(payload, 6)
+        write_out(b"Z%d\n" % len(z) + z)
+    else:
+        write_out(payload + b"\n")
+
+
+def emit_event(comp, payload):
+    z = comp.compress(payload + b"\n") + comp.flush(zlib.Z_SYNC_FLUSH)
+    write_out(b"E%d\n" % len(z) + z)
 
 
 def fail(req_id, message):
@@ -72,8 +83,9 @@ def serve(line, req, path, streaming):
                 emit(with_id(first.rstrip(b"\n"), req_id))
                 if streaming:
                     s.settimeout(None)
+                    comp = zlib.compressobj(6)
                     for event in f:
-                        emit(event.rstrip(b"\n"))
+                        emit_event(comp, event.rstrip(b"\n"))
         finally:
             s.close()
     except Exception as e:

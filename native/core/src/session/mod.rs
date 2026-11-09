@@ -12,6 +12,7 @@
 //! see `docs/ARCHITECTURE.md`.
 
 pub(crate) mod adapter;
+mod copy;
 mod error;
 mod host;
 mod hub;

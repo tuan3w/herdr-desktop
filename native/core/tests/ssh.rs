@@ -11,6 +11,7 @@ use std::os::unix::net::UnixListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use crossbeam_channel::{Receiver, unbounded};
@@ -356,29 +357,81 @@ fn control_sockets_get_a_private_directory_short_enough_for_a_unix_socket() {
 struct LocalRelay {
     child: Child,
     stdin: ChildStdin,
-    frames: Receiver<(Vec<u8>, bool)>,
+    frames: Receiver<(Vec<u8>, Framing)>,
+    /// Every byte the relay has written to its stdout so far, as read by `frames`' reader thread.
+    written: Arc<AtomicUsize>,
 }
 
-/// One frame of relay output: the line (or the inflated body) and whether it was a `Z<n>` frame.
-fn read_frame(reader: &mut impl BufRead) -> Option<(Vec<u8>, bool)> {
+/// How the relay put one frame on the wire.
+#[derive(Debug, PartialEq, Eq)]
+enum Framing {
+    /// A plain line.
+    Plain,
+    /// `Z<n>`: an answer deflated on its own.
+    Answer,
+    /// `E<n>`: one event, a piece of the connection's single zlib stream.
+    Event,
+}
+
+/// Passes bytes through and counts them.
+struct CountedRead<R> {
+    inner: R,
+    count: Arc<AtomicUsize>,
+}
+
+impl<R: Read> Read for CountedRead<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        self.count.fetch_add(n, Ordering::SeqCst);
+        Ok(n)
+    }
+}
+
+/// One frame of relay output: the line (or the inflated body) and how it was framed. `events` is
+/// the inflater of the one event stream a relay stdout carries: it must live as long as the stream.
+fn read_frame(
+    reader: &mut impl BufRead,
+    events: &mut flate2::Decompress,
+) -> Option<(Vec<u8>, Framing)> {
     let mut line = Vec::new();
     if reader.read_until(b'\n', &mut line).ok()? == 0 {
         return None;
     }
     line.pop();
-    if let Some(n) = line
-        .strip_prefix(b"Z")
-        .and_then(|d| std::str::from_utf8(d).ok()?.parse::<usize>().ok())
-    {
+    for (tag, framing) in [(b"Z", Framing::Answer), (b"E", Framing::Event)] {
+        let Some(n) = line
+            .strip_prefix(tag)
+            .and_then(|d| std::str::from_utf8(d).ok()?.parse::<usize>().ok())
+        else {
+            continue;
+        };
         let mut z = vec![0; n];
         reader.read_exact(&mut z).ok()?;
         let mut out = Vec::new();
-        flate2::read::ZlibDecoder::new(z.as_slice())
-            .read_to_end(&mut out)
-            .ok()?;
-        return Some((out, true));
+        if framing == Framing::Answer {
+            flate2::read::ZlibDecoder::new(z.as_slice())
+                .read_to_end(&mut out)
+                .ok()?;
+        } else {
+            let mut input = z.as_slice();
+            out.reserve(4096);
+            loop {
+                let before = events.total_in();
+                events
+                    .decompress_vec(input, &mut out, flate2::FlushDecompress::Sync)
+                    .ok()?;
+                input = &input[usize::try_from(events.total_in() - before).ok()?..];
+                if input.is_empty() && out.len() < out.capacity() {
+                    break;
+                }
+                out.reserve(4096);
+            }
+            // The relay deflates the event with the newline that ends it.
+            out.pop();
+        }
+        return Some((out, framing));
     }
-    Some((line, false))
+    Some((line, Framing::Plain))
 }
 
 impl LocalRelay {
@@ -393,10 +446,15 @@ impl LocalRelay {
             .spawn()
             .unwrap();
         let stdin = child.stdin.take().unwrap();
-        let mut stdout = BufReader::new(child.stdout.take().unwrap());
+        let written = Arc::new(AtomicUsize::new(0));
+        let mut stdout = BufReader::new(CountedRead {
+            inner: child.stdout.take().unwrap(),
+            count: written.clone(),
+        });
         let (tx, frames) = unbounded();
         std::thread::spawn(move || {
-            while let Some(frame) = read_frame(&mut stdout) {
+            let mut events = flate2::Decompress::new(true);
+            while let Some(frame) = read_frame(&mut stdout, &mut events) {
                 if tx.send(frame).is_err() {
                     break;
                 }
@@ -406,6 +464,7 @@ impl LocalRelay {
             child,
             stdin,
             frames,
+            written,
         }
     }
 
@@ -414,12 +473,12 @@ impl LocalRelay {
         self.stdin.flush().unwrap();
     }
 
-    fn next(&self) -> (Value, bool) {
-        let (bytes, deflated) = self
+    fn next(&self) -> (Value, Framing) {
+        let (bytes, framing) = self
             .frames
             .recv_timeout(T)
             .expect("the relay stopped answering");
-        (serde_json::from_slice(&bytes).unwrap(), deflated)
+        (serde_json::from_slice(&bytes).unwrap(), framing)
     }
 
     fn exit_code(&mut self) -> Option<i32> {
@@ -459,12 +518,12 @@ fn the_relay_says_ready_then_answers_each_request_by_its_id() {
         READY_LINE.as_bytes()
     );
     relay.send(&json!({"id": "a", "method": "ping", "params": {}}));
-    let (answer, deflated) = relay.next();
+    let (answer, framing) = relay.next();
     assert_eq!(
         answer,
         json!({"id": "a", "result": {"type": "pong", "protocol": 22}})
     );
-    assert!(!deflated, "a short answer is a plain line");
+    assert_eq!(framing, Framing::Plain, "a short answer is a plain line");
     assert_eq!(herdr.requests_of("ping").len(), 1);
 }
 
@@ -501,8 +560,8 @@ fn an_answer_longer_than_the_threshold_arrives_deflated_and_inflates_to_the_same
     let mut relay = LocalRelay::start(herdr.socket_path());
     relay.frames.recv_timeout(T).unwrap();
     relay.send(&json!({"id": "s", "method": "session.snapshot", "params": {}}));
-    let (answer, deflated) = relay.next();
-    assert!(deflated);
+    let (answer, framing) = relay.next();
+    assert_eq!(framing, Framing::Answer);
     assert_eq!(answer, json!({"id": "s", "result": big}));
 }
 
@@ -575,13 +634,65 @@ fn a_subscription_streams_events_until_herdr_hangs_up() {
         json!({"event": "pane_updated", "data": {"pane": {"title": "t".repeat(2 * COMPRESS_MIN)}}});
     herdr.push_event(short.clone());
     herdr.push_event(long.clone());
-    assert_eq!(relay.next(), (short, false));
-    assert_eq!(relay.next(), (long, true));
+    // Every event of a subscription, short or long, is a piece of the connection's one stream.
+    assert_eq!(relay.next(), (short, Framing::Event));
+    assert_eq!(relay.next(), (long, Framing::Event));
     drop(herdr);
     assert_eq!(
         relay.exit_code(),
         Some(0),
         "the relay must stop so its caller notices the stream ended"
+    );
+}
+
+/// A `pane.updated`-shaped event of about 770 bytes: the screen text is the same every time and only
+/// the sequence number moves, as on a busy pane.
+fn busy_pane_event(seq: usize, screen: &str) -> Value {
+    json!({"event": "pane_updated", "data": {"pane": {"pane_id": "p1", "seq": seq, "screen": screen}}})
+}
+
+#[test]
+fn a_busy_stream_of_near_identical_events_costs_a_fraction_of_its_size() {
+    // Pseudo-random letters, so that deflating one event alone gains little and only the shared
+    // stream can explain a big saving.
+    let mut state = 0x2545_f491_4f6c_dd1du64;
+    let mut letters = |n: usize| -> String {
+        (0..n)
+            .map(|_| {
+                state = state
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
+                char::from(b'a' + u8::try_from((state >> 33) % 26).unwrap())
+            })
+            .collect()
+    };
+    let bare = busy_pane_event(100, "").to_string().len();
+    let screen = letters(770 - bare);
+    let events: Vec<Value> = (100..300).map(|n| busy_pane_event(n, &screen)).collect();
+    let raw: usize = events.iter().map(|e| e.to_string().len()).sum();
+    assert!(
+        raw >= 200 * 770,
+        "the events are about 770 bytes each: {raw}"
+    );
+
+    let (_dir, herdr) = herdr_with(Script::new());
+    let mut relay = LocalRelay::start(herdr.socket_path());
+    relay.frames.recv_timeout(T).unwrap();
+    relay.send(&json!({"id": "sub", "method": "events.subscribe", "params": {"subscriptions": [{"type": "pane.updated"}]}}));
+    assert_eq!(relay.next().0["result"]["type"], "subscription_started");
+    eventually("the subscriber", || herdr.subscribers() == 1);
+
+    let before = relay.written.load(Ordering::SeqCst);
+    for event in &events {
+        herdr.push_event(event.clone());
+    }
+    for event in &events {
+        assert_eq!(relay.next(), (event.clone(), Framing::Event));
+    }
+    let wire = relay.written.load(Ordering::SeqCst) - before;
+    assert!(
+        wire * 5 < raw,
+        "{wire} bytes on the wire for {raw} bytes of events"
     );
 }
 
@@ -1126,6 +1237,7 @@ fn assert_link_stops_in_attention(
             clock: clock.clone(),
             timing: Timing::default(),
             enabled: true,
+            seed: None,
         },
         updates,
     );

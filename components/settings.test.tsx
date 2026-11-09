@@ -1,3 +1,4 @@
+import { Herdr } from "herdr-desktop/native";
 import { expect, open, test } from "nsh/test";
 
 import type { App } from "nsh/test";
@@ -14,6 +15,7 @@ const saved = (a: App): Record<string, unknown> => JSON.parse(a.storage()[KEY] ?
 const FIRST_ROW: Record<string, string> = {
   Notifications: "label:Notify me when an agent needs me",
   Accessibility: "label:Announce agent output",
+  Storage: "label:Keep conversations and the board on this computer",
   About: "label:Check for updates",
 };
 
@@ -188,6 +190,40 @@ test("notifications are off until switched on, the choice is stored by the engin
   await a.press("label:Notify me when an agent needs me");
   await a.waitUntil(() => a.texts().includes("notify=false/true"));
   expect(a.enabled("label:Also when an agent finishes")).toBe(false);
+});
+
+const KEEP = "label:Keep conversations and the board on this computer";
+const SAVED_LINE = "Saved conversations and boards: ";
+
+test("Storage is a page of Settings with the keep switch on, and turning it off is stored by the engine and read back", async () => {
+  const a = await inSettings(DESKTOP, "Storage");
+  expect(a.shows("label:Settings sections")).toBe(true);
+  expect(Herdr.cacheUsage().enabled).toBe(true);
+  expect(a.texts().some((t) => t.startsWith("Copies of files from other machines: "))).toBe(true);
+
+  await a.press(KEEP);
+  await a.waitUntil(() => !Herdr.cacheUsage().enabled);
+  expect(Herdr.setting("cache.enabled")).toBe(false);
+
+  await a.press(KEEP);
+  await a.waitUntil(() => Herdr.cacheUsage().enabled);
+  expect(Herdr.setting("cache.enabled")).toBe(true);
+});
+
+test("Clear deletes the saved copies, says Cleared, and the size line follows", async () => {
+  const a = await inSettings();
+  // Saved before the page opens: its numbers are read when it opens, not on a timer.
+  Herdr.testSaveCache(Array.from({ length: 4000 }, (_, i) => `line ${i * 7919}`).join("\n"));
+  expect(Herdr.cacheUsage().bytes).toBeGreaterThan(0);
+  await a.press("label:Storage");
+  await a.waitFor(KEEP);
+  expect(a.texts()).not.toContain(`${SAVED_LINE}0 bytes`);
+
+  await a.press("label:Clear saved conversations and boards");
+  await a.waitFor("label:Cleared saved conversations and boards");
+  expect(Herdr.cacheUsage().bytes).toBe(0);
+  expect(a.texts()).toContain(`${SAVED_LINE}0 bytes`);
+  expect(a.enabled("label:Cleared saved conversations and boards")).toBe(false);
 });
 
 test("a press outside Settings closes it, except while a machine's form is being filled", async () => {

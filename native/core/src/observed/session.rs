@@ -5,6 +5,9 @@
 //! the **worker**, which maps lines to [`Update`]s, applies them to the transcript, and publishes immutable
 //! [`SessionSnapshot`]s, as a keeper session's thread does. A burst of lines is one snapshot.
 //!
+//! A chat that was open before starts from the copy of its last records the follower saved ([`super::copy`]): the
+//! follower shows it at once and asks the keeper only for what the log gained since (`follow --from`).
+//!
 //! The person's hand is the pane. Text goes in with [`PaneIo::send_input`] (what the agent's own composer
 //! takes) and the log says whether it arrived; a question the agent's question tool asked is answered by keys,
 //! one screen at a time ([`AskDriver`]), and the log has the last word on what was recorded. Approvals are the
@@ -21,12 +24,14 @@ use std::time::{Duration, Instant};
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender, unbounded};
 use parking_lot::{Condvar, Mutex};
 
+use super::copy::{Saved, Window, unix_ms};
 use super::kinds::ObservedKind;
 use super::model::{
     AskAnswer, Location, LogMapper, PendingAsk, SlashCommand, SubagentInfo, Update,
 };
 use super::model::{BackgroundTask, StopRoute};
 use super::subagent::SubagentLocator;
+use crate::cache::{Cache, Key, Kind};
 use crate::schema::AgentStatus;
 use crate::session::adapter::{ObservedMeta, ObservedTranscript, picture_ref};
 use crate::session::{
@@ -49,6 +54,9 @@ const SUBAGENT_READ_ONLY: &str =
 /// How much of the head of a log is read for the commands the agent lists there (Claude writes its skills with
 /// the session's first prompt): a first prompt longer than this hides them.
 const HEAD_COMMANDS_BYTES: u64 = 512 * 1024;
+
+/// A log read for a long time is saved at least this often (in records), not only when it caught up.
+const SAVE_EVERY_RECORDS: usize = 256;
 
 /// What the pane is, as far as herdr says.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -192,6 +200,9 @@ struct Shared {
     subagents: Mutex<Vec<SubagentInfo>>,
     /// The background tasks as the log last described them.
     tasks: Mutex<Vec<BackgroundTask>>,
+    /// When the conversation that is shown was saved (unix milliseconds), while what is shown is a saved copy and
+    /// the log has not answered yet; 0 when it is not.
+    cached_at_ms: AtomicU64,
 }
 
 /// Whether the log has turns that are not shown, and whether they can be had.
@@ -260,6 +271,7 @@ impl Inner {
 impl ObservedHandle {
     /// Starts reading the pane's log. `on_change` is called from the worker after every published snapshot;
     /// it must not block.
+    #[allow(clippy::too_many_arguments)]
     pub fn open(
         host: Arc<KeeperHost>,
         machine: &str,
@@ -268,8 +280,11 @@ impl ObservedHandle {
         io: Arc<dyn PaneIo>,
         config: ObservedConfig,
         on_change: Arc<dyn Fn() + Send + Sync>,
+        cache: Arc<Cache>,
     ) -> Result<ObservedHandle, String> {
-        Self::open_as(host, machine, pane, kind, io, config, on_change, None)
+        Self::open_as(
+            host, machine, pane, kind, io, config, on_change, None, cache,
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -282,6 +297,7 @@ impl ObservedHandle {
         config: ObservedConfig,
         on_change: Arc<dyn Fn() + Send + Sync>,
         subagent: Option<String>,
+        cache: Arc<Cache>,
     ) -> Result<ObservedHandle, String> {
         let (inputs, rx) = unbounded();
         let (stop, stop_rx) = unbounded();
@@ -300,6 +316,7 @@ impl ObservedHandle {
             head: AtomicU64::new(0),
             subagents: Mutex::new(Vec::new()),
             tasks: Mutex::new(Vec::new()),
+            cached_at_ms: AtomicU64::new(0),
         });
         let (skills_quit, skills_rx) = crossbeam_channel::bounded::<()>(0);
         let worker = Worker {
@@ -332,6 +349,7 @@ impl ObservedHandle {
             disk_skills: Vec::new(),
             _skills_quit: skills_quit,
         };
+        let key = cache.key(Kind::Observed, machine, pane);
         let follower = Follower {
             kind,
             io: io.clone(),
@@ -340,6 +358,9 @@ impl ObservedHandle {
             shared: shared.clone(),
             inputs: inputs.clone(),
             stop: stop_rx,
+            cache,
+            key,
+            window: Arc::new(Mutex::new(Window::default())),
         };
         let spawn = |name: String, body: Box<dyn FnOnce() + Send>| {
             std::thread::Builder::new()
@@ -440,6 +461,8 @@ impl ObservedHandle {
             config,
             self.inner.on_change.clone(),
             Some(name.to_owned()),
+            // A subagent's transcript is a pane's second log under the pane's own id: it has no copy of its own.
+            Arc::new(Cache::disabled()),
         )?;
         let mut subs = self.inner.subs.lock();
         subs.retain(|(_, h)| h.is_open());
@@ -1066,6 +1089,7 @@ impl Worker {
                 true
             }
             Input::Reset => {
+                self.shared.cached_at_ms.store(0, Ordering::Release);
                 self.mapper.reset();
                 self.transcript.apply(Update::Cleared);
                 self.caught_up = false;
@@ -1110,6 +1134,7 @@ impl Worker {
             }
             Input::Refresh => true,
             Input::CaughtUp => {
+                self.shared.cached_at_ms.store(0, Ordering::Release);
                 if let Some(wide) = self.wide.take() {
                     // The older turns are shown when all of them are there.
                     self.mapper = wide.mapper;
@@ -1215,8 +1240,10 @@ impl Worker {
         }
         self.arrived
             .retain(|id, _| pending.as_ref().is_some_and(|p| &p.tool_call_id == id));
+        // A copy shows what was asked once: nothing in it can still be answered.
+        let cached_ms = self.shared.cached_at_ms.load(Ordering::Acquire);
         let waiting: Vec<Waiting> = match (&pending, self.kind.ask) {
-            (Some(p), Some(_)) => vec![question_waiting(
+            (Some(p), Some(_)) if cached_ms == 0 => vec![question_waiting(
                 p,
                 self.arrived.get(&p.tool_call_id).copied().unwrap_or(now_ms),
             )],
@@ -1334,6 +1361,7 @@ impl Worker {
                 .filter(|c| !named.contains(&c.name))
                 .cloned(),
         );
+        snapshot.cached_at_ms = Some(cached_ms).filter(|&ms| ms != 0);
         snapshot
     }
 }
@@ -1432,6 +1460,11 @@ struct Follower {
     shared: Arc<Shared>,
     inputs: Sender<Input>,
     stop: Receiver<()>,
+    /// What is kept of this chat between runs.
+    cache: Arc<Cache>,
+    key: Key,
+    /// The records of the followed log as far as a copy keeps them (see [`super::copy`]).
+    window: Arc<Mutex<Window>>,
 }
 
 /// How one `follow` ended.
@@ -1440,6 +1473,8 @@ enum Followed {
     Stopped,
     /// The pane's agent writes another log now: this follow was ended for it.
     Moved,
+    /// A saved copy was shown and the pane's log could not be found again: it was of something else.
+    Unconfirmed,
     /// The connection ended; whether any record came through, and what the command said when it said.
     Ended {
         got_records: bool,
@@ -1457,15 +1492,30 @@ impl Follower {
         let _ = self.inputs.send(Input::Link(link));
     }
 
+    /// Follows the pane's log until the session ends, then writes what is waiting to be saved: the copy the next
+    /// open starts from.
     fn run(self) {
+        self.follow_loop();
+        self.cache.flush();
+    }
+
+    fn follow_loop(&self) {
         let mut attempt = 0usize;
         let mut locate_delay = self.config.locate_every;
         let mut followed: Option<String> = None;
         let mut offset: Option<u64> = None;
         // The head of the followed log was looked at for the commands it lists (once per log).
         let mut head_listed = false;
+        // Where the saved copy that is shown began, until the follow that resumes it has started.
+        let mut from_copy = self.show_copy(&mut followed, &mut offset);
         loop {
-            match self.io.locate(self.kind.locator) {
+            // A copy knows its log. Looking for it first would put the machine's answers (Claude takes up to four
+            // commands for one) in front of the first paint; `watch` checks it as soon as the follow runs.
+            let location = match (&from_copy, &followed) {
+                (Some(_), Some(path)) => Location::Located(path.clone()),
+                _ => self.io.locate(self.kind.locator),
+            };
+            match location {
                 Location::Unlinked(why) => {
                     self.say(ObservedLink::Failed(why));
                     // Waiting changes nothing the agent will say on its own; a later look may find it
@@ -1488,26 +1538,37 @@ impl Follower {
                     if followed.as_deref() != Some(path.as_str()) {
                         if followed.is_some() {
                             // Another session: it opens at its end like any other.
-                            self.shared.widening.store(false, Ordering::Release);
-                            self.shared
-                                .tail
-                                .store(self.config.tail_start, Ordering::Release);
-                            let _ = self.inputs.send(Input::Reset);
+                            self.start_over();
                         }
                         followed = Some(path.clone());
                         offset = None;
                         head_listed = false;
                         *self.shared.log_path.lock() = Some(path.clone());
+                        self.window.lock().begin(&path);
                     }
                     if self.shared.restart.swap(false, Ordering::AcqRel) {
                         // A wider read: from the end of the file, not from where the last one stopped.
                         offset = None;
                     }
                     self.say(ObservedLink::Following);
-                    match self.follow_once(&path, &mut offset, &mut head_listed) {
+                    let resumed = from_copy.take();
+                    match self.follow_once(&path, &mut offset, &mut head_listed, resumed) {
                         Followed::Stopped => return,
                         // The next look finds the other file and opens it.
                         Followed::Moved => {
+                            attempt = 0;
+                            continue;
+                        }
+                        // Nothing here is the pane's log any more: what the copy showed goes, and the pane is looked
+                        // for as if the chat had never been open.
+                        Followed::Unconfirmed => {
+                            followed = None;
+                            offset = None;
+                            head_listed = false;
+                            *self.shared.log_path.lock() = None;
+                            self.window.lock().begin("");
+                            self.cache.forget(&self.key);
+                            self.start_over();
                             attempt = 0;
                             continue;
                         }
@@ -1547,6 +1608,50 @@ impl Follower {
         }
     }
 
+    /// What was shown belongs to a log that is not followed any more: the next is read from its end.
+    fn start_over(&self) {
+        self.shared.widening.store(false, Ordering::Release);
+        self.shared
+            .tail
+            .store(self.config.tail_start, Ordering::Release);
+        let _ = self.inputs.send(Input::Reset);
+    }
+
+    /// Hands the worker the copy saved for this pane, if there is one this kind of agent can continue, and sets
+    /// `followed` and `offset` to resume from its end; returns the byte the copy begins at (what a `follow` of the
+    /// file's tail would have said in its `S`). A copy is shown as soon as it is read; whether it still is the
+    /// pane's chat is settled by the follow that resumes it (the keeper says `R` for a file that is not the one the
+    /// offset came from) and by the look for the pane's log made with it.
+    fn show_copy(&self, followed: &mut Option<String>, offset: &mut Option<u64>) -> Option<u64> {
+        let bytes = self.cache.get(&self.key)?;
+        let Some(saved) = Saved::decode(&bytes, self.kind.id) else {
+            self.cache.forget(&self.key);
+            return None;
+        };
+        let start = saved.start;
+        self.shared
+            .cached_at_ms
+            .store(saved.saved_ms.max(1), Ordering::Release);
+        *self.shared.log_path.lock() = Some(saved.path.clone());
+        let _ = self.inputs.send(Input::Head(saved.start));
+        for (_, json) in &saved.records {
+            let _ = self.inputs.send(Input::Line(json.clone()));
+        }
+        *followed = Some(saved.path.clone());
+        *offset = Some(saved.end);
+        *self.window.lock() = Window::from_saved(saved);
+        Some(start)
+    }
+
+    /// Writes the window `debounce` from now, as it is then.
+    fn save_soon(&self) {
+        let window = self.window.clone();
+        let kind = self.kind.id;
+        self.cache.save_soon(&self.key, move || {
+            Box::new(move || window.lock().encode(kind, unix_ms()))
+        });
+    }
+
     /// One `follow` command, read to its end; meanwhile the pane's log is looked for again
     /// ([`watch`](Self::watch)).
     fn follow_once(
@@ -1554,6 +1659,7 @@ impl Follower {
         path: &str,
         offset: &mut Option<u64>,
         head_listed: &mut bool,
+        from_copy: Option<u64>,
     ) -> Followed {
         // A read from the end that is a wider one (or the retry of one) is mapped from scratch beside what is
         // shown; one that resumes goes on where it was.
@@ -1591,15 +1697,21 @@ impl Follower {
         };
         let mut lines = AttachLines::new(BufReader::new(stdout), conn.zipped);
         let moved = AtomicBool::new(false);
+        let unconfirmed = AtomicBool::new(false);
         let (done, quit) = crossbeam_channel::bounded::<()>(0);
         let proc = conn.proc.clone();
+        // A resumed copy is the pane's chat only if the pane's log is this file: that is asked now, not after a wait.
+        let verify_now = from_copy.is_some();
+        // The commands a tail listed before it are looked for once it caught up; a copy begins where its tail did.
+        let head_at = from_copy.filter(|&at| at > 0 && offset.is_some());
         let read = std::thread::scope(|scope| {
-            scope.spawn(|| self.watch(path, &proc, &quit, &moved));
+            scope.spawn(|| self.watch(path, &proc, &quit, &moved, verify_now, &unconfirmed));
             // Dropped when the read ends, however it ends: the watcher stops looking.
             let _done = done;
-            self.read_records(&mut lines, path, offset, head_listed)
+            self.read_records(&mut lines, path, offset, head_listed, head_at)
         });
         *self.shared.child.lock() = None;
+        self.save_soon();
         let Some(got_records) = read else {
             return Followed::Stopped;
         };
@@ -1611,6 +1723,9 @@ impl Follower {
         conn.close();
         if moved.load(Ordering::Acquire) {
             return Followed::Moved;
+        }
+        if unconfirmed.load(Ordering::Acquire) {
+            return Followed::Unconfirmed;
         }
         // 66: not a log under the home folder, or unreadable; 65, 78: no keeper here. None of these gets
         // better by trying again.
@@ -1631,23 +1746,37 @@ impl Follower {
         path: &str,
         offset: &mut Option<u64>,
         head_listed: &mut bool,
+        // Where the tail this read resumes began, when it began past the start of the file.
+        mut head_at: Option<u64>,
     ) -> Option<bool> {
         let mut got_records = false;
-        // Where this read's tail began, when it began past the start of the file.
-        let mut head_at: Option<u64> = None;
+        // The window is recorded even while a wider read is under way: that read starts from scratch (`S`), which
+        // restarts the window, so what it holds is always one unbroken run of the file.
+        let recording = self.key.usable();
+        let mut unsaved = 0usize;
         while let Ok(Some(line)) = lines.next_line() {
             got_records = true;
             match record(&line) {
                 Record::Data { end, json } => {
                     *offset = Some(end);
                     self.inputs.send(Input::Line(json.to_owned())).ok()?;
+                    if recording {
+                        self.window.lock().push(end, json);
+                        unsaved += 1;
+                        if unsaved >= SAVE_EVERY_RECORDS {
+                            unsaved = 0;
+                            self.save_soon();
+                        }
+                    }
                 }
                 Record::Head(at) => {
                     head_at = Some(at).filter(|&at| at > 0);
+                    self.window.lock().restart(at);
                     let _ = self.inputs.send(Input::Head(at));
                 }
                 Record::Reset(at) => {
                     *offset = Some(at);
+                    self.window.lock().restart(at);
                     // `S` came just before: a wider read keeps the head it said.
                     let widening = self.shared.widening.load(Ordering::Acquire);
                     if !widening {
@@ -1661,6 +1790,9 @@ impl Follower {
                 }
                 Record::CaughtUp => {
                     let _ = self.inputs.send(Input::CaughtUp);
+                    if recording {
+                        self.save_soon();
+                    }
                     if let Some(at) = head_at.take()
                         && !std::mem::replace(head_listed, true)
                         && let Some(commands) = self.head_commands(path, at)
@@ -1681,14 +1813,40 @@ impl Follower {
 
     /// Looks for the pane's log again while one is followed, every `locate_every`: the agent in the pane may
     /// write another file now (`/clear`, `/new` and `/resume` start another session) while the followed one
-    /// only stops growing. Ends the follow when it does; a look that finds nothing changes nothing.
-    fn watch(&self, path: &str, proc: &crate::ssh::Proc, quit: &Receiver<()>, moved: &AtomicBool) {
-        while let Err(RecvTimeoutError::Timeout) = quit.recv_timeout(self.config.locate_every) {
-            if matches!(self.io.locate(self.kind.locator), Location::Located(now) if now != path) {
-                moved.store(true, Ordering::Release);
-                proc.kill();
-                return;
+    /// only stops growing. Ends the follow when it does; a look that finds nothing changes nothing, except the
+    /// first look of a follow that resumes a saved copy (`verify_now`, made at once): a pane whose log is not
+    /// found then is not the chat the copy was of.
+    fn watch(
+        &self,
+        path: &str,
+        proc: &crate::ssh::Proc,
+        quit: &Receiver<()>,
+        moved: &AtomicBool,
+        verify_now: bool,
+        unconfirmed: &AtomicBool,
+    ) {
+        let mut wait = if verify_now {
+            Duration::ZERO
+        } else {
+            self.config.locate_every
+        };
+        let mut first = verify_now;
+        while let Err(RecvTimeoutError::Timeout) = quit.recv_timeout(wait) {
+            wait = self.config.locate_every;
+            match self.io.locate(self.kind.locator) {
+                Location::Located(now) if now != path => {
+                    moved.store(true, Ordering::Release);
+                    proc.kill();
+                    return;
+                }
+                Location::NotYet(_) | Location::Unlinked(_) if first => {
+                    unconfirmed.store(true, Ordering::Release);
+                    proc.kill();
+                    return;
+                }
+                _ => {}
             }
+            first = false;
         }
     }
 

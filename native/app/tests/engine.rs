@@ -3,9 +3,12 @@
 
 mod common;
 
+use std::sync::Arc;
+
 use common::{Rig, start, start_in, wait_for};
 use herdr_core::schema::AgentStatus;
-use herdr_desktop_native::engine::{MachineInput, Split, StartAgent};
+use herdr_desktop_native::engine::{Config, Engine, LinkKind, MachineInput, Split, StartAgent};
+use herdr_desktop_native::fixture::Fixture;
 use serde_json::{Value, json};
 
 fn input(name: &str, dest: &str, enabled: bool) -> MachineInput {
@@ -271,6 +274,40 @@ fn reviewing_takes_a_finished_agent_off_the_list_and_survives_a_restart() {
         again.engine.board().board.counts.to_review,
         1,
         "undo brings it back"
+    );
+}
+
+#[test]
+fn a_restart_lists_the_last_known_agents_dimmed_before_herdr_answers() {
+    let rig = start("mixed");
+    // Previews are asked for once the forwarder has taken the online snapshot in, which is also when it
+    // queues the copy that dropping the engine writes.
+    let mut known: Vec<String> = rig.board_with_previews().rows().map(|r| r.key()).collect();
+    known.sort();
+    assert_eq!(known.len(), 8);
+
+    let Rig { engine, dir, .. } = rig;
+    drop(engine);
+    // A herdr whose snapshot never reads: its link cannot get past connecting.
+    let silent = Fixture::from_json(&json!({"snapshot": {"panes": 5}})).expect("a fixture");
+    let again = Engine::start(Config {
+        data_dir: dir.path().to_path_buf(),
+        fixture: Some(silent),
+        on_tick: Arc::new(|| {}),
+    })
+    .expect("the engine starts");
+
+    assert_ne!(again.machine_statuses()[0].state, LinkKind::Online);
+    let board = again.board().board;
+    let mut shown: Vec<String> = board.rows().map(|r| r.key()).collect();
+    shown.sort();
+    assert_eq!(shown, known, "the agents of the last run are listed");
+    assert!(board.rows().all(|r| r.offline), "and dimmed");
+    let c = board.counts;
+    assert_eq!(
+        (c.needs_you, c.to_review, c.working, c.idle, c.offline),
+        (0, 0, 0, 0, 8),
+        "none of them is counted"
     );
 }
 

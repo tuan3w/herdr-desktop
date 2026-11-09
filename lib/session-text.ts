@@ -319,6 +319,15 @@ export function clockText(seconds: number): string {
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
 }
 
+/**
+ * `10:42`: the time of day on this computer's clock that a saved copy of a conversation was written, for the line that
+ * says the copy is what is on screen. Built from the parts so it reads the same under any locale.
+ */
+export function savedAtText(ms: number): string {
+  const at = new Date(ms);
+  return `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
+}
+
 /** The tab's name for a session: the agent's own title once it has one, else the agent. */
 export function sessionTitle(view: Pick<SessionView, "title"> | null, agent: string): string {
   const title = view?.title?.trim();
