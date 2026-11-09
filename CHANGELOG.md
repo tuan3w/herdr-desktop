@@ -4,6 +4,45 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+## [0.1.0-alpha.14] - 2026-11-10
+
+### What an agent did is quieter
+
+The work an agent did between two of its sentences is now a card with one
+row per step, like the Claude desktop app, instead of a pile of boxed lines.
+A row says what the step was for, in the agent's own words (`Checked the
+sidebar tests`), or the command when the agent gave none. A step that stands
+alone between two sentences is a plain line, with no card.
+
+> [!TIP]
+> Try it: in a chat where an agent ran commands, press the line `Ran 4
+> commands`, then press a step to open it.
+
+- A step with several calls says `and 2 more`; a failure the agent got past
+  says `, 1 retried` and stays quiet.
+- Opened, a step shows the command whole in one white box with a hairline,
+  how it ended (`Exit code 2`, in the warning colour) under the command, then
+  what it printed as plain text.
+- A long output scrolls inside itself, from its end for a command so the
+  failure is in view, and says `N lines not kept` where the machine dropped
+  lines. `Show all N lines` is gone.
+- An edit is a diff in the same white box; a new file shows as plain code
+  under `new file`. A step shows `+N −N` for its edits next to its name.
+- A running step carries the half ring, its clock and `Quiet for 3m`, with
+  the last two lines it printed under it. A turn you folded keeps the same
+  line, in the size of the text around it.
+- A thought is no longer a row of its own: it is the first line inside the
+  step it led to.
+- A failure that stands marks its step and names the line that says what
+  failed (`1 failed, 1628 passed`), not the last line printed.
+
+**Not checked**
+
+- Not looked at on a Mac, at 960 px wide, or with large text.
+- The agent's own words come from omp and Claude Code; an agent that gives
+  none shows the command.
+- Seen on scripted chats, not on a long live session.
+
 ## [0.1.0-alpha.13] - 2026-11-09
 
 ### A pane that could not start says so
