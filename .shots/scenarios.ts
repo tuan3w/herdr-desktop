@@ -657,10 +657,10 @@ export const SCENARIOS: Record<string, Scenario> = {
     (
       [
         ["picture", "label:/^Picture shot-1\\.png/"],
-        ["file", "label:src/main.rs:12"],
-        ["page", "label:https://github.com/acme/payments-api/pull/128"],
-        ["page-address", "label:https://github.com/acme/payments-api/pull/128"],
-        ["page-failed", "label:https://github.com/acme/payments-api/pull/128"],
+        ["file", "text:src/main.rs:12"],
+        ["page", "text:https://github.com/acme/payments-api/pull/128 >> nth=0"],
+        ["page-address", "text:https://github.com/acme/payments-api/pull/128 >> nth=0"],
+        ["page-failed", "text:https://github.com/acme/payments-api/pull/128 >> nth=0"],
       ] as const
     ).map(([name, link]): [string, Scenario] => [
       `chat-links-${name}`,

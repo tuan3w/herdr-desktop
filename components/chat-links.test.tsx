@@ -46,21 +46,16 @@ test("a picture over the cap is a chip that opens in the panel, and a web pictur
   await app.waitUntil(() => said(app, "too large to show here"));
 });
 
-test("a bare address reads as its host and a muted path, and its link is named by the whole address", async () => {
+test("a bare address reads whole, every part of it in one style", async () => {
   const app = await links();
-  await app.waitFor(`label:${PR}`);
-  expect(said(app, "github.com /acme/payments-api/pull/128")).toBe(true);
-  expect(said(app, PR)).toBe(false);
-  const host = app.spanStyle("text:/github\\.com \\/acme/");
-  const path = app.spanStyle("/acme/payments-api/pull/128");
-  expect(path.color).not.toBe(host.color);
-  // A long path keeps its last two segments.
-  expect(said(app, "docs.example.com /…/backoff/settings")).toBe(true);
+  await app.waitUntil(() => said(app, PR));
+  expect(app.spanStyle(`text:${PR} >> nth=0`).color).toBe(app.spanStyle("text:payments-api/pull/128").color);
+  expect(said(app, "https://docs.example.com/guides/payments/webhooks/retries/backoff/settings")).toBe(true);
 });
 
 test("pressing a web link opens the side panel, not the browser; Open in browser hands the address over; Close shuts it", async () => {
   const app = await links();
-  await app.press(`label:${PR}`);
+  await app.press(`text:${PR} >> nth=0`);
   await app.waitFor(PANEL);
   await app.waitUntil(() => app.value("label:Address") === PR);
   expect(app.openedUrls()).toEqual([]);
@@ -78,7 +73,7 @@ test("pressing a web link opens the side panel, not the browser; Open in browser
 
 test("an address typed without a scheme opens as https in the panel, and Open in browser then hands that page over", async () => {
   const app = await links();
-  await app.press(`label:${PR}`);
+  await app.press(`text:${PR} >> nth=0`);
   await app.waitFor(PANEL);
   await app.clear("label:Address");
   await app.type("label:Address", "docs.example.com/guides");
@@ -93,7 +88,7 @@ test("an address typed without a scheme opens as https in the panel, and Open in
 
 test("a typed address the panel does not show (plain http to another computer, words) is refused and the page stays", async () => {
   const app = await links();
-  await app.press(`label:${PR}`);
+  await app.press(`text:${PR} >> nth=0`);
   await app.waitFor(PANEL);
   for (const typed of ["http://example.com/", "how to fix login"]) {
     await app.clear("label:Address");
@@ -107,7 +102,7 @@ test("a typed address the panel does not show (plain http to another computer, w
 
 test("Escape over a page leaves the panel open: it gives the keyboard back to the message box", async () => {
   const app = await links();
-  await app.press(`label:${PR}`);
+  await app.press(`text:${PR} >> nth=0`);
   await app.waitFor(PANEL);
   await app.hover(PANEL);
   await app.keyboard.press("escape");
@@ -117,22 +112,22 @@ test("Escape over a page leaves the panel open: it gives the keyboard back to th
 
 test("a file link shows the file's name and line, and opens the file at that line in the panel", async () => {
   const app = await links();
-  await app.waitFor("label:src/main.rs:12");
+  await app.waitFor("text:src/main.rs:12");
   expect(said(app, "main.rs:12")).toBe(true);
-  await app.press("label:src/main.rs:12");
+  await app.press("text:src/main.rs:12");
   await app.waitFor(PANEL);
   await app.waitFor("label:main.rs, read only");
   expect(app.shows("label:/^main\\.rs:12, \\/.*src\\/main\\.rs:12$/")).toBe(true);
 
   // The next link replaces it: one panel per chat.
-  await app.press(`label:${PR}`);
+  await app.press(`text:${PR} >> nth=0`);
   await app.waitFor("label:main.rs, read only", { state: "gone" });
   expect(app.count(PANEL)).toBe(1);
 });
 
 test("Escape closes the panel while the pointer is over it, and not from the message box", async () => {
   const app = await links();
-  await app.press("label:src/main.rs:12");
+  await app.press("text:src/main.rs:12");
   await app.waitFor(PANEL);
   // The message box has the keyboard since the chat opened: its Escape is its own.
   await app.keyboard.press("escape");

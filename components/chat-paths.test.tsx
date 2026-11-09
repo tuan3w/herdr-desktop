@@ -60,13 +60,13 @@ test("a relative path in a tool row opens in the side panel at its line, and ../
 
 test("a relative path in the agent's words opens in the panel; a missing one says which folder it is not in", async () => {
   const app = await attached();
-  await app.waitFor("label:../notes.txt");
-  await app.press("label:../notes.txt");
+  await app.waitFor("text:../notes.txt");
+  await app.press("text:../notes.txt");
   await app.waitFor(PANEL);
   const tree = treeOf(app);
   await app.waitFor(`label:/^notes\\.txt, ${escape(tree)}\\/notes\\.txt$/`);
 
-  await app.press("label:.scratch/notes/plan.md");
+  await app.press("text:.scratch/notes/plan.md");
   await app.waitUntil(() => said(app, `.scratch/notes/plan.md isn't in ${tree}/src`));
   expect(said(app, "A path must start")).toBe(false);
 });

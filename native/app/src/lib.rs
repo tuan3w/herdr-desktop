@@ -17,6 +17,7 @@
 //! * [`git`] is the `Git` module: the files an agent changed in a checkout, their patches, revert and undo.
 //! * [`fixture`] is the scripted herdr the tests run against.
 //! * `preload_guard` (Linux, glibc) starts the process again without an `LD_PRELOAD` allocator that breaks GTK 4.22 (before `main`).
+//! * `webkit_env` (Linux) turns off WebKitGTK's DMA-BUF renderer, which aborts the app on a GPU without GBM (before `main`).
 
 use nsh_core::prelude::*;
 
@@ -37,13 +38,17 @@ pub mod pane_screen;
 pub mod preload_guard;
 pub mod search;
 pub mod terminal;
+#[cfg(target_os = "linux")]
+pub mod webkit_env;
 
 /// The crate's UI set (`nsh.json` `"rust"`).
 #[native_module("herdr-desktop/native")]
 fn native(registry: &mut Registry) {
-    // Names the guard's constructor so that the linker keeps its object file.
+    // Names the guards' constructors so that the linker keeps their object files.
     #[cfg(all(target_os = "linux", target_env = "gnu"))]
     std::hint::black_box(&preload_guard::INIT);
+    #[cfg(target_os = "linux")]
+    std::hint::black_box(&webkit_env::INIT);
     registry
         .module::<api::Herdr>()
         .module::<api::Sessions>()

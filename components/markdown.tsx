@@ -5,9 +5,9 @@ import { ChatPicture } from "#components/chat-picture";
 import { CodeBlock, inlineCodeClasses } from "#components/code-block";
 import { MermaidBlock } from "#components/mermaid-block";
 import { openLink } from "#components/open-link";
-import { type CopyEntry, copyMenu, copyText, Icon } from "#kit";
+import { type CopyEntry, copyMenu, copyText } from "#kit";
 import type { LinkPanel } from "#lib/link-panel";
-import { chatMarkdown, isPath, MARK, MENTION, pathLink } from "#lib/links";
+import { chatMarkdown, isPath, MENTION, pathLink } from "#lib/links";
 import {
   fenceLanguage,
   type FenceSegment,
@@ -44,18 +44,15 @@ const TABLE_CLASSES = {
   tableHeaderCell: "font-medium",
 };
 
-/**
- * The parts the text view sizes on its own, at the message's size (`size`): the page's 14 pt, or 13 inside a bubble. The
- * rest of a short link's path (`small`, `lib/links.ts`) is muted at the text's size, not underlined.
- */
+/** The parts the text view sizes on its own, at the message's size (`size`): the page's 14 pt, or 13 inside a bubble. */
 const TEXT_PARTS = {
-  base: { paragraph: "text-base", listMarker: "text-base", small: "text-base text-muted-foreground no-underline" },
-  sm: { paragraph: "text-sm", listMarker: "text-sm", small: "text-sm text-muted-foreground no-underline" },
+  base: { paragraph: "text-base", listMarker: "text-base" },
+  sm: { paragraph: "text-sm", listMarker: "text-sm" },
 };
 
 /** The parts of messages read lately, by their text: a recycled cell shown a message again does not split it again. */
 const PARTS = new Lru<string, Segment[]>(MARKDOWN_ENTRIES);
-/** Prose as drawn (`chatMarkdown`: short links, named pictures), by its text, for the same reason. */
+/** Prose as drawn (`chatMarkdown`: named pictures), by its text, for the same reason. */
 const SHOWN = new Lru<string, string>(MARKDOWN_ENTRIES);
 
 /**
@@ -75,8 +72,8 @@ export interface Folds {
  * (its fold state is its own: the hook makes it again whenever its text view's text changes). Inline code is a neutral
  * chip, never a colour (`inlineCodeClasses`).
  *
- * Links and pictures (`design/chat.md`, "Links and pictures"): a link whose text is its own address is drawn short
- * (`chatMarkdown`); a press goes through `openLink`, into `links` (the side panel) when there is one and `mod` is not
+ * Links and pictures (`design/chat.md`, "Links and pictures"): a link is drawn as written, the whole address
+ * (`chatMarkdown` leaves it); a press goes through `openLink`, into `links` (the side panel) when there is one and `mod` is not
  * held, else the old way; a relative path is looked for in `folder` and the two above it on `machine`; anchors and other
  * schemes do nothing. A picture of the machine is a thumbnail (`ChatPicture`), a web picture a chip that is never fetched.
  *
@@ -123,14 +120,6 @@ export function MarkdownText(props: {
     void openLink("path", path, line, col, at());
   };
   const image = (img: TextViewImage) => {
-    // The mark before a short link: the text view wraps it in the link, named by the whole address. Its gap is padding,
-    // not a space, so no underline runs under it.
-    if (img.src.startsWith(MARK))
-      return (
-        <View class="pr-1">
-          <Icon name={img.src === `${MARK}file` ? "file" : "link"} size={12} tone="muted-foreground" />
-        </View>
-      );
     return (
       <ChatPicture
         src={img.src}
