@@ -412,6 +412,11 @@ fn read_screen(fleet: &Fleet, watch: &Watch) -> Result<(), String> {
         refresh(fleet, watch);
         return Err("the machine is not connected".to_owned());
     }
+    // A pane herdr could not restore answers `pane_not_found` to every read: say so and ask nothing until it runs.
+    if pane_feed_state(&link.state(), &link.snapshot(), &key.pane) == FeedState::Unrestored {
+        refresh(fleet, watch);
+        return Ok(());
+    }
     // Taken before the request: activity that arrives while it runs belongs to the next read.
     let activity = watch.activity.lock().take();
     let mut params = json!({
@@ -536,6 +541,11 @@ fn read_preview(fleet: &Fleet, machine: &str, pane: &str, stamp: preview::Stamp)
         fleet.previews.fail(machine, pane, now);
         return;
     };
+    // A pane herdr could not restore answers `pane_not_found` to every read: back off without asking.
+    if pane_feed_state(&link.state(), &link.snapshot(), pane) == FeedState::Unrestored {
+        fleet.previews.fail(machine, pane, now);
+        return;
+    }
     match read_rows(&*link.wire(), pane, REQUEST_TIMEOUT) {
         Ok(rows) => {
             let read = read_of(rows, stamp.0 == AgentStatus::Blocked);

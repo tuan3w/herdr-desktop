@@ -4,6 +4,7 @@ import { announce, Clipboard, effect, keymap, signal, Text, View } from "nsh";
 import type { TerminalRef } from "herdr-desktop/native";
 
 import { LinkPanelView } from "#components/link-panel";
+import { NotRunning } from "#components/not-running";
 import { openLink } from "#components/open-link";
 import { TerminalHeader } from "#components/terminal-header";
 import { TerminalOff } from "#components/terminal-off";
@@ -48,6 +49,15 @@ interface TerminalTabProps {
  * reconnect` because nothing armed it while off.
  */
 export function TerminalTab(props: TerminalTabProps) {
+  const info = meta(props.machine, props.pane);
+  return (
+    <If when={info()?.feedState === "unrestored"} else={<TerminalOrOff {...props} />}>
+      {() => <NotRunning reason={info()?.restoreError ?? undefined} />}
+    </If>
+  );
+}
+
+function TerminalOrOff(props: TerminalTabProps) {
   return (
     <If when={terminalEnabled()} else={<TerminalOff machine={props.machine} pane={props.pane} />}>
       {() => (

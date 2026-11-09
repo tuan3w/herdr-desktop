@@ -29,6 +29,10 @@ pub enum FeedState {
     Stale,
     /// The pane no longer exists.
     Gone,
+    /// herdr lists the pane but could not bring it back after a restart (`restore_error`): it answers
+    /// `pane_not_found` to every read, so nothing is read until herdr runs it again, and the view says why
+    /// instead of showing an empty screen (herdr-mobile does the same, `docs/PARITY.md`).
+    Unrestored,
 }
 
 /// One watched pane. Dropping it stops the watch (the engine stops reading a pane nobody watches).

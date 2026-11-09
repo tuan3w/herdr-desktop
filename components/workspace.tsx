@@ -4,6 +4,7 @@ import { DockArea } from "nsh/base";
 import { Board } from "#components/board";
 import { Changes } from "#components/changes";
 import { FilesTab } from "#components/files";
+import { NotRunning } from "#components/not-running";
 import { ProjectEmpty } from "#components/project-empty";
 import { SessionTab } from "#components/session-tab";
 import { dockWidth, TabFace, tabFrameClass, tabsCompact } from "#components/tab-face";
@@ -54,7 +55,16 @@ function AgentGone(props: { panel: string }) {
 function SessionPanel(props: { id: string }) {
   const at = parseSessionKey(props.id);
   if (!at) return <AgentGone panel={props.id} />;
-  return <SessionTab machine={at.machine} id={at.id} active={focused() === props.id} />;
+  // The chat of an agent in a herdr pane reads that pane; one herdr could not restore has nothing to read.
+  const pane = at.id.startsWith("pane:") ? meta(at.machine, at.id.slice("pane:".length)) : undefined;
+  return (
+    <If
+      when={pane?.()?.feedState === "unrestored"}
+      else={<SessionTab machine={at.machine} id={at.id} active={focused() === props.id} />}
+    >
+      {() => <NotRunning reason={pane?.()?.restoreError ?? undefined} />}
+    </If>
+  );
 }
 
 /** A checkout's Changes tab: what its agents changed since the last commit, to review. */

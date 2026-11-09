@@ -69,6 +69,14 @@ export const SCENARIOS: Record<string, Scenario> = {
       await app.wait(1800);
     },
   },
+  // A pane herdr could not restore after a restart: herdr's reason stands where the terminal would be, with `Close pane`.
+  "pane-not-running": {
+    fixture: "unrestored",
+    steps: async (app) => {
+      await pressFirst(app, "text:payments review");
+      await app.wait(1200);
+    },
+  },
   // The expanded sidebar at a width the person dragged it to (`host.params.sidebarWidth`; `--size` sets the window), over the
   // worktrees fixture whose names are long: the Board is in front, so the fold toggle opens the full sidebar for the shot.
   ...Object.fromEntries(

@@ -230,6 +230,34 @@ test("a pane that herdr drops while its tab is open leaves a tab that says so an
   expect(app.count("role:tab")).toBe(0);
 });
 
+test("a pane herdr could not restore says so with herdr's reason in the terminal's place, and Close pane asks before it closes", async () => {
+  const app = await ready(undefined, { storage: TERMINAL_ON });
+  await openTerminals(app, DONE);
+  const snapshot = JSON.parse(JSON.stringify(mixed.snapshot)) as typeof mixed.snapshot;
+  const pane = snapshot.panes.find((p) => p.pane_id === "w1:p3") as Record<string, unknown>;
+  pane.restore_error = "the working folder no longer exists";
+  Herdr.testSetSnapshot(snapshot);
+  Herdr.testPush({ event: "pane_updated", data: { pane } });
+  await app.waitFor("text:Not running");
+  expect(app.shows("text:the working folder no longer exists")).toBe(true);
+  expect(app.shows("text:Close pane")).toBe(true);
+  expect(app.shows("label:Close this tab")).toBe(false);
+  app.onDialog(() => "Cancel");
+  await app.press("text:Close pane");
+  await settle(app);
+  expect(Herdr.testRequests("pane.close")).toEqual([]);
+});
+
+test("the chat of an agent in a pane herdr could not restore is the same card, with no message box and nothing read", async () => {
+  const app = await seeded("unrestored");
+  await app.waitFor("label:Board, 2 need you");
+  await app.press(sidebarRow(FIRST));
+  await app.waitFor("text:Not running");
+  expect(app.shows("text:/payments-api no longer exists/")).toBe(true);
+  expect(app.shows("label:Message")).toBe(false);
+  expect(Herdr.testRequests("pane.read").filter((r) => JSON.stringify(r.params).includes("w1:p1"))).toEqual([]);
+});
+
 /** The pane rename's field: its name is not marked required, because empty is a valid label. */
 const PANE_NAME = "label:/^Name$/";
 

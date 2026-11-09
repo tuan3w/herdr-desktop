@@ -476,6 +476,8 @@ pub struct PaneSummary {
     pub machine_name: String,
     /// Whether what the pane shows can be trusted.
     pub feed: FeedState,
+    /// Why herdr could not restore the pane after it restarted, as one safe line; `None` for a pane that runs.
+    pub restore_error: Option<String>,
     /// The question, while the agent is blocked on one.
     pub prompt: Option<PromptInfo>,
 }
@@ -833,6 +835,10 @@ impl Fleet {
             workspace_named,
             machine_name: info.name,
             feed,
+            restore_error: pane
+                .and_then(|p| p.restore_error.as_deref())
+                .map(host_line)
+                .filter(|reason| !reason.is_empty()),
             prompt: None,
         };
         match (agent, pane) {
@@ -1053,11 +1059,29 @@ pub(crate) fn stamp_of(row: &herdr_core::board::AgentRow) -> preview::Stamp {
 pub(crate) fn pane_feed_state(state: &LinkState, snapshot: &Snapshot, pane: &str) -> FeedState {
     if *state != LinkState::Online {
         FeedState::Stale
-    } else if snapshot.pane(pane).is_none() {
-        FeedState::Gone
+    } else if let Some(listed) = snapshot.pane(pane) {
+        if listed
+            .restore_error
+            .as_deref()
+            .is_some_and(|e| !e.trim().is_empty())
+        {
+            FeedState::Unrestored
+        } else {
+            FeedState::Live
+        }
     } else {
-        FeedState::Live
+        FeedState::Gone
     }
+}
+
+/// Text a host reported for display (herdr's `restore_error`) as one safe line: bidi controls could reorder the words
+/// around it, and a newline would break a one-line row. Empty when nothing is left.
+fn host_line(text: &str) -> String {
+    let kept: String = text
+        .chars()
+        .filter(|c| !matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'))
+        .collect();
+    kept.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// What a plain terminal pane is called: the person's label, else herdr's hook title, else its terminal title, else its

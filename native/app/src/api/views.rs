@@ -81,6 +81,8 @@ pub enum FeedStateName {
     Stale,
     /// herdr no longer has the pane.
     Gone,
+    /// herdr lists the pane but could not restore it after a restart; `PaneMeta.restore_error` says why.
+    Unrestored,
 }
 
 impl From<FeedState> for FeedStateName {
@@ -89,6 +91,7 @@ impl From<FeedState> for FeedStateName {
             FeedState::Live => Self::Live,
             FeedState::Stale => Self::Stale,
             FeedState::Gone => Self::Gone,
+            FeedState::Unrestored => Self::Unrestored,
         }
     }
 }
@@ -634,8 +637,12 @@ pub struct PaneMeta {
     pub workspace_named: bool,
     /// The machine's name.
     pub machine_name: String,
-    /// Whether what the pane shows can be trusted; `gone` means herdr no longer has the pane.
+    /// Whether what the pane shows can be trusted; `gone` means herdr no longer has the pane, `unrestored` that herdr
+    /// could not bring it back after a restart.
     pub feed_state: FeedStateName,
+    /// Why herdr could not restore the pane, as one line; absent for a pane that runs.
+    #[prop(skip_none)]
+    pub restore_error: Option<String>,
     /// The question, while the agent is blocked on one the app understands.
     #[prop(skip_none)]
     pub prompt: Option<PromptView>,
@@ -657,6 +664,7 @@ impl From<PaneSummary> for PaneMeta {
             workspace_named: s.workspace_named,
             machine_name: s.machine_name,
             feed_state: s.feed.into(),
+            restore_error: s.restore_error,
             prompt: s.prompt.as_ref().map(PromptView::from),
         }
     }

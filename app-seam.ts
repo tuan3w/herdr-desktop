@@ -17,7 +17,10 @@ export const ENTRY = { path: "./App.tsx" };
  * `host.params` (`App.tsx` reads it); the Rust side honours it only while `HERDR_DESKTOP_TEST=1`. Starts on Linux with a
  * manual clock, so the 400 ms guard, the 4 s armed window and the layout's quiet period move only as a test moves them.
  */
-export function seeded(name: "mixed" | "storm" | "empty" | "projects", extra: NonNullable<Opened> = {}): Promise<App> {
+export function seeded(
+  name: "mixed" | "storm" | "empty" | "projects" | "unrestored",
+  extra: NonNullable<Opened> = {},
+): Promise<App> {
   return open(ENTRY.path, { ...DESKTOP, platform: "linux", clock: {}, ...extra, host: { params: { fixture: name } } });
 }
 

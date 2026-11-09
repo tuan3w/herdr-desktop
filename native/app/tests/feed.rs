@@ -26,6 +26,17 @@ fn screen_reads(rig: &common::Rig, pane: &str) -> usize {
         .count()
 }
 
+/// Replaces one pane object of the scripted herdr's snapshot (what the next snapshot read shows).
+fn set_pane(rig: &common::Rig, id: &str, pane: Value) {
+    let mut snapshot = rig.fixture().snapshot();
+    if let Some(list) = snapshot["panes"].as_array_mut() {
+        for p in list.iter_mut().filter(|p| p["pane_id"] == id) {
+            *p = pane.clone();
+        }
+    }
+    rig.fixture().set_snapshot(snapshot);
+}
+
 fn texts(feed: &impl PaneFeed) -> Vec<String> {
     feed.screen().text_rows()
 }
@@ -279,4 +290,59 @@ fn a_burst_of_events_is_a_few_ticks_not_one_each() {
     let ticks = rig.ticks.load(Ordering::Relaxed) - before;
     assert!(ticks < 100, "200 events made {ticks} ticks");
     assert!(rig.engine.revision() > revision, "the counter moved");
+}
+
+#[test]
+fn a_pane_herdr_could_not_restore_is_not_read_and_says_why_until_it_runs() {
+    let rig = start("mixed");
+    let mut pane = pane_object(&rig, "w1:p4");
+    pane["restore_error"] = json!("could not start the program:\n\u{202e}no such file");
+    let feed = rig
+        .engine
+        .watch("local", "w1:p4", PaneSource::Visible)
+        .expect("a known machine");
+    wait_for("the first read", || !feed.screen().rows.is_empty());
+    assert_eq!(feed.state(), FeedState::Live);
+
+    let reads = screen_reads(&rig, "w1:p4");
+    let mut broken = pane.clone();
+    broken["revision"] = json!(50);
+    set_pane(&rig, "w1:p4", broken.clone());
+    rig.fixture().push_event(pane_updated(broken, 51));
+    wait_for("the state to follow", || {
+        feed.state() == FeedState::Unrestored
+    });
+    let meta = rig.engine.pane_summary("local", "w1:p4").expect("listed");
+    assert_eq!(
+        meta.restore_error.as_deref(),
+        Some("could not start the program: no such file"),
+        "one safe line: no newline, no direction override"
+    );
+    // More activity does not read it: herdr would only answer pane_not_found.
+    let mut moved = pane.clone();
+    moved["restore_error"] = json!("could not start the program");
+    rig.fixture().push_event(pane_updated(moved, 52));
+    std::thread::sleep(std::time::Duration::from_millis(400));
+    assert_eq!(
+        screen_reads(&rig, "w1:p4"),
+        reads,
+        "nothing is read while it is not running"
+    );
+
+    // herdr runs it again: reads and the live state come back.
+    let mut running = pane;
+    running
+        .as_object_mut()
+        .expect("a pane")
+        .remove("restore_error");
+    set_pane(&rig, "w1:p4", running.clone());
+    rig.fixture().push_event(pane_updated(running, 60));
+    wait_for("it to be live again", || feed.state() == FeedState::Live);
+    assert_eq!(
+        rig.engine
+            .pane_summary("local", "w1:p4")
+            .expect("listed")
+            .restore_error,
+        None
+    );
 }

@@ -756,6 +756,7 @@ fn pill_view(
 fn notice_view(state: Signal<FeedState>) -> impl IntoElement {
     let words = move || match state.get() {
         FeedState::Gone => "This pane is gone",
+        FeedState::Unrestored => "Not running",
         _ => "Not live",
     };
     view()
