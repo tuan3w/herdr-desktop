@@ -4,18 +4,52 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
-- A chat you come back to shows its conversation at once. The app keeps the last conversation of every agent it showed
-  (on this computer, in the app's own folder) and, when you open the chat again, paints that copy first with a line
-  saying when it was saved, then asks the machine only for what happened since. Nothing can be sent or answered while
-  the copy is shown.
-- Closing a chat tab or switching project no longer drops its connection for ten minutes (90 seconds while the window is
-  hidden), so coming back costs nothing, and the window no longer waits for the connection to close. A chat you left
-  gives its place up when you open another on a machine that is full.
-- The sidebar shows the agents of every machine as they were when you last looked, marked as not live, before the
-  connections come up.
-- Changes and Files show what they showed last time at once and correct it when the machine answers.
-- The events of a remote machine travel compressed as one stream, which costs far less while agents are busy.
-- Settings has a Storage page: what the app keeps on this computer, a switch to stop keeping it, and Clear.
+## [0.1.0-alpha.10] - 2026-11-09
+
+### Chats open where you left them
+
+A chat you come back to shows its conversation at once, then catches up with
+the machine. Closing its tab no longer drops the connection.
+
+> [!TIP]
+> Try it: in a chat, close its tab, then open the same agent again.
+
+- The app keeps the last conversation of every agent you opened, in its own
+  folder on this computer. Opening the chat paints that copy first, with a
+  line saying when it was saved, then asks the machine only for what happened
+  since. Nothing can be sent or answered while the copy is shown.
+- A chat you close or switch away from stays connected for ten minutes (90
+  seconds while the window is hidden), so coming back costs nothing and the
+  window no longer waits for the connection to close. A chat you left gives
+  its place up when you open another on a machine that is full.
+- The sidebar shows the agents of every machine as they were when you last
+  looked, marked as not live, before the connections come up.
+- Changes and Files show what they showed last time at once and correct it
+  when the machine answers. Reverting waits until Changes has read git again.
+- The events of a remote machine travel compressed as one stream.
+- Over ssh to one machine, a 30-turn conversation took 22,977 bytes to open
+  and takes 1,499 when the app has a copy; the last 192 KB of an agent's log
+  took 70,230 bytes and takes 10.
+
+### Storage you can see and clear
+
+Settings has a Storage page: what the app keeps on this computer, a switch to
+stop keeping it, and `Clear`.
+
+> [!TIP]
+> Try it: press `Ctrl+,` (`Cmd+,` on a Mac) and choose `Storage`.
+
+- A machine you remove takes its saved conversations and board with it.
+
+![The Storage page of Settings with its switch and the Clear button](https://github.com/tuan3w/herdr-desktop/releases/download/v0.1.0-alpha.10/0.1.0-alpha.10-storage-page.png)
+
+**Not checked**
+
+- The line over a saved conversation and the Storage page at narrow widths and
+  large text were not looked at in a window.
+- Opening a chat did not get faster in seconds over ssh in the one test
+  machine: only the bytes dropped; the saved copy is what shows at once.
+- Not run on a Mac, nor against a machine busy with many agents.
 
 ## [0.1.0-alpha.9] - 2026-11-09
 
