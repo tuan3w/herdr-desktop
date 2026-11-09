@@ -10,6 +10,8 @@ import type { MenuAction, MenuEntry, MenuGroup } from "#kit";
 import type { Item } from "#lib/changes";
 import { forgetKept } from "#lib/changes-model";
 
+import { pressSettled } from "../app-seam";
+
 const DESKTOP = { width: 1280, height: 800, platform: "linux" as const, clock: {} };
 
 /**
@@ -46,11 +48,9 @@ async function select(app: App, path: string) {
 
 test("the changed files are grouped by folder, each with how much changed in it", async () => {
   const app = await ready();
-  const at = (t: string) => app.texts().indexOf(t);
-  expect(at("Top level")).toBeGreaterThan(-1);
-  expect(at("Top level")).toBeLessThan(at("assets"));
-  expect(at("assets")).toBeLessThan(at("docs"));
-  expect(at("docs")).toBeLessThan(at("src"));
+  // The order of the groups is `lib/changes.test.ts`'s: the texts of a list are in the order its recycled cells were made,
+  // not the screen's, so an order read from them differs from run to run.
+  for (const group of ["Top level", "assets", "docs", "src"]) expect(said(app, group)).toBe(true);
   expect(app.shows("label:src, 5 files")).toBe(true);
   expect(app.shows(`label:src/auth.ts, modified, +8 ${MINUS}2`)).toBe(true);
   expect(app.shows(`label:src/legacy.ts, deleted, +0 ${MINUS}4`)).toBe(true);
@@ -286,8 +286,8 @@ test("a note on a file that changed afterwards says so in the preview", async ()
 test("reverting a file asks first and names what is lost; cancel keeps it, and Undo brings it back", async () => {
   const app = await ready();
   app.onDialog(() => "Cancel");
-  await app.press("label:More for this file");
-  await app.clock!.runFor(150);
+  // The menu opens in real time: press again until its row shows, then press the row.
+  await pressSettled(app, "label:More for this file", "Revert this file\u2026");
   await app.press("Revert this file\u2026");
   await app.clock!.runFor(100);
   expect(app.dialogs()[0]).toMatchObject({ title: "Revert README.md?" });
@@ -295,8 +295,8 @@ test("reverting a file asks first and names what is lost; cancel keeps it, and U
   expect(Git.testRead("README.md")).toContain("Limits");
 
   app.onDialog(() => "Revert file");
-  await app.press("label:More for this file");
-  await app.clock!.runFor(150);
+  // The menu opens in real time: press again until its row shows, then press the row.
+  await pressSettled(app, "label:More for this file", "Revert this file\u2026");
   await app.press("Revert this file\u2026");
   await app.waitUntil(() => Git.testRead("README.md")?.includes("Limits") === false);
   await app.waitUntil(() => !app.shows(file("README.md")));
@@ -313,8 +313,8 @@ test("reverting one change takes back those lines only, and Undo puts them back"
   await app.clock!.runFor(50);
   const whole = Git.testRead("src/auth.ts")!;
   app.onDialog(() => "Revert change");
-  await app.press("label:More for this file");
-  await app.clock!.runFor(150);
+  // The menu opens in real time: press again until its row shows, then press the row.
+  await pressSettled(app, "label:More for this file", "Revert this change\u2026");
   await app.press("Revert this change\u2026");
   await app.waitUntil(() => Git.testRead("src/auth.ts") !== whole);
   const now = Git.testRead("src/auth.ts")!;
@@ -385,11 +385,13 @@ test("the header says what is reviewed before git answers, and the branch once i
   // A tab that is not in front reads nothing: its header is what a person sees before git answers.
   const waiting = await lab({ hidden: true });
   expect(said(waiting, "Reading changes\u2026")).toBe(true);
-  expect(said(waiting, "payments")).toBe(true);
+  // The project's name comes from the board, which loads in real time after the tab opens.
+  await waiting.waitUntil(() => said(waiting, "payments"));
   const app = await ready();
   expect(said(app, "Reading changes\u2026")).toBe(false);
   expect(said(app, "\u00b7 main")).toBe(true);
-  expect(said(app, "\u00b7 by 2 agents")).toBe(true);
+  // Who works there is read from the board, after the header first shows.
+  await app.waitUntil(() => said(app, "\u00b7 by 2 agents"));
 });
 
 test("a long file name is not cut by a count: the row holds it whole under its own label", async () => {
@@ -470,12 +472,12 @@ test("files git does not know stay folded, by folder with counts, until pressed"
   await app.press("label:Not in git, 62 files");
   await app.clock!.runFor(200);
   // The folders, each closed with its count: never 61 rows.
-  expect(app.shows("label:logs, 14 files")).toBe(true);
-  expect(app.shows("label:outputs/run-a, 18 files")).toBe(true);
+  await app.waitFor("label:logs, 14 files");
+  await app.waitFor("label:outputs/run-a, 18 files");
   expect(app.shows("label:/^logs\\/step-0001/")).toBe(false);
   await app.press("label:logs, 14 files");
   await app.clock!.runFor(200);
-  expect(app.shows("label:/^logs\\/step-0001\\.log, /")).toBe(true);
+  await app.waitFor("label:/^logs\\/step-0001\\.log, /");
 });
 
 test("a big new data file says what it is and is drawn only when asked", async () => {
@@ -538,9 +540,16 @@ test("a narrow pane folds the files into one bar with the pager and a Files butt
   expect(app.shows("2 of 7")).toBe(true);
   expect(app.shows("label:Change to src/api/router.ts")).toBe(true);
   // The list opens over the diff, in the same component, and closes when a file is chosen.
-  await app.press("Files");
-  await app.waitFor("label:Changed files");
-  await app.press(file("src/lib/cache.ts"));
+  await pressSettled(app, "Files", "label:Changed files");
+  // The list slides over the diff: a row is pressable once it has settled, which the clock moves.
+  await app.waitFor(file("src/lib/cache.ts"));
+  await app.clock!.runFor(300);
+  // A press on a row while the list is still settling is lost, and the list may have closed meanwhile: reopen, press again.
+  for (let attempt = 0; attempt < 5 && !app.shows("label:Change to src/lib/cache.ts"); attempt++) {
+    if (!app.shows(file("src/lib/cache.ts"))) await pressSettled(app, "Files", "label:Changed files");
+    await app.press(file("src/lib/cache.ts"));
+    await app.clock!.runFor(300);
+  }
   await app.waitFor("label:Change to src/lib/cache.ts");
   expect(app.shows("label:Changed files")).toBe(false);
 });

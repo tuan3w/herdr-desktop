@@ -141,7 +141,12 @@ test("the digits answer only while an answer has the focus, and a risky one stil
   expect(sentKeys()).toEqual([]);
   expect(app.texts().some((t) => t.startsWith("Press again to send"))).toBe(true);
 
-  await app.keyboard.press("1");
+  // A key pressed while the dock is re-drawing for the armed answer can be lost by the headless harness: press until the
+  // answer is reported (a second press after it was sent has no answer left to take it).
+  for (let attempt = 0; attempt < 5 && !app.shows("Reported sent: 1"); attempt++) {
+    await app.keyboard.press("1");
+    await app.clock!.runFor(300);
+  }
   await app.waitFor("Reported sent: 1");
   expect(sentKeys()).toEqual(["w1:p1: 1 enter"]);
 });
@@ -291,11 +296,16 @@ test("the reply declines through the checked path first, and types the words onl
   await decline(app, "use a temp file instead");
   await app.waitUntil(() => sentKeys().length === 1);
   expect(sentKeys()).toEqual(["w1:p1: 4 enter"]);
-  // The menu is still on screen: words typed now would go into it.
-  await app.clock!.runFor(1000);
+  // The menu is still on screen: words typed now would go into it. The app looks 30 times, 100 ms apart, for the menu to
+  // go (`questionGone`) and every wait of a test moves its clock too, so this spends three looks, not ten: the change
+  // below reaches the app in real time and must find looks left.
+  await app.clock!.runFor(300);
   expect(typed()).toEqual([]);
 
   scripted("mixed").become("w1:p1", "working");
+  // The change reaches the app in real time (herdr's event, the snapshot): the clock must not run ahead of it, or the
+  // 3.5 s the app waits for the menu to go is spent before it has been told.
+  await app.waitFor("Status: working");
   await app.clock!.runFor(300);
   await app.waitUntil(() => typed().length === 1);
   expect(typed()[0]!.params).toMatchObject({ pane_id: "w1:p1", text: "use a temp file instead", keys: ["enter"] });
@@ -337,8 +347,9 @@ test("a question with no option that declines has no reply field", async () => {
   await settle(app);
   expect(app.shows("label:Decline and say this")).toBe(true);
   scripted("mixed").show("w1:p1", [" Do you want to proceed?", " ❯ 1. Yes", "   2. Yes, and always allow"]);
-  await app.waitUntil(() => !app.shows("label:Decline and say this"));
-  expect(app.shows("label:1. Yes")).toBe(true);
+  // Between the two questions the dock is briefly empty, so waiting for the field to go is not enough: wait for the new
+  // question's answers (named `1. Yes. The question changed` for the guard's 400 ms) with the field gone.
+  await app.waitUntil(() => app.shows("label:/^1\\. Yes/") && !app.shows("label:Decline and say this"));
 });
 
 // ---- an ACP session's permission request ----

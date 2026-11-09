@@ -48,7 +48,7 @@ test("pressing the cross of a tab closes that view and leaves the others", async
   await settle(app);
   // One tab left: its strip is gone, the view stays.
   expect(app.count("role:tab")).toBe(0);
-  expect(app.shows(terminal(SECOND))).toBe(true);
+  await app.waitFor(terminal(SECOND));
 });
 
 test("a tab's menu copies its title and the folder its agent works in", async () => {
@@ -68,16 +68,16 @@ test("with one tab no strip is drawn, with two it is, and the keyboard closes an
   expect(app.count("role:tab")).toBe(0);
   await openTerminals(app, FIRST);
   expect(app.count("role:tab")).toBe(0);
-  expect(app.shows(terminal(FIRST))).toBe(true);
+  await app.waitFor(terminal(FIRST));
 
   await openTerminals(app, SECOND);
   expect(app.count("role:tab")).toBe(2);
   await app.keyboard.press("mod+shift+1");
   await settle(app);
-  expect(app.shows(terminal(FIRST))).toBe(true);
+  await app.waitFor(terminal(FIRST));
   await app.keyboard.press("mod+shift+2");
   await settle(app);
-  expect(app.shows(terminal(SECOND))).toBe(true);
+  await app.waitFor(terminal(SECOND));
 
   // Closing the second hides the strip again; the first is still there, and mod+w works with no strip at all. In a terminal
   // tab Ctrl+W is the program's (`keys::app_owns`), so the keyboard is first taken out of the terminal (`mod+0`, the sidebar).
@@ -85,7 +85,7 @@ test("with one tab no strip is drawn, with two it is, and the keyboard closes an
   await app.keyboard.press("mod+w");
   await settle(app);
   expect(app.count("role:tab")).toBe(0);
-  expect(app.shows(terminal(FIRST))).toBe(true);
+  await app.waitFor(terminal(FIRST));
   await app.keyboard.press("mod+0");
   await app.keyboard.press("mod+w");
   await settle(app);

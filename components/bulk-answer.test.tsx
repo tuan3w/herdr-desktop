@@ -125,11 +125,11 @@ test("a question that changed after it was shown is refused on its row, unticked
   Herdr.testSetScreen("w1:p2", screenWith("w1:p2", "cat ~/.ssh/id_rsa"));
   await app.press("Press again to allow 3 · you read each command above");
   await app.waitUntil(() => sentKeys().length === 2);
-  await app.waitFor("The question changed");
+  // The summary is the last thing the send does (the ticks are cleared with it): wait for it, then look at the rest.
+  await app.waitFor("Allowed 2: job 1, job 3 · 1 not sent: job 2 (the question changed)");
   expect([...sentKeys()].sort()).toEqual(keys(1, 3));
   expect(sentKeys().some((k) => k.startsWith("w1:p2:"))).toBe(false);
   expect(ticked(app)).toBe(0);
-  await app.waitFor("Allowed 2: job 1, job 3 · 1 not sent: job 2 (the question changed)");
 });
 
 test("a ticked row whose question changes on the board is unticked, nothing is sent for it, and the armed button disarms", async () => {
@@ -142,8 +142,10 @@ test("a ticked row whose question changes on the board is unticked, nothing is s
   await app.waitFor("The question changed");
   expect(app.shows("Allow 1 command")).toBe(true);
   expect(sentKeys()).toEqual([]);
-  // The new question is not ticked, and for 400 ms ignores a tick.
-  await app.press(include(2));
+  // The new question is read in real time: until then its row cannot be shown and its box is off (a press on it is
+  // refused by the harness), so wait for the read, not for the clock.
+  await app.waitUntil(() => app.enabled(include(2)));
+  // It is not ticked, and the 400 ms guard of a new question ignores a tick before it has passed.
   expect(ticked(app)).toBe(1);
   await app.clock!.runFor(450);
   await pressSettled(app, include(2), () => ticked(app) === 2);

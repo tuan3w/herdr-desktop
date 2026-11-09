@@ -4,7 +4,7 @@ import { expect, test } from "nsh/test";
 import type { TestNotification } from "herdr-desktop/native";
 import type { App } from "nsh/test";
 
-import { ENTRY, FIRST, onBoard, openAgents, ready, settle, shown } from "../app-seam";
+import { ENTRY, FIRST, onBoard, openAgents, ready, settle, shown, TERMINAL_ON } from "../app-seam";
 import mixed from "../fixtures/herdr/mixed.json";
 import { scripted, sentKeys } from "./board-seam";
 
@@ -18,7 +18,8 @@ const asking = (command: string) =>
 
 /** The app with notifications on and its window away, with what was blocked at that moment taken as seen. */
 async function away(): Promise<App> {
-  const app = await ready();
+  // The terminal tab is on: a click on a notification of an agent with no chat opens its terminal, which is what `shown` sees.
+  const app = await ready(undefined, { storage: TERMINAL_ON });
   Herdr.setSetting("notify.needsYou", true);
   Herdr.setBackground(true);
   return app;
