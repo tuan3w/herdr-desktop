@@ -35,8 +35,10 @@ const HALF_STEP_ALLOWED = new Set(["components/kit/segmented.tsx"]);
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
-    if (statSync(path).isDirectory()) walk(path, out);
-    else if (/\.tsx?$/.test(name)) out.push(path);
+    // Hidden folders are generated (nsh writes `.nsh/types` beside the entry it last ran), never project code.
+    if (statSync(path).isDirectory()) {
+      if (!name.startsWith(".")) walk(path, out);
+    } else if (/\.tsx?$/.test(name)) out.push(path);
   }
   return out;
 }

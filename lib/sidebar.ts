@@ -28,7 +28,7 @@ export type SidebarItem =
       stale: boolean;
     }
   | { kind: "checkout"; key: string; project: string; checkout: BoardCheckout }
-  | { kind: "row"; key: string; project: string; row: BoardRow; nested: boolean }
+  | { kind: "row"; key: string; project: string; row: BoardRow }
   | { kind: "more"; key: string; project: string; count: number; open: boolean };
 
 const KEY = "herdr.sidebar.v1";
@@ -288,8 +288,7 @@ export function sidebarItems(
           project: project.key,
           checkout: group.checkout,
         });
-      for (const row of group.rows)
-        out.push({ kind: "row", key: row.key, project: project.key, row, nested: grouped && group.checkout !== null });
+      for (const row of group.rows) out.push({ kind: "row", key: row.key, project: project.key, row });
     }
     if (line.more) out.push({ kind: "more", key: `m:${project.key}`, project: project.key, ...line.more });
   }

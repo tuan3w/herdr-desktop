@@ -20,7 +20,7 @@ test("at 520 pt a long name and a long machine are both whole: nothing is left f
 
 test("the machine is shown whole or not at all: it never gets a width between", () => {
   const name = 120;
-  const need = name + 6 + 12 + 6 + 50;
+  const need = name + 8 + 12 + 8 + 50;
   expect(machineFits({ name, machine: 50, room: need })).toBe(true);
   expect(machineFits({ name, machine: 50, room: need - 1 })).toBe(false);
 });

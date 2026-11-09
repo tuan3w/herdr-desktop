@@ -3,8 +3,7 @@ import { announce, computed, effect, List, Scroll, signal, Text, untracked, View
 import { Button } from "nsh/base";
 
 import type { BoardProject, BoardRow, MachineStatus } from "herdr-desktop/native";
-import type { JSX } from "nsh";
-import type { ListRef } from "nsh/types";
+import type { InputRef, ListRef } from "nsh/types";
 
 import { PickSlot, useRowKeys } from "#components/pick-box";
 import { Monogram, ProjectMark } from "#components/project-parts";
@@ -21,23 +20,22 @@ import {
   Icon,
   type IconName,
   IconButton,
-  Keys,
   NUM,
   Popover,
   PopoverTitle,
   rail,
   SearchField,
-  snug,
   Tipped,
   usePopover,
   useTriggerFocus,
 } from "#kit";
 import { newSession, openSettings, settingsPage, sidebarSearch } from "#lib/actions";
 import { checkoutsOf, openChanges } from "#lib/changes";
+import { controls } from "#lib/chrome";
 import { BOARD, context, focused, rowKeyOf, showBoard } from "#lib/dock";
 import { actionSlot, estimate, machineFits } from "#lib/header-fit";
 import { board, projectOf, revision, rowOf, started } from "#lib/herdr";
-import { ROW, SIDEBAR_WIDTH } from "#lib/layout";
+import { BAR, ROW } from "#lib/layout";
 import { ofKind } from "#lib/list-item";
 import { linkGlyph, linkText } from "#lib/machine-state";
 import { hoverTransition, moveTransition } from "#lib/motion";
@@ -56,7 +54,6 @@ import {
   keepItems,
   type SidebarItem,
   sidebarItems,
-  sidebarWidth,
   toggleMore,
   toggleProject,
   treeOffset,
@@ -85,6 +82,28 @@ const BACK_OPEN = "bg-sidebar-accent";
 const ROW_FILL = `rounded-md group-hover/row:bg-sidebar-accent/40 selected:bg-sidebar-accent ${FOCUS_RING_SIDEBAR}`;
 
 const query = signal("");
+/** The search field shows on demand: the search button or the sidebar shortcut opens it, a query keeps it. */
+const searchOpen = signal(false);
+const searchShown = () => !rail() && (searchOpen() || query() !== "");
+let searchField: InputRef | undefined;
+let focusOnMount = false;
+
+/** Opens the search field and puts the keyboard in it; a field that is not mounted yet takes the focus when it is. */
+function openSearch() {
+  if (searchShown() && searchField) {
+    searchField.focus();
+    return;
+  }
+  focusOnMount = true;
+  searchOpen.set(true);
+}
+
+/** Closing forgets the query too: a hidden filter would leave the list narrowed with nothing on screen saying why. */
+function toggleSearch() {
+  if (!searchShown()) return openSearch();
+  searchOpen.set(false);
+  query.set("");
+}
 
 /** Every machine's link. Empty until the engine runs: this computed is built when the module loads, before `Herdr.configure`. */
 const statuses = computed<MachineStatus[]>(() => {
@@ -108,34 +127,32 @@ const openRow = computed(() => {
 const isOpen = (row: BoardRow) => openRow()?.key === row.key;
 const nameOf = (projectKey: string) => projectOf(projectKey)?.name ?? "";
 
-/** One line of the top group: icon, label, then `children` (a count, a keycap) at the far end; in the rail the icon alone. */
+/**
+ * One line of the top group: icon and label; in the rail the icon alone. `tip` is the bubble's text when the label is a
+ * short form (`New session` shows, `New agent session` is the tip and the spoken name).
+ */
 function NavRow(props: {
   icon: IconName;
   label: string;
   name?: string;
+  tip?: string;
   shortcut?: string;
   selected?: boolean;
   onPress: () => void;
-  mark?: JSX.Element;
-  children?: JSX.Element;
 }) {
   return (
-    <Tipped label={props.label} shortcut={props.shortcut} class={rail() ? "items-center" : undefined}>
+    <Tipped label={props.tip ?? props.label} shortcut={props.shortcut} class={rail() ? "items-center" : undefined}>
       <Button
         onPress={props.onPress}
         selected={props.selected}
         accessibilityLabel={props.name ?? props.label}
         style={hoverTransition()}
-        class={`flex-row items-center ${FILL} ${rail() ? "size-11 justify-center" : `justify-between ${ROW.nav.class}`}`}
+        class={`flex-row items-center gap-3 ${FILL} ${rail() ? "size-11 justify-center" : ROW.nav.class}`}
       >
-        <View class="flex-row items-center gap-3">
-          <Icon name={props.icon} tone={props.selected ? "sidebar-foreground" : "muted-foreground"} />
-          <If when={!rail()}>
-            <Text class="text-sm text-sidebar-foreground">{props.label}</Text>
-          </If>
-        </View>
-        <If when={!rail()}>{props.children}</If>
-        <If when={rail()}>{props.mark}</If>
+        <Icon name={props.icon} tone={props.selected ? "sidebar-foreground" : "muted-foreground"} />
+        <If when={!rail()}>
+          <Text class="text-sm text-sidebar-foreground">{props.label}</Text>
+        </If>
       </Button>
     </Tipped>
   );
@@ -305,7 +322,7 @@ export function Project(props: { item: () => Extract<SidebarItem, { kind: "proje
           accessibilityLabel={`${props.item().folded ? "Unfold" : "Fold"} ${p().name}`}
           accessibilityState={{ expanded: !props.item().folded }}
           style={{ paddingRight: slot() }}
-          class={`flex-row items-center gap-1.5 min-h-7 pl-3 rounded-md ${FOCUS_RING_SIDEBAR}`}
+          class={`flex-row items-center gap-2 min-h-7 pl-3 rounded-md ${FOCUS_RING_SIDEBAR}`}
         >
           <View
             accessibilityElementsHidden
@@ -369,26 +386,32 @@ export function Project(props: { item: () => Extract<SidebarItem, { kind: "proje
   );
 }
 
-/** A checkout of a project that has several: the worktree a group of agents works in. */
+/**
+ * The agents' title column inside the sidebar's own padding: the row's 12, the 16-pt glyph column, the 12 between. A checkout
+ * line and `N more idle` start their text there, so the sidebar has one text edge.
+ */
+const TEXT_COLUMN = 40;
+
+/**
+ * A checkout of a project that has several: the worktree a group of agents works in, as one label on the agents' title
+ * column (`TEXT_COLUMN`). The branch, once herdr said it, is what tells two checkouts apart; until then the folder's name.
+ * The spoken name keeps all three: folder, kind and branch.
+ */
 function Checkout(props: { item: () => Extract<SidebarItem, { kind: "checkout" }> }) {
   const c = () => props.item().checkout;
   return (
     <View
-      class="flex-row items-center gap-2 pl-8 pr-3 pt-2"
+      style={{ paddingLeft: TEXT_COLUMN }}
+      class="min-h-7 flex-row items-center pr-3"
       accessibilityLabel={`${c().name}, ${c().linked ? "worktree" : "main checkout"}${c().branch ? `, branch ${c().branch}` : ""}`}
     >
-      <Clipped class="min-w-0 shrink text-xs text-muted-foreground">{c().name}</Clipped>
-      {/* The branch, once herdr said it, is what tells two checkouts apart; until then the kind of checkout. */}
-      <If when={c().branch}>
-        {(name) => (
-          <Clipped boxClass="min-w-0 shrink-[2]" class="font-mono text-xs text-muted-foreground">
-            {name()}
-          </Clipped>
-        )}
-      </If>
-      <If when={!c().branch}>
-        <Text class="text-xs text-muted-foreground">{c().linked ? "worktree" : "main"}</Text>
-      </If>
+      <Clipped
+        fade={[FADE]}
+        boxClass="min-w-0 flex-1"
+        class={`text-xs text-muted-foreground ${c().branch ? "font-mono" : ""}`}
+      >
+        {c().branch || c().name}
+      </Clipped>
     </View>
   );
 }
@@ -404,19 +427,19 @@ const rowDetail = (row: BoardRow) =>
     .join(" · ");
 
 /**
- * An agent in one line: its state as a quiet shape and its name. A stale machine's agent is a dashed ring, no word (`rowLabel` still says
- * `offline`); the program, machine and age are in the bubble and in the accessible name. The box that picks it for a bulk action takes the
- * glyph's place on hover.
+ * An agent in one line: its state as a quiet shape (none while idle) and its name. A stale machine's agent is a dashed ring,
+ * no word (`rowLabel` still says `offline`); the program, machine and age are in the bubble and in the accessible name. The
+ * box that picks it for a bulk action takes the glyph's place on hover.
  */
 function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
   const row = () => props.item().row;
   const menuOpen = signal(false);
   return (
-    <View class={`group/row relative ${props.item().nested ? "pl-3" : ""}`}>
+    <View class="group/row relative">
       <Tipped label={rowDetail(row())}>
         <AgentButton item={props.item} />
       </Tipped>
-      <PickSlot rowKey={row().key} name={row().name} order={rowKeys} surface="sidebar" nested={props.item().nested} />
+      <PickSlot rowKey={row().key} name={row().name} order={rowKeys} surface="sidebar" />
       <View
         class={`absolute inset-y-0 right-0 flex-row ${
           menuOpen() ? "opacity-100" : "opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100"
@@ -480,8 +503,11 @@ function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> 
       style={hoverTransition()}
       class={`min-w-0 flex-row items-center gap-3 ${ROW.agentCompact.class} ${ROW_FILL} ${row().offline ? "opacity-60" : ""}`}
     >
-      {/* The one signal mark of an agent that waits, in this view (`design/attention.md`, rule 4). */}
-      <StatusGlyph status={row().offline ? "unknown" : row().status} id={row().key} loud />
+      {/* The one signal mark of an agent that waits, in this view (`design/attention.md`, rule 4). Its column is the nav
+          icons' 16 pt, so every title in the sidebar starts on the same line as `New session`. */}
+      <View class="size-4 items-center justify-center">
+        <StatusGlyph status={row().offline ? "unknown" : row().status} id={row().key} loud />
+      </View>
       <Clipped
         fade={isOpen(row()) ? [FADE, FADE_OPEN] : [FADE, FADE_HOVER]}
         boxClass="min-w-0 flex-1"
@@ -493,6 +519,7 @@ function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> 
   );
 }
 
+/** `N more idle` under a project, its text on the agents' title column (`TEXT_COLUMN`). */
 function More(props: { item: () => Extract<SidebarItem, { kind: "more" }> }) {
   const it = props.item;
   const text = () => (it().open ? "Show fewer idle" : `${it().count} more idle`);
@@ -502,8 +529,8 @@ function More(props: { item: () => Extract<SidebarItem, { kind: "more" }> }) {
       onPress={() => toggleMore(it().project)}
       accessibilityLabel={`${text()} in ${nameOf(it().project)}`}
       accessibilityState={{ expanded: it().open }}
-      style={hoverTransition()}
-      class={`justify-center pl-9 pr-3 ${ROW.more.class} ${FILL}`}
+      style={{ ...hoverTransition(), paddingLeft: TEXT_COLUMN }}
+      class={`min-h-7 justify-center pr-3 ${FILL}`}
     >
       <Text class="text-xs text-muted-foreground">{text()}</Text>
     </View>
@@ -542,7 +569,8 @@ function Tree() {
       keyExtractor={(i: SidebarItem) => i.key}
       estimatedItemSize={ROW.agentCompact.height}
       class="min-h-0 flex-1"
-      contentClass="gap-0"
+      // The last line scrolls clear of the fade over the list's bottom edge (`Sidebar`), so the real end reads whole.
+      contentClass="gap-0 pb-8"
       scrollEventThrottle={50}
       onScroll={(e) => treeOffset.set(e.offset.y)}
       accessibilityLabel="Projects and agents"
@@ -719,78 +747,23 @@ function announceNeedsYou() {
   });
 }
 
-/** Fills its panel: the width is the user's (`App.tsx`), the edge line is the panel group's handle. */
+/**
+ * Fills its panel: the width is the user's (`App.tsx`), the edge line is the panel group's handle. Its first line is the
+ * window's top band (`BAR`, draggable like a title bar; macOS's traffic lights sit over its left end), holding the menu
+ * where the platform lost its menu bar, search and fold at the right end. The list fades into a hairline above Settings,
+ * so a row cut by the scroll position never reads as the end of the list.
+ */
 export function Sidebar() {
   announceNeedsYou();
   // The sidebar names a checkout by its branch, which only `worktree.list` knows: ask once per set of checkouts.
   effect(() => {
     for (const project of board().projects) untracked(() => lookUpBranches(project));
   });
+  sidebarSearch.focus = openSearch;
   const needs = () => board().counts.needsYou;
   const empty = () => items().length === 0;
-  return (
-    <View class="size-full min-w-0 gap-4 overflow-hidden bg-sidebar px-3 py-4">
-      <View class={`h-10 flex-row items-center ${rail() ? "justify-center" : "justify-between pl-3"}`}>
-        <If when={!rail() || compact()}>
-          <View class="flex-row items-center gap-2">
-            <View class="size-5 items-center justify-center rounded-md bg-sidebar-accent">
-              <Icon name="monitor" size={14} tone="muted-foreground" />
-            </View>
-            <If when={!rail()}>
-              <Text class="text-sm font-medium text-sidebar-foreground">Herdr</Text>
-            </If>
-          </View>
-        </If>
-        <If when={!compact()}>
-          <CollapseButton />
-        </If>
-      </View>
-      <View class="gap-1">
-        <View class="pb-2">
-          <NavRow icon="plus" label="New agent session" shortcut={keyLabel("newAgent")} onPress={() => newSession()}>
-            {/* The keycaps need the room of the default width: under it the label would touch them. */}
-            <If when={!snug() && sidebarWidth() >= SIDEBAR_WIDTH.default}>
-              <Keys keys={keyLabel("newAgent")} tone="sidebar" />
-            </If>
-          </NavRow>
-        </View>
-        <NavRow
-          icon="list"
-          label="Board"
-          name={needs() > 0 ? `Board, ${needs()} need you` : "Board"}
-          shortcut={keyLabel("board")}
-          selected={focused() === BOARD}
-          onPress={() => void showBoard()}
-        >
-          <Badge onSidebar count={needs()} />
-        </NavRow>
-      </View>
-      <If when={rail()}>
-        <View class="gap-0.5">
-          <Each of={statuses().filter((m) => m.state !== "online")} key={(m: MachineStatus) => m.id}>
-            {(m) => <MachineGlyph status={m()} />}
-          </Each>
-        </View>
-      </If>
-      <If when={!rail()}>
-        <SearchField
-          value={query()}
-          onChange={(v) => query.set(v)}
-          placeholder="Search projects"
-          inputRef={(ref) => (sidebarSearch.focus = () => ref.focus())}
-        />
-      </If>
-      <If when={rail()} else={<Tree />}>
-        <Rail />
-      </If>
-      <If when={!rail() && empty()}>
-        <Text class="px-3 text-xs text-muted-foreground">
-          {query().trim() ? "No project or agent matches" : board().statusLine}
-        </Text>
-      </If>
-      <If when={!rail()}>
-        <SidebarFooter />
-      </If>
+  const settings = () => (
+    <View class="border-t border-sidebar-border pt-2">
       <NavRow
         icon="sliders"
         label="Settings"
@@ -798,6 +771,105 @@ export function Sidebar() {
         selected={settingsPage() !== null}
         onPress={() => openSettings()}
       />
+    </View>
+  );
+  return (
+    <View class={`size-full min-w-0 overflow-hidden bg-sidebar px-3 pb-3 ${rail() ? "gap-2" : ""}`}>
+      <If
+        when={rail()}
+        else={
+          <View
+            desktop={{ windowDrag: true }}
+            style={{ height: BAR, paddingLeft: Math.max(12, controls().left) }}
+            class="flex-row items-center justify-end gap-1"
+          >
+            <IconButton
+              onSidebar
+              icon="search"
+              label="Search projects and agents"
+              tip="Search"
+              shortcut={keyLabel("focusSidebar")}
+              selected={searchShown()}
+              onPress={toggleSearch}
+            />
+            <If when={!compact()}>
+              <CollapseButton />
+            </If>
+          </View>
+        }
+      >
+        {/* macOS's traffic lights sit over this line; with the system title bar shown it is not drawn. */}
+        <If when={controls().left > 0}>
+          <View desktop={{ windowDrag: true }} style={{ height: BAR }} />
+        </If>
+        <If when={!compact()}>
+          <View style={{ height: BAR }} class="items-center justify-center">
+            <CollapseButton />
+          </View>
+        </If>
+      </If>
+      <View>
+        <NavRow
+          icon="plus"
+          label="New session"
+          name="New agent session"
+          tip="New agent session"
+          shortcut={keyLabel("newAgent")}
+          onPress={() => newSession()}
+        />
+        {/* No count: the Board's chips are the one place that says how many (`design/attention.md`); the name still does. */}
+        <NavRow
+          icon="list"
+          label="Board"
+          name={needs() > 0 ? `Board, ${needs()} need you` : "Board"}
+          shortcut={keyLabel("board")}
+          selected={focused() === BOARD}
+          onPress={() => void showBoard()}
+        />
+      </View>
+      <If when={rail()}>
+        <View class="gap-0.5">
+          <Each of={statuses().filter((m) => m.state !== "online")} key={(m: MachineStatus) => m.id}>
+            {(m) => <MachineGlyph status={m()} />}
+          </Each>
+        </View>
+        <Rail />
+        {settings()}
+      </If>
+      <If when={!rail()}>
+        <If when={searchShown()}>
+          <View class="pt-2">
+            <SearchField
+              value={query()}
+              onChange={(v) => query.set(v)}
+              placeholder="Search projects"
+              inputRef={(ref) => {
+                searchField = ref;
+                if (!focusOnMount) return;
+                focusOnMount = false;
+                ref.focus();
+              }}
+            />
+          </View>
+        </If>
+        <View class="min-h-0 flex-1">
+          <Tree />
+          <View
+            class="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-linear-to-b from-sidebar/0 to-sidebar"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          />
+        </View>
+        <If when={empty()}>
+          <Text class="px-3 text-xs text-muted-foreground">
+            {query().trim() ? "No project or agent matches" : board().statusLine}
+          </Text>
+        </If>
+        <View class="gap-2">
+          <SidebarFooter />
+          {settings()}
+        </View>
+      </If>
     </View>
   );
 }

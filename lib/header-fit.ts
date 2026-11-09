@@ -8,9 +8,9 @@
 /** Points one character takes at 13 pt medium (name) and 12 pt (machine): a stand-in before the text is measured. */
 const GLYPH = { name: 7.4, machine: 6.6 } as const;
 
-/** The chevron's width and the gap between the pieces of the line. */
+/** The chevron's width and the gap between the pieces of the line (`gap-2`). */
 const CHEVRON = 12;
-const GAP = 6;
+const GAP = 8;
 
 /** The box of a hover action: 32 pt, 44 under Large hit targets (`IconButton` `roomy`); the `...` menu is 32 either way. */
 export const actionBox = (large: boolean) => (large ? 44 : 32);

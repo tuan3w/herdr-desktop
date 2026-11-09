@@ -66,18 +66,20 @@ export function useRowKeys(row: () => BoardRow, order: () => readonly string[]) 
 /**
  * The place of a row's glyph while the row is looked at: the box that picks the agent for a bulk action covers the glyph
  * when the pointer is on this slot or the focus is anywhere in the row, and on every row once anything is picked (so a
- * range can be built without hunting). It sits over the row's left padding, so a row spends no width on a column of
- * boxes that is empty most of the time. The row is the `group/row` that holds it.
+ * range can be built without hunting). It sits over the row's left padding, centred on the row's glyph column (the
+ * sidebar's is 16 pt wide, on the nav icons' column; the Board's 12), so a row spends no width on a column of boxes that is
+ * empty most of the time. The row is the `group/row` that holds it.
  */
 export function PickSlot(props: {
   rowKey: string;
   name: string;
   order: () => readonly string[];
   surface: "sidebar" | "page";
-  nested?: boolean;
 }) {
   return (
-    <View class={`group/pick absolute inset-y-0 w-7 justify-center ${props.nested ? "left-4" : "left-1"}`}>
+    <View
+      class={`group/pick absolute inset-y-0 justify-center ${props.surface === "sidebar" ? "left-0 w-10 items-center" : "left-1 w-7"}`}
+    >
       <View
         class={`rounded-md ${props.surface === "sidebar" ? "bg-sidebar" : "bg-background"} ${selected().length > 0 ? "" : "opacity-0 group-hover/pick:opacity-100 group-focus-within/row:opacity-100"}`}
       >

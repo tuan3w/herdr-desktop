@@ -13,7 +13,7 @@ herdr-desktop is accessible first: a screen reader user, a keyboard-only user, s
    | needs you (`blocked`) | filled circle with a bar | `Needs you` |
    | working | half-filled circle | `Working` |
    | done | check | `Done` |
-   | idle | empty ring | `Idle` |
+   | idle | no mark (its slot kept; the quiet state is the absence of a mark, owner 2026-11-09) | `Idle` (the row's name and tooltip) |
    | unknown | dashed ring | `Unknown` |
 
    An error is a red edge plus an icon plus text. The `Needs you` pill has a shape and text.

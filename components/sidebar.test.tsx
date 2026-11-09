@@ -19,6 +19,9 @@ const lab = (extra: { width?: number; storage?: Record<string, string> } = {}) =
 const row = (name: string) => `label:/^${name}, /`;
 const PAYMENTS = "label:/^payments, This computer, 2 need you/";
 const FOLD_PAYMENTS = "label:Fold payments";
+/** The search button of the sidebar's first line: shown only in the full sidebar, it opens and closes the field. */
+const SEARCH = "label:Search projects and agents";
+const FIELD = "label:Search projects";
 const ready = async (extra: Parameters<typeof lab>[0] = {}) => {
   const app = await lab(extra);
   await app.waitFor("label:Board, 2 need you");
@@ -49,16 +52,16 @@ test("agents are listed under their project, and each row names the agent, its s
 
 test("an expanded project header shows no count, a folded one shows how many wait", async () => {
   const app = await ready();
-  // payments: 2 need you, 2 working, 1 to review; nothing but the rows says so while it is open (the one "2" is Board's).
+  // payments: 2 need you, 2 working, 1 to review; nothing but the rows says so while it is open (Board shows no count either).
   const twos = () => app.texts().filter((t) => t === "2").length;
-  expect(twos()).toBe(1);
+  expect(twos()).toBe(0);
   expect(app.texts().some((t) => /working|to review/.test(t))).toBe(false);
   await pressSettled(app, FOLD_PAYMENTS, "label:Unfold payments");
-  await app.waitUntil(() => twos() === 2);
+  await app.waitUntil(() => twos() === 1);
   expect(app.texts().some((t) => /working|to review/.test(t))).toBe(false);
   // web waits for nothing: folded, it says nothing at all.
   await pressSettled(app, "label:Fold web", "label:Unfold web");
-  expect(twos()).toBe(2);
+  expect(twos()).toBe(1);
 });
 
 test("a project header offers a plus that starts a session in its folder", async () => {
@@ -88,17 +91,29 @@ test("when nothing needs you the count is gone, not zero", async () => {
 
 test("a search narrows to the projects and agents that match every word, ignoring case, and says when none do", async () => {
   const app = await ready();
-  await app.type("label:Search projects", "AUTH omp");
+  await pressSettled(app, SEARCH, FIELD);
+  await app.type(FIELD, "AUTH omp");
   expect(app.shows(row("auth"))).toBe(true);
   expect(app.shows(row("payments review"))).toBe(false);
-  await app.clear("label:Search projects");
-  await app.type("label:Search projects", "ledger");
+  await app.clear(FIELD);
+  await app.type(FIELD, "ledger");
   expect(app.shows(row("Refactor ledger"))).toBe(true);
   expect(app.shows("label:/^web, This computer/")).toBe(false);
-  await app.clear("label:Search projects");
-  await app.type("label:Search projects", "zzz");
+  await app.clear(FIELD);
+  await app.type(FIELD, "zzz");
   expect(app.shows("No project or agent matches")).toBe(true);
-  await app.clear("label:Search projects");
+  await app.clear(FIELD);
+  expect(app.shows(row("payments review"))).toBe(true);
+});
+
+test("the search field shows on demand, and closing it drops the filter with it", async () => {
+  const app = await ready();
+  expect(app.shows(FIELD)).toBe(false);
+  await pressSettled(app, SEARCH, FIELD);
+  await app.type(FIELD, "ledger");
+  expect(app.shows(row("payments review"))).toBe(false);
+  await app.press(SEARCH);
+  await app.waitUntil(() => !app.shows(FIELD));
   expect(app.shows(row("payments review"))).toBe(true);
 });
 
@@ -189,13 +204,13 @@ test("agents are picked with the box at the row's left, and Shift picks everythi
 
 test("a window of 960 keeps the full sidebar, at its narrow width", async () => {
   const app = await ready({ width: 960 });
-  expect(app.shows("label:Search projects")).toBe(true);
+  expect(app.shows(SEARCH)).toBe(true);
   expect(app.shows("label:payments review, claude, needs you, payments, This computer")).toBe(true);
 });
 
 test("in a narrow window the sidebar is a rail of project tiles: no list of agents, every project named with what it needs", async () => {
   const app = await ready({ width: 760 });
-  expect(app.shows("label:Search projects")).toBe(false);
+  expect(app.shows(SEARCH)).toBe(false);
   expect(app.shows("label:payments, This computer, 2 need you, 2 working, 1 to review")).toBe(true);
   expect(app.shows("label:web, This computer")).toBe(true);
   expect(app.shows("label:Board, 2 need you")).toBe(true);
@@ -224,9 +239,9 @@ test("a rail popover stays open when the keyboard moves into it, onto its Show p
 test("a wide window can collapse the sidebar to the rail and bring it back", async () => {
   const app = await ready();
   await app.press("label:Collapse sidebar");
-  expect(app.shows("label:Search projects")).toBe(false);
+  expect(app.shows(SEARCH)).toBe(false);
   await app.press("label:Expand sidebar");
-  expect(app.shows("label:Search projects")).toBe(true);
+  expect(app.shows(SEARCH)).toBe(true);
 });
 
 test("a right click on an agent or a project copies its name or folder", async () => {

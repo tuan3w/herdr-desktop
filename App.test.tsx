@@ -43,23 +43,23 @@ test("the app opens on the board, with every agent in its table and the count wh
 test("the board shows the sidebar as the rail, still naming what needs you, and an agent in front brings the full sidebar", async () => {
   const app = await ready();
   expect(app.shows("label:Expand sidebar")).toBe(true);
-  expect(app.shows("label:Search projects")).toBe(false);
+  expect(app.shows("label:Search projects and agents")).toBe(false);
   expect(app.shows("label:Board, 2 need you")).toBe(true);
   expect(app.shows("label:/^payments, This computer, 2 need you/")).toBe(true);
   await app.press(sidebarRow(FIRST));
-  await app.waitFor("label:Search projects");
+  await app.waitFor("label:Search projects and agents");
   expect(app.shows("label:Collapse sidebar")).toBe(true);
   expect(onBoard(app)).toBe(false);
   // Back to the overview: the rail again.
   await app.press("label:Board, 2 need you");
   await app.waitFor("label:Expand sidebar");
-  expect(app.shows("label:Search projects")).toBe(false);
+  expect(app.shows("label:Search projects and agents")).toBe(false);
 });
 
 test("Settings is a dialog over an unchanged window: a waiting question stays marked in the sidebar, the workspace stays mounted, and closing returns to the open agent", async () => {
   const app = await ready();
   await app.press(sidebarRow(FIRST));
-  await app.waitFor("label:Search projects");
+  await app.waitFor("label:Search projects and agents");
   await pressSettled(app, "label:Settings", "label:Settings sections");
   expect(app.shows("label:Board, 2 need you")).toBe(true);
   expect(app.shows("label:/^payments, This computer, 2 need you/")).toBe(true);
@@ -77,7 +77,7 @@ test("Settings is a dialog over an unchanged window: a waiting question stays ma
 
 test("the toggle expands the sidebar for the visit on the board without changing the saved preference", async () => {
   const app = await ready();
-  await pressSettled(app, "label:Expand sidebar", "label:Search projects");
+  await pressSettled(app, "label:Expand sidebar", "label:Search projects and agents");
   expect(onBoard(app)).toBe(true);
   await settle(app);
   expect(JSON.parse(app.storage()["herdr.settings.v1"] ?? "{}").sidebarCollapsed ?? false).toBe(false);
@@ -86,7 +86,7 @@ test("the toggle expands the sidebar for the visit on the board without changing
   await app.waitFor("label:Collapse sidebar");
   await app.press("label:Board, 2 need you");
   await app.waitFor("label:Expand sidebar");
-  expect(app.shows("label:Search projects")).toBe(false);
+  expect(app.shows("label:Search projects and agents")).toBe(false);
   // Elsewhere the toggle is the saved preference, and the board then keeps the rail.
   await app.press(sidebarRow(FIRST));
   await app.waitFor("label:Collapse sidebar");
@@ -102,7 +102,7 @@ test("a rail tile opens its project's agents, and pressing one opens that agent 
   // `Show project` exists only in the tile's popover.
   await app.waitFor("label:Show payments");
   await app.press("label:/^payments review, claude, needs you, payments/ >> nth=0");
-  await app.waitFor("label:Search projects");
+  await app.waitFor("label:Search projects and agents");
   expect(onBoard(app)).toBe(false);
   expect(app.shows("label:Collapse sidebar")).toBe(true);
 });
@@ -250,11 +250,11 @@ const CHECKS: Record<GlobalShortcut, Check> = {
   },
   sidebar: async (app, press) => {
     // The app starts on the Board, where the sidebar is the rail.
-    expect(app.shows("label:Search projects")).toBe(false);
+    expect(app.shows("label:Search projects and agents")).toBe(false);
     await press();
-    expect(app.shows("label:Search projects")).toBe(true);
+    expect(app.shows("label:Search projects and agents")).toBe(true);
     await press();
-    expect(app.shows("label:Search projects")).toBe(false);
+    expect(app.shows("label:Search projects and agents")).toBe(false);
   },
   focusSidebar: async (app, press) => {
     await press();

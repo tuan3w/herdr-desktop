@@ -102,7 +102,7 @@ export async function pressSettled(app: App, selector: string, done: string | ((
 
 /** The app opens on the Board, where the sidebar is the rail: this brings back the list of projects and agents for the visit. */
 export const expandSidebar = (app: App): Promise<void> =>
-  pressSettled(app, "label:Expand sidebar", "label:Search projects");
+  pressSettled(app, "label:Expand sidebar", "label:Search projects and agents");
 
 /**
  * Opens these agents' terminal tabs: the sidebar opens the chat of an agent that has one, so each is opened and then

@@ -228,7 +228,7 @@ export function AgentLine(props: {
   );
 }
 
-/** `3 more idle` under a project: the idle fold, opened and closed in place. */
+/** `3 more idle` under a project: the idle fold, opened and closed in place; its text on the titles' column (row 12, glyph 12, gap 12). */
 export function MoreLine(props: { item: () => Item<"more"> }) {
   const it = props.item;
   const text = () => (it().open ? "Show fewer idle" : `${it().count} more idle`);
@@ -238,8 +238,8 @@ export function MoreLine(props: { item: () => Item<"more"> }) {
       onPress={() => toggleMore(it().project)}
       accessibilityLabel={`${text()} in ${projectOf(it().project)?.name ?? ""}`}
       accessibilityState={{ expanded: it().open }}
-      style={hoverTransition()}
-      class={`justify-center rounded-md pl-9 pr-3 hover:bg-accent ${ROW.more.class} ${FOCUS_RING_INSET}`}
+      style={{ ...hoverTransition(), paddingLeft: 36 }}
+      class={`min-h-7 justify-center rounded-md pr-3 hover:bg-accent ${FOCUS_RING_INSET}`}
     >
       <Text class="text-xs text-muted-foreground">{text()}</Text>
     </View>

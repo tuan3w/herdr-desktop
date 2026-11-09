@@ -50,12 +50,18 @@ export function SessionPlan(props: { plan: readonly PlanStepView[]; running: boo
                   class="flex-row items-start gap-2 py-1"
                 >
                   <View class="pt-1">
-                    <StatusGlyph
-                      status={
-                        step().status === "completed" ? "done" : step().status === "inProgress" ? "working" : "idle"
+                    {/* A step to do is an empty ring, a checklist's box: an idle agent is silent (`StatusGlyph`), a step not done is not. */}
+                    <If
+                      when={step().status !== "pending"}
+                      else={
+                        <View
+                          style={{ width: 12, height: 12, borderRadius: 6 }}
+                          class="border-[1.5px] border-muted-foreground opacity-60"
+                        />
                       }
-                      size={12}
-                    />
+                    >
+                      <StatusGlyph status={step().status === "completed" ? "done" : "working"} size={12} />
+                    </If>
                   </View>
                   <Text
                     class={`min-w-0 flex-1 text-sm ${step().status === "completed" ? "text-muted-foreground" : "text-foreground"}`}
