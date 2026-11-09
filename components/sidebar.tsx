@@ -475,53 +475,67 @@ export function Project(props: { item: () => ProjectItem }) {
 }
 
 /**
- * A section's label (`Pinned`, `This computer`, another machine): small and muted, a chevron that folds it, the machine's
- * link as a word only while it is not live (amber, like a stale machine's name), never a mark for live. Folded, it says
- * how many of its agents wait (the signal dot and the number), as a folded project does. One button, like a project header.
+ * A section's label (`Pinned`, `This computer`, another machine), one button that folds it, like a project header. A
+ * machine says it is one: the computer icon and its name in the sidebar's text colour (projects stay muted under it), with
+ * a hairline above every section but the first, so a machine never reads as another project name (owner, 2026-11-09,
+ * chosen from a rendered prototype: "I don't know if something is a machine or just a project name"). Its link shows as a
+ * word only while it is not live (amber, like a stale machine's name), never a mark for live. Folded, it says how many of
+ * its agents wait (the signal dot and the number), as a folded project does.
  */
 function Section(props: { item: () => Extract<SidebarItem, { kind: "section" }> }) {
   const it = props.item;
   const waiting = () => (it().folded && it().needsYou > 0 ? it().needsYou : 0);
+  const machine = () => it().section !== "pinned";
+  const first = () => items().find((i) => i.kind === "section")?.key === it().key;
   return (
-    <View
-      role="button"
-      onPress={() => toggleSection(it().section)}
-      accessibilityLabel={[
-        `${it().folded ? "Unfold" : "Fold"} ${it().label}`,
-        it().state ?? "",
-        waiting() === 0 ? "" : waiting() === 1 ? "1 needs you" : `${waiting()} need you`,
-      ]
-        .filter(Boolean)
-        .join(", ")}
-      accessibilityState={{ expanded: !it().folded }}
-      class={`mt-4 min-h-7 flex-row items-center gap-2 px-3 rounded-md ${FOCUS_RING_SIDEBAR}`}
-    >
-      <Clipped fade={[FADE]} boxClass="min-w-0 shrink" class="text-xs font-medium text-muted-foreground">
-        {it().label}
-      </Clipped>
+    <View class={first() ? "mt-4" : "mt-4 border-t border-sidebar-border pt-3"}>
       <View
-        style={moveTransition()}
-        class={it().folded ? "" : "rotate-90"}
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
+        role="button"
+        onPress={() => toggleSection(it().section)}
+        accessibilityLabel={[
+          `${it().folded ? "Unfold" : "Fold"} ${it().label}`,
+          it().state ?? "",
+          waiting() === 0 ? "" : waiting() === 1 ? "1 needs you" : `${waiting()} need you`,
+        ]
+          .filter(Boolean)
+          .join(", ")}
+        accessibilityState={{ expanded: !it().folded }}
+        class={`min-h-7 flex-row items-center gap-2 px-3 rounded-md ${FOCUS_RING_SIDEBAR}`}
       >
-        <Icon name="chevron-right" size={12} tone="muted-foreground" />
-      </View>
-      <If when={it().state !== null}>
-        <Text style={{ numberOfLines: 1 }} class="shrink-0 text-xs text-warning">
-          {it().state ?? ""}
-        </Text>
-      </If>
-      <If when={waiting() > 0}>
+        <If when={machine()}>
+          <Icon name="monitor" size={14} tone="muted-foreground" />
+        </If>
+        <Clipped
+          fade={[FADE]}
+          boxClass="min-w-0 shrink"
+          class={`text-xs font-medium ${machine() ? "text-sidebar-foreground" : "text-muted-foreground"}`}
+        >
+          {it().label}
+        </Clipped>
         <View
-          class="ml-auto flex-row items-center gap-2 pl-2"
+          style={moveTransition()}
+          class={it().folded ? "" : "rotate-90"}
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         >
-          <Badge dot tone="signal" onSidebar />
-          <Text style={NUM} class="text-xs text-muted-foreground">{`${waiting()}`}</Text>
+          <Icon name="chevron-right" size={12} tone="muted-foreground" />
         </View>
-      </If>
+        <If when={it().state !== null}>
+          <Text style={{ numberOfLines: 1 }} class="shrink-0 text-xs text-warning">
+            {it().state ?? ""}
+          </Text>
+        </If>
+        <If when={waiting() > 0}>
+          <View
+            class="ml-auto flex-row items-center gap-2 pl-2"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
+            <Badge dot tone="signal" onSidebar />
+            <Text style={NUM} class="text-xs text-muted-foreground">{`${waiting()}`}</Text>
+          </View>
+        </If>
+      </View>
     </View>
   );
 }
