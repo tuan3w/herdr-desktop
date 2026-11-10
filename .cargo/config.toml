@@ -11,3 +11,8 @@ target-dir = "target"
 # (`ar cq` fails); pin binutils' archiver.
 [env]
 AR = "/usr/bin/ar"
+
+# nsh 0.4.0's GTK backend makes no nsh view a Tab stop, so Tab reaches only text fields (`docs/ACCESSIBILITY.md`).
+# `vendor/nsh-platform-linux` is that crate with nsh main's `key_focus.rs` backported; see `vendor/README.md`.
+[patch.crates-io]
+nsh-platform-linux = { path = "vendor/nsh-platform-linux" }

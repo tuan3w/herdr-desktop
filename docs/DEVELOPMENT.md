@@ -20,10 +20,12 @@ Every build compiles libghostty-vt (cargo feature `terminal`, on by default), wh
 ## Running with a display-less session
 
 ```sh
-xvfb-run -a env GSK_RENDERER=cairo nsh test components/<file>.test.tsx --target linux
+xvfb-run -a env GDK_BACKEND=x11 GSK_RENDERER=cairo nsh test components/<file>.test.tsx --target linux
 ```
 
-A test step can `await app.screenshot(".scratch/x.png")`. The default renderer under NVIDIA is GSK GL (`ngl`); Xvfb needs `GSK_RENDERER=cairo`.
+A test step can `await app.screenshot(".scratch/x.png")`. The default renderer under NVIDIA is GSK GL (`ngl`); Xvfb needs `GSK_RENDERER=cairo`. **`GDK_BACKEND=x11` is required too:** GTK4 falls back to a default `wayland-0` socket when `WAYLAND_DISPLAY` is unset, so on a machine with a Wayland session the test window opens on the person's real desktop (and the screen under Xvfb stays empty); `make a11y`, `make shots` and the scripts under `scripts/` set it.
+
+The Linux host carries one fix nsh 0.4.0 lacks, so Tab reaches buttons and rows and not only text fields (whether it reaches a tab chip of the strip is open, `docs/ACCESSIBILITY.md`): `vendor/nsh-platform-linux`, wired by `[patch.crates-io]` in `.cargo/config.toml` (`vendor/README.md` says why and when to drop it). nsh main cannot replace it yet: its window API changed and its Linux host needs gstreamer to build.
 
 Under `--target linux` the test file runs apart from the app: it cannot import `herdr-desktop/native`, a test is cut after 30 s unless `test(name, body, timeout)` says otherwise, and `app.submit` types a line break into a box that sends on Return. `docs/PERFORMANCE.md` says how the `.perf/` scenarios work around that (`perf-app.tsx` drives the scripted herdr on key presses).
 

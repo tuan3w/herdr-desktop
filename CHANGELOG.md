@@ -4,6 +4,9 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+- On Linux, Tab now reaches buttons and list rows, not only text fields: the sidebar's search, collapse, New session,
+  Board, project and agent rows with their `+` and `...`, and the buttons on a page each take the keyboard focus in turn
+  with a visible ring, as they already do on macOS.
 - The script inside a command (`python3 - <<'EOF' … EOF`, also `node`, `ruby`,
   `sqlite3`, `cat > run.py <<EOF`) is now coloured as the language it is, not
   as one block of string.

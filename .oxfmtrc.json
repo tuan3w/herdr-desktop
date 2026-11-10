@@ -25,6 +25,7 @@
     ".nsh",
     ".scratch",
     "native",
+    "vendor",
     "fixtures",
     "fonts",
     "assets",
