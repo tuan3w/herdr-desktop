@@ -14,6 +14,6 @@ export function nshTest(file, extra = "") {
   const test = `HERDR_DESKTOP_TEST=1 exec nsh test ${file} --target linux ${extra}`;
   const wrapped = realDisplay
     ? test
-    : `dbus-run-session -- xvfb-run -a env GSK_RENDERER=cairo GTK_A11Y=atspi sh -c '${test}'`;
+    : `dbus-run-session -- xvfb-run -a env GDK_BACKEND=x11 GSK_RENDERER=cairo GTK_A11Y=atspi sh -c '${test}'`;
   return `cd ${root} && ${sysroot}${wrapped}`;
 }

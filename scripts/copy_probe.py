@@ -233,7 +233,7 @@ class Run:
     """One `nsh test` window on a scenario, until `close`."""
 
     def __init__(self, scenario, timeout=600):
-        env = dict(os.environ, GTK_A11Y="atspi", GSK_RENDERER="cairo", HERDR_DESKTOP_TEST="1")
+        env = dict(os.environ, GDK_BACKEND="x11", GTK_A11Y="atspi", GSK_RENDERER="cairo", HERDR_DESKTOP_TEST="1")
         env["PATH"] = os.path.expanduser("~/.local/bin") + os.pathsep + env["PATH"]
         sysroot = os.path.join(ROOT, ".scratch/sysroot/env.sh")
         cmd = f'nsh test .copy/hold.test.tsx --target linux --filter "copy[{scenario}]"'

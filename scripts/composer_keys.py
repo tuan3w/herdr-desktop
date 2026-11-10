@@ -138,7 +138,7 @@ def shot(name):
 
 
 def start(scenario):
-    env = dict(os.environ, GTK_A11Y="atspi", GSK_RENDERER="cairo", HERDR_DESKTOP_TEST="1")
+    env = dict(os.environ, GDK_BACKEND="x11", GTK_A11Y="atspi", GSK_RENDERER="cairo", HERDR_DESKTOP_TEST="1")
     env["PATH"] = os.path.expanduser("~/.local/bin") + os.pathsep + env["PATH"]
     cmd = f'. {ROOT}/.scratch/sysroot/env.sh && exec nsh test .a11y/audit.test.tsx --target linux --filter "audit {scenario}"'
     child = subprocess.Popen(["sh", "-c", cmd], cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)

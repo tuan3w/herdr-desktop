@@ -125,7 +125,7 @@ schema:
 # GTK dev files from the system or `. .scratch/sysroot/env.sh`).
 shots:
 	mkdir -p .scratch/shots
-	dbus-run-session -- xvfb-run -a env GSK_RENDERER=cairo GTK_A11Y=atspi nsh test .shots/screens.test.tsx --target linux
+	dbus-run-session -- xvfb-run -a env GDK_BACKEND=x11 GSK_RENDERER=cairo GTK_A11Y=atspi nsh test .shots/screens.test.tsx --target linux
 
 # macOS: one lab or .shots scenario in the real AppKit window, nsh's own window screenshot, into .scratch/shots-mac. Never the
 # screen. Example: make shots-mac ARGS="settings --no-steps --keys meta+, --theme both". docs/DEVELOPMENT.md, "Screenshots on a Mac".

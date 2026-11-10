@@ -63,7 +63,7 @@ for shot in "$@"; do
   # `make shots` sets the same GTK environment; HERDR_DESKTOP_FIXTURES makes the fixture the copy gen.py wrote. The Xvfb
   # screen (xvfb-run's default is 1280x1024) is made larger than the 2x window, 2560x1600 pixels.
   dbus-run-session -- xvfb-run -a -s "-screen 0 2800x1800x24" env HERDR_DESKTOP_TEST=1 \
-    HERDR_DESKTOP_FIXTURES="$out/fixtures" TMPDIR="$out/t" GSK_RENDERER=cairo GTK_A11Y=atspi GDK_SCALE=2 \
+    HERDR_DESKTOP_FIXTURES="$out/fixtures" TMPDIR="$out/t" GDK_BACKEND=x11 GSK_RENDERER=cairo GTK_A11Y=atspi GDK_SCALE=2 \
     nsh test .shots/readme.test.tsx --target linux --filter "readme-$shot"
   stop_watcher
   png=$out/png/readme-$shot.png

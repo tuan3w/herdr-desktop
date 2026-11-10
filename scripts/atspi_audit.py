@@ -149,7 +149,14 @@ def x_keys():
 def tab_walk(steps):
     """Presses Tab `steps` times and returns what had the focus after each press: [(role, name)]."""
     seen = []
-    press = x_keys()
+    # The tree is on the bus a moment before the window is viewable: no key is sent until it is (a walk with no key
+    # passes every check, which is how an empty walk once looked like a pass).
+    press = None
+    for _ in range(40):
+        press = x_keys()
+        if press is not None:
+            break
+        time.sleep(0.5)
     if press is None:
         return [(None, "")] * steps
     time.sleep(0.4)
@@ -163,7 +170,9 @@ def tab_walk(steps):
 
 
 def run_scenario(name, timeout, tabs, keep=False):
-    env = dict(os.environ, GTK_A11Y="atspi", GSK_RENDERER="cairo", HERDR_DESKTOP_TEST="1")
+    # GDK_BACKEND: GTK4 falls back to a default `wayland-0` socket when WAYLAND_DISPLAY is unset, so a developer's real
+    # desktop would get the window and Xvfb none (XTEST keys then reach nothing).
+    env = dict(os.environ, GDK_BACKEND="x11", GTK_A11Y="atspi", GSK_RENDERER="cairo", HERDR_DESKTOP_TEST="1")
     env_sh = os.path.join(ROOT, ".scratch/sysroot/env.sh")
     cmd = f'nsh test .a11y/audit.test.tsx --target linux --filter "audit {name}"'
     if os.path.exists(env_sh):  # GTK dev files from the user-space sysroot when the system has none
