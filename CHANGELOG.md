@@ -4,17 +4,41 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
-- On Linux, Tab now reaches buttons and list rows, not only text fields: the sidebar's search, collapse, New session,
-  Board, project and agent rows with their `+` and `...`, and the buttons on a page each take the keyboard focus in turn
-  with a visible ring, as they already do on macOS.
-- The script inside a command (`python3 - <<'EOF' … EOF`, also `node`, `ruby`,
-  `sqlite3`, `cat > run.py <<EOF`) is now coloured as the language it is, not
-  as one block of string.
-- What a call printed shows 24 lines before it scrolls, not 8, and an opened
-  step keeps more space between its title, the command and the output.
-- A step of what an agent did that has no words of its own (`Ran make test`)
-  is now set in the same type as the rest of the chat, not in the code font;
-  only the command inside the opened step and what it printed stay in code.
+## [0.1.0-alpha.15] - 2026-11-10
+
+### Tab reaches more than the message box on Linux
+
+On Linux, Tab used to stop in the message box and never leave it. It now
+moves the keyboard focus through the sidebar's buttons and rows and the
+buttons on a page, with a visible ring, as it does on macOS.
+
+> [!TIP]
+> Try it: on Linux, press Tab in the window; the ring goes from `Search` to
+> `Collapse sidebar`, `New session` and `Board`, then down the agents.
+
+- The `+` and `...` of a project and of an agent row are reached too.
+- macOS is unchanged: it already worked there.
+
+### Commands in a step read like code
+
+A script inside a command is now coloured as the language it is, and what a
+call printed shows 24 lines before it scrolls, not 8.
+
+- Scripts after `python3 - <<'EOF'`, and after `node`, `ruby`, `sqlite3` or
+  `cat > run.py <<EOF`, are coloured as that language, not as one block of
+  string.
+- An opened step keeps more space between its title, the command and the
+  output.
+- A step with no words of its own (`Ran make test`) is set in the same type
+  as the rest of the chat; only the command inside the opened step and what
+  it printed stay in code.
+
+**Not checked**
+
+- Tab: a tab of the strip above a chat as a stop (it may not be one), Return
+  or Space on a focused button, and a screen reader (Orca) announcing the
+  moves. Linux only; no Mac was involved.
+- Steps: large text and a side-by-side look against the Claude desktop app.
 
 ## [0.1.0-alpha.14] - 2026-11-10
 
