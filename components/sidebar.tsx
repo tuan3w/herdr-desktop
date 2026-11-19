@@ -496,9 +496,8 @@ function Section(props: { item: () => Extract<SidebarItem, { kind: "section" }> 
   const it = props.item;
   const waiting = () => (it().folded && it().needsYou > 0 ? it().needsYou : 0);
   const machine = () => it().section !== "pinned";
-  const first = () => items().find((i) => i.kind === "section")?.key === it().key;
   return (
-    <View class={first() ? "mt-4" : "mt-4 border-t border-sidebar-border pt-3"}>
+    <View class="mt-4">
       <View
         role="button"
         onPress={() => toggleSection(it().section)}
@@ -518,18 +517,20 @@ function Section(props: { item: () => Extract<SidebarItem, { kind: "section" }> 
         <Clipped
           fade={[FADE]}
           boxClass="min-w-0 shrink"
-          class={`text-xs font-medium ${machine() ? "text-sidebar-foreground" : "text-muted-foreground"}`}
+          class="text-[11px] font-medium tracking-wide text-muted-foreground"
         >
           {it().label}
         </Clipped>
-        <View
-          style={moveTransition()}
-          class={it().folded ? "" : "rotate-90"}
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        >
-          <Icon name="chevron-right" size={12} tone="muted-foreground" />
-        </View>
+        <If when={!machine()}>
+          <View
+            style={moveTransition()}
+            class={it().folded ? "" : "rotate-90"}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
+            <Icon name="chevron-right" size={12} tone="muted-foreground" />
+          </View>
+        </If>
         <If when={it().state !== null}>
           <Text style={{ numberOfLines: 1 }} class="shrink-0 text-xs text-warning">
             {it().state ?? ""}
