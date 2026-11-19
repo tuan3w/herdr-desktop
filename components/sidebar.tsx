@@ -5,6 +5,7 @@ import { Button } from "nsh/base";
 import type { BoardProject, BoardRow, MachineStatus } from "herdr-desktop/native";
 import type { InputRef, ListRef } from "nsh/types";
 
+import { AgentMark } from "#components/agent-mark";
 import { useRowKeys } from "#components/pick-box";
 import { Monogram, ProjectMark } from "#components/project-parts";
 import { SidebarFooter } from "#components/sidebar-footer";
@@ -685,6 +686,10 @@ function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> 
       style={hoverTransition()}
       class={`min-w-0 flex-row items-center gap-2 ${ROW.agentCompact.class} ${ROW_FILL} ${row().offline ? "opacity-60" : ""}`}
     >
+      {/* The identity mark: which agent this is. Only when herdr names one; a plain terminal stays a clean row. */}
+      <If when={row().agent !== ""}>
+        <AgentMark kind={row().agent} />
+      </If>
       <Clipped
         fade={isOpen(row()) ? [FADE, FADE_OPEN] : [FADE, FADE_HOVER]}
         boxClass="min-w-0 flex-1"

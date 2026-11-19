@@ -4,7 +4,7 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
-- Upgraded to nsh 0.5.1: the window API, the Linux Tab walk, and the `Terminal` and `Tray` components are now nsh's own; the vendored Linux patch is gone.
+- A sidebar row now shows which agent it is: a small mark of the agent's kind at the left of its name (Claude in its own colour, Codex in green, the rest a quiet neutral mark). The state glyph at the right end is unchanged. A plain terminal shows no mark.
 ## [0.1.0-alpha.15] - 2026-11-10
 
 ### Tab reaches more than the message box on Linux
