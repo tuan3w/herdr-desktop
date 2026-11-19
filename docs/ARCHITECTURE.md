@@ -38,12 +38,12 @@ The UI thread belongs to the person.
 
 | Decision | Reason |
 |---|---|
-| nsh 0.4.0, GTK backend | Standalone nsh apps use GTK on Linux; GPUI is the embedding backend. |
-| Own `PaneScreen`, not `Terminal` | `Terminal` and the Linux tray exist only on nsh `main`, not in 0.4.0. Swap in with a clean cutover when a release ships them. |
+| nsh 0.5.1, GTK backend | Standalone nsh apps use GTK on Linux; GPUI is the embedding backend. |
+| Own `PaneScreen`, not `Terminal` | The app's `PaneScreen` (ghostty-vt) is proven and wired to herdr's pane protocol; nsh 0.5.1 ships a `Terminal` component and a Linux tray, but the cutover is a separate change. |
 | Pane view is a mirror | `pane.read format=ansi` has no cursor and no mouse; input is injected keys, as on mobile. herdr cannot resize a pane over the API, so columns are herdr's. |
 | One shared `target/` | The data disk is nearly full (`.cargo/config.toml`). |
 | `AR=/usr/bin/ar` pinned | A foreign `ar` earlier in `PATH` breaks `cc-rs`. |
-| Update check is notify-only | `nsh/updater` (signed self-update with restart) exists only on nsh `main`, from #922 on 2026-11-05, one day after v0.4.0; there is no prebuilt main CLI. Decided with the owner: keep 0.4.0, ship the release check (`lib/updates.ts`, Settings > About), and move to `nsh/updater` in a clean cutover when the next release contains it (together with `Terminal` and the tray, see above). |
+| Update check is notify-only | `nsh/updater` (signed self-update with restart) is in 0.5.1; the app keeps the release check (`lib/updates.ts`, Settings > About) for now. The cutover to `nsh/updater` (together with `Terminal` and the tray, see above) is a separate change. |
 | License GPL-3.0-or-later | The app links GPL-3 crates from herdr-mobile; nsh is Apache-2.0, compatible. |
 
 ## 4. Verified spikes

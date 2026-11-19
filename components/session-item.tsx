@@ -403,7 +403,7 @@ function StepBlock(props: { step: Step; ctx: RowContext; alone?: boolean }) {
         open={props.step.open}
         class={
           props.alone
-            ? "-ml-2 min-h-9 flex-row items-center gap-2 self-start rounded-md px-2"
+            ? "-ml-2 min-h-8 flex-row items-center gap-2 self-start rounded-md px-2"
             : "min-h-11 flex-row items-center gap-2 px-4"
         }
       >
@@ -434,7 +434,7 @@ function StepBlock(props: { step: Step; ctx: RowContext; alone?: boolean }) {
         </If>
       </Disclosure>
       <If when={!props.step.open && running().length > 0}>
-        <View class={props.alone ? "gap-0.5 pb-2" : "gap-0.5 px-4 pb-3"}>
+        <View class={props.alone ? "gap-1 pb-2" : "gap-1 px-4 pb-3"}>
           <Each of={liveTail(running().at(-1)!)}>
             {(line) => (
               <Text
@@ -448,7 +448,7 @@ function StepBlock(props: { step: Step; ctx: RowContext; alone?: boolean }) {
         </View>
       </If>
       <If when={props.step.open}>
-        <View class={props.alone ? "mt-2 gap-5 rounded-xl border border-border px-4 py-4" : "gap-5 px-4 pb-4 pt-1"}>
+        <View class={props.alone ? "mt-2 gap-6 rounded-xl border border-border px-4 py-4" : "gap-6 px-4 pb-4 pt-1"}>
           <Each of={props.step.thoughts} key={(t: Thought) => t.item.id}>
             {(thought) => <ThoughtLine thought={thought()} ctx={props.ctx} />}
           </Each>
@@ -495,7 +495,7 @@ function SubagentRow(props: { row: Extract<Row, { kind: "subagent" }>; ctx: RowC
           onPress={() => props.ctx.model.toggle(props.row)}
           label={`Subagent: ${line().object}, ${toolStatusText(tool().status)}${summary() ? `, ${summary()}` : ""}`}
           open={props.row.open}
-          class="min-h-9 flex-row items-center gap-2 px-3"
+          class="min-h-8 flex-row items-center gap-2 px-3"
         >
           <Icon name="bot" size={16} tone="muted-foreground" />
           <Text

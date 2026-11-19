@@ -77,7 +77,7 @@ for (const warning of Herdr.warnings()) notify(warning, { lasting: true });
 // A click on a desktop notification brings the window forward and shows what it was about: that agent's tab, or the
 // board for a summary. (The window manager may refuse to raise a window; the tab opens anyway.)
 Herdr.onNotificationOpen(({ machine, pane }) => {
-  if (isAvailable) Window.orderFront();
+  if (isAvailable) Window.get("main")?.focus();
   if (machine && pane) void openTarget(machine, pane);
   else void showBoard();
 });
@@ -119,9 +119,9 @@ function App() {
   if (isAvailable) {
     // nsh opens a window phone-sized (390 x 844) and the sidebar alone takes a third of that: open at desktop size. A window
     // that is already wider (a test or a screenshot that sized it) is left alone.
-    if (windowSize().width < 600) Window.setFrame({ size: { width: 1280, height: 800 } });
+    if (windowSize().width < 600) Window.get("main")?.setBounds({ size: { width: 1280, height: 800 } });
     setWindowChrome();
-    effect(() => Window.setTitle(board().title));
+    effect(() => Window.get("main")?.set({ title: board().title }));
     effect(() => Menu.setApplicationMenu(appMenu()));
   }
   // A window in the background lets the machines space out their polls and retries.

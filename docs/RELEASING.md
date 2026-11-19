@@ -41,7 +41,7 @@ Never move or delete a published tag; fix forward with the next version.
 
 `0.1.0-alpha.4` holds the macOS zip only (Linux was paused for it; see "Linux"); the edge build is macOS only.
 
-**No Intel Mac build.** nsh 0.4.0 publishes its macOS CLI and runtime for arm64 only (`nsh-macos-arm64.tar.gz` is the one macOS asset of its v0.4.0 release), so there is nothing to package an x86_64 app with, whatever the runner (`macos-15-intel` exists and starts).
+**No Intel Mac build.** The CI and release job build arm64 only (`macos-15`). nsh 0.5.1 does publish an x86_64 macOS runtime (`nsh-macos-x86_64.tar.gz`), so an Intel build is possible if needed.
 
 ## The edge build
 

@@ -3,7 +3,18 @@
   "plugins": ["typescript", "unicorn", "oxc", "import", "promise"],
   "categories": { "correctness": "error", "suspicious": "warn", "perf": "warn" },
   "env": { "es2024": true },
-  "ignorePatterns": ["node_modules", "target", ".nsh", ".scratch", "native", "fixtures", "fonts", "assets", "docs"],
+  "ignorePatterns": [
+    "node_modules",
+    "target",
+    ".nsh",
+    ".scratch",
+    "native",
+    "fixtures",
+    "fonts",
+    "assets",
+    "docs",
+    "local"
+  ],
   "rules": {
     "typescript/no-explicit-any": "error",
     "typescript/consistent-type-imports": "error",

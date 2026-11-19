@@ -127,7 +127,7 @@ export const ROW = {
 /**
  * The window's top band and every bar that sits on it (the sidebar's first line, the tab strip, a pane's header): one height,
  * so their centre lines meet. 40 is a 32-pt control with 4 pt either side, and under macOS's 44 of compact chrome, so the
- * traffic lights are centred in it (`Window.setTitleBar`, `lib/chrome.ts`).
+ * traffic lights are centred in it (`titleBar`, `lib/chrome.ts`).
  */
 export const BAR = 40;
 

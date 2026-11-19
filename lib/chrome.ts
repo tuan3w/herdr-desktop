@@ -14,10 +14,10 @@ import { BAR } from "#lib/layout";
  * Windows and Linux keep the system title bar and their menu bar: there the window buttons sit at the band's right end,
  * and `DockArea` styles every group's tab bar alike, so keeping them clear took 130 pt from every group's strip, not only
  * the rightmost one (a render at 960 wrapped two tabs onto two rows); and nsh's GTK window keeps its menu bar row even with
- * `Window.setMenuBar("autoHide")` (rendered), so hiding it is not an option there.
+ * `Menu.setMenuBar("autoHide")` (rendered), so hiding it is not an option there.
  */
 export function setWindowChrome(): void {
-  if (isAvailable && platform.os === "macos") Window.setTitleBar({ style: "hidden", height: BAR });
+  if (isAvailable && platform.os === "macos") Window.get("main")?.set({ titleBar: { style: "hidden", height: BAR } });
 }
 
 /** The window controls' widths at the band's two ends (all 0 while the system draws its bar, and in the headless runner). */

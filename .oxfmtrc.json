@@ -30,6 +30,7 @@
     "fonts",
     "assets",
     "docs",
+    "local",
     "theme.json",
     "*.md"
   ]

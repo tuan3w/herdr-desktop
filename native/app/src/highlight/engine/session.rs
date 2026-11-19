@@ -8,8 +8,9 @@ use std::time::Duration;
 
 use super::lang::Lang;
 use super::role::Span;
-use super::tm::{self, Tm};
+use super::tm;
 use super::ts::{self, Grammar, Parse};
+use syntect::parsing::SyntaxReference;
 
 /// How a block is read.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -64,7 +65,7 @@ enum Engine {
         grammar: &'static Grammar,
         parse: Parse,
     },
-    Text(Tm),
+    Text(&'static SyntaxReference),
 }
 
 /// The longest a parse may take before it is cut off: far above any real block (2,000 lines parse in
@@ -98,7 +99,7 @@ impl Highlighter {
                 }
             }
             Syntax::Text(name) => match tm::find(name) {
-                Some(syntax) => (Engine::Text(Tm::new(syntax)), None),
+                Some(syntax) => (Engine::Text(syntax), None),
                 None => (Engine::Plain, None),
             },
         };
@@ -134,7 +135,8 @@ impl Highlighter {
     fn run(&mut self, text: &str, budget: Duration) -> Option<Range<usize>> {
         let dirty = match &mut self.engine {
             Engine::Plain => 0..0,
-            Engine::Text(tm) => {
+            Engine::Text(syntax) => {
+                let mut tm = tm::Tm::new(syntax);
                 let (spans, dirty) = tm.update(text);
                 self.spans = spans.to_vec();
                 dirty

@@ -304,6 +304,28 @@ fn colour(
                 text: text_arc,
                 spans: Arc::new(spans),
             });
+        } else if let Syntax::Text(name) = &syntax {
+            // The TextMate engine keeps its parser state in a type that is not `Send` (syntect's onig
+            // region, since nsh 0.5.1 pulls in `regex-onig`), so it cannot be shared with the blocking
+            // thread: the run is made there, fresh, and a growing text re-reads from its first line.
+            let (generation, name) = (generation.clone(), name.clone());
+            spawn(async move {
+                let source = text_arc.clone();
+                let job = blocking(move || {
+                    crate::highlight::Tm::by_name(&name)
+                        .map(|mut t| t.update(&source).0.to_vec())
+                        .unwrap_or_default()
+                })
+                .await;
+                if let Ok(spans) = job
+                    && generation.get() == now
+                {
+                    colouring.spans.set(Coloured {
+                        text: text_arc,
+                        spans: Arc::new(spans),
+                    });
+                }
+            });
         } else {
             let generation = generation.clone();
             spawn(async move {

@@ -14,8 +14,8 @@ default = ["terminal"]
 terminal = ["dep:libghostty-vt", "dep:libghostty-vt-sys", "dep:rustix"]
 
 [dependencies]
-nsh-core = "0.4.0"
-nsh-base = "0.4.0"
+nsh-core = "0.5.1"
+nsh-base = "0.5.1"
 herdr-core = { path = "../core" }
 async-channel = "2"
 crossbeam-channel = "0.5"
@@ -68,5 +68,5 @@ libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"
-nsh-engine = "0.4.0"
-nsh-testing = "0.4.0"
+nsh-engine = "0.5.1"
+nsh-testing = "0.5.1"

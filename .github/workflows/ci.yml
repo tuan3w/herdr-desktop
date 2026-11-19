@@ -48,7 +48,7 @@ permissions:
 
 env:
   # The toolchain the app was written against (AGENTS.md: do not upgrade nsh unless asked).
-  NSH_VERSION: v0.4.0
+  NSH_VERSION: v0.5.1
   # Release builds are never incremental; this keeps debug ones out of the cache too.
   CARGO_INCREMENTAL: "0"
   CARGO_TERM_COLOR: always
@@ -59,7 +59,6 @@ env:
 
 jobs:
   # macos-14 is not offered to this repository ("configuration macos-14-arm64-us-default is not supported"); macos-15 is.
-  # Intel Macs are not built: nsh 0.4.0 ships its macOS CLI and runtime for arm64 only.
   macos-package:
     # nsh signs the .app ad hoc; scripts/sign-macos.sh then signs it with the repository's self-signed identity (secrets
     # HERDR_SIGN_P12 and HERDR_SIGN_PASSWORD), so the designated requirement is the same in every build. A pull request

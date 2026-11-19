@@ -317,11 +317,11 @@ export function MediaPlayer(props: {
     if (!desktop || props.kind !== "video") return;
     wake();
     fullscreen.update((on) => !on);
-    Window.toggleFullScreen();
+    Window.get("main")?.setMode(fullscreen() ? "fullScreen" : "normal");
   };
   cleanup(() => {
     // A window left full screen by a viewer that closed would stay so.
-    if (fullscreen()) Window.toggleFullScreen();
+    if (fullscreen()) Window.get("main")?.setMode("normal");
   });
 
   // What the system says when it cannot play: the file's own headers name the codec (a few ranged reads, never the file).

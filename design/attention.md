@@ -13,7 +13,7 @@ The one hot colour is `signal` (`design/colors.md`). Everything below is about w
 5. **The question is shown once, in the agent's conversation**, in the one answer dock in place of the composer (`design/board.md`). Answering many agents at once is the Board's bulk answer view under the `Need you` chip (`design/board.md`): every command in full, boxes that start unticked, two presses to allow; not a second list.
 6. **Orange text is rare.** No text is `text-signal`: not a status line, not a heading, not the status bar. A count is a number in `foreground` or `muted-foreground`. The exception is the chat's `New output` pill while the agent waits (the single mark of that agent in a chat scrolled away from its dock).
 7. **Risk is a shape, not a colour.** The `alert` icon on a risky answer row is muted; the amber `warning` colour appears only when the row is armed (`Press again to send`), the one moment the colour is an instruction.
-8. **The window title and the tray count stay.** `Window.setTitle` shows `(N) Herdr Desktop`; it is the one count seen from another window.
+8. **The window title and the tray count stay.** `Window.get("main")?.set({ title })` shows `(N) Herdr Desktop`; it is the one count seen from another window.
 9. **A stale machine is said once** as an amber word on its section's label in the sidebar (`stale`, `offline`; the machine's name in a pinned project's header), dashed glyphs on its rows and one footer line, never as a banner.
 
 ## What each surface shows

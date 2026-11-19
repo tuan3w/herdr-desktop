@@ -4,6 +4,7 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
+- Upgraded to nsh 0.5.1: the window API, the Linux Tab walk, and the `Terminal` and `Tray` components are now nsh's own; the vendored Linux patch is gone.
 ## [0.1.0-alpha.15] - 2026-11-10
 
 ### Tab reaches more than the message box on Linux

@@ -107,7 +107,7 @@ function Footer(props: { ctx: RowContext; active: boolean }) {
         )}
       </If>
       <If when={!covered() && (working()?.tail.length ?? 0) > 0}>
-        <View class="gap-0.5 pl-5 pt-1">
+        <View class="gap-1 pl-4 pt-1">
           <Each of={working()!.tail}>
             {(line) => (
               <Text

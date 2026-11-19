@@ -10,6 +10,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 
 use syntect::parsing::{ParseState, Scope, ScopeStack, SyntaxReference, SyntaxSet};
 
@@ -266,6 +267,11 @@ pub struct Tm {
 }
 
 impl Tm {
+    /// The run for the grammar `name` names; `None` for one syntect does not have.
+    pub fn by_name(name: &str) -> Option<Tm> {
+        find(name).map(Tm::new)
+    }
+
     pub fn new(syntax: &'static SyntaxReference) -> Tm {
         Tm {
             syntax,
@@ -278,6 +284,20 @@ impl Tm {
     /// Highlights `text`, resuming at the last checkpoint before the first line that differs from
     /// the previous text. Returns all spans and the byte range that was parsed again.
     pub fn update(&mut self, text: &str) -> (&[Span], Range<usize>) {
+        if self.update_within(text, None).is_none() {
+            return (self.spans(), 0..0);
+        }
+        (self.spans(), 0..self.text.len())
+    }
+
+    /// As [`Tm::update`] for a caller that cannot wait: `None` when the text could not be read within
+    /// `budget`, so it can try again off its thread.
+    pub fn update_within(
+        &mut self,
+        text: &str,
+        budget: Option<Duration>,
+    ) -> Option<(&[Span], Range<usize>)> {
+        let started = budget.is_some().then(Instant::now);
         let set = syntaxes();
         // The first byte that differs, moved back to the start of its line.
         let same = self
@@ -309,7 +329,11 @@ impl Tm {
         self.spans.retain(|s| (s.end as usize) <= from);
         let mut line_no = self.checkpoints.len() * EVERY - EVERY;
         let mut offset = from;
+        let budget = budget.unwrap_or(Duration::MAX);
         for line in syntect::util::LinesWithEndings::from(&text[from..]) {
+            if started.is_some_and(|started| started.elapsed() > budget) {
+                return None;
+            }
             let Ok(ops) = parse.parse_line(line, set) else {
                 break;
             };
@@ -348,7 +372,12 @@ impl Tm {
         }
         self.text.clear();
         self.text.push_str(text);
-        (&self.spans, from..text.len())
+        Some((&self.spans, from..text.len()))
+    }
+
+    /// The spans of the last update.
+    pub fn spans(&self) -> &[Span] {
+        &self.spans
     }
 }
 

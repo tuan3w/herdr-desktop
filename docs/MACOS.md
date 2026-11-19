@@ -63,4 +63,4 @@ Everything that needs a real macOS window or a Mac user:
 - **python3**: the relay and the keeper are python3 scripts run on the machine being watched, and on this Mac when it is the machine. macOS ships `/usr/bin/python3` as a stub that asks to install the Xcode command line tools; until they are installed, local sessions fail with exit 78 (`python3 missing`).
 - **VoiceOver, `Cmd` shortcuts and keyboard focus** in the AppKit backend: only the kit's headless tests ran.
 - **herdr itself on a Mac**: whether it keeps its socket at `~/.config/herdr/herdr.sock`.
-- **Apple silicon only**: no Intel build exists (nsh 0.4.0 has no x86_64 macOS runtime).
+- **Apple silicon only**: the build and release are arm64 (nsh 0.5.1 does ship an x86_64 macOS runtime, but the CI and release job are arm64-only).

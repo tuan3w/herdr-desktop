@@ -1,6 +1,6 @@
 name: Set up Herdr Desktop
 description: >
-  System packages (Linux), nsh 0.4.0, the pinned Rust toolchain with a cache keyed on the Cargo.lock files, bun and node.
+  System packages (Linux), nsh 0.5.1, the pinned Rust toolchain with a cache keyed on the Cargo.lock files, bun and node.
   One place, so ci.yml and release.yml build the same way on Linux and macOS.
 inputs:
   cache:
@@ -26,14 +26,14 @@ runs:
         sudo apt-get install -y --no-install-recommends \
           libgtk-4-dev libwebkitgtk-6.0-dev clang pkg-config xvfb dbus-x11 at-spi2-core python3-gi gir1.2-atspi-2.0
 
-    - name: nsh 0.4.0
+    - name: nsh 0.5.1
       shell: bash
-      # Pinned: nsh 0.4.0 is the API the app is written for (AGENTS.md: do not upgrade unless asked). The installer
+      # Pinned: nsh 0.5.1 is the API the app is written for (AGENTS.md: do not upgrade unless asked). The installer
       # links nsh into ~/.local/bin on both systems. Tried three times, a minute apart: GitHub's asset host answered 504
       # twice in a row on 2026-11-09 and failed the 0.1.0-alpha.8 and alpha.9 Linux builds.
       run: |
         for attempt in 1 2 3; do
-          NSH_VERSION=v0.4.0 sh -c "$(curl -fsSL --retry 3 https://nsh.dev/install.sh)" && break
+          NSH_VERSION=v0.5.1 sh -c "$(curl -fsSL --retry 3 https://nsh.dev/install.sh)" && break
           [ "$attempt" = 3 ] && exit 1
           sleep 60
         done

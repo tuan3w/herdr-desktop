@@ -226,9 +226,6 @@ export function useTooltip(say: () => JSX.Element, options: TooltipOptions = {})
     },
     onMouseEnter: events.enter,
     onMouseLeave: events.leave,
-    // Built when asked for: a `Clipped` in a list never is.
-    get focus() {
-      return { onFocus: events.focus, onBlur: events.blur };
-    },
+    focus: { onFocus: events.focus, onBlur: events.blur },
   };
 }

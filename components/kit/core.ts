@@ -1,6 +1,5 @@
 import { effect, keymap } from "nsh";
 
-import type { ViewRef } from "nsh";
 import type { TextStyle } from "nsh/types";
 
 /**
@@ -14,9 +13,9 @@ import type { TextStyle } from "nsh/types";
  * - `RING_INSET`: the same line drawn inside the edge, for items in a clipped or filled row (tabs, list rows, the sidebar)
  *   where an outside outline is cut or painted over by the next row.
  *
- * A pointer press hands the focus back (`releaseFocus`), so only the keyboard shows it; text fields draw it on any focus
- * (the caret is the input mode). `ring-*` and shadow classes draw nothing in the macOS screenshots, and nsh draws one outline
- * per view, so a halo is not part of the ring. An error keeps its `destructive` border and the line stays `destructive`.
+ * nsh 0.5.0 onward draws `focus-visible:` only for keyboard focus, so only the keyboard shows the ring; text fields
+ * draw it on any focus (the caret is the input mode). `ring-*` and shadow classes draw nothing in the macOS screenshots,
+ * and nsh draws one outline per view, so a halo is not part of the ring. An error keeps its `destructive` border and the line stays `destructive`.
  */
 export const RING = "outline-[1.5px] outline-offset-0 outline-ring";
 export const RING_BORDERED = "border-ring outline-[0.5px] outline-offset-0 outline-ring";
@@ -32,6 +31,7 @@ const when = (variant: string, classes: string) =>
 export const FOCUS_RING = when("focus-visible", RING);
 export const FOCUS_RING_BORDERED = when("focus-visible", RING_BORDERED);
 export const FOCUS_RING_INSET = when("focus-visible", RING_INSET);
+export const FOCUS_RING_INVALID = when("focus-visible", RING_INVALID);
 
 /**
  * The one edge of a floating surface (popover, menu, popup, dialog, toast, drag preview), by the layer it lifts. Light:
@@ -44,24 +44,6 @@ export const EDGE = {
   md: "border border-transparent shadow-md dark:border-border dark:shadow-none",
   lg: "border border-transparent shadow-lg dark:border-border dark:shadow-none",
 } as const;
-
-/**
- * Hands the keyboard focus back after a pointer press. AppKit focuses a clicked pressable and nsh 0.4.0 reads `focus-visible:`
- * as `focus:`, so without this the ring stays on a button after a click (the `Browse folders` ring in the owner's
- * screenshot). A press with no pointer touch before it came from Return or Space and keeps the focus: the keyboard user is still there (`touchedJustNow`).
- */
-export function releaseFocus(node: ViewRef | undefined, byPointer: boolean) {
-  if (byPointer) node?.blur();
-}
-
-let touchedAt = Number.NEGATIVE_INFINITY;
-/** `PopupRoot` calls this on every pointer press in its surface (capture). */
-export function noteTouch() {
-  touchedAt = Date.now();
-}
-/** Whether a pointer press began just now: `onPress` of a `Button` carries no position, and the test host reports one for Return too, so the root's touch is the one witness. */
-export const touchedJustNow = () => Date.now() - touchedAt < 600;
-
 /** Tabular figures: dates and counts must not jitter as digits change. */
 export const NUM: TextStyle = { fontVariant: ["tabular-nums"] };
 

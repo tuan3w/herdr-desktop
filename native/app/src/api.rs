@@ -232,7 +232,7 @@ impl Herdr {
     }
 
     /// Calls `listener` when the person clicks a notification: with the agent it was about, or with
-    /// nothing set for a summary. The app brings its window forward (`Window.orderFront()`) and shows
+    /// nothing set for a summary. The app brings its window forward (`Window.get("main")?.focus()`) and shows
     /// what was asked for. Pressing an answer button is not a click: it answers through the same
     /// checked path as the answer dock and never reaches this listener. Returns the function that
     /// stops listening.

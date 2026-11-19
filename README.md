@@ -37,7 +37,7 @@ Herdr Desktop is built around those questions and nothing else. What needs you i
 
 ## Install
 
-**macOS, Apple silicon** (Intel Macs have no build: nsh 0.4.0 has no Intel runtime). One command:
+**macOS, Apple silicon** (the build and the release are arm64 only). One command:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/tuan3w/herdr-desktop/main/scripts/install.sh | sh
@@ -62,7 +62,7 @@ Alpha (`0.1.0-alpha.x`). The author uses it on macOS every day; it has not been 
 ## Build
 
 ```sh
-NSH_VERSION=v0.4.0 sh -c "$(curl -fsSL https://nsh.dev/install.sh)"
+NSH_VERSION=v0.5.1 sh -c "$(curl -fsSL https://nsh.dev/install.sh)"
 make            # check, tests, core, docs (Linux; on a Mac: make verify-mac)
 make run        # a dev window
 make package    # .scratch/dist/Herdr Desktop.app (macOS) or a tarball (Linux)

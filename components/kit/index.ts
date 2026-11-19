@@ -8,7 +8,15 @@ export { createCheckGroup, type ValueChange } from "./check-group";
 export { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "./collapsible";
 export { Autocomplete, Combobox, type ComboOption, type Suggestion } from "./combo";
 export { dialogDepth, newDialogId, topDialog, trackDialog } from "./dialog-stack";
-export { EDGE, FOCUS_RING, FOCUS_RING_BORDERED, FOCUS_RING_INSET, FOCUS_RING_SIDEBAR, NUM, releaseFocus } from "./core";
+export {
+  EDGE,
+  FOCUS_RING,
+  FOCUS_RING_BORDERED,
+  FOCUS_RING_INVALID,
+  FOCUS_RING_INSET,
+  FOCUS_RING_SIDEBAR,
+  NUM,
+} from "./core";
 export { GroupHeading } from "./group-heading";
 export { FieldRow, INPUT_CLASS, Field, Labeled, type Option, SearchField } from "./fields";
 export { SelectField } from "./select";

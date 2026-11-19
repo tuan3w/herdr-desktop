@@ -6,7 +6,7 @@ import type { ViewRef } from "nsh";
 import { hoverTransition, pressFeedback, pressTransition } from "#lib/motion";
 import { largeTargets } from "#lib/settings";
 
-import { FOCUS_RING, FOCUS_RING_BORDERED, FOCUS_RING_SIDEBAR, releaseFocus, touchedJustNow } from "./core";
+import { FOCUS_RING, FOCUS_RING_BORDERED, FOCUS_RING_SIDEBAR } from "./core";
 import { Clipped, Tipped } from "./hint";
 import { Icon, type IconName, type IconTone } from "./icon";
 import { Keys } from "./keys";
@@ -80,9 +80,9 @@ export function Btn(props: {
   const variant = () => props.variant ?? "outline";
   const press = props.small || props.still ? undefined : pressFeedback();
   const busy = () => props.loading === true;
+  let buttonRef: ((node: ViewRef) => void) | undefined = props.buttonRef;
   // A busy button keeps the focus, so the screen reader is told when it turns busy (its label alone is read on arrival).
   let wasBusy = false;
-  let face: ViewRef | undefined;
   effect(() => {
     const now = busy();
     if (now && !wasBusy) announce(`${props.name ?? props.label}, busy`);
@@ -90,12 +90,8 @@ export function Btn(props: {
   });
   return (
     <Button
-      ref={(node: ViewRef) => {
-        face = node;
-        props.buttonRef?.(node);
-      }}
+      ref={buttonRef}
       onPress={() => {
-        releaseFocus(face, touchedJustNow());
         if (!busy()) props.onPress();
       }}
       onPressDown={press ? () => !busy() && press.down() : undefined}
@@ -178,27 +174,17 @@ function IconFace(props: {
   roomy?: boolean;
   buttonRef?: (node: ViewRef) => void;
 }) {
+  let buttonRef: ((node: ViewRef) => void) | undefined = props.buttonRef;
   const focus = useTriggerFocus();
-  let face: ViewRef | undefined;
   const hover = () =>
     props.onSidebar ? "hover:bg-sidebar-accent active:bg-sidebar-accent" : "hover:bg-accent active:bg-accent";
   return (
     <View
-      ref={(node: ViewRef) => {
-        face = node;
-        props.buttonRef?.(node);
-      }}
+      ref={buttonRef}
       role="button"
       accessibilityLabel={props.label}
       accessibilityState={{ selected: props.selected, disabled: props.disabled }}
-      onPress={
-        props.disabled
-          ? undefined
-          : () => {
-              releaseFocus(face, touchedJustNow());
-              props.onPress();
-            }
-      }
+      onPress={props.disabled ? undefined : () => props.onPress()}
       focusable={props.disabled ? false : undefined}
       {...(props.disabled ? {} : focus)}
       style={hoverTransition()}

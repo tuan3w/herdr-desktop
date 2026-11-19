@@ -18,6 +18,7 @@ mod ts;
 pub use lang::{Lang, fence_word};
 pub use role::{Role, Span};
 pub use session::{Highlighter, Syntax, Update};
+pub use tm::Tm;
 pub use ts::{Grammar, grammar, loaded};
 
 /// The spans of `text` as `lang` reads it: one full parse. Meant for a background thread: the first

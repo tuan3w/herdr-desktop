@@ -27,7 +27,7 @@ The Board and the sidebar are organised by **project**: a repository (with its l
 - **Order never moves under the pointer.** Today: pinned projects first, then by name; counts and states reorder nothing, and only a pin (`Herdr.pinProject`) moves a project. Inside a project, agents that need you come first, then the rest newest state first (today's code; the decided order is last activity, see above).
 - **Idle is inventory.** A project lists everyone who works, waits or finished, and its first `QUIET_SHOWN` (3) idle agents; the rest fold behind `N more idle in <project>`. A search lists every match.
 - A project's header names its machine, muted, unless it is this computer (the same project on two machines is two groups), `Pinned`, and a waiting count only while the project is collapsed (`ProjectMark`; design/attention.md). Hovering it offers a new session there, with its machine and folder chosen.
-- In the sidebar a row is a state glyph and a title: no program name, no age; only an exception adds a word (`quiet 41m`) or a dashed glyph. The Board's row adds `Last` and `Age`. The program shows in the inspector and in the composer note when it limits you.
+- In the sidebar a row is a type mark, a title and a state glyph: no machine, no age; only an exception adds a word (`quiet 41m`) or a dashed glyph. The Board's row adds `Last` and `Age`. The type mark (which agent it is) is identity, not attention: it is the neutral mark in the muted ink, Claude and Codex in their brand colour, and it never takes the signal colour (`design/attention.md`, `design/components.md`).
 - **Layout.** One table, one column of rows that scrolls (virtualized). A line's place depends only on the lines before it.
 
 ## One count
