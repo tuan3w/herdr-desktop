@@ -19,12 +19,13 @@ runs:
     - name: System packages (Linux)
       if: runner.os == 'Linux'
       shell: bash
-      # GTK and WebKitGTK dev files (nsh's Linux platform links WebKitGTK even when no web view opens), clang for
-      # QuickJS, and what the AT-SPI audit and the screenshots need on a display-less runner.
+      # GTK and WebKitGTK dev files (nsh's Linux platform links WebKitGTK even when no web view opens), GStreamer
+      # (nsh 0.6.0's `Sound` and the `Video` player link it by default, `libgstreamer1.0-dev`), clang for QuickJS,
+      # and what the AT-SPI audit and the screenshots need on a display-less runner.
       run: |
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends \
-          libgtk-4-dev libwebkitgtk-6.0-dev clang pkg-config xvfb dbus-x11 at-spi2-core python3-gi gir1.2-atspi-2.0
+          libgtk-4-dev libwebkitgtk-6.0-dev libgstreamer1.0-dev clang pkg-config xvfb dbus-x11 at-spi2-core python3-gi gir1.2-atspi-2.0
 
     - name: nsh 0.6.0
       shell: bash
