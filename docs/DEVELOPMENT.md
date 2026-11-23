@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Linux with GTK 4.14+ runtime (Ubuntu 24.04 or later).
-- Build packages: `sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev clang pkg-config`. nsh's Linux platform links WebKitGTK (`javascriptcoregtk-6.0`) even for apps that never open a web view, so the `-dev` package is needed from the first `--target linux` build. Headless `nsh check` and `nsh test` need neither.
+- Build packages: `sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev libgstreamer1.0-dev libgstreamer-app1.0-dev libgstreamer-audio1.0-dev clang pkg-config`. nsh's Linux platform links WebKitGTK (`javascriptcoregtk-6.0`) even for apps that never open a web view, so the `-dev` package is needed from the first `--target linux` build; nsh 0.6.0's `sound` feature (on by default) links the three GStreamer dev packages the same way. Headless `nsh check` and `nsh test` need neither.
 - nsh 0.6.0: `NSH_VERSION=v0.6.0 sh -c "$(curl -fsSL https://nsh.dev/install.sh)"` installs `~/.nsh` and links `~/.local/bin/nsh`.
 - zig 0.15.2 on `PATH` (the terminal builds libghostty-vt; see "Building the terminal").
 - Rust 1.99.1 (`rust-toolchain.toml`; rustup installs it on first use), bun for `scripts/*.mjs`, node for `scripts/check-docs.mjs`.
