@@ -309,9 +309,9 @@ impl Media {
         Stop::new(move || FETCHES.listeners.lock().retain(|(i, _)| *i != id))
     }
 
-    /// Where a ready PDF is shown from: a loopback address (`http://127.0.0.1:<port>/f/<token>/<name>`, this computer only)
-    /// that serves exactly that file, with ranges, to the web view that draws it. The token is random and lives as long as
-    /// the copy: `releaseFetch` ends it. Throws for a file that is not ready or not a PDF.
+    /// Where a ready file is shown from: a loopback address (`http://127.0.0.1:<port>/f/<token>/<name>`, this computer
+    /// only) that serves exactly that file, with ranges, to the element that draws it. The token is random and lives as
+    /// long as the copy: `releaseFetch` ends it. Called again for a ready fetch it answers the same address.
     pub fn serve(id: u32) -> Result<String, String> {
         let path = {
             let list = FETCHES.list.lock();
@@ -326,9 +326,6 @@ impl Media {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
-        if !name.to_ascii_lowercase().ends_with(".pdf") {
-            return Err("Only PDF files are shown this way".to_owned());
-        }
         // The name is only a label for the viewer's title: encoded so any file name is a valid path segment.
         let segment: String = name
             .bytes()
@@ -340,6 +337,13 @@ impl Media {
             })
             .collect();
         let server = SERVER.as_ref().map_err(Clone::clone)?;
+        // One address per fetch: the token is the only thing that opens the file, and re-serving it must not make a new one.
+        {
+            let tokens = server.tokens.lock();
+            if let Some((token, _)) = tokens.iter().find(|(_, s)| s.fetch == id) {
+                return Ok(format!("{}/f/{token}/{segment}", server.origin));
+            }
+        }
         let token = new_token()?;
         server
             .tokens
@@ -560,7 +564,7 @@ fn copy(
     }
 }
 
-// ---- Served: a ready PDF, to the web view that shows it --------------------------------------------------------
+// ---- Served: a ready file, to the player or the PDF web view that shows it --------------------------------------
 
 /// What a token opens: a ready file, and the copy it belongs to (released together).
 struct Served {
@@ -605,6 +609,30 @@ fn byte_range(header: &str, len: u64) -> Option<Result<(u64, u64), ()>> {
     } else {
         Ok((first, last))
     })
+}
+
+/// The `Content-Type` of a served file, from its name: the player and the PDF web view both need to know what they got.
+fn content_type_of(path: &std::path::Path) -> &'static str {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    match ext.as_str() {
+        "pdf" => "application/pdf",
+        "mp4" | "m4v" => "video/mp4",
+        "mov" => "video/quicktime",
+        "webm" => "video/webm",
+        "mkv" => "video/x-matroska",
+        "ogv" => "video/ogg",
+        "mp3" => "audio/mpeg",
+        "ogg" | "oga" => "audio/ogg",
+        "opus" => "audio/opus",
+        "wav" => "audio/wav",
+        "flac" => "audio/flac",
+        "aac" | "m4a" => "audio/aac",
+        _ => "application/octet-stream",
+    }
 }
 
 fn serve_file(server: &Server, mut stream: std::net::TcpStream) {
@@ -673,8 +701,9 @@ fn serve_file(server: &Server, mut stream: std::net::TcpStream) {
     } else {
         String::new()
     };
+    let content_type = content_type_of(&path);
     let head = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: application/pdf\r\nContent-Length: {size}\r\n{content_range}Accept-Ranges: bytes\r\nContent-Disposition: inline\r\nX-Content-Type-Options: nosniff\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n"
+        "HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {size}\r\n{content_range}Accept-Ranges: bytes\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n"
     );
     if stream.write_all(head.as_bytes()).is_err() || method == "HEAD" || size == 0 {
         return;

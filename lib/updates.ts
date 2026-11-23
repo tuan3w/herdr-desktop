@@ -2,9 +2,9 @@ import { signal } from "nsh";
 
 /**
  * Notify-only update check: asks GitHub for the releases and says what it found; it never downloads or installs anything.
- * `nsh/updater` does not exist in nsh 0.5.1, and installing is `scripts/install.sh`'s job (`UPDATE_COMMAND`). The app
- * has no `capabilities` in `nsh.json` (a standalone native app), so the fetch is unrestricted; the one host it reaches
- * is `api.github.com` for the release list.
+ * `nsh/updater` does not exist in nsh 0.6.0, and installing is `scripts/install.sh`'s job (`UPDATE_COMMAND`). The app's
+ * `capabilities.network` declares the one rule this reaches (GET `api.github.com/repos/tuan3w/herdr-desktop/releases`),
+ * so the sandbox refuses anything else.
  *
  * The list, not `releases/latest`: GitHub's latest skips pre-releases, and every release of the 0.1.0-alpha line is one, so
  * an alpha never heard of the next alpha (owner, 2026-11-09, on alpha.5 with alpha.6 out: "not sure how to update?").

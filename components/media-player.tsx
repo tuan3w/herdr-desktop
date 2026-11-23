@@ -456,7 +456,7 @@ export function MediaPlayer(props: {
             detail={source.phase() === "cancelled" ? undefined : source.message()}
           />
         </If>
-        <If when={source.phase() === "ready" ? source.local() : undefined}>
+        <If when={source.phase() === "ready" ? source.served() : undefined}>
           {(src) => (
             <>
               <Video

@@ -14,8 +14,10 @@ export type SourcePhase = "starting" | "copying" | "ready" | "failed" | "cancell
 
 export interface Source {
   phase: () => SourcePhase;
-  /** Where the file plays on this computer, once ready. */
+  /** Where the file plays: the loopback address the player loads it from, once ready. */
   local: () => string | undefined;
+  /** The loopback address the file is served from (a `127.0.0.1` URL), once ready. */
+  served: () => string | undefined;
   /** Whether `local` is a copy in the cache (another machine's file). */
   copied: () => boolean;
   /** Why it failed, in words for the person. */
@@ -88,9 +90,19 @@ export function openSource(target: () => { machine: string; path: string }): Sou
           : "cancelled";
   };
 
+  // The loopback address the file plays from: the player never reads a local path, so the `fs` grants do not gate it.
+  // `Media.serve` registers a token (a side effect), so it runs in an effect, not in a computed.
+  const served = signal<string | undefined>(undefined);
+  effect(() => {
+    const v = view();
+    if (v && v.state === "ready") served.set(Media.serve(v.id));
+    else served.set(undefined);
+  });
+
   return {
     phase,
     local: () => view()?.local ?? undefined,
+    served,
     copied: () => view()?.copied ?? false,
     message: () => startError() ?? view()?.message ?? undefined,
     tooBig: () => view()?.tooBig ?? false,
