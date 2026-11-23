@@ -4,9 +4,52 @@ What changed for the person using Herdr Desktop, newest first. The format follow
 
 ## [Unreleased]
 
-- Upgraded to nsh 0.5.1: the window API, the Linux Tab walk, and the `Terminal` and `Tray` components are now nsh's own; the vendored Linux patch is gone.
-- A sidebar row now shows which agent it is: a small mark of the agent's kind at the left of its name (Claude in its own colour, Codex in green, the rest a quiet neutral mark). The state glyph at the right end is unchanged. A plain terminal shows no mark.
-- The sidebar's machine sections now read as headings, not ruled lines: the machine's name is a small quiet label (no hairline above it, no chevron), so the eye goes straight to the projects and agents under it. `Pinned` and every project keep their fold chevron.
+## [0.1.0-alpha.16] - 2026-11-23
+
+### The overview is gone
+
+The Board and answering many agents at once are out. The sidebar is the
+one list of agents, and with nothing open the app shows your last agent,
+or a quiet line that says nothing is open. An agent is answered in its own
+conversation, and `Cmd+J` walks the ones that wait.
+
+- The `Board` shortcut is gone with it; the window no longer opens on a
+  table.
+- A notification that says `5 agents need you` opens no agent: it brings
+  the window forward and the last open one stays.
+- Back stops at the first agent you went to; nothing is behind it.
+
+### This computer starts herdr by itself
+
+The moment the app cannot find herdr's socket, it starts `herdr server`
+in the background and connects as it comes up, so a fresh boot no longer
+sits on a `Not connected · reconnecting` line.
+
+- A socket that is there but dead is left alone, and a second `herdr
+  server` reports `already running` and exits: no duplicate.
+
+- A chat's activity panel is resizable: drag its left edge between 240
+  and 600 pt and it remembers the width.
+- Reading a chat while the agent works no longer pulls you back to the
+  bottom: the moment you scroll up the view stays where you put it, new
+  lines wait, and a small `N new messages` pill is the only way back
+  down.
+- Dropping a file onto a chat or a terminal shades both the same.
+- The app runs on Native Shell 0.6.0.
+
+**Fixed**
+
+- Videos and sounds play again: the player now loads them from the
+  app's own local server, the same way a PDF does. A picture, a PDF, a
+  video and a sound all open as before.
+
+**Not checked**
+
+- The empty state's look at 960 and 760 px, in dark and with large text.
+- The auto start against a live herdr that is really not running, and the
+  `~/.local/bin/herdr` fallback when the app starts it; tested against a
+  stand-in binary.
+- Linux and a screen reader: not run for this release.
 
 ## [0.1.0-alpha.15] - 2026-11-10
 
