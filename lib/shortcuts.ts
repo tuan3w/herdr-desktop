@@ -66,7 +66,6 @@ export type GlobalShortcut =
   | "undo"
   | "nextAttention"
   | "prevAttention"
-  | "board"
   | "changes"
   | "focusPane"
   | "focusSidebar"
@@ -137,7 +136,6 @@ export const GLOBAL: Record<GlobalShortcut, Shortcut> = {
   forward: { keys: ["mod+]"], label: "Forward again", group: "navigate" },
   prevProject: { keys: ["mod+shift+["], label: "Previous project", group: "navigate" },
   nextProject: { keys: ["mod+shift+]"], label: "Next project", group: "navigate" },
-  board: { keys: ["mod+1"], label: "Board", group: "navigate" },
   changes: { keys: ["mod+shift+g"], label: "Review changes", group: "navigate" },
   focusPane: { keys: ["mod+2"], label: "Open pane area", group: "navigate" },
   focusSidebar: { keys: ["mod+0"], label: "Sidebar", group: "navigate" },

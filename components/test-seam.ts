@@ -10,8 +10,8 @@ const COMMAND = /touch \/tmp\/hm-capture-claude\/[^\s\u001b]+/;
 type Name = "mixed" | "storm" | "projects";
 
 /**
- * Test seam for the board's tests: moves the scripted herdr on from what `fixtures/herdr/<name>.json` shows, the way a
- * real agent does (asks something else, finishes, starts), and tells the app with an event. Only for `*.test.tsx`.
+ * Test seam: moves the scripted herdr on from what `fixtures/herdr/<name>.json` shows, the way a real agent does (asks
+ * something else, finishes, starts), and tells the app with an event. Only for `*.test.tsx`.
  */
 export function scripted(name: Name) {
   const fixture = { mixed, storm, projects }[name];

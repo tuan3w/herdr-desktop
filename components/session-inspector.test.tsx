@@ -1,6 +1,8 @@
-import { expect, open, test } from "nsh/test";
+import { beforeEach, expect, open, test } from "nsh/test";
 
 import type { App } from "nsh/test";
+
+import { inspectorOpen, pendingSubagent, resetTold } from "#lib/session-inspector";
 
 /**
  * A chat's inspector, through `session-inspector-lab.tsx`: a Claude Code chat whose synthetic log names three subagents (one
@@ -12,6 +14,13 @@ const lab = (params: Record<string, unknown> = {}) =>
 const label = (re: string) => `label:/${re}/`;
 const texts = (app: App) => app.texts();
 const logged = (app: App, part: string) => texts(app).some((t) => t.startsWith("Log:") && t.includes(part));
+
+// The lab apps stay open until the file's tests end and share the run-level inspector state: start each test clean.
+beforeEach(() => {
+  resetTold();
+  inspectorOpen.set(false);
+  pendingSubagent.set(null);
+});
 
 test("rows sit under their section, which says the state once; the agent type and the whole prompt are not on a row", async () => {
   const app = await lab({ open: true });
@@ -61,6 +70,23 @@ test("a failure that arrives while the chat is open opens the inspector by itsel
   await app.press(label("^Clear, move 1 to Finished$"));
   await app.waitUntil(() => !app.shows(label("^Needs you")));
   expect(app.shows(label("^Finished 5"))).toBe(true);
+});
+
+test("a failure opens the inspector once: closing it and a later update do not pull it back", async () => {
+  const app = await lab();
+  await app.waitFor(label("show activity$"));
+  await app.press("Subagent fails");
+  await app.waitFor(label("^Needs you, 1$"));
+  await app.press(label("Close inspector"));
+  await app.waitUntil(() => !app.shows(label("Needs you")));
+  // A later update of the same log (the failure is still unacknowledged): the inspector stays closed.
+  await app.press("Poke");
+  await app.waitUntil(() => app.shows(label("show activity$")));
+  expect(app.shows("label:Close inspector")).toBe(false);
+  // File the failure and close the inspector: the app stays open for the next tests, and they start with it closed.
+  await app.press(label("show activity$"));
+  await app.press(label("^Clear, move 1 to Finished$"));
+  await app.press(label("Close inspector"));
 });
 
 test("a subagent opens its own conversation, read-only, and Back returns to the list", async () => {

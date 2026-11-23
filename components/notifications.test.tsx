@@ -4,9 +4,9 @@ import { expect, test } from "nsh/test";
 import type { TestNotification } from "herdr-desktop/native";
 import type { App } from "nsh/test";
 
-import { ENTRY, FIRST, onBoard, openAgents, ready, settle, shown, TERMINAL_ON } from "../app-seam";
+import { ENTRY, FIRST, front, openAgents, ready, settle, shown, TERMINAL_ON } from "../app-seam";
 import mixed from "../fixtures/herdr/mixed.json";
-import { scripted, sentKeys } from "./board-seam";
+import { scripted, sentKeys } from "./test-seam";
 
 ENTRY.path = "../App.tsx";
 
@@ -70,10 +70,9 @@ test("a button for a question that changed since the notification sends nothing 
   expect(shownNow()[0].buttons).toEqual([]);
 });
 
-test("five agents at once give three notifications and a summary, and a click on the summary opens the board", async () => {
+test("five agents at once give three notifications and a summary, and a click on the summary opens the last agent", async () => {
   const app = await away();
   await openAgents(app, FIRST);
-  expect(onBoard(app)).toBe(false);
   const agents = scripted("mixed");
   for (const pane of ["w1:p3", "w1:p4", "w1:p5", "w2:p1", "w2:p2"]) agents.become(pane, "blocked", asking("ls"));
   await app.waitUntil(() => shownNow().some((n) => n.title === "5 agents need you"));
@@ -81,8 +80,9 @@ test("five agents at once give three notifications and a summary, and a click on
 
   const summary = shownNow().find((n) => n.title === "5 agents need you")!;
   Herdr.testPressNotification(summary.id, "default");
-  await app.waitUntil(() => onBoard(app));
+  // The summary names no agent: it opens none of the five that wait, and the last agent open stays in front.
   await settle(app);
+  expect(await front(app)).toBe(FIRST);
 });
 
 test("with the switch off, or while the window is in front, nothing is announced", async () => {
@@ -91,12 +91,12 @@ test("with the switch off, or while the window is in front, nothing is announced
   // In front, switch on.
   Herdr.setSetting("notify.needsYou", true);
   agents.become("w1:p4", "blocked", asking("echo one"));
-  await app.waitFor("label:Board, 3 need you");
+  await app.waitFor("label:/^Refactor ledger, omp, needs you/");
   // Away, switch off.
   Herdr.setSetting("notify.needsYou", false);
   Herdr.setBackground(true);
   agents.become("w1:p5", "blocked", asking("echo two"));
-  await app.waitFor("label:Board, 4 need you");
+  await app.waitFor("label:/^upgrade deps, codex, needs you/");
   // Switched on, away: the four already blocked are seen, a newcomer is news.
   Herdr.setSetting("notify.needsYou", true);
   agents.become("w1:p3", "blocked", asking("echo three"));

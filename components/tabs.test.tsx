@@ -21,7 +21,7 @@ test("a tab is read as its title, its state and its place among the tabs", async
   expect(app.shows(tab(SECOND, "2 of 2"))).toBe(true);
 });
 
-test("the front tab offers its cross, another tab only while the pointer is over it, and the board's tab never", async () => {
+test("the front tab offers its cross, and another tab only while the pointer is over it", async () => {
   const app = await ready(undefined, { storage: TERMINAL_ON });
   await openTerminals(app, FIRST, SECOND);
   expect(app.shows(close(SECOND))).toBe(true);
@@ -34,10 +34,6 @@ test("the front tab offers its cross, another tab only while the pointer is over
   await app.hover(tab(SECOND, "2 of 2"));
   await settle(app);
   expect(app.shows(close(FIRST))).toBe(false);
-
-  await app.press("Board");
-  await settle(app);
-  expect(app.shows("label:/^Close tab Board/")).toBe(false);
 });
 
 test("pressing the cross of a tab closes that view and leaves the others", async () => {

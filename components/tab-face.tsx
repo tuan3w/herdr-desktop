@@ -8,7 +8,6 @@ import { Monogram } from "#components/project-parts";
 import { Clipped, copyMenu, copyText, Icon, Tipped } from "#kit";
 import { checkoutName } from "#lib/changes";
 import {
-  BOARD,
   closeTab,
   folderProject,
   groupOf,
@@ -80,7 +79,7 @@ const offline = computed<Set<string>>(() => {
 });
 
 /** What a tab is: an agent's view (its project's tile), or a view of the app whose icon is its tile. */
-export type TabKind = "agent" | "board" | "changes" | "files";
+export type TabKind = "agent" | "changes" | "files";
 
 /** The one badge a tile carries, by precedence (`design/tabs.md`): needs you, then output not yet seen, then working. */
 export type TabBadge = "signal" | "unseen" | "working" | "";
@@ -100,7 +99,7 @@ export function tabBadge(status: AgentStatus, active: boolean): TabBadge {
  */
 const DOT = { right: -5, top: -5 } as const;
 
-const KIND_ICON = { board: "list", changes: "pencil", files: "folder" } as const;
+const KIND_ICON = { changes: "pencil", files: "folder" } as const;
 
 /**
  * The frame `DockArea` draws around a chip (its `tabClass`): a tint at rest, a deeper one under the pointer, a raised card
@@ -232,28 +231,24 @@ export function TabFace(props: { tab: DockTab }) {
     return key === null ? undefined : rowOf(key);
   };
   const gone = () => at !== null && (info() === null || info()!.feedState === "gone");
-  const board = props.tab.panel === BOARD;
-  const kind: TabKind = board ? "board" : changes ? "changes" : files ? "files" : "agent";
+  const kind: TabKind = changes ? "changes" : files ? "files" : "agent";
   const plain = kind !== "agent";
   const title = () =>
-    board
-      ? "Board"
-      : changes
-        ? `Changes \u00b7 ${checkoutName(changes.machine, changes.cwd)}`
-        : files
-          ? `Files \u00b7 ${files.dir.replace(/\/+$/, "").split("/").pop() || "/"}`
-          : chat
-            ? (row()?.name ?? "Chat")
-            : gone()
-              ? "Agent gone"
-              : `${info() ? terminalTitle(info()!) : (at?.pane ?? "")} (terminal)`;
+    changes
+      ? `Changes · ${checkoutName(changes.machine, changes.cwd)}`
+      : files
+        ? `Files · ${files.dir.replace(/\/+$/, "").split("/").pop() || "/"}`
+        : chat
+          ? (row()?.name ?? "Chat")
+          : gone()
+            ? "Agent gone"
+            : `${info() ? terminalTitle(info()!) : (at?.pane ?? "")} (terminal)`;
   const status = () => (chat ? (row()?.status ?? "unknown") : gone() ? "unknown" : (info()?.status ?? "unknown"));
   /** The folder the tab's agent works in (a Changes tab's checkout), when known. */
   const folder = () => changes?.cwd ?? files?.dir ?? (chat ? row()?.cwd : info()?.cwd);
   const machine = () => changes?.machine ?? files?.machine ?? (chat ? row()?.machine : at?.machine);
-  /** The project this tab's tile stands for: the row's, else the one holding the folder; `undefined` for the board and unknowns. */
+  /** The project this tab's tile stands for: the row's, else the one holding the folder; `undefined` for unknowns. */
   const project = () => {
-    if (board) return undefined;
     const key = chat
       ? row()?.project
       : changes

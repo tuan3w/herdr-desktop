@@ -6,7 +6,7 @@ import { Btn, compact, Icon, IconButton, PopupRoot, snug, TabBar, TabItem, Theme
 import type { IconName } from "#kit";
 import { startHerdr } from "#lib/herdr";
 import { RAIL_WIDTH, SIDEBAR_WIDTH } from "#lib/layout";
-import { boardFront } from "#lib/settings";
+import { sidebarCollapsed } from "#lib/settings";
 import { loadSidebar } from "#lib/sidebar";
 import type { AgentStatus } from "#lib/status";
 
@@ -31,7 +31,7 @@ const params = host.params as { fixture?: string };
 const variant = typeof params.fixture === "string" ? params.fixture : "baseline";
 startHerdr("", "mixed");
 void loadSidebar();
-if (variant === "w") boardFront.set(true);
+if (variant === "w") sidebarCollapsed.set(true);
 
 /** The default theme of a lab has no `success` token: a stand-in green. */
 const GREEN = "#2fa35f";

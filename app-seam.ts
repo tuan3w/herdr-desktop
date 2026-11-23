@@ -21,7 +21,20 @@ export function seeded(
   name: "mixed" | "storm" | "empty" | "projects" | "unrestored",
   extra: NonNullable<Opened> = {},
 ): Promise<App> {
-  return open(ENTRY.path, { ...DESKTOP, platform: "linux", clock: {}, ...extra, host: { params: { fixture: name } } });
+  const width = extra.width ?? DESKTOP.width;
+  const height = extra.height ?? DESKTOP.height;
+  return open(ENTRY.path, {
+    ...DESKTOP,
+    platform: "linux",
+    clock: {},
+    ...extra,
+    host: { params: { fixture: name, testWidth: extra.width ?? DESKTOP.width } },
+  }).then(async (app) => {
+    // nsh 0.5.x's headless engine: the viewport starts phone-sized (390 pt) even though `open()`'s width sets the
+    // window. `setViewport` resizes it to match, so the layout has the real width from the first draw.
+    await app.setViewport(width, height);
+    return app;
+  });
 }
 
 /** The agents of the `mixed` fixture the app tests use: two need you, one is to review. */
@@ -46,10 +59,9 @@ export const nameOf = (panel: string): string => NAME[panel.slice(panel.indexOf(
 
 /** The mirror of an agent's pane, which is on screen only while its tab is the displayed one. */
 export const terminal = (name: string): string => `label:Terminal, ${name} on This computer`;
-/** An agent's row in the sidebar (the board's card has the same name, and comes later in the tree). */
+/** An agent's row in the sidebar. */
 export const sidebarRow = (name: string): string => `label:/^${name}, / >> nth=0`;
 export const shown = (app: App, name: string): boolean => app.shows(terminal(name));
-export const onBoard = (app: App): boolean => app.shows("label:Projects");
 export const settle = (app: App): Promise<void> => app.clock!.runFor(400);
 
 /** A chat whose session is open: the message box is there and takes text (while the agent opens it, the box is off). */
@@ -84,7 +96,7 @@ export const TERMINAL_ON: Record<string, string> = { "herdr.settings.v1": JSON.s
 /** The `mixed` fixture, once its board has arrived and the engine is done reading; `extra` seeds storage and the like. */
 export async function ready(platform?: "macos" | "windows" | "linux", extra: NonNullable<Opened> = {}): Promise<App> {
   const app = await seeded("mixed", platform ? { ...extra, platform } : extra);
-  await app.waitFor("label:Board, 2 need you");
+  await app.waitFor("label:Nothing open");
   await quiet(app);
   return app;
 }
@@ -106,10 +118,6 @@ export async function pressSettled(app: App, selector: string, done: string | ((
   }
   await app.waitUntil(holds);
 }
-
-/** The app opens on the Board, where the sidebar is the rail: this brings back the list of projects and agents for the visit. */
-export const expandSidebar = (app: App): Promise<void> =>
-  pressSettled(app, "label:Expand sidebar", "label:Search projects and agents");
 
 /**
  * Lists the sidebar's quiet projects (`N quiet projects in <section>`) when `target` is not on screen: a project where
@@ -140,12 +148,12 @@ export async function openTerminals(app: App, ...names: string[]): Promise<void>
   }
 }
 
-/** The agent whose tab is displayed in the first group of the context shown (`board` for the board, empty for a project with no tab), whichever view of it is open: read from the saved layout. */
+/** The agent whose tab is displayed in the first group of the context shown (empty for the home and a project with no tab), whichever view of it is open: read from the saved layout. */
 export async function front(app: App): Promise<string> {
   const [group] = await saved(app);
   if (!group) return "";
   const panel = group.panels[group.active];
-  return panel === "board" ? panel : nameOf(panel);
+  return panel ? nameOf(panel) : "";
 }
 
 /** Opens these agents' tabs from the sidebar, in order (a quiet project's agent through its quiet line): each opens in its default view (a chat for omp, Claude Code and Codex). */

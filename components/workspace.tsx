@@ -1,7 +1,6 @@
 import { cleanup, effect, untracked, View } from "nsh";
 import { DockArea } from "nsh/base";
 
-import { Board } from "#components/board";
 import { Changes } from "#components/changes";
 import { FilesTab } from "#components/files";
 import { NotRunning } from "#components/not-running";
@@ -10,12 +9,10 @@ import { SessionTab } from "#components/session-tab";
 import { dockWidth, TabFace, tabFrameClass, tabsCompact } from "#components/tab-face";
 import { TerminalTab } from "#components/terminal-tab";
 import { Btn, EDGE, Empty } from "#kit";
-import { openSettings } from "#lib/actions";
 import { mainInset } from "#lib/chrome";
 import {
   attach,
   activated,
-  BOARD,
   entered,
   focused,
   layout,
@@ -30,16 +27,16 @@ import {
 } from "#lib/dock";
 import { meta } from "#lib/herdr";
 import { contextEnter, hoverTransition } from "#lib/motion";
-import { openAgent } from "#lib/open-agent";
 
 /**
- * The tab area: splits of tab groups the person arranges. The board is the home tab (never closable); each opened agent
- * is a chat tab (`session:<machine>/<id>`: a keeper session, or the chat read from a terminal agent's log) or a terminal
+ * The tab area: splits of tab groups the person arranges. Each opened agent is a chat tab
+ * (`session:<machine>/<id>`: a keeper session, or the chat read from a terminal agent's log) or a terminal
  * tab (`terminal:<machine>/<paneId>`, the herdr client in a pty). A tab is a view: closing it leaves the pane or the session running. Dragging a tab
  * is for the pointer; every drag has a keyboard command (`Move tab to split right`, `Move tab to other group`, ...) in
  * the palette, and `mod+\` and `mod+shift+\` split. The layouts (one per project, and the home's) are `lib/dock.ts`'s and
- * are saved there; a project with no tab open shows its own card (`ProjectEmpty`). Switching project swaps the layout, and
- * the incoming workspace fades in over a tenth of a second (`contextEnter`): the one motion on a switch.
+ * are saved there; a context with no tab open shows `ProjectEmpty` (a project's own card, or the empty state at the home).
+ * Switching project swaps the layout, and the incoming workspace fades in over a tenth of a second (`contextEnter`): the
+ * one motion on a switch.
  */
 
 /** What a pane tab shows once herdr no longer has its pane (closed in herdr, or a saved tab for a pane that is gone). */
@@ -120,14 +117,9 @@ export function Workspace() {
         onPanelActiveChange={({ panel, active }) => {
           if (active) activated(panel);
         }}
-        panels={[{ id: BOARD, closable: false }]}
+        panels={[]}
         renderPanel={({ id }) =>
-          id === BOARD ? (
-            <Board
-              onOpen={(row, options) => void openAgent(row, options)}
-              onAddMachine={() => openSettings("machines")}
-            />
-          ) : id.startsWith("session:") ? (
+          id.startsWith("session:") ? (
             <SessionPanel id={id} />
           ) : id.startsWith("changes:") ? (
             <ChangesPanel id={id} />

@@ -72,11 +72,11 @@ test("off, a terminal tab restored from the saved layout shows the same state an
     center: {
       type: "split",
       axis: "horizontal",
-      children: [{ type: "tabs", panels: ["board", "terminal:local/w1:p1"], activeIndex: 1 }],
+      children: [{ type: "tabs", panels: ["terminal:local/w1:p1"], activeIndex: 0 }],
     },
   };
   const app = await seeded("mixed", { storage: { "herdr.dock.v1": JSON.stringify(layout) } });
-  await app.waitFor("label:Board, 2 need you");
+  await app.waitFor("label:/^payments, This computer/");
   Herdr.testSetProgram(ECHO);
   await app.keyboard.press("mod+shift+]");
   // This agent has a chat, so the tab offers it beside the command.

@@ -1,7 +1,7 @@
 import { Herdr, Sessions } from "herdr-desktop/native";
 import { afterEach, expect, test } from "nsh/test";
 
-import { ENTRY, onBoard, quiet, seeded, settle } from "../app-seam";
+import { ENTRY, quiet, seeded, settle } from "../app-seam";
 import projects from "../fixtures/herdr/projects.json";
 import { endSessions } from "./chat-parts-seam";
 
@@ -48,8 +48,8 @@ test("opening a chat row opens its chat tab", async () => {
   await app.waitFor("label:/^tmp, .*, idle, web, This computer/", { timeout: 10000 });
   await app.press("label:/^tmp, .*, idle, web, This computer/ >> nth=0");
   await settle(app);
-  expect(app.count("role:tab")).toBe(0);
-  expect(onBoard(app)).toBe(false);
+  // The chat's header is on screen: the tab opened in the project's workspace.
+  expect(app.count("label:/, session details$/")).toBe(1);
 });
 
 test("renaming a chat from the palette names it in the sidebar and the header, and an empty name brings the agent's own back", async () => {

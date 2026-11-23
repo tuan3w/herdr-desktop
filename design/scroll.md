@@ -38,7 +38,7 @@ A scrolling list leaves 12 pt at its end for the bar (`changes-list.tsx` pads it
 
 ## Keeping the place
 
-- The transcript has two thresholds (`lib/transcript-scroll.ts`). `FOLLOW_PT` (12 pt) is how far from the end the list still pulls the view down as rows grow: one wheel notch up is about 50 pt and means "stay here", and a streaming row must not take the reader back. `AT_END_PT` (64 pt) is when the tab counts as at the end (`atEnd`, the `Jump to latest` pill, the unseen count): the pill does not flicker on a few points of scroll. Between 12 and 64 pt the view stays where the reader put it and the pill stays quiet.
+- The transcript has two thresholds (`lib/transcript-scroll.ts`). `FOLLOW_PT` (12 pt) is how far from the end the list still pulls the view down as rows grow; a wheel notch up (about 50 pt) is well past it, so a streaming row never takes the reader back. `AT_END_PT` (64 pt) is when the tab counts as at the end (`atEnd`, the `Jump to latest` pill, the unseen count): the pill does not flicker on a few points of scroll. Between 12 and 64 pt the view stays where the reader put it and the pill stays quiet.
 - PageUp, PageDown, Home and End write the offset they scroll to right away. The list reports its scroll at most every 50 ms and a held key repeats every 30, so a key that read the reported offset would lose a page.
 - A page key glides: nsh's eased scroll (`animated: true`, 300 ms ease-out on macOS, run by the platform, not by JS); under reduced motion it jumps. While a glide runs the list reports the offsets it passes, so a press within `PAGE_AIM_MS` (400 ms) pages on from where the last one aimed, and a held key still moves a page a press. Home and End jump; following new content never animates.
 

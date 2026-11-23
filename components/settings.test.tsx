@@ -231,10 +231,10 @@ test("a press outside Settings closes it, except while a machine's form is being
   await a.press("label:Machines");
   await a.press("Add machine");
   await a.waitFor("label:Name *");
-  await a.press("id:dialog-scrim");
+  await a.press("id:dialog-scrim-edge");
   expect(a.shows("label:Name *")).toBe(true);
   await a.keyboard.press("escape");
   await a.waitFor("label:Name *", { state: "gone" });
-  await a.press("id:dialog-scrim");
+  await a.press("id:dialog-scrim-edge");
   await a.waitFor("label:Settings sections", { state: "gone" });
 });

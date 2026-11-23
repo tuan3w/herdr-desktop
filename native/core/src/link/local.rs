@@ -3,6 +3,7 @@
 use std::io::{self, BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
@@ -30,6 +31,10 @@ pub fn default_socket_path() -> PathBuf {
 pub struct LocalWire {
     socket_path: PathBuf,
     next_id: AtomicU64,
+    /// Starts a headless `herdr server` while the socket is missing (the real local link; never a test).
+    auto_start: bool,
+    /// The `herdr` binary auto-start uses; `None` resolves the installer's `~/.local/bin/herdr` (tests set a stand-in).
+    herdr_bin: Option<PathBuf>,
 }
 
 impl LocalWire {
@@ -38,7 +43,21 @@ impl LocalWire {
         Self {
             socket_path: socket_path.into(),
             next_id: AtomicU64::new(1),
+            auto_start: false,
+            herdr_bin: None,
         }
+    }
+
+    /// Starts the local `herdr` (headless) while the socket is missing. Off in tests.
+    pub fn auto_start(mut self, on: bool) -> Self {
+        self.auto_start = on;
+        self
+    }
+
+    /// The `herdr` binary auto-start runs; tests substitute a stand-in that only records the call.
+    pub fn herdr_bin(mut self, path: impl Into<PathBuf>) -> Self {
+        self.herdr_bin = Some(path.into());
+        self
     }
 
     /// The socket this wire talks to.
@@ -47,6 +66,12 @@ impl LocalWire {
     }
 
     fn connect(&self) -> Result<UnixStream, WireError> {
+        // A missing socket means herdr is not running: start it (detached) and let the link's
+        // backoff reconnect as the socket appears. A present-but-dead socket is left alone. A
+        // second `herdr server` attaches to the running one, so repeated starts make no duplicate.
+        if self.auto_start && !self.socket_path.exists() {
+            self.start_herdr();
+        }
         UnixStream::connect(&self.socket_path).map_err(|e| {
             // Not fatal: herdr may be starting. Whether it is installed at all is decided higher up.
             WireError::retryable(format!(
@@ -54,6 +79,32 @@ impl LocalWire {
                 self.socket_path.display()
             ))
         })
+    }
+
+    /// Spawns `herdr server` detached; its PID is never kept (it must outlive the app). Best
+    /// effort: a missing binary is the same as herdr not starting.
+    fn start_herdr(&self) {
+        // A GUI app's PATH is often the system one, without `~/.local/bin` where the installer puts
+        // herdr, so try that first and fall back to the PATH.
+        let program = match &self.herdr_bin {
+            Some(bin) => bin.clone(),
+            None => {
+                let local = dirs::home_dir()
+                    .unwrap_or_default()
+                    .join(".local/bin/herdr");
+                if local.exists() {
+                    local
+                } else {
+                    PathBuf::from("herdr")
+                }
+            }
+        };
+        let _ = Command::new(&program)
+            .arg("server")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn();
     }
 
     fn send(

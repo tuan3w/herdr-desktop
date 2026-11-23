@@ -10,7 +10,6 @@ import { StatusGlyph } from "#components/status-glyph";
 import { SubagentLines } from "#components/subagent-lines";
 import { TurnPictures } from "#components/turn-pictures";
 import { ActionMenu, type CopyEntry, copyMenu, copyText, FOCUS_RING, Icon, type IconName, IconButton, NUM } from "#kit";
-import { openChanges } from "#lib/changes";
 import { CHAT_COLUMN } from "#lib/layout";
 import type { LinkPanel } from "#lib/link-panel";
 import { ofKind } from "#lib/list-item";
@@ -19,6 +18,7 @@ import { type Arrivals, arrivals, arriving } from "#lib/motion";
 import { tally } from "#lib/perf-counts";
 import { plainText } from "#lib/plain-text";
 import type { SessionModel } from "#lib/session";
+import { openInspectorChanges } from "#lib/session-inspector";
 import { withoutPlaceholders } from "#lib/session-pictures";
 import {
   type Call,
@@ -278,7 +278,7 @@ function EffectsRow(props: { row: Extract<Row, { kind: "effects" }>; ctx: RowCon
       <If when={edited()}>
         {(e) => (
           <Button
-            onPress={() => void openChanges(props.ctx.machine, props.ctx.cwd, { edited: e().paths })}
+            onPress={() => openInspectorChanges(props.ctx.machine, props.ctx.cwd, e().paths)}
             accessibilityLabel={`${editedText()}, ${e().added} added, ${e().removed} removed. Open changes`}
             class={`-ml-2 min-h-9 flex-row items-center gap-2 self-start rounded-md px-2 hover:bg-accent ${FOCUS_RING}`}
           >

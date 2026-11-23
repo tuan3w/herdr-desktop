@@ -10,7 +10,6 @@ import { announce, effect, host, keymap, lifecycle, mount, View, windowSize } fr
 import { ResizablePanel, ResizablePanelGroup, Scrollbar } from "nsh/base";
 import { isAvailable, Menu, Window } from "nsh/desktop";
 
-import { BulkBar } from "#components/bulk-bar";
 import { DevPanel } from "#components/dev-panel";
 import { NameDialog } from "#components/name-dialog";
 import { NewSession } from "#components/new-session";
@@ -23,7 +22,7 @@ import { StartAgent } from "#components/start-agent";
 import { StatusBar } from "#components/status-bar";
 import { Switcher } from "#components/switcher";
 import { Workspace } from "#components/workspace";
-import { notify, PopupRoot, rail, Skeleton, snug, ThemeRoot, ToastHost } from "#kit";
+import { notify, PopupRoot, rail, setTestWidth, Skeleton, snug, ThemeRoot, ToastHost } from "#kit";
 import {
   appMenu,
   globalActions,
@@ -35,7 +34,7 @@ import {
   shortcutsOpen,
 } from "#lib/actions";
 import { controls, mainInset, setWindowChrome } from "#lib/chrome";
-import { BOARD, dockReady, focused, loadDock, openTerminal, openSession, showBoard, startDock } from "#lib/dock";
+import { dockReady, lastPane, loadDock, openPanel, openTerminal, openSession, startDock } from "#lib/dock";
 import { board, startHerdr } from "#lib/herdr";
 import { warmCode } from "#lib/highlight";
 import { RAIL_WIDTH, SIDEBAR_WIDTH } from "#lib/layout";
@@ -44,14 +43,8 @@ import { startNav, switcherOpen } from "#lib/nav";
 import { openTarget } from "#lib/open-agent";
 import { saveFailures } from "#lib/save";
 import { scrollbarTheme } from "#lib/scrollbars";
-import {
-  alwaysShowScrollbars,
-  boardExpanded,
-  boardFront,
-  loadSettings,
-  setSidebarCollapsed,
-  settingsReady,
-} from "#lib/settings";
+import { loadInspectorWidth } from "#lib/session-inspector";
+import { alwaysShowScrollbars, loadSettings, setSidebarCollapsed, settingsReady } from "#lib/settings";
 import { type GlobalShortcut, GLOBAL, keysOf } from "#lib/shortcuts";
 import { loadSidebar, sidebarReady, sidebarWidth } from "#lib/sidebar";
 import { settleDrag } from "#lib/sidebar-width";
@@ -60,6 +53,9 @@ import { loadViews } from "#lib/view-state";
 // A test opens the app with `host: { params: { fixture } }`: the engine then runs against the scripted herdr (the Rust
 // side honours it only with HERDR_DESKTOP_TEST=1). In the real app `host.params` is empty.
 const fixture = typeof host.params.fixture === "string" ? host.params.fixture : undefined;
+// The headless test engine's `windowSize()` reports the phone-sized default (390 pt) on the first draw, before the
+// `open()` width takes effect. A test names the width it wants the responsive rules to see through `host.params.testWidth`.
+if (typeof host.params.testWidth === "number") setTestWidth(host.params.testWidth);
 // A scripted run keeps its files in a fresh temporary directory (the empty path), never in the person's data directory.
 startHerdr(fixture ? "" : (process.dataDir ?? ""), fixture);
 void loadSettings();
@@ -72,14 +68,15 @@ startNav();
 // "Always show scrollbars" applies at once.
 effect(() => Scrollbar.setTheme(scrollbarTheme(alwaysShowScrollbars())));
 void loadSidebar();
+void loadInspectorWidth();
 for (const warning of Herdr.warnings()) notify(warning, { lasting: true });
 
-// A click on a desktop notification brings the window forward and shows what it was about: that agent's tab, or the
-// board for a summary. (The window manager may refuse to raise a window; the tab opens anyway.)
+// A click on a desktop notification brings the window forward and shows what it was about: that agent's tab, or, for a
+// summary, the last agent open. (The window manager may refuse to raise a window; the tab opens anyway.)
 Herdr.onNotificationOpen(({ machine, pane }) => {
   if (isAvailable) Window.get("main")?.focus();
   if (machine && pane) void openTarget(machine, pane);
-  else void showBoard();
+  else if (lastPane()) void openPanel(lastPane()!);
 });
 
 /** First frame while the saved layout loads: the shape of the window, so nothing jumps when it arrives. */
@@ -128,11 +125,6 @@ function App() {
   effect(() => Herdr.setBackground(lifecycle() !== "active"));
 
   let loading = false;
-  // The Board is the overview, so the sidebar is the rail while it is in front; what the person expanded there is for that visit.
-  effect(() => {
-    boardFront.set(focused() === BOARD);
-    boardExpanded.set(false);
-  });
   const ready = () => dockReady() && settingsReady() && sidebarReady();
   // In a snug window (under 1100) the full sidebar is its narrow width and its edge is fixed; the person's own width is kept for wide windows.
   const fixedWidth = () => rail() || snug();
@@ -188,7 +180,6 @@ function App() {
                 <View class="min-h-0 min-w-0 flex-1">
                   <Workspace />
                 </View>
-                <BulkBar />
                 <StatusBar />
               </View>
             </If>

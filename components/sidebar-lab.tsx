@@ -6,7 +6,6 @@ import { Btn, PopupRoot, ThemeRoot, ToastHost } from "#kit";
 import { newSessionOpen, newSessionProject, settingsPage } from "#lib/actions";
 import { focused, terminalKey } from "#lib/dock";
 import { allRows, board, revision, startHerdr } from "#lib/herdr";
-import { selected } from "#lib/selection";
 import { loadSidebar, treeOffset } from "#lib/sidebar";
 
 import big from "../fixtures/herdr/big.json";
@@ -61,7 +60,6 @@ function Lab() {
           <Text>{`new session folder ${newSessionProject()?.folder ?? "none"}`}</Text>
           <Text>{`new session worktree ${newSessionProject()?.worktree === true}`}</Text>
           <Text>{`settings page ${settingsPage() ?? "closed"}`}</Text>
-          <Text>{`picked ${selected().length}`}</Text>
           <Text>{`board tick ${revision()}`}</Text>
           <Text>{`tree offset ${Math.round(treeOffset())}`}</Text>
         </View>

@@ -44,10 +44,10 @@ const TABLE_CLASSES = {
   tableHeaderCell: "font-medium",
 };
 
-/** The parts the text view sizes on its own, at the message's size (`size`): the page's 14 pt, or 13 inside a bubble. */
+/** The parts the text view sizes on its own, at the message's size (`size`): the page's 14 pt, or 13 inside a bubble. `heading` overrides `TextView`'s built-in large semibold, which would run a subagent's `# Target` out of the inspector's narrow column. */
 const TEXT_PARTS = {
-  base: { paragraph: "text-base", listMarker: "text-base" },
-  sm: { paragraph: "text-sm", listMarker: "text-sm" },
+  base: { paragraph: "text-base", listMarker: "text-base", heading: "text-base font-semibold" },
+  sm: { paragraph: "text-sm", listMarker: "text-sm", heading: "text-base font-semibold" },
 };
 
 /** The parts of messages read lately, by their text: a recycled cell shown a message again does not split it again. */

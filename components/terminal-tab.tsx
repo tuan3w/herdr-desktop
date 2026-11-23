@@ -266,7 +266,7 @@ function LiveTerminal(props: TerminalTabProps) {
                 <View
                   accessibilityElementsHidden
                   importantForAccessibility="no-hide-descendants"
-                  class="absolute inset-0 items-center justify-center border-2 border-dashed border-primary bg-background/80"
+                  class="absolute inset-0 items-center justify-center border-2 border-dashed border-primary bg-background"
                 >
                   <Text class="text-sm font-medium text-foreground">{`Drop to send to ${i().machineName}: ${i().cwd ?? "its home folder"}`}</Text>
                 </View>

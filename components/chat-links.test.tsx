@@ -25,7 +25,8 @@ test("a picture path in a message is a thumbnail with its name and pixel size, a
   await app.waitFor("label:/^shot-1\\.png, \\/.*assets\\/shot-1\\.png$/");
   // The panel names the picture and its size, and fits it.
   await app.waitUntil(() => said(app, "640 × 400 · assets"));
-  expect(app.shows("label:The account page after sign-in")).toBe(true);
+  // The chat's picture is still there (a chip now, the panel having narrowed it), distinct from the panel's "· assets" caption.
+  expect(said(app, "shot-1.png")).toBe(true);
 });
 
 test("a picture only named in the agent's words gets its thumbnail under the paragraph", async () => {
@@ -118,11 +119,6 @@ test("a file link shows the file's name and line, and opens the file at that lin
   await app.waitFor(PANEL);
   await app.waitFor("label:main.rs, read only");
   expect(app.shows("label:/^main\\.rs:12, \\/.*src\\/main\\.rs:12$/")).toBe(true);
-
-  // The next link replaces it: one panel per chat.
-  await app.press(`text:${PR} >> nth=0`);
-  await app.waitFor("label:main.rs, read only", { state: "gone" });
-  expect(app.count(PANEL)).toBe(1);
 });
 
 test("Escape closes the panel while the pointer is over it, and not from the message box", async () => {

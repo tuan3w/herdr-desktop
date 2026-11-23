@@ -2,8 +2,9 @@ import { announce, cleanup, computed, effect, keymap, lifecycle, List, signal, T
 
 import type { ObservedView } from "herdr-desktop/native";
 
+import { Changes } from "#components/changes";
 import { SubagentChat } from "#components/subagent-chat";
-import { Btn, Clipped, FOCUS_RING, FOCUS_RING_INSET, Icon, IconButton, NUM, notify, snug, Tipped } from "#kit";
+import { Btn, Clipped, FOCUS_RING, FOCUS_RING_INSET, Icon, IconButton, NUM, notify, Segmented, Tipped } from "#kit";
 import { BAR } from "#lib/layout";
 import { hoverTransition } from "#lib/motion";
 import { latest, type SessionPort } from "#lib/session";
@@ -11,8 +12,6 @@ import {
   CONFIRM_AFTER_MS,
   CONFIRM_MS,
   type Entry,
-  INSPECTOR_READING_WIDTH,
-  INSPECTOR_WIDTH,
   agoText,
   elapsedText,
   entriesOf,
@@ -20,7 +19,9 @@ import {
   type FinishedGroup,
   finishedLine,
   inspectorOpen,
+  inspectorTab,
   pendingSubagent,
+  toldFailures,
   runningLine,
   type Sections,
   sectionsOf,
@@ -71,16 +72,23 @@ export function createActivity(observed: () => ObservedView | undefined, active:
     const timer = setInterval(() => now.set(Date.now()), 60_000);
     return () => clearInterval(timer);
   });
-  const told = new Set<string>();
+  const thisChat = new Set<string>();
   effect(() => {
     const needs = sections().needs;
-    const fresh = needs.filter((e) => !told.has(e.key));
+    const fresh = needs.filter((e) => !toldFailures.has(e.key));
     if (fresh.length === 0) return;
-    for (const e of fresh) told.add(e.key);
+    for (const e of fresh) {
+      toldFailures.add(e.key);
+      thisChat.add(e.key);
+    }
     untracked(() => {
       inspectorOpen.set(true);
       announce(`Needs you: ${fresh.map((e) => `${e.name} failed`).join(", ")}`);
     });
+  });
+  // The chat goes: its failures may open the inspector again in the chat that replaces it.
+  cleanup(() => {
+    for (const key of thisChat) toldFailures.delete(key);
   });
   return {
     entries,
@@ -420,14 +428,15 @@ function Cell(props: {
 
 /**
  * The inspector of a chat read from a terminal agent: a right region that holds what the agent runs beside its
- * conversation, to consult and not to read (`design/chat.md`, "The inspector"). Beside the chat at 320 pt; under `snug()`
- * it lies over the chat's right edge instead of squeezing it. A subagent opens its own conversation here, read-only, with
- * `Back` (`SubagentChat`).
+ * conversation, to consult and not to read (`design/chat.md`, "The inspector"). It fills its `ResizablePanel` at the
+ * width the person drags. A subagent opens its own conversation here, read-only, with `Back` (`SubagentChat`).
  */
 export function SessionInspector(props: {
   activity: Activity;
   port: SessionPort;
   machine: string;
+  /** The chat's folder: the Changes tab reads its checkout from here. */
+  cwd: string;
   parentTitle: string;
   active: boolean;
   /** The chat's panel key: the subagent conversation keeps its place under a key of its own. */
@@ -486,54 +495,65 @@ export function SessionInspector(props: {
     return keymap.bind("escape", () => opened.set(null), { when: "notEditing" });
   });
 
-  const overlay = () => snug();
   return (
-    <View
-      accessibilityLabel="Activity"
-      style={{ width: opened() !== null && !overlay() ? INSPECTOR_READING_WIDTH : INSPECTOR_WIDTH }}
-      class={`min-h-0 border-l border-border bg-background ${overlay() ? "absolute bottom-0 right-0 top-0 shadow-lg dark:shadow-none" : "shrink-0"}`}
-    >
+    <View accessibilityLabel="Activity" class="min-h-0 h-full flex-col bg-background">
       <If
         when={opened() !== null && props.port.subagent ? opened() : null}
         else={
           <>
-            {/* One `BAR`, so its hairline continues the chat header's. */}
-            <View style={{ minHeight: BAR }} class="flex-row items-center gap-2 border-b border-border pl-4 pr-2">
-              <Text role="header" class="flex-1 text-sm font-medium text-foreground">
-                Activity
-              </Text>
+            {/* One `BAR`, so its hairline continues the chat header's: the tab switch and the close. */}
+            <View style={{ minHeight: BAR }} class="flex-row items-center gap-2 border-b border-border pl-3 pr-2">
+              <Segmented
+                value={inspectorTab()}
+                onChange={(t) => inspectorTab.set(t)}
+                options={[
+                  { value: "activity", label: "Activity" },
+                  { value: "changes", label: "Changes" },
+                ]}
+                label="Inspector tab"
+                class="self-center"
+              />
               <IconButton
                 icon="x"
-                label="Close activity"
+                label="Close inspector"
                 shortcut={keyText(INSPECTOR_KEY)}
                 onPress={() => inspectorOpen.set(false)}
               />
             </View>
             <If
-              when={props.activity.any()}
-              else={<Text class="px-4 py-3 text-xs text-muted-foreground">Nothing runs beside this agent.</Text>}
+              when={inspectorTab() === "changes"}
+              else={
+                <If
+                  when={props.activity.any()}
+                  else={<Text class="px-4 py-3 text-xs text-muted-foreground">Nothing runs beside this agent.</Text>}
+                >
+                  <List
+                    each={items()}
+                    keyExtractor={(i: Item) => i.key}
+                    estimatedItemSize={44}
+                    class="min-h-0 flex-1"
+                    contentClass="pb-3"
+                    accessibilityLabel="Subagents and background tasks"
+                  >
+                    {(item) => (
+                      <Cell
+                        item={item()}
+                        activity={props.activity}
+                        armed={armed()?.key ?? null}
+                        finishedOpen={finishedOpen()}
+                        canOpen={props.port.subagent !== undefined}
+                        onFold={() => finishedOpen.update((o) => !o)}
+                        onOpen={open}
+                        onStop={(e) => void stop(e)}
+                      />
+                    )}
+                  </List>
+                </If>
+              }
             >
-              <List
-                each={items()}
-                keyExtractor={(i: Item) => i.key}
-                estimatedItemSize={44}
-                class="min-h-0 flex-1"
-                contentClass="pb-3"
-                accessibilityLabel="Subagents and background tasks"
-              >
-                {(item) => (
-                  <Cell
-                    item={item()}
-                    activity={props.activity}
-                    armed={armed()?.key ?? null}
-                    finishedOpen={finishedOpen()}
-                    canOpen={props.port.subagent !== undefined}
-                    onFold={() => finishedOpen.update((o) => !o)}
-                    onOpen={open}
-                    onStop={(e) => void stop(e)}
-                  />
-                )}
-              </List>
+              <View class="min-h-0 flex-1">
+                <Changes machine={props.machine} cwd={props.cwd} active={props.active} />
+              </View>
             </If>
           </>
         }

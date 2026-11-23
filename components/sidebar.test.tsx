@@ -3,7 +3,7 @@ import { expect, open, test } from "nsh/test";
 import type { App } from "nsh/test";
 
 import { pressSettled, quiet, showQuiet } from "../app-seam";
-import { scripted } from "./board-seam";
+import { scripted } from "./test-seam";
 
 /** The sidebar beside lines that say what its buttons did (`sidebar-lab.tsx`), against the scripted herdr's `mixed` fixture: the projects `payments` (5 agents) and `web` (3). */
 const lab = (extra: { width?: number; storage?: Record<string, string> } = {}) =>
@@ -27,7 +27,7 @@ const SEARCH = "label:Search projects and agents";
 const FIELD = "label:Search projects";
 const ready = async (extra: Parameters<typeof lab>[0] = {}) => {
   const app = await lab(extra);
-  await app.waitFor("label:Board, 2 need you");
+  await app.waitFor(PAYMENTS);
   // The engine goes on reading panes after the board shows, and each answer re-renders the rows a press would target.
   await quiet(app);
   return app;
@@ -41,7 +41,6 @@ async function menu(app: App, options: string, entry: string) {
   }
   await app.press(entry);
 }
-const picked = (app: App) => app.texts().find((t) => t.startsWith("picked "));
 
 test("agents are listed under their project in the section of their machine, and each row names the agent, its state, its project and machine", async () => {
   const app = await ready();
@@ -130,7 +129,6 @@ test("a project header offers a plus that starts a session in its folder", async
 test("an agent that stops needing you keeps its place in its project, and the counts follow", async () => {
   const app = await ready();
   scripted("mixed").become("w1:p1", "working");
-  await app.waitFor("label:Board, 1 need you");
   await app.waitFor("label:payments, This computer, 1 needs you, 3 working, 1 to review");
   expect(app.shows("label:/^payments review, claude, working, payments/")).toBe(true);
 });
@@ -140,8 +138,7 @@ test("when nothing needs you the count is gone, not zero", async () => {
   const agents = scripted("mixed");
   agents.become("w1:p1", "working");
   agents.become("w1:p2", "working");
-  await app.waitFor("label:Board");
-  expect(app.shows("label:/^Board, /")).toBe(false);
+  await app.waitUntil(() => !app.shows("label:/^payments, This computer, \\d+ need/"));
   expect(app.shows("label:/^payments, This computer, \\d+ need/")).toBe(false);
 });
 
@@ -249,26 +246,6 @@ test("the top buttons open what they say: new agent session, settings", async ()
   expect(app.shows("settings page look")).toBe(true);
 });
 
-test("rows carry no pick boxes: an agent is picked from its menu or with Ctrl+press, Shift+press picks a range", async () => {
-  const app = await ready();
-  expect(app.shows("label:Select payments review")).toBe(false);
-  await pressSettled(app, "label:Options for payments review", "Pick for a bulk action");
-  await app.press("Pick for a bulk action");
-  expect(picked(app)).toBe("picked 1");
-  await app.keyboard.down("control");
-  await app.press(row("payments review"));
-  await app.keyboard.up("control");
-  expect(picked(app)).toBe("picked 0");
-  await app.keyboard.down("control");
-  await app.press(row("payments review"));
-  await app.keyboard.up("control");
-  await app.keyboard.down("shift");
-  await app.press(row("Fix login flow"));
-  await app.keyboard.up("shift");
-  // payments review, auth (needs you) and Fix login flow (to review): the rows between the two picks.
-  expect(picked(app)).toBe("picked 3");
-});
-
 test("a window of 960 keeps the full sidebar, at its narrow width", async () => {
   const app = await ready({ width: 960 });
   expect(app.shows(SEARCH)).toBe(true);
@@ -280,7 +257,6 @@ test("in a narrow window the sidebar is a rail of project tiles: no list of agen
   expect(app.shows(SEARCH)).toBe(false);
   expect(app.shows("label:payments, This computer, 2 need you, 2 working, 1 to review")).toBe(true);
   expect(app.shows("label:web, This computer")).toBe(true);
-  expect(app.shows("label:Board, 2 need you")).toBe(true);
   expect(app.shows(row("payments review"))).toBe(false);
 });
 

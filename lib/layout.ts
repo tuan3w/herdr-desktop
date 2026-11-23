@@ -68,11 +68,11 @@ export const SIDEBAR_WIDTH = { default: 264, min: 240, max: 420, narrow: 240 } a
 export const RAIL_WIDTH = 64;
 
 /**
- * Content columns in points. `home` (the board's table) grows with the window up to 1440 and stops there: the title is the
- * one elastic column, and past 1440 the eye travels too far from a title to its state. `chat` is the conversation's box;
- * with 24 pt of padding either side the text is 720 wide, the readable measure the owner chose (it holds about 95
- * characters of 14-pt prose, above the 75 of emil-typography: accepted, a message is short and code needs the width).
- * `page` is a settings page: a label, a description and a control read as one line at 640.
+ * Content columns in points. `home` (the empty state) grows with the window up to 1440 and stops there: past 1440 the
+ * eye travels too far from a title to its state. `chat` is the conversation's box; with 24 pt of padding either side the
+ * text is 720 wide, the readable measure the owner chose (it holds about 95 characters of 14-pt prose, above the 75 of
+ * emil-typography: accepted, a message is short and code needs the width). `page` is a settings page: a label, a
+ * description and a control read as one line at 640.
  */
 export const COLUMN = { home: 1440, chat: 768, page: 640 } as const;
 
@@ -110,7 +110,7 @@ export const ICON = { meta: 12, text: 14, control: 16, empty: 20 } as const;
  * - `nav`: 32, the height of a default `Btn`, so the chrome has one line. `tab`, `tabTile`: 32, a chip of the strip, so the
  *   strip (4 pt around it) is one `BAR`.
  * - `more`: `3 more idle`, a quiet row, 28.
- * - `table`: a row of the board's table, 32: a default control's height (it was 36, off the ladder); the kit's `Table` spells the same number.
+ * - `table`: a row of a data table (files, file kinds), 32: a default control's height (it was 36, off the ladder); the kit's `Table` spells the same number.
  */
 export const ROW = {
   agent: { height: 44, class: "min-h-11 px-3 py-1" },

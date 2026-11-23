@@ -144,10 +144,21 @@ function FilePanel(props: { link: Extract<PanelLink, { kind: "file" }>; cwd: str
   const data = signal<FileData | null>(null);
   const failure = signal<string | null>(null);
   const body = useBody();
-  void Files.open(props.link.machine, props.link.path).then(
-    (d) => data.set(d),
-    (e) => failure.set(reason(e)),
-  );
+  let attempt = 0;
+  const load = async () => {
+    const mine = ++attempt;
+    failure.set(null);
+    try {
+      const d = await Files.open(props.link.machine, props.link.path);
+      if (mine === attempt) data.set(d);
+    } catch (e) {
+      if (mine === attempt) failure.set(reason(e));
+    }
+  };
+  void load();
+  cleanup(() => {
+    attempt++;
+  });
   const name = () => props.link.path.split("/").pop() ?? props.link.path;
   const machineName = () => Herdr.machines().find((m) => m.id === props.link.machine)?.name ?? props.link.machine;
   const full = () => `${props.link.path}${props.link.line ? `:${props.link.line}` : ""}`;
@@ -276,7 +287,7 @@ export function LinkPanelView(props: { panel: LinkPanel; cwd: string; active: bo
         onMouseEnter={() => over.set(true)}
         onMouseLeave={() => over.set(false)}
         style={{ width: LINK_PANEL_WIDTH }}
-        class={`min-h-0 border-l border-border bg-background ${snug() ? "absolute bottom-0 right-0 top-0 shadow-lg dark:shadow-none" : "shrink-0"}`}
+        class={`min-h-0 h-full border-l border-border bg-background ${snug() ? "absolute bottom-0 right-0 top-0 shadow-lg dark:shadow-none" : "shrink-0"}`}
       >
         <Each of={shown()} key={(link: PanelLink) => link}>
           {(link) => {

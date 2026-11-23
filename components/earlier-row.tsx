@@ -1,6 +1,6 @@
 import { Text, View } from "nsh";
 
-import { Btn, Spinner } from "#kit";
+import { Btn } from "#kit";
 import { type Earlier, TOO_LONG } from "#lib/earlier";
 
 /**
@@ -21,9 +21,8 @@ export function EarlierRow(props: { earlier: Earlier; onLoad: () => void }) {
         <View
           accessibilityLabel="Loading earlier messages"
           accessibilityState={{ busy: true }}
-          class="min-h-7 flex-row items-center justify-center gap-2"
+          class="min-h-7 flex-row items-center justify-center"
         >
-          <Spinner size={14} tone="muted-foreground" />
           <Text class="text-xs text-muted-foreground">Loading earlier messages…</Text>
         </View>
       </If>

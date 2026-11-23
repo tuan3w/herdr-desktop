@@ -153,7 +153,7 @@ test("a natural phrase opens the first step of a two-step command filtered to wh
 /** Opens the actions of the agent the search finds, in the `projects` fixture: `Fix rounding in refunds` works in a linked worktree, `Refactor ledger` in the main checkout. */
 async function actionsOf(name: string): Promise<App> {
   const app = await seeded("projects");
-  await app.waitFor("label:Board, 2 need you");
+  await app.waitFor("label:/^payments-api, This computer/");
   await quiet(app);
   await openPalette(app);
   await type(app, name);

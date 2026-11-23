@@ -89,6 +89,52 @@ fn a_missing_socket_is_retryable_because_herdr_may_be_starting() {
 }
 
 #[test]
+fn auto_start_starts_herdr_for_a_missing_socket_and_never_when_off() {
+    let dir = tempdir().unwrap();
+    // A stand-in `herdr` that counts its starts in a file, so the test never launches the
+    // owner's herdr.
+    let count = dir.path().join("count");
+    let bin = dir.path().join("herdr-standin.sh");
+    std::fs::write(
+        &bin,
+        format!(
+            "#!/bin/sh\nn=$(cat {} 2>/dev/null || echo 0)\necho $((n+1)) > {}\n",
+            count.display(),
+            count.display()
+        ),
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let socket = dir.path().join("none.sock");
+
+    // Off (the default, and every test herdr): a missing socket is retryable and nothing is started.
+    let err = LocalWire::new(socket.clone())
+        .request("ping", json!({}), PATIENCE)
+        .unwrap_err();
+    assert_eq!(err.kind, ErrorKind::Retryable);
+    assert!(!count.exists(), "auto-start spawned herdr while it is off");
+
+    // On: the first request starts herdr, and the answer is still the retryable "not there yet".
+    let wire = LocalWire::new(socket.clone())
+        .auto_start(true)
+        .herdr_bin(bin.clone());
+    let err = wire.request("ping", json!({}), PATIENCE).unwrap_err();
+    assert_eq!(err.kind, ErrorKind::Retryable);
+    for _ in 0..20 {
+        if count.exists() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    let text = std::fs::read_to_string(&count).unwrap();
+    assert_eq!(text.trim(), "1", "herdr was started {text:?} times");
+}
+
+#[test]
 fn a_herdr_that_never_answers_times_out_as_retryable() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("mute.sock");

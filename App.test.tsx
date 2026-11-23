@@ -9,7 +9,6 @@ import {
   DONE,
   FIRST,
   front,
-  onBoard,
   openAgents,
   ready,
   saved,
@@ -21,7 +20,7 @@ import {
   sidebarRow,
   WEB,
 } from "./app-seam";
-import { sentKeys } from "./components/board-seam";
+import { sentKeys } from "./components/test-seam";
 
 /**
  * The whole app against the scripted herdr's `mixed` fixture: 2 agents that need you (`payments review`, `auth`), 1 to
@@ -30,30 +29,13 @@ import { sentKeys } from "./components/board-seam";
  * computer`; which tab is displayed is otherwise read from the saved layout.
  */
 
-test("the app opens on the board, with every agent in its table and the count where you look first", async () => {
+test("the app opens with nothing open: the empty state, every agent in the sidebar, no tabs", async () => {
   const app = await ready();
-  expect(onBoard(app)).toBe(true);
-  // The board is the overview: its table lists every agent, once (the sidebar is the rail beside it).
+  expect(app.shows("label:Nothing open")).toBe(true);
+  // The sidebar is the one list of agents: every row, once.
   expect(app.shows(sidebarRow(FIRST))).toBe(true);
   expect(app.shows(sidebarRow(DONE))).toBe(true);
-  expect(app.count(`label:/^${FIRST}, /`)).toBe(1);
   expect(app.count("role:tab")).toBe(0);
-});
-
-test("the board shows the sidebar as the rail, still naming what needs you, and an agent in front brings the full sidebar", async () => {
-  const app = await ready();
-  expect(app.shows("label:Expand sidebar")).toBe(true);
-  expect(app.shows("label:Search projects and agents")).toBe(false);
-  expect(app.shows("label:Board, 2 need you")).toBe(true);
-  expect(app.shows("label:/^payments, This computer, 2 need you/")).toBe(true);
-  await app.press(sidebarRow(FIRST));
-  await app.waitFor("label:Search projects and agents");
-  expect(app.shows("label:Collapse sidebar")).toBe(true);
-  expect(onBoard(app)).toBe(false);
-  // Back to the overview: the rail again.
-  await app.press("label:Board, 2 need you");
-  await app.waitFor("label:Expand sidebar");
-  expect(app.shows("label:Search projects and agents")).toBe(false);
 });
 
 test("Settings is a dialog over an unchanged window: a waiting question stays marked in the sidebar, the workspace stays mounted, and closing returns to the open agent", async () => {
@@ -61,8 +43,8 @@ test("Settings is a dialog over an unchanged window: a waiting question stays ma
   await app.press(sidebarRow(FIRST));
   await app.waitFor("label:Search projects and agents");
   await pressSettled(app, "label:Settings", "label:Settings sections");
-  expect(app.shows("label:Board, 2 need you")).toBe(true);
-  expect(app.shows("label:/^payments, This computer, 2 need you/")).toBe(true);
+  // The sidebar's rows are not hidden or replaced behind the dialog.
+  expect(app.shows(sidebarRow(FIRST))).toBe(true);
   // the workspace is not hidden or replaced: the same tab (its header's Open beside) is still there behind the dialog
   expect(app.shows("label:Open beside")).toBe(true);
   await pressSettled(app, "label:Close settings", () => !app.shows("label:Settings sections"));
@@ -75,35 +57,10 @@ test("Settings is a dialog over an unchanged window: a waiting question stays ma
   expect(await front(app)).toBe(FIRST);
 });
 
-test("the toggle expands the sidebar for the visit on the board without changing the saved preference", async () => {
+test("a project's agents open from the sidebar, and an agent opens in its own tab", async () => {
   const app = await ready();
-  await pressSettled(app, "label:Expand sidebar", "label:Search projects and agents");
-  expect(onBoard(app)).toBe(true);
-  await settle(app);
-  expect(JSON.parse(app.storage()["herdr.settings.v1"] ?? "{}").sidebarCollapsed ?? false).toBe(false);
-  // The choice holds for that visit only: an agent and back to the board gives the rail again.
   await app.press(sidebarRow(FIRST));
-  await app.waitFor("label:Collapse sidebar");
-  await app.press("label:Board, 2 need you");
-  await app.waitFor("label:Expand sidebar");
-  expect(app.shows("label:Search projects and agents")).toBe(false);
-  // Elsewhere the toggle is the saved preference, and the board then keeps the rail.
-  await app.press(sidebarRow(FIRST));
-  await app.waitFor("label:Collapse sidebar");
-  await pressSettled(app, "label:Collapse sidebar", "label:Expand sidebar");
-  await settle(app);
-  expect(JSON.parse(app.storage()["herdr.settings.v1"]).sidebarCollapsed).toBe(true);
-});
-
-test("a rail tile opens its project's agents, and pressing one opens that agent with the full sidebar", async () => {
-  const app = await ready();
-  // The rail is left of the board, so its tile is the first view of that name.
-  await app.press("label:/^payments, This computer, 2 need you/ >> nth=0");
-  // `Show project` exists only in the tile's popover.
-  await app.waitFor("label:Show payments");
-  await app.press("label:/^payments review, claude, needs you, payments/ >> nth=0");
   await app.waitFor("label:Search projects and agents");
-  expect(onBoard(app)).toBe(false);
   expect(app.shows("label:Collapse sidebar")).toBe(true);
 });
 
@@ -130,14 +87,6 @@ test("the same agent opened twice is one tab", async () => {
   expect(await front(app)).toBe(FIRST);
 });
 
-test("the board cannot be closed: mod+w on it does nothing, and it stays", async () => {
-  const app = await ready();
-  await app.keyboard.press("mod+w");
-  await settle(app);
-  expect(app.count("role:tab")).toBe(0);
-  expect(onBoard(app)).toBe(true);
-});
-
 test("Next and Previous walk the agents that wait for you, longest waiting first, and wrap; a finished agent is not on the walk and nothing is ever sent", async () => {
   const app = await ready();
   const step = async (keys: string, name: string) => {
@@ -155,7 +104,7 @@ test("Next and Previous walk the agents that wait for you, longest waiting first
 
 test("with nothing that needs you, Next opens nothing and says so", async () => {
   const app = await seeded("empty");
-  await app.waitFor("Add your first machine");
+  await app.waitFor("Nothing open");
   await app.keyboard.press("mod+j");
   await settle(app);
   expect(app.count("role:tab")).toBe(0);
@@ -189,7 +138,7 @@ async function tabNth(app: App, press: Press, n: number) {
   // A tab that is not there changes nothing; one that is becomes the displayed tab.
   expect(after.active).toBe(n <= group.panels.length ? n - 1 : before);
   const panel = group.panels[after.active];
-  expect(panel === "board" ? onBoard(app) : displayed(app, panel)).toBe(true);
+  expect(displayed(app, panel)).toBe(true);
 }
 
 /** The Switcher's filter field. The headless harness does not move the keyboard into a dialog that opens over a focused tab, so a test that presses Escape or Enter there focuses the field first, as the person's first keystroke does. */
@@ -205,12 +154,11 @@ const CHECKS: Record<GlobalShortcut, Check> = {
     await app.keyboard.press("escape");
     expect(app.shows("label:Search agents, projects and commands")).toBe(false);
   },
-  // The terminal tab is off by default: the key only says so and opens nothing (on the board there is nothing to swap anyway).
+  // The terminal tab is off by default: the key only says so and opens nothing.
   terminalView: async (app, press) => {
     const tabs = app.count("role:tab");
     await press();
     await settle(app);
-    expect(onBoard(app)).toBe(true);
     expect(app.count("role:tab")).toBe(tabs);
   },
   quickOpen: async (app, press) => {
@@ -249,12 +197,12 @@ const CHECKS: Record<GlobalShortcut, Check> = {
     expect(app.shows("label:Close dev panel")).toBe(false);
   },
   sidebar: async (app, press) => {
-    // The app starts on the Board, where the sidebar is the rail.
-    expect(app.shows("label:Search projects and agents")).toBe(false);
-    await press();
+    // With nothing open the home is the quiet empty state, and the sidebar is the full list beside it.
     expect(app.shows("label:Search projects and agents")).toBe(true);
     await press();
     expect(app.shows("label:Search projects and agents")).toBe(false);
+    await press();
+    expect(app.shows("label:Search projects and agents")).toBe(true);
   },
   focusSidebar: async (app, press) => {
     await press();
@@ -264,31 +212,17 @@ const CHECKS: Record<GlobalShortcut, Check> = {
     expect(app.value("label:Search projects")).toBe("au");
     await app.clear("label:Search projects");
   },
-  board: async (app, press) => {
-    await openAgents(app, FIRST);
-    expect(onBoard(app)).toBe(false);
-    await press();
-    await settle(app);
-    expect(onBoard(app)).toBe(true);
-  },
   focusPane: async (app, press) => {
-    // From the board, the pane used last comes back; here it is a chat (a terminal has no answer dock, `design/chat.md`).
+    // From the last open pane, the answer dock stands where its message box would be: a terminal has no dock (`design/chat.md`).
     await openAgents(app, FIRST);
-    // The board check left this agent's tab open, and a tab reopens on the view it was left on.
     await app.waitUntil(() => app.shows("label:Answer") || app.shows("label:Show chat"));
     if (!app.shows("label:Answer")) await pressSettled(app, "label:Show chat", "label:Answer");
-    await press("board");
-    await settle(app);
-    expect(onBoard(app)).toBe(true);
     await press();
     await settle(app);
-    expect(onBoard(app)).toBe(false);
-    // That pane asks a question, so the answers stand where its message box would be: there is no box to hold the keyboard.
     expect(app.shows("label:Answer")).toBe(true);
     expect(app.shows("label:/^Message /")).toBe(false);
   },
   nextAttention: async (app, press) => {
-    await press("board");
     await press();
     await settle(app);
     expect(await front(app)).toBe(FIRST);
@@ -406,13 +340,19 @@ const CHECKS: Record<GlobalShortcut, Check> = {
     expect(app.shows("label:Close find")).toBe(false);
   },
   undo: async (app, press) => {
-    await press("board");
+    // A finished agent marked reviewed through the palette (`mod+p`, the row's actions); `mod+z` unmarks it.
+    await app.keyboard.press("mod+p");
     await settle(app);
-    await app.press(`label:Reviewed: ${DONE}`);
-    await app.waitFor("Marked reviewed");
-    await app.waitFor(`label:Reviewed: ${DONE}`, { state: "gone" });
+    await app.clear("label:Search agents, projects and commands");
+    await app.type("label:Search agents, projects and commands", "Fix login flow");
+    await settle(app);
+    await app.keyboard.press("mod+p");
+    await settle(app);
+    await app.press("label:Mark reviewed");
+    await settle(app);
+    expect(Herdr.board().counts.toReview).toBe(0);
     await press();
-    await app.waitFor(`label:Reviewed: ${DONE}`);
+    expect(Herdr.board().counts.toReview).toBe(1);
   },
   splitRight: async (app, press) => {
     await openAgents(app, FIRST, SECOND);
@@ -460,7 +400,6 @@ const ORDER: GlobalShortcut[] = [
   // Before any check leaves the keyboard in a text field: there Ctrl+Z undoes the text, as it must, and not the toast.
   "undo",
   "focusSidebar",
-  "board",
   "focusPane",
   "nextAttention",
   "prevAttention",
@@ -543,7 +482,7 @@ test("walking the app with the keyboard: next agent, type to it, take over its k
   expect(app.shows("label:Show terminal")).toBe(false);
 });
 
-test("no bar sits under the workspace on the board or in a chat that reports no context, and no machine count sits at the window's bottom", async () => {
+test("no bar sits under the workspace and no machine count sits at the window's bottom", async () => {
   const app = await ready();
   expect(app.shows("label:Status")).toBe(false);
   expect(app.shows("1 machine")).toBe(false);

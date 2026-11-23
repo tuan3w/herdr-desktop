@@ -1,7 +1,9 @@
-import { signal } from "nsh";
+import { effect, signal, Storage } from "nsh";
 
 import type { BackgroundRow, ObservedView, SubagentRow } from "herdr-desktop/native";
 
+import { setSessionPaths } from "#lib/changes-scope";
+import { save } from "#lib/save";
 import { visibleText } from "#lib/session-text";
 import { commandSubject } from "#lib/tool-subject";
 
@@ -12,10 +14,35 @@ import { commandSubject } from "#lib/tool-subject";
  * did it do (`Finished`, folded). Pure, except the one open/closed choice of this run.
  */
 
-/** The inspector's width while it sits beside the chat; under `snug()` it lies over the chat at the same width. */
-export const INSPECTOR_WIDTH = 320;
-/** Its width while it shows a subagent's conversation beside the chat: prose needs more than a list of rows. */
-export const INSPECTOR_READING_WIDTH = 400;
+/** The inspector's width in points: the person drags its edge, 240 to 600. 320 holds a 13-pt title and a count; 600 is where a subagent's conversation stops needing more. */
+export const INSPECTOR_WIDTH: { default: number; min: number; max: number } = { default: 320, min: 240, max: 600 };
+
+/** The inspector's width in points: the person drags its edge. */
+export const inspectorWidth = signal(INSPECTOR_WIDTH.default);
+
+/** True once the saved width has been read: the save effect writes only from here on. */
+const inspectorReady = signal(false);
+
+/** Loads the saved inspector width. */
+export async function loadInspectorWidth(): Promise<void> {
+  try {
+    const raw = await Storage.getItem("herdr.inspector.v1");
+    if (raw) {
+      const saved: unknown = JSON.parse(raw);
+      if (typeof saved === "object" && saved !== null && "width" in saved && typeof saved.width === "number") {
+        inspectorWidth.set(Math.min(INSPECTOR_WIDTH.max, Math.max(INSPECTOR_WIDTH.min, Math.round(saved.width))));
+      }
+    }
+  } catch {
+    /* first run */
+  }
+  inspectorReady.set(true);
+}
+
+effect(() => {
+  if (!inspectorReady()) return;
+  save("herdr.inspector.v1", JSON.stringify({ width: inspectorWidth() }));
+});
 
 /** A stop of a task that has run longer than this is two presses (principle 2): press, then press again within `CONFIRM_MS`. */
 export const CONFIRM_AFTER_MS = 60_000;
@@ -234,11 +261,37 @@ export function entryLabel(e: Entry, now: number): string {
  */
 export const inspectorOpen = signal(false);
 
+/**
+ * The failures that already opened the inspector, for the whole run: the auto-open effect re-runs whenever `needs`
+ * changes (a re-render, a new revision), and a failure stays in `needs` until it is acknowledged, so the set is what
+ * makes the open happen once per failure. A chat that goes takes its failures out again (they may open the inspector
+ * in the chat that replaces it).
+ */
+export const toldFailures = new Set<string>();
+
+/** Forgets what already opened the inspector (a test between its apps). */
+export function resetTold(): void {
+  toldFailures.clear();
+}
+
 /** A subagent to open in the inspector of the chat in front, once it mounts: `showSubagent`. */
 export const pendingSubagent = signal<string | null>(null);
 
 /** Opens the inspector of the chat in front on subagent `name`'s conversation (as the log names it). */
 export function showSubagent(name: string): void {
   pendingSubagent.set(name);
+  inspectorOpen.set(true);
+}
+
+/** The tab the inspector shows: `activity` (subagents, background tasks) or `changes` (the checkout's diff). */
+export const inspectorTab = signal<"activity" | "changes">("activity");
+
+/**
+ * Opens the inspector of the chat in front on its Changes tab, scoped to the files `paths` name (the chat's `Edited N
+ * files`). The chat keeps its width: the inspector is a fixed-width right panel, not a new main-region column.
+ */
+export function openInspectorChanges(machine: string, cwd: string, paths?: readonly string[]): void {
+  if (cwd) setSessionPaths(machine, cwd, paths ?? null);
+  inspectorTab.set("changes");
   inspectorOpen.set(true);
 }

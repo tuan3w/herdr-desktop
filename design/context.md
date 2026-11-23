@@ -4,7 +4,7 @@ A person supervising twenty agents thinks "the payments API", then "the infra re
 
 ## What a context is
 
-- **Home** (`HOME`): the board, and whatever was left there. The one context outside any project. `mod+1` shows it; the board tab is never closable, so Home is never empty.
+- **Home** (`HOME`): the context outside any project — whatever was left there. `mod+1` shows it; it may hold no tab, in which case the empty state shows.
 - **A project** (`BoardProject.key`): its own layout (groups, splits, sizes, the displayed tab of each group) and its own focused tab. It may hold no tab: the workspace then shows the project's own card (`ProjectEmpty`: agents, state, `New agent session`), so a context is never blank. Closing the last tab does not delete the context.
 - **Agents** are destinations inside contexts. A tab belongs to its agent's project: `openPanel` of an agent open somewhere shows it where it is (its context comes back with it); otherwise it is added to the project's context, which is shown (`homeOf`). `openPanel(key, { here: true })` puts it in the context shown instead and moves it out of the one that had it (a tab is in one context only). `Open here` is `Shift+Enter` in the Switcher and an item of a project's menu (its first agent); the action panel of the palette reuses `{ here: true }`.
 
@@ -14,12 +14,12 @@ A person supervising twenty agents thinks "the payments API", then "the infra re
 
 | Data | Where | Kept |
 |---|---|---|
-| Layouts | `Storage` `herdr.dock.v2`: `{ v, current, home, contexts, strays }` (`readDock`, `writeDock`) | written after a 500 ms quiet period; the newest `CONTEXT_CAP` contexts, the shown one always; a context whose project the board lacks is dropped after `GONE_AFTER_MS` |
+| Layouts | `Storage` `herdr.dock.v2`: `{ v, current, home, contexts, strays }` (`readDock`, `writeDock`) | written after a 500 ms quiet period; the newest `CONTEXT_CAP` contexts, the shown one always; a context whose project is gone is dropped after `GONE_AFTER_MS` |
 | Drafts | memory (`lib/view-state.ts`, `draftOf`, `setDraft`) | across switches, never across a restart: a draft can hold a pasted secret |
 | Chat scroll | `Storage` `herdr.views.v1` (`anchorOf`, `setAnchor`): at the end, or this far above it; a chat reopens there once enough of it is loaded, else at the end | across restarts; `ANCHOR_CAP` entries |
 | Visits | Rust `recents.json` (`Herdr.visit`, `recents`, `forget`) | ids, the last ten times, a count; never pane contents |
 
-The file of the first version (`herdr.dock.v1`, one layout) opens as the Home as it was and is split by project when the board first knows its panels (`bucket`, `adopt`); a panel whose project is unknown stays in Home as a stray and is adopted when its row turns up. The old key is removed only after the new one was written.
+The file of the first version (`herdr.dock.v1`, one layout) opens as the Home as it was and is split by project when the engine first knows its panels (`bucket`, `adopt`); a panel whose project is unknown stays in Home as a stray and is adopted when its row turns up. The old key is removed only after the new one was written.
 
 ## Going somewhere (`lib/nav.ts`)
 
@@ -38,7 +38,7 @@ The file of the first version (`herdr.dock.v1`, one layout) opens as the Home as
 
 ## Where a person presses
 
-In the sidebar and on a Board row the project name shows the project's workspace and the chevron alone folds it; the card of a project with no tab open has no fold control. The rail's popover has `Show project`. A project's menu has `Switch to this project` and `Open here`.
+In the sidebar the project name shows the project's workspace and the chevron alone folds it; the card of a project with no tab open has no fold control. The rail's popover has `Show project`. A project's menu has `Switch to this project` and `Open here`.
 
 ## Motion
 

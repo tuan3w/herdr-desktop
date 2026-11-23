@@ -61,7 +61,7 @@ An age, time or count that is its own `Text` uses `NUM` from `components/kit/cor
 
 - Sentence case everywhere. **Nothing is uppercase** and nothing is letter-spaced: a small grey `text-xs font-medium` label (`SectionTitle`, a sidebar group label) groups as well as capitals do without shouting.
 - `tracking-tight` only on the page title (emil: display type tightens, text at reading sizes gets no tracking).
-- Hint text: `max-w-sm` (`Empty`). A setting's description: `max-w-lg`. A page's content column: `COLUMN.page` (640) for settings and `COLUMN.chat` (768 with padding, so 720 of text) for the conversation, centered; the board's table is the one wide column (`COLUMN.home`). Long prose does not run the full window width.
+- Hint text: `max-w-sm` (`Empty`). A setting's description: `max-w-lg`. A page's content column: `COLUMN.page` (640) for settings and `COLUMN.chat` (768 with padding, so 720 of text) for the conversation, centered; the empty state's card is the one wide column (`COLUMN.home`). Long prose does not run the full window width.
 - Cut text is a `Clipped` (`design/components.md`): one line with an ellipsis (two for a preview), and hovering a cut one shows all of it. Never cut what must be read to act: a toast and a field's error wrap in full, a `Modal` scrolls its content, a table column or the sidebar gets room (a resizable sidebar takes room from a page; a table drops optional columns).
 - Text color alpha does not exist: dim secondary text with `opacity-60` on the `Text`, or use `text-muted-foreground`.
 

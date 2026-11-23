@@ -12,7 +12,7 @@ What does the person need?
  ├── To undo something cheap ................... a toast with Undo (`mod+z`), no question first
  ├── To choose from a few things beside a control a popover or a menu, anchored (`Popover`)
  ├── To find something by typing, many times a day  the palette (`PaletteDialog`), never a titled dialog
- ├── To answer the agent ....................... the answer dock; many at once: the Board's filtered view
+ ├── To answer the agent ....................... the answer dock (one place, in the conversation)
  ├── To look, read, compare, come back to it ... a region (main, inspector) or a tab
  └── To leave with a choice made or a field filled, within about a minute
       ├── "Are you sure" about what cannot be restored → DestructiveConfirm
@@ -22,7 +22,7 @@ What does the person need?
 
 Decided and built: Settings is a large dialog and Machines a page of it, edited inline (`design/patterns.md`). Decided, not built yet (owner, 2026-11-07): these still open as a `Modal` and move out: the agent's details (the inspector; today a popover under the chat's title, no longer a `Modal`), past sessions and the file viewer (a tab), and the shortcut sheet. Until each moves it keeps the rules below.
 
-Decided and built: the dock has no dialogs, and neither has bulk answering (`BulkAnswer` is a part of the Board's page with a two-press button and a lasting result toast, not a confirm). Triage is gone (the Board's filtered view is the bulk path), `Show all N lines` opens the whole command in the dock and `N more…` opens every answer in it. Proposed, not yet decided (design review of the kit batch): web pages become a tab; the switcher and the links list take the palette's face; the picture viewer is a Lightbox, pictures only (built).
+Decided and built: the dock has no dialogs. `Show all N lines` opens the whole command in the dock and `N more…` opens every answer in it. The Board's bulk answer view (a two-press button and a lasting result toast, not a confirm) was removed with the Board, 2026-11-19. Proposed, not yet decided (design review of the kit batch): web pages become a tab; the switcher and the links list take the palette's face; the picture viewer is a Lightbox, pictures only (built).
 
 ## Rules for every dialog
 
@@ -40,7 +40,7 @@ Decided and built: the dock has no dialogs, and neither has bulk answering (`Bul
 | Kind | Use | Not | Buttons, focus, Esc |
 |---|---|---|---|
 | Confirm | A plain choice with an outcome ("Send 3 notes to api-fix?") | Anything that loses data | `Cancel`, verb. First field or none. Esc = Cancel |
-| DestructiveConfirm | What an Undo toast cannot restore: `confirmDestructive`, `BulkConfirm` | Cheap reversible steps (Undo toast); a second confirm after a press-twice | `Cancel`, then the danger verb **with the count**. Esc = Cancel, scrim ignored |
+| DestructiveConfirm | What an Undo toast cannot restore: `confirmDestructive` | Cheap reversible steps (Undo toast); a second confirm after a press-twice | `Cancel`, then the danger verb **with the count**. Esc = Cancel, scrim ignored |
 | Alert | A blocking failure the person must act on, what happened and what to do | Inline form errors (stay in the dialog, under the field); anything a toast can say | One button naming the next step. Announced as an alert. Esc closes |
 | FormDialog | 1 to 5 fields: name, machine, start | lists to manage | Enter submits; `mod+↵` in a text area; error on blur and submit; typed text kept on failure; `disablePointerDismissal` |
 | Wizard | Steps that depend on the previous one | Anything one form can hold: remember the last choices instead | Step list, `Back`, at most 3, `Next` then the verb on the last |

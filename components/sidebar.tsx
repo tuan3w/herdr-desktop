@@ -1,12 +1,11 @@
 import { Herdr } from "herdr-desktop/native";
-import { announce, computed, effect, keymap, List, Scroll, signal, Text, untracked, View } from "nsh";
+import { announce, cleanup, computed, effect, keymap, List, Scroll, signal, Text, untracked, View } from "nsh";
 import { Button } from "nsh/base";
 
 import type { BoardProject, BoardRow, MachineStatus } from "herdr-desktop/native";
 import type { InputRef, ListRef } from "nsh/types";
 
 import { AgentMark } from "#components/agent-mark";
-import { useRowKeys } from "#components/pick-box";
 import { Monogram, ProjectMark } from "#components/project-parts";
 import { SidebarFooter } from "#components/sidebar-footer";
 import { StatusGlyph } from "#components/status-glyph";
@@ -23,28 +22,27 @@ import {
   IconButton,
   NUM,
   Popover,
+  type PopoverTrigger,
   PopoverTitle,
   rail,
   SearchField,
   Tipped,
   usePopover,
-  useTriggerFocus,
 } from "#kit";
 import { newSession, openSettings, settingsPage, sidebarSearch } from "#lib/actions";
 import { checkoutsOf, openChanges } from "#lib/changes";
-import { controls } from "#lib/chrome";
-import { BOARD, context, focused, layout, panelsOf, rowKeyOf, showBoard } from "#lib/dock";
+import { controls, toggleFullScreen } from "#lib/chrome";
+import { context, focused, layout, panelsOf, rowKeyOf } from "#lib/dock";
 import { actionSlot, estimate, machineFits } from "#lib/header-fit";
 import { board, projectOf, revision, rowOf, started } from "#lib/herdr";
-import { BAR, ROW } from "#lib/layout";
+import { BAR, RAIL_WIDTH, ROW, SIDEBAR_WIDTH } from "#lib/layout";
 import { ofKind } from "#lib/list-item";
 import { linkGlyph, linkText } from "#lib/machine-state";
-import { hoverTransition, moveTransition } from "#lib/motion";
+import { EASE_MOVE, createMotion, foldAllowed, hoverTransition, moveTransition, motionClock } from "#lib/motion";
 import { openProject } from "#lib/nav";
 import { openAgent } from "#lib/open-agent";
-import { isSelected, rangeTo, toggle } from "#lib/selection";
 import { largeTargets, setSidebarCollapsed } from "#lib/settings";
-import { keyLabel, keyText, modHeld, MOVE_DOWN_KEY, MOVE_UP_KEY } from "#lib/shortcuts";
+import { keyLabel, keyText, MOVE_DOWN_KEY, MOVE_UP_KEY } from "#lib/shortcuts";
 import {
   ageText,
   foldedProjects,
@@ -73,6 +71,8 @@ import { lookUpBranches } from "#lib/worktrees";
 
 /** Hover and the open tab are a quiet fill, nothing else. The focus ring is inset: see `FOCUS_RING_SIDEBAR`. */
 const FILL = `rounded-md hover:bg-sidebar-accent/40 selected:bg-sidebar-accent ${FOCUS_RING_SIDEBAR}`;
+/** The rail as a share of the default list width (64 of 264 pt): the fold's scale, its origin at the left edge. */
+const RAIL_RATIO = RAIL_WIDTH / SIDEBAR_WIDTH.default;
 
 /**
  * What a cut title fades into (`Clipped` `fade`): each fill its row can have, laid in order: the sidebar, the row's hover
@@ -144,7 +144,6 @@ const items = computed(
       }),
     )),
 );
-const rowKeys = computed(() => items().flatMap((i) => (i.kind === "row" ? [i.row.key] : [])));
 
 /** The agent whose tab is the one being worked in: its row is lit, and in the rail so is its project's tile. */
 const openRow = computed(() => {
@@ -242,17 +241,10 @@ const sideEntry = (row: BoardRow | undefined, offline: boolean) => ({
 });
 
 /**
- * A row's menu (and right-click): show it beside, pick it for a bulk action, copy. Picking lives here, not as a box on the
- * row (owner, 2026-11-09, on a column of boxes cutting every title: "not like this, maybe just hide in menu"); mod+press
- * and Space pick from the row too, Shift+press and Shift+Space a range.
+ * A row's menu (and right-click): show it beside, copy.
  */
 const rowEntries = (row: BoardRow) => [
   sideEntry(row, row.offline),
-  {
-    label: isSelected(row.key) ? "Unpick" : "Pick for a bulk action",
-    accelerator: "P",
-    onSelect: () => toggle(row.key),
-  },
   ...copyEntries("Name", row.name, "Folder", row.cwd),
 ];
 
@@ -628,11 +620,31 @@ function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
   const row = () => props.item().row;
   const menuOpen = signal(false);
   const backs = () => (isOpen(row()) ? [BACK, BACK_OPEN] : [BACK, BACK_HOVER]);
+  /** What happened, for the hover card: while the agent waits, the question's first line, then its last word (cut to a line and a half). */
+  const happened = () => {
+    const prompt = row().prompt;
+    const ask = row().status === "blocked" && prompt ? prompt.question.split("\n")[0] : "";
+    const last = row().lastMessage?.trim().slice(0, 200) ?? "";
+    return [ask, last].filter(Boolean).join("\n");
+  };
   return (
     <View class="group/row relative">
-      <Tipped label={rowDetail(row())}>
-        <AgentButton item={props.item} />
-      </Tipped>
+      <Popover
+        side="right"
+        align="start"
+        openOnHover
+        delay={400}
+        closeDelay={200}
+        popupClass="w-64"
+        class="self-stretch"
+        trigger={(t) => <AgentButton item={props.item} tip={t} />}
+      >
+        <PopoverTitle>{row().name}</PopoverTitle>
+        <Text class="text-xs text-muted-foreground">{rowDetail(row())}</Text>
+        <If when={happened() !== ""}>
+          <Text class="whitespace-pre-wrap text-xs text-popover-foreground">{happened()}</Text>
+        </If>
+      </Popover>
       <View class="absolute inset-y-0 right-0 flex-row">
         <View class={`w-10 items-center justify-center ${menuOpen() ? "opacity-100" : ON_ROW}`}>
           <View
@@ -656,34 +668,23 @@ function Agent(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
 }
 
 /**
- * The pressable line, apart from `Agent` so `useTriggerFocus` is called inside the bubble's trigger. Its fill is the row's
+ * The pressable line, apart from `Agent` so the hover card's trigger is wired inside it. Its fill is the row's
  * (`group/row`), not its own, so it stays lit while the pointer is on the actions that sit over its right end. The title
  * starts on the row's padding and runs to the glyph's box, which is kept while idle so a change of state never re-cuts it;
  * the actions come over the tail on a backing of the row's own fill, so the text never moves.
  */
-function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> }) {
+function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }>; tip: PopoverTrigger }) {
   const row = () => props.item().row;
-  const keys = useRowKeys(row, rowKeys);
-  const tip = useTriggerFocus();
+  const tip = props.tip;
   return (
     <View
       role="button"
-      onPress={(e) => {
-        if (e?.modifiers.shift) rangeTo(row().key, rowKeys());
-        else if (e && modHeld(e)) toggle(row().key);
-        else void openAgent(row());
-      }}
+      onPress={() => void openAgent(row())}
       onContextMenu={copyMenu(() => rowEntries(row()))}
       accessibilityState={{ selected: isOpen(row()) }}
-      accessibilityLabel={`${rowLabel(row(), nameOf(props.item().project))}${isSelected(row().key) ? ", picked" : ""}`}
-      onFocus={() => {
-        keys.onFocus();
-        tip.onFocus?.();
-      }}
-      onBlur={() => {
-        keys.onBlur();
-        tip.onBlur?.();
-      }}
+      accessibilityLabel={rowLabel(row(), nameOf(props.item().project))}
+      onFocus={tip.onFocus}
+      onBlur={tip.onBlur}
       style={hoverTransition()}
       class={`min-w-0 flex-row items-center gap-2 ${ROW.agentCompact.class} ${ROW_FILL} ${row().offline ? "opacity-60" : ""}`}
     >
@@ -701,12 +702,7 @@ function AgentButton(props: { item: () => Extract<SidebarItem, { kind: "row" }> 
       {/* The one signal mark of an agent that waits, in this view (`design/attention.md`, rule 4), centred where the `...`
           comes on hover, so the one replaces the other in place. */}
       <View class="size-4 items-center justify-center">
-        <If
-          when={isSelected(row().key)}
-          else={<StatusGlyph status={row().offline ? "unknown" : row().status} id={row().key} loud />}
-        >
-          <Icon name="check" size={14} tone="primary" />
-        </If>
+        <StatusGlyph status={row().offline ? "unknown" : row().status} id={row().key} loud />
       </View>
     </View>
   );
@@ -969,7 +965,29 @@ export function Sidebar() {
     for (const project of board().projects) untracked(() => lookUpBranches(project));
   });
   sidebarSearch.focus = openSearch;
-  const needs = () => board().counts.needsYou;
+  // The panel's width snaps (nsh's `ResizablePanel` cannot be tweened from here); the jump the person sees is this
+  // content reflowing, so it scales from the left edge instead: the rail is the full list at 24 % (64 of 264 pt). The
+  // rail and the list are different subtrees, so one is built the whole time and the other replaces it at the middle of
+  // the way, where the scale is at its narrowest. Nothing moves under reduced motion, a key press, or a repeat of one
+  // gesture.
+  const fold = createMotion({ initial: { scaleX: 1 } });
+  const foldShow = signal(true);
+  let foldTimer: (() => void) | undefined;
+  effect(() => {
+    const toRail = rail();
+    if (!foldAllowed()) {
+      foldShow.set(toRail);
+      return;
+    }
+    void fold.play({
+      keyframes: { scaleX: [toRail ? 1 : RAIL_RATIO, toRail ? RAIL_RATIO : 1] },
+      duration: 240,
+      easing: EASE_MOVE,
+    });
+    foldTimer?.();
+    foldTimer = motionClock.after(120, () => foldShow.set(toRail));
+  });
+  cleanup(() => foldTimer?.());
   const empty = () => items().length === 0;
   const settings = () => (
     <View class="border-t border-sidebar-border pt-2">
@@ -983,7 +1001,10 @@ export function Sidebar() {
     </View>
   );
   return (
-    <View class={`size-full min-w-0 overflow-hidden bg-sidebar px-3 pb-3 ${rail() ? "gap-2" : ""}`}>
+    <View
+      style={{ ...fold.style, transformOrigin: "left center" }}
+      class={`size-full min-w-0 overflow-hidden bg-sidebar px-3 pb-3 ${foldShow() ? "gap-2" : ""}`}
+    >
       <If
         when={rail()}
         else={
@@ -991,6 +1012,9 @@ export function Sidebar() {
             desktop={{ windowDrag: true }}
             style={{ height: BAR, paddingLeft: Math.max(12, controls().left) }}
             class="flex-row items-center justify-end gap-1"
+            onPress={(e) => {
+              if (e?.clickCount === 2) toggleFullScreen();
+            }}
           >
             <IconButton
               onSidebar
@@ -1009,7 +1033,13 @@ export function Sidebar() {
       >
         {/* macOS's traffic lights sit over this line; with the system title bar shown it is not drawn. */}
         <If when={controls().left > 0}>
-          <View desktop={{ windowDrag: true }} style={{ height: BAR }} />
+          <View
+            desktop={{ windowDrag: true }}
+            style={{ height: BAR }}
+            onPress={(e) => {
+              if (e?.clickCount === 2) toggleFullScreen();
+            }}
+          />
         </If>
         <If when={!compact()}>
           <View style={{ height: BAR }} class="items-center justify-center">
@@ -1026,17 +1056,8 @@ export function Sidebar() {
           shortcut={keyLabel("newAgent")}
           onPress={() => newSession()}
         />
-        {/* No count: the Board's chips are the one place that says how many (`design/attention.md`); the name still does. */}
-        <NavRow
-          icon="list"
-          label="Board"
-          name={needs() > 0 ? `Board, ${needs()} need you` : "Board"}
-          shortcut={keyLabel("board")}
-          selected={focused() === BOARD}
-          onPress={() => void showBoard()}
-        />
       </View>
-      <If when={rail()}>
+      <If when={foldShow()}>
         <View class="gap-0.5">
           <Each of={statuses().filter((m) => m.state !== "online")} key={(m: MachineStatus) => m.id}>
             {(m) => <MachineGlyph status={m()} />}
@@ -1045,7 +1066,7 @@ export function Sidebar() {
         <Rail />
         {settings()}
       </If>
-      <If when={!rail()}>
+      <If when={!foldShow()}>
         <If when={searchShown()}>
           <View class="pt-2">
             <SearchField

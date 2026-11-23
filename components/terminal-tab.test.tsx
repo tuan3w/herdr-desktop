@@ -137,11 +137,11 @@ test("a tab restored from the saved layout does not attach by itself: Return rec
     center: {
       type: "split",
       axis: "horizontal",
-      children: [{ type: "tabs", panels: ["board", "terminal:local/w1:p1"], activeIndex: 1 }],
+      children: [{ type: "tabs", panels: ["terminal:local/w1:p1"], activeIndex: 0 }],
     },
   };
   const app = await seeded("mixed", { storage: { ...TERMINAL_ON, "herdr.dock.v1": JSON.stringify(layout) } });
-  await app.waitFor("label:Board, 2 need you");
+  await app.waitFor("label:/^payments, This computer/");
   Herdr.testSetProgram(ECHO);
   await app.keyboard.press("mod+shift+]");
   await app.waitFor("text:Press Return to reconnect");

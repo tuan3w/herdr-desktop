@@ -31,3 +31,14 @@ export const mainInset = signal({ left: 0, right: 0 });
 
 /** A pane's header is on the band (and takes `mainInset`) while no tab strip is drawn above it (`design/tabs.md`). */
 export const headerOnBand = () => !stripsShown(layout());
+
+/**
+ * Full screen and back, from a double press on the window's top band (the sidebar's line, a pane's header): the macOS
+ * green button does the same. `setMode` keeps the bounds it returns to, so the window comes back as it was.
+ */
+export function toggleFullScreen(): void {
+  if (!isAvailable) return;
+  const w = Window.get("main");
+  if (!w) return;
+  w.setMode(w.state()?.mode === "fullScreen" ? "normal" : "fullScreen");
+}

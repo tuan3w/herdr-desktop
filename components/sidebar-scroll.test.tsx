@@ -17,7 +17,7 @@ const offset = (app: App) => Number(text(app, "tree offset ").slice(12));
 
 const ready = async () => {
   const app = await lab();
-  await app.waitFor("label:/^Board, \\d+ need/");
+  await app.waitFor("admin panel");
   await app.wait(300);
   return app;
 };

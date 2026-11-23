@@ -26,7 +26,6 @@ import {
   removePanel,
   rowKeyOf,
   selectNth,
-  showBoard,
 } from "#lib/dock";
 import { allRows, board, meta, rowOf } from "#lib/herdr";
 import { back, forward, previousAgent, previousProject, stepProject, switcherKey } from "#lib/nav";
@@ -151,7 +150,7 @@ function paneMeta(machine: string, pane: string): PaneMeta | null {
   return one();
 }
 
-/** The focused pane with what the commands on it need; `null` on the board. */
+/** The focused pane with what the commands on it need; `null` with no pane in front. */
 interface Here {
   machine: string;
   pane: string;
@@ -194,7 +193,7 @@ function fail(what: string, e: unknown): void {
   notify(`${what}: ${message(e)}`, { type: "error" });
 }
 
-/** The file browser at the focused pane's folder on its machine; from the board, at this computer's home. */
+/** The file browser at the focused pane's folder on its machine; with no pane in front, at this computer's home. */
 function browsePaneFiles(): void {
   const at = focusedPane();
   browseFiles(at?.machine ?? "local", (at && paneMeta(at.machine, at.pane)?.cwd) || "~");
@@ -399,7 +398,7 @@ async function toggleView(which?: "chat" | "terminal"): Promise<void> {
 }
 
 async function focusPaneArea(): Promise<void> {
-  if (focused() === "board" || focused() === "") {
+  if (focused() === "") {
     const last = lastPane();
     if (!last) {
       announce("No pane is open");
@@ -428,7 +427,6 @@ export const globalActions: Record<GlobalShortcut, () => void> = {
   undo: () => undoLast(),
   nextAttention: () => goAttention(1),
   prevAttention: () => goAttention(-1),
-  board: () => void showBoard(),
   changes: () => void reviewChanges(),
   focusPane: () => void focusPaneArea(),
   focusSidebar: focusSidebar,
@@ -537,7 +535,6 @@ export function actions(): Action[] {
 
   global("nextAttention", ["attention", "blocked", "waiting"]);
   global("prevAttention", ["attention", "blocked", "waiting"]);
-  global("board", ["home", "agents"]);
   global("changes", ["diff", "files", "git", "review", "modified", "edits"], currentCheckout() === null);
   global("switcher", ["recent", "switch", "agents", "projects", "mru"]);
   global("quickOpen", ["file", "find file", "open file", "go to file"]);
@@ -558,13 +555,9 @@ export function actions(): Action[] {
   global("copyReply", ["answer", "message", "clipboard", "markdown"], !chatInFront());
   global("attachFiles", ["file", "picture", "image", "photo", "upload"], !chatInFront());
   global("quoteCopied", ["quote", "reply", "blockquote"], !chatInFront());
-  global("closeTab", ["view"], focused() === "board" || focused() === "");
-  global(
-    "splitRight",
-    ["split", "side by side", "companion", "changes", "next to"],
-    focused() === "board" || focused() === "",
-  );
-  global("splitDown", ["split", "below", "companion", "changes"], focused() === "board" || focused() === "");
+  global("closeTab", ["view"], focused() === "");
+  global("splitRight", ["split", "side by side", "companion", "changes", "next to"], focused() === "");
+  global("splitDown", ["split", "below", "companion", "changes"], focused() === "");
   global("devPanel", ["performance", "frame"]);
   global("undo");
   const terminal = parseTerminalKey(focused());
@@ -708,9 +701,8 @@ function groupName(group: ShortcutGroup): string {
           : "App";
 }
 
-/** A tab's name for the palette: the agent's name, else `Board`. */
+/** A tab's name for the palette: the agent's name, else the pane's, else `Chat`. */
 function tabName(key: string): string {
-  if (key === "board") return "Board";
   const pane = parseTerminalKey(key);
   if (pane) return paneMeta(pane.machine, pane.pane)?.name ?? pane.pane;
   const rowKey = rowKeyOf(key);
@@ -755,7 +747,6 @@ export function appMenu(): MenuItem[] {
     {
       label: "View",
       submenu: [
-        item("Board", "board"),
         item("Sidebar", "sidebar"),
         item("Command palette", "palette"),
         { type: "separator" },

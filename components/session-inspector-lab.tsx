@@ -291,6 +291,7 @@ function Lab() {
           <If when={!params.quiet}>
             <View class="flex-row flex-wrap items-center gap-2 border-b border-border p-2">
               <Btn small label="Subagent fails" onPress={fail} />
+              <Btn small label="Poke" onPress={() => parent.change({ observed: observed(true) })} />
               <Btn small label={`Log: ${log().join(" | ") || "nothing yet"}`} onPress={() => {}} />
             </View>
           </If>

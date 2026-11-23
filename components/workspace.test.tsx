@@ -6,10 +6,8 @@ import type { App } from "nsh/test";
 import {
   DONE,
   ENTRY,
-  expandSidebar,
   FIRST,
   nameOf,
-  onBoard,
   openAgents,
   quiet,
   openTerminals,
@@ -57,19 +55,17 @@ test("a layout saved by the first version is split by project: each project keep
     },
   };
   const app = await seeded("mixed", { storage: { ...TERMINAL_ON, "herdr.dock.v1": JSON.stringify(layout) } });
-  await app.waitFor("label:Board, 2 need you");
+  await app.waitFor("text:Agent gone");
   await settle(app);
-  // The home holds the board and the stray; the payments pane moved to its project.
-  expect(app.count("role:tab")).toBe(2);
+  // The home holds the stray tab (a lone tab hides its strip, so no `role:tab`); the payments pane moved to its project, which is not shown.
+  expect(app.shows("text:Agent gone")).toBe(true);
   const doc = await savedDock(app);
   const [project] = Object.keys(doc.contexts);
   expect(doc.contexts[project].layout.center).toMatchObject({ children: [{ panels: ["terminal:local/w1:p1"] }] });
   expect(doc.strays).toEqual(["terminal:local/w9:p9"]);
   expect(app.storage()["herdr.dock.v1"]).toBeUndefined();
 
-  await app.press("Agent gone");
-  await settle(app);
-  expect(app.shows("label:Close this tab")).toBe(true);
+  // The stray tab's own card carries the close button (a lone tab hides its strip).
   await app.press("label:Close this tab");
   await settle(app);
   expect(app.count("role:tab")).toBe(0);
@@ -81,14 +77,14 @@ test("a layout saved by the first version is split by project: each project keep
   expect(shown(app, FIRST)).toBe(false);
 });
 
-test("an unreadable saved layout opens the board alone", async () => {
+test("an unreadable saved layout opens with nothing open", async () => {
   const app = await seeded("mixed", { storage: { "herdr.dock.v1": "{{ not json" } });
-  await app.waitFor("label:Board, 2 need you");
+  await app.waitFor("label:Nothing open");
   expect(app.count("role:tab")).toBe(0);
-  expect(onBoard(app)).toBe(true);
+  expect(app.shows("label:Nothing open")).toBe(true);
 });
 
-test("split on the board says there is none; on a tab that shares its group the tab moves into a new group beside it", async () => {
+test("split with nothing open says so; on a tab that shares its group the tab moves into a new group beside it", async () => {
   const app = await ready();
   await app.keyboard.press("mod+\\");
   await app.clock!.runFor(700);
@@ -160,9 +156,13 @@ test("the chat's Open beside button, a row's Open to the side and the palette's 
 
 test("in a narrow window Review changes stays a tab of the chat's group: one view at a time", async () => {
   const app = await seeded("mixed", { width: 800 });
-  await app.waitFor("label:Board, 2 need you");
+  await app.waitFor("label:Nothing open");
   await quiet(app);
-  await openAgents(app, FIRST);
+  // The sidebar is a rail at this width; open the agent through the palette.
+  await app.keyboard.press("mod+shift+l");
+  await app.type("label:Search agents, projects and commands", FIRST);
+  await app.press(`label:/^${FIRST}, / >> nth=0`);
+  await settle(app);
   await app.keyboard.press("mod+shift+g");
   await settle(app);
   const groups = await saved(app);
@@ -250,7 +250,7 @@ test("a pane herdr could not restore says so with herdr's reason in the terminal
 
 test("the chat of an agent in a pane herdr could not restore is the same card, with no message box and nothing read", async () => {
   const app = await seeded("unrestored");
-  await app.waitFor("label:Board, 2 need you");
+  await app.waitFor("label:Nothing open");
   await app.press(sidebarRow(FIRST));
   await app.waitFor("text:Not running");
   expect(app.shows("text:/payments-api no longer exists/")).toBe(true);
@@ -348,7 +348,7 @@ test("an agent with a chat opens as a chat; Show terminal swaps the tab for its 
   expect(app.shows("label:Show terminal")).toBe(true);
   expect(app.count("role:tab")).toBe(0);
   const [group] = await saved(app);
-  expect(group.panels.map((p) => (p === "board" ? p : nameOf(p)))).toEqual([FIRST]);
+  expect(group.panels.map(nameOf)).toEqual([FIRST]);
 });
 
 test("a terminal agent that was shown as a terminal opens as one again until Show chat", async () => {
@@ -382,7 +382,6 @@ test("a terminal agent whose log can be read has Show chat in its header and it 
 
 test("a project's menu and the chat's header open the Changes tab of the checkout they are about", async () => {
   const app = await ready();
-  await expandSidebar(app);
   await showQuiet(app, "label:Options for web");
   await app.press("label:Options for web");
   await app.clock!.runFor(300);

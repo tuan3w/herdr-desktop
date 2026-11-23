@@ -3,21 +3,8 @@ import { expect, test } from "nsh/test";
 
 import type { App } from "nsh/test";
 
-import {
-  DONE,
-  ENTRY,
-  expandSidebar,
-  FIRST,
-  front,
-  openAgents,
-  ready,
-  SECOND,
-  savedDock,
-  settle,
-  sidebarRow,
-  WEB,
-} from "../app-seam";
-import { scripted } from "./board-seam";
+import { DONE, ENTRY, FIRST, front, openAgents, ready, SECOND, savedDock, settle, sidebarRow, WEB } from "../app-seam";
+import { scripted } from "./test-seam";
 
 ENTRY.path = "../App.tsx";
 
@@ -62,16 +49,10 @@ test("ctrl+tab works with the keyboard in a message box, where a text field keep
   expect(await front(app)).toBe(WEB);
 });
 
-test("from the board, ctrl+tab goes to the agent visited last, and with nothing visited it says so and opens nothing", async () => {
-  const fresh = await ready();
-  await tap(fresh, "ctrl+tab");
-  expect(fresh.count("role:tab")).toBe(0);
-
+test("with nothing visited, ctrl+tab opens nothing", async () => {
   const app = await ready();
-  await openAgents(app, FIRST, SECOND);
-  await tap(app, "mod+1");
   await tap(app, "ctrl+tab");
-  expect(await front(app)).toBe(SECOND);
+  expect(app.count("role:tab")).toBe(0);
 });
 
 test("ctrl+shift+tab swaps the two projects visited last, and next and previous project walk the sidebar's order, wrapping", async () => {
@@ -132,13 +113,13 @@ test("back and forward walk the places gone to by command, and a new command dro
   expect(await front(app)).toBe(FIRST);
 });
 
-test("back goes as far as the board, where the person started, and no further", async () => {
+test("back stops at the first agent the person went to: nothing is behind it, and a second press does not move", async () => {
   const app = await ready();
   await openAgents(app, FIRST);
   await tap(app, "mod+[");
-  expect(await front(app)).toBe("board");
+  expect(await front(app)).toBe(FIRST);
   await tap(app, "mod+[");
-  expect(await front(app)).toBe("board");
+  expect(await front(app)).toBe(FIRST);
 });
 
 test("the history skips an agent that is gone", async () => {
@@ -272,7 +253,6 @@ test("Shift+Enter in the Switcher opens the agent here: its tab joins the worksp
 
 test("a project's header folds it, and Open project in its menu shows its workspace", async () => {
   const app = await ready();
-  await expandSidebar(app);
   await app.press("label:Fold payments >> nth=0");
   expect(app.shows("label:Unfold payments")).toBe(true);
   // Folding changed nothing about what is shown.

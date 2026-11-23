@@ -25,7 +25,7 @@ async function pressUntil(app: App, button: string, done: () => boolean): Promis
 test("the header is one line with the title and no state word, no Details button; the title opens the session's facts", async () => {
   const app = await open("./session-lab.tsx", { ...DESKTOP, host: { params: { mode: "scripted", scene: "chat" } } });
   await app.waitFor(BOX);
-  expect(app.texts()).toContain("Fix the login redirect");
+  expect(app.shows("label:Fix the login redirect, session details")).toBe(true);
   expect(app.shows("Details")).toBe(false);
   expect(app.shows("Ready")).toBe(false);
   expect(app.shows("Session details")).toBe(false);

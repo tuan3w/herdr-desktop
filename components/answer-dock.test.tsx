@@ -4,8 +4,8 @@ import { afterEach, expect, open, test } from "nsh/test";
 import type { App } from "nsh/test";
 
 import mixed from "../fixtures/herdr/mixed.json";
-import { scripted, sentKeys } from "./board-seam";
 import { endSessions } from "./chat-parts-seam";
+import { scripted, sentKeys } from "./test-seam";
 
 /**
  * The one answer dock, from both of its sources. A terminal agent's menu runs against the scripted herdr's Claude Code

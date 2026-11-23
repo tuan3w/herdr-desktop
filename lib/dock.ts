@@ -16,19 +16,18 @@ import { forgetView } from "#lib/view-state";
  * walking groups, the saved document) is tested without a window in `dock.test.ts`.
  *
  * **Contexts.** The workspace shows one context at a time: a project (`BoardProject.key`) with the tabs the person keeps
- * for it, or `HOME`, the one context outside any project, which holds the board and whatever was left there. Each has its
+ * for it, or `HOME`, the one context outside any project, which holds whatever was left there. Each has its
  * own layout (groups, splits, sizes, the displayed tab of each group) and its own focused tab. `switchContext` swaps the
  * layout the area shows and the old project's tabs unmount; what a tab held beyond its layout (an unsent message, a
  * chat's scroll) is `lib/view-state.ts`'s. A tab belongs to its agent's project: `openPanel` of an agent that is open
  * somewhere shows it where it is, else adds it to its project's context and goes there, unless `here` asks to put it in
- * the context the person is in (which moves it: a tab is in one context only). A project context may be empty (the
- * workspace then shows the project's own card); the board is never closable, so `HOME` never is.
+ * the context the person is in (which moves it: a tab is in one context only). A context may be empty (the workspace
+ * then shows its empty state: a project its own card, the home nothing open).
  *
- * Panel keys: `board` (the home tab, never closable), `terminal:<machine>/<paneId>` (the real terminal of a pane: the herdr client attached to it) and
+ * Panel keys: `terminal:<machine>/<paneId>` (the real terminal of a pane: the herdr client attached to it) and
  * `session:<machine>/<id>` (a chat: an agent session of a keeper, or, with the id `pane:<paneId>`, the chat read from
  * the log of the agent in that terminal pane). A tab is a view: closing it never closes the pane or the session.
  */
-export const BOARD = "board";
 /** The context outside any project. Project keys are `machine/...` paths, so this cannot be one. */
 export const HOME = "home";
 export const STORAGE_KEY = "herdr.dock.v2";
@@ -63,7 +62,7 @@ function split(prefix: string, key: string): { machine: string; rest: string } |
   return { machine: key.slice(prefix.length, slash), rest: key.slice(slash + 1) };
 }
 
-/** The machine and pane a panel key names, `null` for the board and for anything else. */
+/** The machine and pane a panel key names, `null` for anything else. */
 export function parseTerminalKey(key: string): { machine: string; pane: string } | null {
   const at = split(TERMINAL, key);
   return at && { machine: at.machine, pane: at.rest };
@@ -87,7 +86,7 @@ export function parseFilesKey(key: string): { machine: string; dir: string } | n
   return at && (at.rest.startsWith("/") || at.rest.startsWith("~")) ? { machine: at.machine, dir: at.rest } : null;
 }
 
-/** The key of the board row a tab is about (`BoardRow.key`), `null` for the board: a pane, a terminal agent's chat and a keeper session each map to their one row. */
+/** The key of the board row a tab is about (`BoardRow.key`), `null` for anything else: a pane, a terminal agent's chat and a keeper session each map to their one row. */
 export function rowKeyOf(panel: string): string | null {
   const pane = parseTerminalKey(panel);
   if (pane) return `${pane.machine}/${pane.pane}`;
@@ -100,15 +99,10 @@ export function rowKeyOf(panel: string): string | null {
 
 const validKey = (key: unknown): key is string =>
   typeof key === "string" &&
-  (key === BOARD ||
-    parseTerminalKey(key) !== null ||
+  (parseTerminalKey(key) !== null ||
     parseSessionKey(key) !== null ||
     parseChangesKey(key) !== null ||
     parseFilesKey(key) !== null);
-
-export function defaultLayout(): DockAreaLayout {
-  return { center: { type: "split", axis: "horizontal", children: [{ type: "tabs", panels: [BOARD] }] } };
-}
 
 /** One tab group of the center, as the commands see it. `id` is the area's, known once it reported a layout. */
 export interface Group {
@@ -165,10 +159,10 @@ export interface CompanionFacts {
 /**
  * The view that goes beside `key` when a person splits it alone: an agent's chat gets its Changes (a git folder) or else
  * the terminal of its pane (only while the terminal tab is on, `terminalEnabled`); Changes and a terminal get the agent's
- * own view. Never the key itself, so a split never shows one view twice. `why` says what to do when there is none (the board, a keeper's chat outside a repository).
+ * own view. Never the key itself, so a split never shows one view twice. `why` says what to do when there is none (a
+ * keeper's chat outside a repository).
  */
 export function companionOf(key: string, facts: CompanionFacts): { key: string } | { why: string } {
-  if (key === BOARD) return { why: "The board has no split: open an agent, then split it" };
   const changes = parseChangesKey(key);
   if (changes) {
     return facts.view && facts.view !== key
@@ -255,48 +249,30 @@ export function withSplit(
   return groups(base).length === 0 ? { center: rootOf(fresh) } : { ...base, center: rootOf(walk(base.center)) };
 }
 
-/** The layout of a context with no tab: what a project shows before anything is opened in it. */
+/** The layout of a context with no tab: what the home and a project show before anything is opened. */
 export function emptyLayout(): DockAreaLayout {
   return { center: { type: "split", axis: "horizontal", children: [] } };
 }
 
 /**
- * A saved layout made safe to show: unknown panels and repeats are dropped, empty groups go. `home` is the layout of the
- * context outside any project: the board is always there (put back at the front of the first group when the file lost
- * it) and anything unreadable gives the default layout. A project's layout never holds the board, and nothing left of it
- * is an empty layout (a project may have no tab open). Only the center is kept: this app has no docks.
+ * A saved layout made safe to show: unknown panels and repeats are dropped, empty groups go, and nothing left is an
+ * empty layout (the home and a project may both have no tab open). Only the center is kept: this app has no docks.
  */
-export function layoutOf(parsed: unknown, home: boolean): DockAreaLayout {
-  const none = home ? defaultLayout() : emptyLayout();
-  // The board is the home's alone: marking it seen drops it from every project's layout.
+export function layoutOf(parsed: unknown): DockAreaLayout {
   const center =
-    typeof parsed === "object" && parsed !== null && "center" in parsed
-      ? clean(parsed.center, new Set(home ? [] : [BOARD]))
-      : null;
-  if (!center) return none;
+    typeof parsed === "object" && parsed !== null && "center" in parsed ? clean(parsed.center, new Set()) : null;
+  if (!center) return emptyLayout();
   const root: DockNode = center.type === "split" ? center : { type: "split", axis: "horizontal", children: [center] };
-  const layout: DockAreaLayout = { center: root };
-  if (home && !panelsOf(layout).includes(BOARD)) {
-    const put = (node: DockNode): boolean => {
-      if (node.type === "tabs") {
-        node.panels.unshift(BOARD);
-        node.activeIndex = (node.activeIndex ?? 0) + 1;
-        return true;
-      }
-      return node.children.some(put);
-    };
-    put(layout.center);
-  }
-  return layout;
+  return { center: root };
 }
 
-/** The home layout in a JSON text (the first version's file): anything unreadable gives the default layout. */
+/** The home layout in a JSON text (the first version's file): anything unreadable is an empty layout. */
 export function readLayout(raw: string | null | undefined): DockAreaLayout {
-  if (!raw) return defaultLayout();
+  if (!raw) return emptyLayout();
   try {
-    return layoutOf(JSON.parse(raw), true);
+    return layoutOf(JSON.parse(raw));
   } catch {
-    return defaultLayout();
+    return emptyLayout();
   }
 }
 
@@ -360,11 +336,10 @@ export function activate(layout: DockAreaLayout, key: string): DockAreaLayout {
   });
 }
 
-/** The tab a layout comes back to: `wanted` when it is there, else the board of the home, else the first group's displayed tab, else none (`""`). */
-export function restoreFocus(layout: DockAreaLayout, wanted: string | undefined, home: boolean): string {
+/** The tab a layout comes back to: `wanted` when it is there, else the first group's displayed tab, else none (`""`). */
+export function restoreFocus(layout: DockAreaLayout, wanted: string | undefined): string {
   const panels = panelsOf(layout);
   if (wanted !== undefined && panels.includes(wanted)) return wanted;
-  if (home && panels.includes(BOARD)) return BOARD;
   const first = groups(layout)[0];
   return first?.panels[first.active] ?? "";
 }
@@ -395,20 +370,20 @@ export function readDock(raw: string | null | undefined): Contexts | null {
   }
   if (typeof doc !== "object" || doc === null || (doc as { v?: unknown }).v !== 2) return null;
   const d = doc as { current?: unknown; home?: unknown; contexts?: unknown; strays?: unknown };
-  const one = (value: unknown, home: boolean): Context => {
+  const one = (value: unknown): Context => {
     const c = (typeof value === "object" && value !== null ? value : {}) as Partial<Context>;
-    const layout = layoutOf(c.layout, home);
+    const layout = layoutOf(c.layout);
     return {
       layout,
-      focused: restoreFocus(layout, typeof c.focused === "string" ? c.focused : undefined, home),
+      focused: restoreFocus(layout, typeof c.focused === "string" ? c.focused : undefined),
       savedAt: typeof c.savedAt === "number" ? c.savedAt : 0,
     };
   };
-  const contexts: Record<string, Context> = { [HOME]: one(d.home, true) };
+  const contexts: Record<string, Context> = { [HOME]: one(d.home) };
   if (typeof d.contexts === "object" && d.contexts !== null)
-    for (const [key, value] of Object.entries(d.contexts)) if (key !== HOME) contexts[key] = one(value, false);
+    for (const [key, value] of Object.entries(d.contexts)) if (key !== HOME) contexts[key] = one(value);
   const current = typeof d.current === "string" && d.current in contexts ? d.current : HOME;
-  const strays = Array.isArray(d.strays) ? d.strays.filter((k): k is string => validKey(k) && k !== BOARD) : [];
+  const strays = Array.isArray(d.strays) ? d.strays.filter((k): k is string => validKey(k)) : [];
   return { current, contexts, strays };
 }
 
@@ -439,7 +414,6 @@ export function bucket(
   const moved = new Map<string, string[]>();
   const strays: string[] = [];
   for (const panel of panelsOf(layout)) {
-    if (panel === BOARD) continue;
     const key = project(panel);
     if (key) moved.set(key, [...(moved.get(key) ?? []), panel]);
     else strays.push(panel);
@@ -454,7 +428,7 @@ export function bucket(
 // ---- state ----
 
 /** The layout shown, as the area last reported it. */
-export const layout = signal<DockAreaLayout>(defaultLayout());
+export const layout = signal<DockAreaLayout>(emptyLayout());
 /** The context shown: `HOME`, or a project's key (`BoardProject.key`). */
 export const context = signal<string>(HOME);
 /** Whether the saved layouts have been read: the workspace mounts after, so it never shows the default and then jumps. */
@@ -467,8 +441,8 @@ export const entered = signal(0);
  * displayed, so a click on a displayed tab of another group does not move it: select it or use `focusPane`. Empty
  * (`""`) in a project that has no tab open.
  */
-export const focused = signal<string>(BOARD);
-/** The agent tab (pane or chat) used last: where `focusPane` goes from the board. */
+export const focused = signal<string>("");
+/** The agent tab (pane or chat) used last: where `focusPane` goes when no tab is in front. */
 export const lastPane = signal<string | null>(null);
 
 let area: DockAreaRef | undefined;
@@ -491,7 +465,7 @@ function install(doc: Contexts): void {
   context.set(doc.current);
   layout.set(at.layout);
   focused.set(at.focused);
-  if (at.focused !== BOARD && at.focused !== "") lastPane.set(at.focused);
+  if (at.focused !== "") lastPane.set(at.focused);
 }
 
 /**
@@ -508,8 +482,8 @@ export async function loadDock(): Promise<void> {
         const home = readLayout(old);
         install({
           current: HOME,
-          contexts: { [HOME]: { layout: home, focused: BOARD, savedAt: Date.now() } },
-          strays: panelsOf(home).filter((p) => p !== BOARD),
+          contexts: { [HOME]: { layout: home, focused: "", savedAt: Date.now() } },
+          strays: panelsOf(home),
         });
         migrating = true;
       }
@@ -551,7 +525,7 @@ function write(): void {
 /** The area reported a new layout: show it and write it once the edits stop. */
 export function setLayout(next: DockAreaLayout): void {
   layout.set(next);
-  if (!panelsOf(next).includes(focused())) focused.set(restoreFocus(next, undefined, context() === HOME));
+  if (!panelsOf(next).includes(focused())) focused.set(restoreFocus(next, undefined));
   saveSoon();
 }
 
@@ -570,7 +544,7 @@ export function onArrival(listener: ((key: string, deliberate: boolean) => void)
 
 function focus(key: string, deliberate: boolean): void {
   focused.set(key);
-  if (key !== BOARD && key !== "") lastPane.set(key);
+  if (key !== "") lastPane.set(key);
   arrival?.(key, deliberate);
 }
 
@@ -592,7 +566,7 @@ function chosen(key: string): void {
 
 /**
  * The pane the focused tab is about: a terminal tab's own, or the pane a chat read from its terminal comes from (the pane
- * commands, rename and close in herdr, work from either view). `null` on the board and in a keeper's chat, which has no pane.
+ * commands, rename and close in herdr, work from either view). `null` in a keeper's chat, which has no pane.
  */
 export function focusedPane(): { machine: string; pane: string } | null {
   const key = focused();
@@ -640,9 +614,8 @@ export function projectOfFolder(
 export const folderProject = (machine: string, cwd: string): string | null =>
   projectOfFolder(board().projects, machine, cwd, Git.canonicalPath);
 
-/** The context a panel belongs to: the home for the board, the project of its agent's row or of its checkout, `null` when that is not known (a shell pane, an agent the board has not listed yet). */
+/** The context a panel belongs to: the project of its agent's row or of its checkout, `null` when that is not known (a shell pane, an agent the board has not listed yet). */
 export function homeOf(key: string): string | null {
-  if (key === BOARD) return HOME;
   const changes = parseChangesKey(key);
   if (changes) return folderProject(changes.machine, changes.cwd);
   const files = parseFilesKey(key);
@@ -662,13 +635,13 @@ function editSaved(key: string, edit: (layout: DockAreaLayout) => DockAreaLayout
   const at = contexts[key];
   if (at) contexts[key] = { ...at, layout: edit(at.layout), savedAt: Date.now() };
   const fixed = contexts[key];
-  if (fixed) fixed.focused = restoreFocus(fixed.layout, fixed.focused, key === HOME);
+  if (fixed) fixed.focused = restoreFocus(fixed.layout, fixed.focused);
   saveSoon();
 }
 
 /** What a switch says to a screen reader: the context, how many tabs it holds and how many agents of it need the person. */
 function summary(key: string, tabs: number): string {
-  if (key === HOME) return "Home, board";
+  if (key === HOME) return "Home";
   const project = projectOf(key);
   const n = tabs === 0 ? "no tabs" : tabs === 1 ? "1 tab" : `${tabs} tabs`;
   const needs =
@@ -691,14 +664,13 @@ export function switchContext(key: string, options: { focus?: string; arrive?: b
   if (key !== HOME && !projectOf(key) && !contexts[key]) return false;
   remember();
   const saved = contexts[key];
-  const home = key === HOME;
-  const fresh: DockAreaLayout = saved?.layout ?? (home ? defaultLayout() : emptyLayout());
+  const fresh: DockAreaLayout = saved?.layout ?? emptyLayout();
   const wanted = options.focus ?? saved?.focused;
-  const tab = restoreFocus(fresh, wanted, home);
+  const tab = restoreFocus(fresh, wanted);
   context.set(key);
   layout.set(tab === "" ? fresh : activate(fresh, tab));
   focused.set(tab);
-  if (tab !== "" && tab !== BOARD) lastPane.set(tab);
+  if (tab !== "") lastPane.set(tab);
   entered.update((n) => n + 1);
   saveSoon();
   if (options.arrive === false) return true;
@@ -731,7 +703,7 @@ export function adopt(): void {
       for (const [project, panels] of placed) {
         const at = contexts[project] ?? { layout: emptyLayout(), focused: "", savedAt: Date.now() };
         const next = panels.reduce((l, panel) => withPanel(l, panel, undefined), at.layout);
-        contexts[project] = { layout: next, focused: restoreFocus(next, at.focused, false), savedAt: Date.now() };
+        contexts[project] = { layout: next, focused: restoreFocus(next, at.focused), savedAt: Date.now() };
       }
       for (const panel of gone) strays.delete(panel);
       if (here) setLayout(withoutPanels(layout(), gone));
@@ -791,7 +763,7 @@ export async function openPanel(key: string, options: OpenOptions = {}): Promise
     if (id === undefined) area.addPanel(key);
     else area.movePanel(key, { group: id });
   }
-  if (context() === HOME && homeOf(key) === null && key !== BOARD) strays.add(key);
+  if (context() === HOME && homeOf(key) === null) strays.add(key);
   chosen(key);
 }
 
@@ -852,11 +824,9 @@ export async function focusComposerSoon(): Promise<void> {
 
 const later = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-export const showBoard = (): Promise<void> => openPanel(BOARD);
-
-/** Closes a tab as a person closes a view: the pane keeps running. The board stays; a project that loses its last tab stays, empty. */
+/** Closes a tab as a person closes a view: the pane keeps running. A project that loses its last tab stays, empty. */
 export function closeTab(key: string): void {
-  if (key === BOARD || key === "") return;
+  if (key === "") return;
   leave(key, () => area?.closePanel(key));
 }
 
@@ -972,7 +942,7 @@ export async function openBeside(key: string, where: "right" | "bottom" = "right
     return true;
   }
   setLayout(withSplit(layout(), key, anchor, where));
-  if (context() === HOME && homeOf(key) === null && key !== BOARD) strays.add(key);
+  if (context() === HOME && homeOf(key) === null) strays.add(key);
   chosen(key);
   announce(`Opened ${where === "bottom" ? "below" : "beside"}`);
   return true;

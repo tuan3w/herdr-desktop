@@ -38,7 +38,7 @@ Inter for text, IBM Plex Mono for identifiers (`design/typography.md` has the ta
 | `project` | 28 | `min-h-7 px-3` | a header labels the rows under it and must not be as tall as one |
 | `nav` | 32 | `min-h-8 px-3` | the height of a small control: one line of chrome |
 | `more` | 28 | `min-h-7 px-3` | a quiet row (`3 more idle`) |
-| `table` | 32 | `min-h-8 px-3` | the board's table: a default control's height (36 is off the ladder) |
+| `table` | 32 | `min-h-8 px-3` | a data table row (files, file kinds): a default control's height (36 is off the ladder) |
 | `tab` | 32 | `relative h-8 min-w-30 max-w-56 flex-1` | the dock's tabs: a 32-pt chip with 4 pt around it is one `BAR` |
 
 `BAR` (40) is the top band (on macOS the window's own top edge, the system title bar hidden: `lib/chrome.ts`): the sidebar's first line, the tab strip and a pane's header (`TopBar`) are each one `BAR`, so their centre lines meet. A header's text sits 24 pt in (20 of bar padding and the first control's 4), on the conversation column's edge.
@@ -73,7 +73,7 @@ Five layers, from the page up. Colour comes from the tokens of `design/colors.md
 | sidebar | 264 default, 240 to 420 draggable (`SIDEBAR_WIDTH`; `clampSidebar`, a drag ending 48 under 240 folds to the rail: `settleDrag`) | 264 holds a 13-pt title of about 30 characters beside a glyph and a count; 420 is where more width only takes room from the conversation |
 | snug sidebar | 240, fixed (`SIDEBAR_WIDTH.narrow`) at 900 to 1100 | the conversation keeps its measure |
 | rail | 64 (`RAIL_WIDTH`), 44-pt tiles | under 900, or collapsed |
-| home | grows with the window to 1440 (`COLUMN.home`); the Board is one table, never columns of cards | the title is the one elastic column, so it is uncapped on every laptop; past 1440 the eye travels too far from a title to its state |
+| home | grows with the window to 1440 (`COLUMN.home`): the empty state's card | past 1440 the eye travels too far from a title to its state |
 | chat | 768 (`COLUMN.chat`, `CHAT_COLUMN`: `max-w-3xl`, 24 pt of padding, so the text is 720) | the owner's readable measure; about 95 characters of 14-pt prose, above the 75 of emil-typography, accepted because a message is short and code and tables need the width. Extra window width goes to the inspector, not margins |
 | settings page | 640 (`COLUMN.page`) | a label, its description and its control read as one line |
 | dialogs | 560, 760 (`wide`), 1000 (`huge`) | `Modal` |
