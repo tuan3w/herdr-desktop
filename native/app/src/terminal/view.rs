@@ -494,6 +494,7 @@ pub fn Terminal(props: TerminalProps, cx: Scope<TerminalEvent>) -> impl IntoElem
             when: nsh_core::keymap::When::Always,
             repeat: true,
             pass_through: false,
+            for_focus: false,
         };
         for stroke in keys::bound(apple) {
             let Some(parsed) = keys::parse(&stroke, apple) else {

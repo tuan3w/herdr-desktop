@@ -133,7 +133,7 @@ export function CheckRow(props: {
         if (!props.readOnly) props.onChange(props.indeterminate || !props.checked);
       }}
       onFocus={() => {
-        holdReturn ??= keymap.bind("enter", () => {});
+        holdReturn ??= keymap.bind("enter", () => {}, { forFocus: true });
         control.focused();
       }}
       onBlur={() => {

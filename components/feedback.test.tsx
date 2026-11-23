@@ -187,7 +187,7 @@ test("nested dialogs: Escape and the scrim close the newest only, each with its 
   await app.clock!.runFor(400);
   expect(app.shows("Dialog B")).toBe(false);
   expect(app.shows("Dialog A")).toBe(true);
-  await app.press("id:dialog-scrim");
+  await app.press("id:dialog-scrim-edge");
   await app.clock!.runFor(400);
   expect(app.shows("Dialog A")).toBe(false);
   expect(app.texts()).toContain("B escape-key");
@@ -207,7 +207,7 @@ test("an owner can refuse to close: Escape and the scrim only ask, until the own
   const app = await lab();
   await app.press("Open refusing dialog");
   await app.keyboard.press("escape");
-  await app.press("id:dialog-scrim");
+  await app.press("id:dialog-scrim-edge");
   await app.clock!.runFor(400);
   expect(app.shows("Refusing dialog")).toBe(true);
   expect(app.texts()).toContain("refused escape-key");
@@ -221,7 +221,7 @@ test("an owner can refuse to close: Escape and the scrim only ask, until the own
 test("with disablePointerDismissal a press on the scrim asks nothing, and Escape still does", async () => {
   const app = await lab();
   await app.press("Open drafting dialog");
-  await app.press("id:dialog-scrim");
+  await app.press("id:dialog-scrim-edge");
   await app.clock!.runFor(400);
   expect(app.shows("Drafting dialog")).toBe(true);
   expect(app.texts().some((t) => t.startsWith("drafting"))).toBe(false);

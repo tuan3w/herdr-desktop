@@ -523,7 +523,9 @@ impl Fleet {
     /// Starts the link of `machine` and a pump that hands its pane activity to the scheduler.
     fn start_link(&self, machine: &Machine) -> Arc<MachineLink> {
         let wire: Arc<dyn Wire> = if machine.is_local() {
-            Arc::new(LocalWire::new(&self.local_socket))
+            // A real local herdr that is not running is started headless on first contact; a
+            // scripted test herdr never is.
+            Arc::new(LocalWire::new(&self.local_socket).auto_start(self.fixture.is_none()))
         } else {
             self.remote_wire(machine)
         };

@@ -62,7 +62,7 @@ export function TipText(props: { children?: JSX.Element }) {
  */
 export function TipContent(props: { label: string; shortcut?: string }) {
   return (
-    <View class="flex-row items-center gap-2">
+    <View class="flex-col items-start gap-1">
       <TipText>{props.label}</TipText>
       <If when={props.shortcut}>{(keys) => <Keys keys={keys()} tone="tip" />}</If>
     </View>

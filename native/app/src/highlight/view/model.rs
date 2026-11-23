@@ -1,9 +1,10 @@
 //! The two components: props, state, highlighting and the rows each one hands to the renderer.
 
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet, VecDeque, hash_map::DefaultHasher};
+use std::hash::Hasher;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
 use nsh_core::{element::measure_text, prelude::*};
@@ -222,6 +223,52 @@ struct Colouring {
     spans: Signal<Coloured>,
 }
 
+/// The spans of a finished block, kept by a hash of the text: a chat cell recycled to the same
+/// block reads its spans here instead of re-running the parser on the UI thread (up to 8 ms a
+/// block, 3-5 blocks a screen of scrolling). A text still being written changes with every chunk,
+/// so it misses while it grows and its finished state is kept for the scroll-back. Bounded: the
+/// oldest entries go when the cap is passed.
+const SPAN_CACHE_CAP: usize = 512;
+
+/// The cache's table and the order its keys were kept (what goes when the cap is passed).
+type SpanTable = (HashMap<u64, (Syntax, Arc<Vec<Span>>)>, VecDeque<u64>);
+
+static SPAN_CACHE: LazyLock<Mutex<SpanTable>> =
+    LazyLock::new(|| Mutex::new((HashMap::new(), VecDeque::new())));
+
+/// The key of a text: its hash with the length mixed in, so a hash collision is not a key collision.
+fn span_key(text: &str) -> u64 {
+    let mut h = DefaultHasher::new();
+    h.write_u64(text.len() as u64);
+    h.write(text.as_bytes());
+    h.finish()
+}
+
+/// The spans a finished block was given before, when the same text stands under the same syntax.
+fn cached_spans(text: &str, syntax: &Syntax) -> Option<Arc<Vec<Span>>> {
+    let cache = SPAN_CACHE.lock().ok()?;
+    let (have, spans) = cache.0.get(&span_key(text))?;
+    (have == syntax).then(|| spans.clone())
+}
+
+/// Keeps a finished block's spans for the next view of the same text.
+fn store_spans(text: &str, syntax: &Syntax, spans: &Arc<Vec<Span>>) {
+    let key = span_key(text);
+    let Ok(mut cache) = SPAN_CACHE.lock() else {
+        return;
+    };
+    let known = cache.0.contains_key(&key);
+    cache.0.insert(key, (syntax.clone(), spans.clone()));
+    if !known {
+        cache.1.push_back(key);
+        if cache.1.len() > SPAN_CACHE_CAP
+            && let Some(old) = cache.1.pop_front()
+        {
+            cache.0.remove(&old);
+        }
+    }
+}
+
 fn font_family(family: Option<SharedString>) -> SharedString {
     family
         .or_else(|| nsh_base::theme().font_mono.clone())
@@ -284,68 +331,87 @@ fn colour(
         let cheap = matches!(syntax, Syntax::Tree(lang) if crate::highlight::loaded(lang))
             && text.len() <= SYNC_BYTES;
         let text_arc: Arc<str> = Arc::from(&*text);
-        // Cheap blocks are read on the spot, but never for long: a text that takes more than 8 ms
-        // (or a grammar that loops on it) goes to the blocking thread like any other.
-        let quick = if cheap {
-            highlighter.lock().ok().and_then(|mut h| {
-                h.update_within(&text, Duration::from_millis(8))
-                    .map(|u| u.spans.to_vec())
-            })
-        } else {
-            None
-        };
+        // A block the app has coloured before (a recycled chat cell on a scroll-back) reads its
+        // spans from the cache: the parser does not run on the UI thread at all.
+        let hit = cached_spans(&text, &syntax);
         if matches!(syntax, Syntax::Plain) {
             colouring.spans.set(Coloured {
                 text: text_arc,
                 spans: Arc::new(Vec::new()),
             });
-        } else if let Some(spans) = quick {
+        } else if let Some(spans) = hit {
             colouring.spans.set(Coloured {
                 text: text_arc,
-                spans: Arc::new(spans),
-            });
-        } else if let Syntax::Text(name) = &syntax {
-            // The TextMate engine keeps its parser state in a type that is not `Send` (syntect's onig
-            // region, since nsh 0.5.1 pulls in `regex-onig`), so it cannot be shared with the blocking
-            // thread: the run is made there, fresh, and a growing text re-reads from its first line.
-            let (generation, name) = (generation.clone(), name.clone());
-            spawn(async move {
-                let source = text_arc.clone();
-                let job = blocking(move || {
-                    crate::highlight::Tm::by_name(&name)
-                        .map(|mut t| t.update(&source).0.to_vec())
-                        .unwrap_or_default()
-                })
-                .await;
-                if let Ok(spans) = job
-                    && generation.get() == now
-                {
-                    colouring.spans.set(Coloured {
-                        text: text_arc,
-                        spans: Arc::new(spans),
-                    });
-                }
+                spans,
             });
         } else {
-            let generation = generation.clone();
-            spawn(async move {
-                let source = text_arc.clone();
-                let job = blocking(move || {
-                    highlighter
-                        .lock()
-                        .map(|mut h| h.update(&source).spans.to_vec())
-                        .unwrap_or_default()
+            // Cheap blocks are read on the spot, but never for long: a text that takes more than
+            // 8 ms (or a grammar that loops on it) goes to the blocking thread like any other.
+            let quick = if cheap {
+                highlighter.lock().ok().and_then(|mut h| {
+                    h.update_within(&text, Duration::from_millis(8))
+                        .map(|u| u.spans.to_vec())
                 })
-                .await;
-                if let Ok(spans) = job
-                    && generation.get() == now
-                {
-                    colouring.spans.set(Coloured {
-                        text: text_arc,
-                        spans: Arc::new(spans),
-                    });
-                }
-            });
+            } else {
+                None
+            };
+            if let Some(spans) = quick {
+                let spans = Arc::new(spans);
+                store_spans(&text, &syntax, &spans);
+                colouring.spans.set(Coloured {
+                    text: text_arc,
+                    spans,
+                });
+            } else if let Syntax::Text(name) = &syntax {
+                // The TextMate engine keeps its parser state in a type that is not `Send`
+                // (syntect's onig region, since nsh 0.5.1 pulls in `regex-onig`), so it cannot be
+                // shared with the blocking thread: the run is made there, fresh, and a growing
+                // text re-reads from its first line.
+                let (generation, name, syntax) = (generation.clone(), name.clone(), syntax.clone());
+                spawn(async move {
+                    let source = text_arc.clone();
+                    let keep = source.clone();
+                    let job = blocking(move || {
+                        crate::highlight::Tm::by_name(&name)
+                            .map(|mut t| t.update(&source).0.to_vec())
+                            .unwrap_or_default()
+                    })
+                    .await;
+                    if let Ok(spans) = job
+                        && generation.get() == now
+                    {
+                        let spans = Arc::new(spans);
+                        store_spans(&keep, &syntax, &spans);
+                        colouring.spans.set(Coloured {
+                            text: text_arc,
+                            spans,
+                        });
+                    }
+                });
+            } else {
+                let (generation, syntax) = (generation.clone(), syntax.clone());
+                spawn(async move {
+                    let source = text_arc.clone();
+                    let keep = source.clone();
+                    let job = blocking(move || {
+                        highlighter
+                            .lock()
+                            .map(|mut h| h.update(&source).spans.to_vec())
+                            .unwrap_or_default()
+                    })
+                    .await;
+                    if let Ok(spans) = job
+                        && generation.get() == now
+                    {
+                        let spans = Arc::new(spans);
+                        store_spans(&keep, &syntax, &spans);
+                        colouring.spans.set(Coloured {
+                            text: text_arc,
+                            spans,
+                        });
+                    }
+                });
+            }
         }
     });
     colouring

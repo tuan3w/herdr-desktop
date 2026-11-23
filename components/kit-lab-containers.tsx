@@ -62,7 +62,6 @@ const SCRIPTS: Fake[] = [
 ];
 
 const KINDS: Fake[] = [
-  { title: "Board", kind: "board" },
   { title: "Waiting on you", project: "payments-api", badge: "signal" },
   { title: "Finished, not reviewed", project: "ledger", badge: "unseen" },
   { title: "Working", project: "infra", badge: "working" },
@@ -148,7 +147,7 @@ function Chip(props: { fake: Fake; active?: boolean; hover?: boolean; tiled?: bo
         badge={props.fake.badge ?? ""}
         away={props.fake.away}
         active={props.active === true}
-        closable={props.fake.kind !== "board"}
+        closable
         tiled={props.tiled === true && props.active !== true}
         hover={props.hover}
       />

@@ -59,7 +59,9 @@ export function PaletteDialog(props: {
           importantForAccessibility="no-hide-descendants"
           onPress={() => ask("outside-press")}
           class="absolute inset-0 bg-black/40"
-        />
+        >
+          <View testID="dialog-scrim-edge" onPress={() => ask("outside-press")} class="h-1 w-full" />
+        </View>
         <View
           style={pop}
           accessibilityLabel={props.label ?? "Command palette"}

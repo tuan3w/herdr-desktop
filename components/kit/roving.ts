@@ -150,7 +150,9 @@ export function createRoving(options: RovingOptions): Roving {
   effect(() => {
     if (!focused()) return;
     const offKeys = keymap.bind(Object.fromEntries(keys.map(([key, move]) => [key, () => go(move)])), { repeat: true });
-    const offActivate = keymap.bind(Object.fromEntries(options.activateKeys.map((key) => [key, activate])));
+    const offActivate = keymap.bind(Object.fromEntries(options.activateKeys.map((key) => [key, activate])), {
+      forFocus: true,
+    });
     const offType = options.typeahead
       ? keymap.bind(Object.fromEntries(TYPING_KEYS.map((key) => [key, () => type(key)])))
       : () => {};

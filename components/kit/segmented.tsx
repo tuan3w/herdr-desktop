@@ -42,6 +42,7 @@ export function Segmented<T extends string>(props: {
   options: SegmentOption<T>[];
   iconOnly?: boolean;
   label?: string;
+  class?: string;
 }) {
   const height = () => (largeTargets() ? "h-11" : "h-7");
   return (
@@ -49,7 +50,7 @@ export function Segmented<T extends string>(props: {
       value={props.value}
       onChange={props.onChange}
       label={props.label}
-      class="max-w-full flex-row gap-px self-start rounded-md bg-muted p-0.5"
+      class={`max-w-full flex-row gap-px self-start rounded-md bg-muted p-0.5 ${props.class ?? ""}`}
     >
       <Each of={props.options} key={(o: SegmentOption<T>) => o.value}>
         {(o) => (

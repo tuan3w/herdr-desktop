@@ -1,6 +1,6 @@
 [package]
 name = "herdr-desktop-native"
-version = "0.1.0-alpha.15"
+version = "0.1.0-alpha.16"
 edition = "2024"
 license = "GPL-3.0-or-later"
 publish = false
@@ -14,8 +14,8 @@ default = ["terminal"]
 terminal = ["dep:libghostty-vt", "dep:libghostty-vt-sys", "dep:rustix"]
 
 [dependencies]
-nsh-core = "0.5.1"
-nsh-base = "0.5.1"
+nsh-core = "0.6.0"
+nsh-base = "0.6.0"
 herdr-core = { path = "../core" }
 async-channel = "2"
 crossbeam-channel = "0.5"
@@ -68,5 +68,5 @@ libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"
-nsh-engine = "0.5.1"
-nsh-testing = "0.5.1"
+nsh-engine = "0.6.0"
+nsh-testing = "0.6.0"

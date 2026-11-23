@@ -45,7 +45,7 @@ export {
   undoLast,
   updateToast,
 } from "./notify";
-export { COMPACT_WIDTH, compact, NARROW_WIDTH, narrow, rail, SNUG_WIDTH, snug } from "./responsive";
+export { COMPACT_WIDTH, compact, NARROW_WIDTH, narrow, rail, setTestWidth, SNUG_WIDTH, snug } from "./responsive";
 export { Segmented, type SegmentOption } from "./segmented";
 export { SettingRow, SettingsSection } from "./settings";
 export { Swap } from "./swap";

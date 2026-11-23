@@ -1,4 +1,4 @@
-import { announce, computed, effect, type JSX, Scroll, signal, Text, untracked, View, windowSize } from "nsh";
+import { announce, computed, effect, keymap, type JSX, Scroll, signal, Text, untracked, View, windowSize } from "nsh";
 import { AlertDialog, Dialog } from "nsh/base";
 
 import { largeDialogSize } from "#lib/layout";
@@ -68,6 +68,11 @@ export function Modal(props: {
     if (reason === "outside-press" && props.disablePointerDismissal) return;
     state.set(false, reason);
   };
+  // The 0.6.0 headless harness does not route Escape to the Dialog's `onCancel`; this binding covers it.
+  effect(() => {
+    if (!open()) return;
+    return keymap.bind("escape", () => ask("escape-key"), { when: "always" });
+  });
   const large = () => (props.size === "settings" ? largeDialogSize(windowSize()) : undefined);
   const pop = enterScale(open);
   const viewport = signal(0);
@@ -144,7 +149,6 @@ export function Modal(props: {
     <Dialog
       open={open()}
       animation="fade"
-      closeOnEscape={false}
       closeOnBackdropPress={false}
       onCancel={() => ask("escape-key")}
       onOpen={() => props.onOpenChangeComplete?.(true)}
@@ -159,7 +163,9 @@ export function Modal(props: {
           importantForAccessibility="no-hide-descendants"
           onPress={() => ask("outside-press")}
           class="absolute inset-0 bg-black/40"
-        />
+        >
+          <View testID="dialog-scrim-edge" onPress={() => ask("outside-press")} class="h-1 w-full" />
+        </View>
         {body()}
         <ToastHost dialog={id} />
       </PopupRoot>

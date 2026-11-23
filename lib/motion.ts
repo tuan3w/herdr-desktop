@@ -12,6 +12,8 @@ import {
   untracked,
 } from "nsh";
 
+export { createMotion };
+
 import type { Align, Placement, ViewStyle } from "nsh/types";
 
 import { reduceMotionOverride } from "#lib/settings";
@@ -362,6 +364,9 @@ export function arrived(key?: string): boolean {
   if (key !== undefined) shown.add(key);
   return first && !reducedMotion() && untracked(motionReady) && !keyboardRecent();
 }
+
+/** Whether a piece of motion may play now: the first screen is up, no less motion is wanted, no key was just pressed. */
+export const foldAllowed = (): boolean => !reducedMotion() && untracked(motionReady) && !keyboardRecent();
 
 const FADE_IN: MotionSpec = { keyframes: { opacity: [0, 1] }, duration: DURATION.context, easing: EASE_OUT };
 
