@@ -48,7 +48,7 @@ permissions:
 
 env:
   # The toolchain the app was written against (AGENTS.md: do not upgrade nsh unless asked).
-  NSH_VERSION: v0.5.1
+  NSH_VERSION: v0.6.0
   # Release builds are never incremental; this keeps debug ones out of the cache too.
   CARGO_INCREMENTAL: "0"
   CARGO_TERM_COLOR: always
